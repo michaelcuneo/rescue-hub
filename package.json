@@ -1,0 +1,14 @@
+{
+  "name": "rescue-hub",
+  "version": "1.0.0",
+  "description": "NATF Rescue Hub",
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@pulumi/pulumi": "^3.137.0"
+  },
+  "workspaces": [
+    "infra/*",
+    "packages/*"
+  ]
+}
