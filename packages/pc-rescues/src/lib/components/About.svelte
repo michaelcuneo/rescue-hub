@@ -46,7 +46,7 @@
 	</div>
 {/if}
 
-<style lang="postcss">
+<style>
 	.user {
 		display: flex;
 		position: fixed;
