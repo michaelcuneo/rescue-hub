@@ -3,7 +3,7 @@
 	import { fly } from 'svelte/transition';
 	import Avatar from './Avatar.svelte';
 	import Michael from '$lib/images/michael.jpg';
-	import { ChevronDown, CircleHelp, Settings, LogOut, X } from 'lucide-svelte';
+	import { ChevronDown, CircleHelp, Settings, LogOut, X } from '@lucide/svelte';
 	import About from './About.svelte';
 
 	let aboutOpen = $state(false);
