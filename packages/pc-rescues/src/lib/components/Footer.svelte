@@ -1,5 +1,5 @@
 <script lang="ts">
-	import Chat from './Chat.svelte';
+	import ChatPanel from './Chat.svelte';
 
 	const chats: Chat[] = [
 		{
@@ -14,7 +14,7 @@
 
 <div class="footer">
 	{#each chats as chat}
-		<Chat {chat} />
+		<ChatPanel {chat} />
 	{/each}
 </div>
 
