@@ -1,7 +1,7 @@
 <script>
 	import { createDialog, createSync, melt } from '@melt-ui/svelte';
 	import { fly } from 'svelte/transition';
-	import { X } from 'lucide-svelte';
+	import { X } from '@lucide/svelte';
 
 	let open = $props();
 
