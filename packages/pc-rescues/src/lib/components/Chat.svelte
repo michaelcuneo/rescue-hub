@@ -1,9 +1,16 @@
 <script lang="ts">
-	let props = $props();
+	let { chat }: { chat: Chat } = $props();
 </script>
 
-<chat>{props.id}</chat>
-<chat>{props.title}</chat>
+<div class="chat">
+	<strong>{chat.title}</strong>
+	<span>{chat.description}</span>
+</div>
 
 <style>
+	.chat {
+		display: inline-flex;
+		align-items: baseline;
+		gap: 0.5rem;
+	}
 </style>
