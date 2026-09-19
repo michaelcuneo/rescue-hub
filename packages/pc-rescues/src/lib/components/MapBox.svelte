@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { PUBLIC_MAPBOX_ACCESS_TOKEN } from '$env/static/public';
 	import { Map, Marker, controls } from '@beyonk/svelte-mapbox';
 	import { coords, mapRef, data } from '$lib/stores';
 	import Type from '$lib/components/Type.svelte';
@@ -15,34 +16,36 @@
 
 	let center: number[] = $state([151.771274, -32.927406]);
 	let zoom: number = $state(12);
-
 	let ref: Map = $state(undefined as unknown as Map);
 
 	const { GeolocateControl, NavigationControl, ScaleControl } = controls;
 
-	onMount(async () => {
-		await getLocation();
-		// Set initial Reference from ref.
+	onMount(() => {
+		if (!PUBLIC_MAPBOX_ACCESS_TOKEN) {
+			console.warn(
+				'PUBLIC_MAPBOX_ACCESS_TOKEN is not configured. Copy .env.example to .env.local and add a public Mapbox token.'
+			);
+		}
+
+		void getLocation();
 		$mapRef = ref;
-		$mapRef.flyTo({ center: [$coords[0], $coords[1]] });
 	});
 
-	const setCoords = async (position: GeolocationPosition) => {
-		coords.set([position.coords.longitude, position.coords.latitude]);
+	const setCoords = (position: GeolocationPosition) => {
+		const nextCoords = [position.coords.longitude, position.coords.latitude];
+		coords.set(nextCoords);
+		ref?.flyTo({ center: nextCoords });
 	};
 
 	const getLocation = async () => {
-		if (navigator.geolocation) {
-			navigator.geolocation.getCurrentPosition(setCoords);
-		} else {
-			// Flag error and alert location not switched on.
-			alert('Geolocation is not supported by this browser.');
+		if (!navigator.geolocation) {
+			console.warn('Geolocation is not supported by this browser.');
+			return;
 		}
-	};
 
-	const eventHandler = (e: CustomEvent) => {
-		const data = e.detail;
-		// do something with `data`, it's the result returned from the mapbox event
+		navigator.geolocation.getCurrentPosition(setCoords, (error) => {
+			console.warn('Unable to determine the current location.', error);
+		});
 	};
 </script>
 
@@ -50,29 +53,32 @@
 	bind:this={ref}
 	bind:center
 	bind:zoom
-	accessToken=""
+	accessToken={PUBLIC_MAPBOX_ACCESS_TOKEN}
 	style="mapbox://styles/michaelcuneo/ckzzecgy7005j14qvpzd53fgn"
-	customStylesheetUrl
 >
 	<Marker lat={$coords[1]} lng={$coords[0]} label={user.name}>
 		<Avatar src={Michael} initials="MC" />
 	</Marker>
+
 	{#each $data.pending as item}
 		<Marker lat={item.long} lng={item.lat} label={item.type}>
 			<Type color={item.color} type={item.type} />
 		</Marker>
 	{/each}
+
 	{#each $data.assigned as item}
 		<Marker lat={item.long} lng={item.lat} label={item.type}>
 			<Type color={item.color} type={item.type} />
 		</Marker>
 	{/each}
+
 	{#each $data.completed as item}
 		<Marker lat={item.long} lng={item.lat} label={item.type}>
 			<Type color={item.color} type={item.type} />
 		</Marker>
 	{/each}
+
 	<NavigationControl />
-	<GeolocateControl options={{ some: 'control-option' }} on:eventname={eventHandler} />
+	<GeolocateControl />
 	<ScaleControl />
 </Map>
