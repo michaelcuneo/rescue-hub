@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { createAccordion, melt } from '@melt-ui/svelte';
-	import { ChevronDown } from 'lucide-svelte';
+	import { ChevronDown } from '@lucide/svelte';
 	import { slide } from 'svelte/transition';
 	import RescueCategories from './RescueCategories.svelte';
 
