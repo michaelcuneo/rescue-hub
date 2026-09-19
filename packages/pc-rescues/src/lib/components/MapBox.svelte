@@ -14,7 +14,7 @@
 		avatar: 'https://place-hold.it/40x40?text=M&fontsize=16'
 	};
 
-	let center: number[] = $state([151.771274, -32.927406]);
+	let center: [number, number] = $state([151.771274, -32.927406]);
 	let zoom: number = $state(12);
 	let ref: Map = $state(undefined as unknown as Map);
 
@@ -61,19 +61,19 @@
 	</Marker>
 
 	{#each $data.pending as item}
-		<Marker lat={item.long} lng={item.lat} label={item.type}>
+		<Marker lat={Number(item.long)} lng={Number(item.lat)} label={item.type}>
 			<Type color={item.color} type={item.type} />
 		</Marker>
 	{/each}
 
 	{#each $data.assigned as item}
-		<Marker lat={item.long} lng={item.lat} label={item.type}>
+		<Marker lat={Number(item.long)} lng={Number(item.lat)} label={item.type}>
 			<Type color={item.color} type={item.type} />
 		</Marker>
 	{/each}
 
 	{#each $data.completed as item}
-		<Marker lat={item.long} lng={item.lat} label={item.type}>
+		<Marker lat={Number(item.long)} lng={Number(item.lat)} label={item.type}>
 			<Type color={item.color} type={item.type} />
 		</Marker>
 	{/each}
