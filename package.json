@@ -17,7 +17,7 @@
     "format": "turbo run format"
   },
   "workspaces": [
-    "infra/*",
+    "infra",
     "packages/*"
   ],
   "devDependencies": {
