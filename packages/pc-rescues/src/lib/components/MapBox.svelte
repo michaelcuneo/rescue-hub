@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { PUBLIC_MAPBOX_ACCESS_TOKEN } from '$env/static/public';
+	import { env } from '$env/dynamic/public';
 	import { Map, Marker, controls } from '@beyonk/svelte-mapbox';
 	import { coords, mapRef, data } from '$lib/stores';
 	import Type from '$lib/components/Type.svelte';
@@ -18,12 +18,13 @@
 	let zoom: number = $state(12);
 	let ref: Map = $state(undefined as unknown as Map);
 
+	const mapboxAccessToken = env.PUBLIC_MAPBOX_ACCESS_TOKEN ?? '';
 	const { GeolocateControl, NavigationControl, ScaleControl } = controls;
 
 	onMount(() => {
-		if (!PUBLIC_MAPBOX_ACCESS_TOKEN) {
+		if (!mapboxAccessToken) {
 			console.warn(
-				'PUBLIC_MAPBOX_ACCESS_TOKEN is not configured. Copy .env.example to .env.local and add a public Mapbox token.'
+				'mapboxAccessToken is not configured. Copy .env.example to .env.local and add a public Mapbox token.'
 			);
 		}
 
@@ -53,7 +54,7 @@
 	bind:this={ref}
 	bind:center
 	bind:zoom
-	accessToken={PUBLIC_MAPBOX_ACCESS_TOKEN}
+	accessToken={mapboxAccessToken}
 	style="mapbox://styles/michaelcuneo/ckzzecgy7005j14qvpzd53fgn"
 >
 	<Marker lat={$coords[1]} lng={$coords[0]} label={user.name}>
