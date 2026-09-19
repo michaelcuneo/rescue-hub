@@ -1,7 +1,7 @@
 <script>
 	import { createAccordion, melt } from '@melt-ui/svelte';
 	import { slide } from 'svelte/transition';
-	import { ChevronDown } from 'lucide-svelte';
+	import { ChevronDown } from '@lucide/svelte';
 	import ScrollArea from './ScrollArea.svelte';
 
 	const items = [
