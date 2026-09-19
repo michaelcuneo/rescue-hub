@@ -1,14 +1,27 @@
 {
   "name": "rescue-hub",
   "version": "1.0.0",
+  "private": true,
   "description": "NATF Rescue Hub",
-  "author": "",
   "license": "ISC",
-  "devDependencies": {
-    "@pulumi/pulumi": "^3.137.0"
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "scripts": {
+    "dev": "turbo run dev",
+    "dev:admin": "npm run dev --workspace=admin",
+    "dev:pc": "npm run dev --workspace=website",
+    "build": "turbo run build",
+    "check": "turbo run check",
+    "lint": "turbo run lint",
+    "format": "turbo run format"
   },
   "workspaces": [
     "infra/*",
     "packages/*"
-  ]
+  ],
+  "devDependencies": {
+    "turbo": "^2.11.2",
+    "typescript": "^7.0.2"
+  }
 }
