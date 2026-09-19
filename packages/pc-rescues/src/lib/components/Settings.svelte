@@ -40,7 +40,7 @@
 	</div>
 {/if}
 
-<style lang="postcss">
+<style>
 	.overlay {
 		position: fixed;
 		inset: 0;
