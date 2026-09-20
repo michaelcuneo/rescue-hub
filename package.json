@@ -7,22 +7,25 @@
   "engines": {
     "node": ">=22.19.0"
   },
+  "packageManager": "npm@10.9.8",
   "scripts": {
-    "dev": "turbo run dev",
+    "dev": "sst dev",
     "dev:admin": "npm run dev --workspace=admin",
     "dev:pc": "npm run dev --workspace=website",
-    "build": "turbo run build",
-    "check": "turbo run check",
-    "lint": "turbo run lint",
-    "format": "turbo run format"
+    "sst:install": "sst install",
+    "deploy": "sst deploy",
+    "deploy:production": "sst deploy --stage production",
+    "remove": "sst remove",
+    "check": "npm run check --workspaces --if-present",
+    "build": "npm run build --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "format": "npm run format --workspaces --if-present"
   },
   "workspaces": [
-    "infra",
     "packages/*"
   ],
   "devDependencies": {
-    "turbo": "^2.11.2",
+    "sst": "^4.17.1",
     "typescript": "^6.0.3"
-  },
-  "packageManager": "npm@10.9.8"
+  }
 }
