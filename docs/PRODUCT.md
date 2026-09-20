@@ -26,7 +26,7 @@ The operational rules are substantially derived from the same government wildlif
 - common rescue and outcome records;
 - central oversight by the appropriate wildlife authority.
 
-For the NSW implementation and demonstration, NPWS is the initial governing-authority model. An Australia-wide deployment must be capable of representing the equivalent authority in each state or territory rather than assuming a single NSW agency governs the entire country.
+For the NSW implementation and demonstration, the regulatory model is the NSW Department of Climate Change, Energy, the Environment and Water (DCCEEW), particularly its Biodiversity and Heritage Regulator and Wildlife Team. The NSW National Parks and Wildlife Service (NPWS) is a NSW state service within DCCEEW; despite the word “National” in its name, it is not an Australia-wide federal wildlife authority. An Australia-wide deployment must therefore represent the relevant state or territory authority for each jurisdiction.
 
 ## Product model
 
@@ -157,7 +157,7 @@ The intended sequence is:
 
 1. demonstrate Rescue Hub as a functioning independent system;
 2. validate the workflow with wildlife rescue organisations and relevant government colleagues;
-3. identify the authoritative NPWS/government API or integration mechanism;
+3. identify the authoritative NSW DCCEEW/Biodiversity and Heritage Regulator system or integration mechanism for the NSW implementation;
 4. map Rescue Hub identifiers and case fields to the government system;
 5. add synchronisation without coupling the user interface directly to the external API.
 
@@ -175,3 +175,24 @@ Integration should occur server-side through a dedicated adapter/service layer.
 8. **Sensitive information is minimised.** Rescue, caller, address and user data should only be exposed where operationally necessary.
 9. **External integrations are adapters.** Rescue Hub remains usable if a third-party government service is temporarily unavailable.
 10. **The product remains operationally simple.** Complexity belongs in the platform rules, not in the dispatcher's workflow.
+
+
+## Verified NSW regulatory context
+
+As of September 2026, the current NSW operating context relevant to Rescue Hub is:
+
+- NSW National Parks and Wildlife Service (NPWS) is a NSW state service within DCCEEW, not a national Australian agency.
+- Wildlife rehabilitation in NSW is regulated primarily through the Biodiversity Conservation Act 2016 and Biodiversity Conservation Regulation 2017.
+- The Biodiversity and Heritage Regulator administers wildlife licensing and management functions.
+- Current wildlife rehabilitation licence conditions recognise an allocated geographic zone of operation for rehabilitation groups.
+- Wildlife rehabilitation providers must maintain records of animals they rescue and submit prescribed records annually to the Biodiversity and Heritage Regulator.
+- Species-specific and general codes of practice set minimum standards for rescue, rehabilitation and release.
+
+These requirements strongly support Rescue Hub's proposed regional-tenancy, audit-history and central-reporting model.
+
+Primary references:
+
+- https://www.nationalparks.nsw.gov.au/about-npws
+- https://www.environment.nsw.gov.au/about-us/policy-and-law/biodiversity-and-heritage-regulator
+- https://www.environment.nsw.gov.au/topics/animals-and-plants/native-animals/rehabilitating-native-animals/wildlife-rehabilitation-licences
+- https://www.environment.nsw.gov.au/topics/animals-and-plants/native-animals/rehabilitating-native-animals/wildlife-rehabilitation-data-and-reporting/reporting
