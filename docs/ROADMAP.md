@@ -122,7 +122,7 @@ Acceptance criteria:
 
 ## Phase 7 — National expansion
 
-Generalise authority boundaries beyond the initial NSW model.
+Generalise authority boundaries beyond the initial NSW DCCEEW/Biodiversity and Heritage Regulator model.
 
 Build:
 
@@ -146,4 +146,4 @@ These require explicit decisions during development:
 - government data-retention requirements;
 - offline/poor-connectivity behaviour;
 - formal cross-organisation rescue handoff;
-- exact external NPWS/government API contract.
+- exact external NSW DCCEEW/Biodiversity and Heritage Regulator system/API contract for the NSW implementation.
