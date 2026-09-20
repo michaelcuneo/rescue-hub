@@ -1,0 +1,65 @@
+scalar AWSDateTime
+
+enum RescueStatus {
+  PENDING
+  ASSIGNED
+  COMPLETED
+  CANCELLED
+}
+
+type Rescue {
+  id: ID!
+  type: String!
+  breed: String
+  location: String
+  latitude: Float!
+  longitude: Float!
+  injury: String
+  status: RescueStatus!
+  assignedUserId: ID
+  createdAt: AWSDateTime!
+  updatedAt: AWSDateTime!
+}
+
+type RescueConnection {
+  items: [Rescue!]!
+  nextToken: String
+}
+
+input CreateRescueInput {
+  id: ID!
+  type: String!
+  breed: String
+  location: String
+  latitude: Float!
+  longitude: Float!
+  injury: String
+  status: RescueStatus = PENDING
+  assignedUserId: ID
+}
+
+input UpdateRescueStatusInput {
+  id: ID!
+  status: RescueStatus!
+}
+
+input AssignRescueInput {
+  id: ID!
+  userId: ID!
+}
+
+type Query {
+  rescue(id: ID!): Rescue
+  rescues(status: RescueStatus, limit: Int = 50, nextToken: String): RescueConnection!
+}
+
+type Mutation {
+  createRescue(input: CreateRescueInput!): Rescue!
+  updateRescueStatus(input: UpdateRescueStatusInput!): Rescue!
+  assignRescue(input: AssignRescueInput!): Rescue!
+}
+
+schema {
+  query: Query
+  mutation: Mutation
+}

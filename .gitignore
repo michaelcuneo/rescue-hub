@@ -25,13 +25,9 @@ coverage/
 .cache/
 .eslintcache
 *.tsbuildinfo
-.nx/cache/
-.nx/workspace-data/
 
-# Amplify generated state and outputs
-**/.amplify/
-**/amplify_outputs*
-**/amplifyconfiguration*
+# SST generated state
+.sst/
 
 # Environment and local configuration
 .env*
@@ -48,6 +44,3 @@ pnpm-debug.log*
 # OS files
 .DS_Store
 Thumbs.db
-
-# SST
-.sst/
