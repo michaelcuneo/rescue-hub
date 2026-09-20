@@ -1,38 +1,21 @@
-# sv
+# PC Rescues
 
-Everything you need to build a Svelte project, powered by [`sv`](https://github.com/sveltejs/cli).
+PC Rescues is the operational dispatch application for Rescue Hub.
 
-## Creating a project
+It is intended for rescue-organisation dispatchers and operational users who need to:
 
-If you're seeing this, you've probably already done this step. Congrats!
+- answer wildlife rescue calls;
+- locate the incident on a map;
+- create a rescue with minimal friction;
+- see pending and assigned rescues in their organisation's authorised region;
+- assign or coordinate rescuers;
+- observe status changes in real time.
 
-```bash
-# create a new project in the current directory
-npx sv create
+The application is organisation-scoped. Regional and tenant boundaries must be enforced by the backend, not merely by filtering the map.
 
-# create a new project in my-app
-npx sv create my-app
-```
+See the root documentation:
 
-## Developing
-
-Once you've created a project and installed dependencies with `npm install` (or `pnpm install` or `yarn`), start a development server:
-
-```bash
-npm run dev
-
-# or start the server and open the app in a new browser tab
-npm run dev -- --open
-```
-
-## Building
-
-To create a production version of your app:
-
-```bash
-npm run build
-```
-
-You can preview the production build with `npm run preview`.
-
-> To deploy your app, you may need to install an [adapter](https://svelte.dev/docs/kit/adapters) for your target environment.
+- [Product vision](../../docs/PRODUCT.md)
+- [Authorisation model](../../docs/AUTHORIZATION.md)
+- [Rescue workflow](../../docs/RESCUE-WORKFLOW.md)
+- [Architecture](../../docs/ARCHITECTURE.md)

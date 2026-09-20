@@ -1,38 +1,16 @@
-# sv
+# Rescue Hub Admin
 
-Everything you need to build a Svelte project, powered by [`sv`](https://github.com/sveltejs/cli).
+The Admin application is the governing/oversight interface for Rescue Hub.
 
-## Creating a project
+It is intended to support authorised government or governing-body users and, where appropriate, organisation administrators.
 
-If you're seeing this, you've probably already done this step. Congrats!
+The governing view is expected to provide jurisdiction-wide visibility of participating rescue organisations and their wildlife rescue records, including rescue history and outcomes.
 
-```bash
-# create a new project in the current directory
-npx sv create
+This is not an unrestricted global-superuser model. Access remains constrained by authenticated role and governing jurisdiction.
 
-# create a new project in my-app
-npx sv create my-app
-```
+See the root documentation:
 
-## Developing
-
-Once you've created a project and installed dependencies with `npm install` (or `pnpm install` or `yarn`), start a development server:
-
-```bash
-npm run dev
-
-# or start the server and open the app in a new browser tab
-npm run dev -- --open
-```
-
-## Building
-
-To create a production version of your app:
-
-```bash
-npm run build
-```
-
-You can preview the production build with `npm run preview`.
-
-> To deploy your app, you may need to install an [adapter](https://svelte.dev/docs/kit/adapters) for your target environment.
+- [Product vision](../../docs/PRODUCT.md)
+- [Authorisation model](../../docs/AUTHORIZATION.md)
+- [Rescue workflow](../../docs/RESCUE-WORKFLOW.md)
+- [Architecture](../../docs/ARCHITECTURE.md)
