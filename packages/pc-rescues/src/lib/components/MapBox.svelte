@@ -16,7 +16,7 @@
 
 	let center: [number, number] = $state([151.771274, -32.927406]);
 	let zoom: number = $state(12);
-	let ref: Map = $state(undefined as unknown as Map);
+	let ref: any = $state(undefined);
 
 	const mapboxAccessToken = env.PUBLIC_MAPBOX_ACCESS_TOKEN ?? '';
 	const { GeolocateControl, NavigationControl, ScaleControl } = controls;
