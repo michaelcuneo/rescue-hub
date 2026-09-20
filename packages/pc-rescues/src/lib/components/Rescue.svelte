@@ -15,8 +15,8 @@
 		<Item
 			on:SMUI:action={() => {
 				selection = item.id;
-				coords.set([item.lat, item.long]);
-				$mapRef.flyTo({ center: [item.lat, item.long] });
+				coords.set([item.longitude, item.latitude]);
+				$mapRef.flyTo({ center: [item.longitude, item.latitude] });
 			}}
 			disabled={item.disabled}
 			selected={selection === item.id}
