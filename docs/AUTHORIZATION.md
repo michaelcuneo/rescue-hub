@@ -21,7 +21,7 @@ Every API operation that reads or mutates protected data must enforce these rule
 
 Represents the government or governing wildlife authority for a jurisdiction.
 
-Examples may include NPWS for the initial NSW implementation and equivalent authorities in other states or territories.
+For the NSW implementation, the authority model should represent NSW DCCEEW's Biodiversity and Heritage Regulator / Wildlife Team as the regulatory layer. NSW NPWS is part of the same department but is not an Australia-wide authority. Other states and territories require their own authority records and regulatory mappings.
 
 An Authority owns or governs one or more Organisations.
 
@@ -127,7 +127,7 @@ They must not be able to enumerate another organisation's private rescue or user
 
 A governing-authority role can access organisations and cases inside its own jurisdiction according to role.
 
-It does not imply access to a different state/territory authority in a future national deployment.
+For NSW, this jurisdiction is state-based. A future national Rescue Hub deployment may aggregate multiple state/territory authorities, but authority-level access in one jurisdiction must not automatically imply equivalent access in another.
 
 ### Rescue location
 
