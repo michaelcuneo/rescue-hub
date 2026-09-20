@@ -195,7 +195,7 @@ Rescue Hub domain
       |
 GovernmentIntegration interface
       |
-NPWS / relevant authority API adapter
+NSW DCCEEW / Biodiversity and Heritage Regulator adapter (and equivalent adapters for other jurisdictions)
 ```
 
 The product should own its internal canonical model and translate to/from external schemas.
@@ -207,3 +207,26 @@ This prevents a third-party API from dictating the Rescue Hub UI or making the w
 Infrastructure belongs in SST.
 
 Do not reintroduce a parallel Amplify backend or generated Amplify outputs for the same resources.
+
+
+## NSW regulatory authority model
+
+For NSW, do not model NPWS as an Australia-wide national authority.
+
+The current hierarchy relevant to wildlife rehabilitation is better represented conceptually as:
+
+```text
+NSW Government
+    |
+DCCEEW
+    |
+Biodiversity and Heritage Regulator / Wildlife Team
+    |
+Licensed wildlife rehabilitation organisations
+    |
+Authorised rehabilitators
+```
+
+NSW NPWS is also part of DCCEEW and has wildlife responsibilities, but its name does not indicate federal jurisdiction.
+
+This distinction matters to the data model: `Authority` must be jurisdictional and capable of representing separate state/territory regulators in a future Australia-wide deployment.
