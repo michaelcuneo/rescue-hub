@@ -28,6 +28,7 @@ The product direction is documented here:
 - [Rescue lifecycle and dispatch workflow](docs/RESCUE-WORKFLOW.md)
 - [Technical architecture](docs/ARCHITECTURE.md)
 - [Implementation roadmap](docs/ROADMAP.md)
+- [NSW demonstration scope and organisation claiming](docs/DEMO.md)
 
 These documents are the source of truth for the intended behaviour of Rescue Hub. Implementation decisions should preserve the tenancy, regional-authority and audit requirements described there.
 

@@ -18,6 +18,7 @@ export default $config({
   async run() {
     const { data } = await import("./packages/infra/data");
     const { api, graphql } = await import("./packages/infra/api");
+    await import("./packages/infra/directory");
 
     const admin = new sst.aws.SvelteKit("Admin", {
       path: "packages/admin",

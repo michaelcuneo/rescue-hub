@@ -27,6 +27,19 @@ const dynamo = api.addDataSource({
   dynamodb: data.arn,
 });
 
+
+api.addResolver("Query organisation", {
+  dataSource: dynamo.name,
+  requestTemplate: `{"version":"2018-05-29","operation":"GetItem","key":{"pk":$util.dynamodb.toDynamoDBJson("ORG#$ctx.args.id"),"sk":$util.dynamodb.toDynamoDBJson("DIRECTORY")}}`,
+  responseTemplate: `#if($ctx.result)$util.toJson($ctx.result)#else null#end`,
+});
+
+api.addResolver("Query organisations", {
+  dataSource: dynamo.name,
+  requestTemplate: `{"version":"2018-05-29","operation":"Query","index":"gsi2","query":{"expression":"#pk = :pk","expressionNames":{"#pk":"gsi2pk"},"expressionValues":{":pk":$util.dynamodb.toDynamoDBJson("ORGANISATIONS#NSW")}},"scanIndexForward":true,"limit":$util.defaultIfNull($ctx.args.limit,100)#if($ctx.args.nextToken),"nextToken":$util.toJson($ctx.args.nextToken)#end}`,
+  responseTemplate: `#set($items=$util.defaultIfNull($ctx.result.items,[])) #set($nextToken=$util.defaultIfNull($ctx.result.nextToken,null)) {"items":$util.toJson($items),"nextToken":$util.toJson($nextToken)}`,
+});
+
 api.addResolver("Query rescue", {
   dataSource: dynamo.name,
   requestTemplate: `{"version":"2018-05-29","operation":"GetItem","key":{"pk":$util.dynamodb.toDynamoDBJson("RESCUE#$ctx.args.id"),"sk":$util.dynamodb.toDynamoDBJson("META")}}`,

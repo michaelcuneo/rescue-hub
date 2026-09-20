@@ -7,6 +7,26 @@ enum RescueStatus {
   CANCELLED
 }
 
+type OrganisationDirectoryEntry {
+  id: ID!
+  authorityId: ID!
+  jurisdiction: String!
+  officialName: String!
+  displayName: String!
+  areaDescription: String!
+  speciesSpeciality: String!
+  boundaryStatus: String!
+  aliases: [String!]!
+  sourceType: String!
+  sourceUrl: String!
+  sourceUpdatedAt: String!
+}
+
+type OrganisationConnection {
+  items: [OrganisationDirectoryEntry!]!
+  nextToken: String
+}
+
 type Rescue {
   id: ID!
   type: String!
@@ -49,6 +69,8 @@ input AssignRescueInput {
 }
 
 type Query {
+  organisation(id: ID!): OrganisationDirectoryEntry
+  organisations(limit: Int = 100, nextToken: String): OrganisationConnection!
   rescue(id: ID!): Rescue
   rescues(status: RescueStatus, limit: Int = 50, nextToken: String): RescueConnection!
 }
