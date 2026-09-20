@@ -44,3 +44,7 @@ pnpm-debug.log*
 # OS files
 .DS_Store
 Thumbs.db
+
+# SST generated type declarations
+sst-env.d.ts
+**/sst-env.d.ts
