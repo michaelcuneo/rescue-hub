@@ -83,3 +83,61 @@ export async function getRescue(id: string): Promise<Rescue | null> {
   const data = await request<{ rescue: Rescue | null }>(query, { id });
   return data.rescue;
 }
+
+
+export type OrganisationDirectoryEntry = {
+  id: string;
+  authorityId: string;
+  jurisdiction: string;
+  officialName: string;
+  displayName: string;
+  areaDescription: string;
+  speciesSpeciality: string;
+  boundaryStatus: string;
+  aliases: string[];
+  sourceType: string;
+  sourceUrl: string;
+  sourceUpdatedAt: string;
+};
+
+type OrganisationConnection = {
+  items: OrganisationDirectoryEntry[];
+  nextToken?: string | null;
+};
+
+const ORGANISATION_FIELDS =
+  "id authorityId jurisdiction officialName displayName areaDescription speciesSpeciality boundaryStatus aliases sourceType sourceUrl sourceUpdatedAt";
+
+export async function getOrganisations(
+  limit = 100,
+  nextToken?: string,
+): Promise<OrganisationConnection> {
+  const query = `query Organisations($limit: Int, $nextToken: String) {
+    organisations(limit: $limit, nextToken: $nextToken) {
+      nextToken
+      items { ${ORGANISATION_FIELDS} }
+    }
+  }`;
+
+  const data = await request<{ organisations: OrganisationConnection }>(query, {
+    limit,
+    nextToken,
+  });
+
+  return data.organisations;
+}
+
+export async function getOrganisation(
+  id: string,
+): Promise<OrganisationDirectoryEntry | null> {
+  const query = `query Organisation($id: ID!) {
+    organisation(id: $id) { ${ORGANISATION_FIELDS} }
+  }`;
+
+  const data = await request<{ organisation: OrganisationDirectoryEntry | null }>(
+    query,
+    { id },
+  );
+
+  return data.organisation;
+}

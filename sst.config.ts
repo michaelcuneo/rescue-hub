@@ -24,6 +24,8 @@ export default $config({
       path: "packages/admin",
       link: [graphql, data],
       dev: {
+        autostart: true,
+        command: "npm run dev -- --host 0.0.0.0 --port 5173",
         title: "Admin",
         url: "http://localhost:5173",
       },
@@ -36,6 +38,8 @@ export default $config({
         PUBLIC_MAPBOX_ACCESS_TOKEN: process.env.PUBLIC_MAPBOX_ACCESS_TOKEN ?? "",
       },
       dev: {
+        autostart: true,
+        command: "npm run dev -- --host 0.0.0.0 --port 3000",
         title: "PC Rescues",
         url: "https://localhost:3000",
       },
