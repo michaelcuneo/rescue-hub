@@ -1,28 +1,34 @@
-<script>
+<script lang="ts">
+	import { onMount } from 'svelte';
 	import MapBox from '$lib/components/MapBox.svelte';
-	import Header from '$lib/components/Header.svelte';
-	import User from '$lib/components/User.svelte';
-	import Rescues from '$lib/components/Rescues.svelte';
-	import Footer from '$lib/components/Footer.svelte';
+	import DispatcherShell from '$lib/components/DispatcherShell.svelte';
+	import { data as rescueData } from '$lib/stores';
+	import type { PageData } from './$types';
+
+	let { data }: { data: PageData } = $props();
+
+	onMount(() => {
+		if (!data.rescues.length) return;
+
+		const colourForStatus = (status: string) => {
+			if (status === 'ASSIGNED') return 'ffbf00';
+			if (status === 'COMPLETED') return '238823';
+			return 'd2222d';
+		};
+
+		const mapped = data.rescues.map((rescue) => ({
+			...rescue,
+			color: colourForStatus(rescue.status),
+			disabled: false
+		}));
+
+		rescueData.set({
+			pending: mapped.filter((rescue) => rescue.status === 'PENDING'),
+			assigned: mapped.filter((rescue) => rescue.status === 'ASSIGNED'),
+			completed: mapped.filter((rescue) => rescue.status === 'COMPLETED')
+		});
+	});
 </script>
 
 <MapBox />
-<Header />
-<User />
-<Rescues />
-<Footer />
-
-<!--
-<Dialog.Trigger name="settings">
-	<button class="btn">Open Settings Dialog</button>
-</Dialog.Trigger>
-
-<Dialog.Content name="settings" let:title let:description let:close>
-	<h2 class="font-bold" use:melt={title}>Settings</h2>
-	<p use:melt={description}>Placeholder description</p>
-
-	<div class="flex">
-		<button class="btn mt-4 ml-auto" use:melt={close}> Close </button>
-	</div>
-</Dialog.Content>
--->
+<DispatcherShell backendOnline={data.backendOnline} />

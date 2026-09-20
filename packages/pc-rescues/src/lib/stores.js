@@ -2,6 +2,11 @@ import { writable } from 'svelte/store';
 
 export const coords = writable([151.771274, -32.927406]);
 export const mapRef = writable();
+export const selectedRescue = writable(null);
+export const intakeOpen = writable(false);
+export const draftLocation = writable(null);
+export const available = writable(true);
+
 export const data = writable({
 	pending: [
 		{
@@ -13,7 +18,9 @@ export const data = writable({
 			location: 'Broadmeadow',
 			disabled: false,
 			color: 'd2222d',
-			injury: 'Upside down on ground'
+			injury: 'Unable to fly',
+			createdAt: '2026-09-20T00:20:00.000Z',
+			updatedAt: '2026-09-20T00:20:00.000Z'
 		},
 		{
 			id: 'asdasfq34qwf4',
@@ -24,7 +31,9 @@ export const data = writable({
 			location: 'Swansea',
 			disabled: false,
 			color: 'd2222d',
-			injury: 'Upside down on ground'
+			injury: 'Fishing line entanglement',
+			createdAt: '2026-09-20T00:05:00.000Z',
+			updatedAt: '2026-09-20T00:05:00.000Z'
 		}
 	],
 	assigned: [
@@ -37,18 +46,24 @@ export const data = writable({
 			location: 'Cardiff',
 			disabled: false,
 			color: 'ffbf00',
-			injury: 'Ran over by 4x4'
+			injury: 'Vehicle strike',
+			assignedUserId: 'demo-rescuer-1',
+			createdAt: '2026-09-19T23:40:00.000Z',
+			updatedAt: '2026-09-20T00:08:00.000Z'
 		},
 		{
 			id: 'fasoiufdna8sfh7',
 			longitude: 151.6827,
 			latitude: -32.9925,
 			type: 'Possum',
-			breed: '-',
+			breed: 'Brushtail',
 			location: 'Windale',
 			disabled: false,
 			color: 'ffbf00',
-			injury: 'Cat attack'
+			injury: 'Cat attack',
+			assignedUserId: 'demo-rescuer-2',
+			createdAt: '2026-09-19T23:25:00.000Z',
+			updatedAt: '2026-09-20T00:00:00.000Z'
 		}
 	],
 	completed: [
@@ -61,7 +76,9 @@ export const data = writable({
 			location: 'Mayfield',
 			disabled: false,
 			color: '238823',
-			injury: 'Ran over by 4x4'
+			injury: 'Vehicle strike',
+			createdAt: '2026-09-19T21:30:00.000Z',
+			updatedAt: '2026-09-19T23:20:00.000Z'
 		}
 	]
 });

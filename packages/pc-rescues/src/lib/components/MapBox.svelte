@@ -1,7 +1,8 @@
 <script lang="ts">
 	import { env } from '$env/dynamic/public';
+	import { get } from 'svelte/store';
 	import { Map, Marker, controls } from '@beyonk/svelte-mapbox';
-	import { coords, mapRef, data } from '$lib/stores';
+	import { coords, mapRef, data, selectedRescue, intakeOpen, draftLocation } from '$lib/stores';
 	import Type from '$lib/components/Type.svelte';
 	import Avatar from './Avatar.svelte';
 	import Michael from '$lib/images/michael.jpg';
@@ -219,6 +220,16 @@
 		}
 
 		await loadOperatingAreas(rawMap);
+
+		rawMap.on('click', (event: any) => {
+			if (!get(intakeOpen)) return;
+
+			draftLocation.set({
+				longitude: event.lngLat.lng,
+				latitude: event.lngLat.lat,
+				label: 'Dropped map pin'
+			});
+		});
 	}
 </script>
 
@@ -237,19 +248,34 @@
 
 		{#each $data.pending as item}
 			<Marker lat={item.latitude} lng={item.longitude} label={item.type}>
-				<Type color={item.color} type={item.type} />
+				<Type
+				color={item.color}
+				type={item.type}
+				selected={$selectedRescue?.id === item.id}
+				onclick={() => ($selectedRescue = item)}
+			/>
 			</Marker>
 		{/each}
 
 		{#each $data.assigned as item}
 			<Marker lat={item.latitude} lng={item.longitude} label={item.type}>
-				<Type color={item.color} type={item.type} />
+				<Type
+				color={item.color}
+				type={item.type}
+				selected={$selectedRescue?.id === item.id}
+				onclick={() => ($selectedRescue = item)}
+			/>
 			</Marker>
 		{/each}
 
 		{#each $data.completed as item}
 			<Marker lat={item.latitude} lng={item.longitude} label={item.type}>
-				<Type color={item.color} type={item.type} />
+				<Type
+				color={item.color}
+				type={item.type}
+				selected={$selectedRescue?.id === item.id}
+				onclick={() => ($selectedRescue = item)}
+			/>
 			</Marker>
 		{/each}
 
@@ -258,6 +284,14 @@
 			<GeolocateControl />
 		{/if}
 		<ScaleControl />
+
+		{#if $draftLocation}
+			<Marker lat={$draftLocation.latitude} lng={$draftLocation.longitude} label="New rescue">
+				<div class="draft-marker" aria-label="New rescue location">
+					<span>+</span>
+				</div>
+			</Marker>
+		{/if}
 	</Map>
 
 	<div class="area-panel">
@@ -297,6 +331,25 @@
 </div>
 
 <style>
+	.draft-marker {
+		display: grid;
+		place-items: center;
+		width: 38px;
+		height: 38px;
+		border: 4px solid white;
+		border-radius: 50% 50% 50% 8px;
+		background: #173d2c;
+		color: white;
+		box-shadow: 0 4px 14px rgb(0 0 0 / 0.3);
+		transform: rotate(-45deg);
+	}
+
+	.draft-marker span {
+		font-size: 19px;
+		font-weight: 400;
+		transform: rotate(45deg);
+	}
+
 	.map-shell {
 		position: fixed;
 		inset: 0;
