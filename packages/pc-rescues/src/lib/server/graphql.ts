@@ -87,6 +87,7 @@ export async function getRescue(id: string): Promise<Rescue | null> {
 
 export async function createRescue(input: {
   id: string;
+  organisationId?: string;
   type: string;
   breed?: string;
   location?: string;
