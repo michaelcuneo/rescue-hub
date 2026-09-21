@@ -4,10 +4,12 @@ Rescue Hub is a multi-tenant wildlife rescue coordination platform for Australia
 
 The product is intended to provide one shared operational system while preserving strict regional and organisational boundaries. A local rescue organisation can dispatch and manage rescues inside its authorised coverage area, while an authorised governing body can inspect the complete record across the organisations within its jurisdiction.
 
-The immediate implementation contains two SvelteKit applications:
+The implementation contains one SvelteKit application in `packages/pc-rescues`.
 
-- `packages/pc-rescues` — the operational dispatch application used by rescue organisations.
-- `packages/admin` — the governing/administrative application for cross-organisation oversight.
+- `/` — the operational dispatch interface used by rescue organisations.
+- `/admin` — the role-protected administration and governing-authority interface.
+
+Authentication, organisation membership and administration are shared by the same application rather than split across separate frontend deployments.
 
 The backend is SST-native on AWS:
 
@@ -52,7 +54,7 @@ Run checks for all workspaces:
 npm run check
 ```
 
-Build both SvelteKit applications:
+Build the SvelteKit application:
 
 ```bash
 npm run build
