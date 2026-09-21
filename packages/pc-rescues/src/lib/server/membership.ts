@@ -1,6 +1,8 @@
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import {
+	DeleteCommand,
 	DynamoDBDocumentClient,
+	PutCommand,
 	QueryCommand
 } from '@aws-sdk/lib-dynamodb';
 import { Resource } from 'sst';
@@ -235,4 +237,64 @@ export function memberCanReceiveCapability(
 ) {
 	const selected = new Set(teamIds);
 	return config.teams.some((team) => selected.has(team.id) && teamMatchesCapability(team, capability));
+}
+
+
+export async function saveOrganisationMembershipConfig(
+	config: OrganisationMembershipConfig
+) {
+	const pk = `ORG#${config.organisationId}`;
+	const existing = await db.send(new QueryCommand({
+		TableName: tableName,
+		KeyConditionExpression: 'pk = :pk',
+		ExpressionAttributeValues: { ':pk': pk }
+	}));
+
+	const managedKeys = (existing.Items ?? [])
+		.filter((item) =>
+			String(item.sk ?? '').startsWith('MEMBERSHIP_TYPE#') ||
+			String(item.sk ?? '').startsWith('TEAM#')
+		)
+		.map((item) => ({ pk, sk: String(item.sk) }));
+
+	await Promise.all(managedKeys.map((key) =>
+		db.send(new DeleteCommand({ TableName: tableName, Key: key }))
+	));
+
+	const now = new Date().toISOString();
+
+	await Promise.all([
+		...config.membershipTypes.map((type) =>
+			db.send(new PutCommand({
+				TableName: tableName,
+				Item: {
+					pk,
+					sk: `MEMBERSHIP_TYPE#${type.id}`,
+					entity: 'membership_type',
+					id: type.id,
+					name: type.name,
+					description: type.description,
+					active: type.active,
+					updatedAt: now
+				}
+			}))
+		),
+		...config.teams.map((team) =>
+			db.send(new PutCommand({
+				TableName: tableName,
+				Item: {
+					pk,
+					sk: `TEAM#${team.id}`,
+					entity: 'dispatch_team',
+					id: team.id,
+					name: team.name,
+					description: team.description,
+					capabilityCode: team.capabilityCode,
+					receivesAllRescues: team.receivesAllRescues,
+					active: team.active,
+					updatedAt: now
+				}
+			}))
+		)
+	]);
 }
