@@ -16,6 +16,19 @@ function put(name: string, value: Record<string, unknown>) {
   });
 }
 
+const demoMembership: Record<string, { membershipTypeId: string; teamIds: string[]; availabilityStatus: string }> = {
+  "demo-hunter-priya-shah": { membershipTypeId: "active-rescuer", teamIds: ["bird", "possum-glider"], availabilityStatus: "AVAILABLE" },
+  "demo-hunter-alex-mercer": { membershipTypeId: "support-member", teamIds: ["transport"], availabilityStatus: "AVAILABLE" },
+  "demo-hunter-jordan-blake": { membershipTypeId: "active-rescuer", teamIds: ["macropod", "reptile-non-venomous"], availabilityStatus: "AVAILABLE" },
+  "demo-hunter-sam-nguyen": { membershipTypeId: "active-rescuer", teamIds: ["bird", "bat-flying-fox"], availabilityStatus: "AVAILABLE" },
+  "demo-hunter-casey-morgan": { membershipTypeId: "active-rescuer", teamIds: ["bird", "possum-glider", "transport"], availabilityStatus: "AVAILABLE" },
+  "demo-hunter-taylor-brooks": { membershipTypeId: "active-rescuer", teamIds: ["macropod"], availabilityStatus: "BUSY" },
+  "demo-hunter-riley-chen": { membershipTypeId: "active-rescuer", teamIds: ["reptile-non-venomous", "reptile-venomous", "bird"], availabilityStatus: "AVAILABLE" },
+  "demo-hunter-jamie-foster": { membershipTypeId: "active-rescuer", teamIds: ["macropod", "possum-glider"], availabilityStatus: "AVAILABLE" },
+  "demo-hunter-erin-walsh": { membershipTypeId: "carer", teamIds: ["possum-glider", "bird"], availabilityStatus: "OFFLINE" },
+  "demo-hunter-dana-price": { membershipTypeId: "support-member", teamIds: [], availabilityStatus: "OFFLINE" }
+};
+
 const people = [
   ["demo-hunter-priya-shah", "Priya Shah", ["ORG_ADMIN","DISPATCHER"], "Merewether"],
   ["demo-hunter-alex-mercer", "Alex Mercer", ["DISPATCHER"], "Newcastle"],
@@ -30,6 +43,7 @@ const people = [
 ] as const;
 
 for (const [id, name, roles, suburb] of people) {
+  const dispatch = demoMembership[id] ?? { membershipTypeId: "support-member", teamIds: [], availabilityStatus: "OFFLINE" };
   put(`DemoUser-${id}`, {
     pk: S(`USER#${id}`),
     sk: S("PROFILE"),
@@ -43,6 +57,9 @@ for (const [id, name, roles, suburb] of people) {
     authEpoch: N(0),
     organisationId: S(HUNTER_ORG),
     roles: L([...roles]),
+    membershipTypeId: S(dispatch.membershipTypeId),
+    teamIds: L(dispatch.teamIds),
+    availabilityStatus: S(dispatch.availabilityStatus),
     demo: B(true),
     suburb: S(suburb),
     createdAt: S("2026-09-01T00:00:00.000Z"),
@@ -51,6 +68,22 @@ for (const [id, name, roles, suburb] of people) {
     gsi1sk: S(`${name.toLowerCase()}#${id}`),
     gsi2pk: S("USERS"),
     gsi2sk: S(`${name.toLowerCase()}#${id}`),
+  });
+
+  put(`DemoMembership-${id}`, {
+    pk: S(`USER#${id}`),
+    sk: S("MEMBERSHIP"),
+    entity: S("membership"),
+    userId: S(id),
+    organisationId: S(HUNTER_ORG),
+    roles: L([...roles]),
+    membershipTypeId: S(dispatch.membershipTypeId),
+    teamIds: L(dispatch.teamIds),
+    availabilityStatus: S(dispatch.availabilityStatus),
+    status: S("ACTIVE"),
+    demo: B(true),
+    createdAt: S("2026-09-01T00:00:00.000Z"),
+    updatedAt: S("2026-09-21T03:00:00.000Z")
   });
 }
 
