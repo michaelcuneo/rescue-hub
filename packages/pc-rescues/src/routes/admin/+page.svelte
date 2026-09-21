@@ -400,13 +400,117 @@
         </article>
       </section>
     {:else if section === 'people'}
-      <section class="panel page-panel empty-feature">
-        <p class="eyebrow">Identity & permissions</p>
-        <h2>People and access</h2>
-        <p>
-          Organisation claims, governing users, dispatchers, rescuers, carers and data stewards will
-          be administered here once identity is connected.
-        </p>
+      <section class="panel page-panel">
+        <div class="panel-heading table-heading">
+          <div>
+            <p class="eyebrow">Identity & permissions</p>
+            <h2>People and access</h2>
+            <p class="intro">
+              Cognito owns credentials. Rescue Hub owns organisation membership and operational roles.
+              A person may have only one active rescue-organisation membership.
+            </p>
+          </div>
+        </div>
+
+        <form class="invite-user" method="POST" action="?/inviteUser">
+          <label>
+            <span>Name</span>
+            <input name="name" placeholder="Jane Smith" required />
+          </label>
+          <label>
+            <span>Email</span>
+            <input name="email" type="email" placeholder="jane@example.org" required />
+          </label>
+          <label>
+            <span>Organisation</span>
+            <select name="organisationId" disabled>
+              <option>Hunter Wildlife Rescue (demo)</option>
+            </select>
+          </label>
+          <label>
+            <span>Role</span>
+            <select name="role" disabled>
+              <option>Rescuer / carer</option>
+              <option>Dispatcher</option>
+              <option>Organisation administrator</option>
+              <option>Data steward</option>
+            </select>
+          </label>
+          <button class="primary-action invite-button" type="submit">Invite user</button>
+        </form>
+
+        <div class="table-wrap people-table">
+          <table>
+            <thead>
+              <tr>
+                <th>User</th>
+                <th>Identity status</th>
+                <th>Organisation role</th>
+                <th>Access</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {#each data.users as user}
+                <tr>
+                  <td>
+                    <strong>{user.name || user.email || user.username}</strong>
+                    <span>{user.email}</span>
+                  </td>
+                  <td><span class="identity-status">{user.status}</span></td>
+                  <td>
+                    <span>Membership record pending</span>
+                  </td>
+                  <td>
+                    <span class:enabled={user.enabled} class="access-state">
+                      {user.enabled ? 'Enabled' : 'Disabled'}
+                    </span>
+                  </td>
+                  <td>
+                    <div class="user-actions">
+                      <form method="POST" action={user.enabled ? '?/disableUser' : '?/enableUser'}>
+                        <input type="hidden" name="username" value={user.username} />
+                        <button type="submit">{user.enabled ? 'Disable' : 'Enable'}</button>
+                      </form>
+                      <form method="POST" action="?/resetPassword">
+                        <input type="hidden" name="username" value={user.username} />
+                        <button type="submit">Reset password</button>
+                      </form>
+                      <form method="POST" action="?/removeUser">
+                        <input type="hidden" name="username" value={user.username} />
+                        <button class="danger" type="submit">Remove</button>
+                      </form>
+                    </div>
+                  </td>
+                </tr>
+              {:else}
+                <tr>
+                  <td colspan="5">
+                    <div class="empty-state">
+                      <strong>No Cognito users yet</strong>
+                      <span>Invite the first user above once the SST stage has deployed the user pool.</span>
+                    </div>
+                  </td>
+                </tr>
+              {/each}
+            </tbody>
+          </table>
+        </div>
+
+        <div class="broadcast-grid">
+          <article>
+            <p class="eyebrow">Broadcasts</p>
+            <h2>Email everyone</h2>
+            <p>Organisation-scoped bulk email will live here. Delivery will be queued and audited.</p>
+            <button type="button" disabled>Compose email</button>
+          </article>
+          <article>
+            <p class="eyebrow">Mobile notifications</p>
+            <h2>Push broadcast</h2>
+            <p>The React Native iOS/Android clients will register device tokens against the same Rescue Hub identity.</p>
+            <button type="button" disabled>Compose notification</button>
+          </article>
+        </div>
       </section>
     {:else}
       <section class="panel page-panel empty-feature">
@@ -1117,6 +1221,130 @@
     color: #a8c5b2;
   }
 
+  .invite-user {
+    display: grid;
+    grid-template-columns: 1fr 1.2fr 1.2fr 1fr auto;
+    gap: 10px;
+    align-items: end;
+    padding: 15px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--surface-soft);
+  }
+
+  .invite-user label {
+    display: grid;
+    gap: 5px;
+  }
+
+  .invite-user label > span {
+    color: var(--muted);
+    font-size: 8px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+
+  .invite-user input,
+  .invite-user select {
+    width: 100%;
+    min-height: 36px;
+    padding: 8px 10px;
+    border: 1px solid #d4ddd7;
+    border-radius: 8px;
+    background: white;
+    font-size: 10px;
+  }
+
+  .invite-user select:disabled {
+    opacity: 0.65;
+  }
+
+  .invite-button {
+    width: auto;
+    margin: 0;
+    min-height: 36px;
+  }
+
+  .people-table {
+    margin-top: 18px;
+  }
+
+  .identity-status,
+  .access-state {
+    display: inline-flex;
+    width: max-content;
+    margin: 0;
+    padding: 3px 7px;
+    border-radius: 999px;
+    background: #f3efe4;
+    color: #755c20;
+    font-size: 8px;
+    font-weight: 800;
+  }
+
+  .access-state.enabled {
+    background: #e7f5eb;
+    color: #29633e;
+  }
+
+  .user-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+  }
+
+  .user-actions form {
+    margin: 0;
+  }
+
+  .user-actions button,
+  .broadcast-grid button {
+    padding: 6px 8px;
+    border: 1px solid #d4ddd7;
+    border-radius: 7px;
+    background: white;
+    color: #435249;
+    font-size: 8px;
+    font-weight: 800;
+    cursor: pointer;
+  }
+
+  .user-actions button.danger {
+    border-color: #ecd0cd;
+    color: #9d3c34;
+  }
+
+  .broadcast-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-top: 18px;
+  }
+
+  .broadcast-grid article {
+    padding: 17px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--surface-soft);
+  }
+
+  .broadcast-grid h2 {
+    font-size: 14px;
+  }
+
+  .broadcast-grid p:not(.eyebrow) {
+    min-height: 42px;
+    color: var(--muted);
+    font-size: 10px;
+    line-height: 1.5;
+  }
+
+  .broadcast-grid button:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+
   .empty-state {
     display: grid;
     gap: 4px;
@@ -1211,6 +1439,14 @@
       display: grid;
     }
 
+    .invite-user {
+      grid-template-columns: 1fr 1fr;
+    }
+
+    .invite-button {
+      width: 100%;
+    }
+
     .search {
       min-width: 100%;
     }
@@ -1235,6 +1471,11 @@
     }
 
     .coverage-figure {
+      grid-template-columns: 1fr;
+    }
+
+    .invite-user,
+    .broadcast-grid {
       grid-template-columns: 1fr;
     }
   }
