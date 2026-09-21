@@ -1,7 +1,7 @@
 <script lang="ts">
-  import type { ActionData, PageData } from './$types';
+  import type { PageData } from './$types';
 
-  let { data, form }: { data: PageData; form?: ActionData } = $props();
+  let { data, form }: { data: PageData; form?: any } = $props();
 
   type Section =
     | 'overview'
