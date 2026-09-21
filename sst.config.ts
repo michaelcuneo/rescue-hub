@@ -45,7 +45,7 @@ export default $config({
       dev: {
         autostart: true,
         command: "npm run dev -- --host 0.0.0.0 --port 3000",
-        title: "PC Rescues",
+        title: "Rescue Hub",
         url: "https://localhost:3000",
       },
     });
