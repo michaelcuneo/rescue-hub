@@ -2,12 +2,13 @@
 	import { onMount } from 'svelte';
 	import MapBox from '$lib/components/MapBox.svelte';
 	import DispatcherShell from '$lib/components/DispatcherShell.svelte';
-	import { data as rescueData } from '$lib/stores';
+	import { data as rescueData, people } from '$lib/stores';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
 
 	onMount(() => {
+		people.set(data.people ?? []);
 		if (!data.rescues.length) return;
 
 		const colourForStatus = (status: string) => {
@@ -35,4 +36,4 @@
 </script>
 
 <MapBox />
-<DispatcherShell backendOnline={data.backendOnline} user={data.user} />
+<DispatcherShell backendOnline={data.backendOnline} user={data.user} demoMode={data.demoMode} />
