@@ -4,6 +4,7 @@ export type RescueStatus = "PENDING" | "ASSIGNED" | "COMPLETED" | "CANCELLED";
 
 export type Rescue = {
   id: string;
+  organisationId?: string | null;
   type: string;
   breed?: string | null;
   location?: string | null;
@@ -22,7 +23,7 @@ type RescueConnection = {
 };
 
 const RESCUE_FIELDS =
-  "id type breed location latitude longitude injury status assignedUserId createdAt updatedAt";
+  "id organisationId type breed location latitude longitude injury status assignedUserId createdAt updatedAt";
 
 async function request<T>(
   query: string,
