@@ -1,5 +1,6 @@
 import { json } from '@sveltejs/kit';
 import { readOperatingAreasCache, writeOperatingAreasCache } from '$lib/server/operating-areas-cache';
+import { hasAdministrativeRole } from '$lib/server/auth';
 import type { RequestHandler } from './$types';
 
 type OperatingAreaLayer = {
@@ -111,9 +112,14 @@ async function fetchLayer(fetcher: typeof fetch, layer: OperatingAreaLayer): Pro
 	}));
 }
 
-export const GET: RequestHandler = async ({ fetch, url }) => {
+export const GET: RequestHandler = async ({ fetch, url, locals }) => {
 	const now = Date.now();
-	const forceRefresh = url.searchParams.get('refresh') === '1';
+	const refreshRequested = url.searchParams.get('refresh') === '1';
+	const forceRefresh = refreshRequested && hasAdministrativeRole(locals.user);
+
+	if (refreshRequested && !forceRefresh) {
+		return json({ error: 'Administrative access is required to refresh operating areas.' }, { status: 403 });
+	}
 
 	if (!forceRefresh && cached && cached.expiresAt > now) {
 		return json(cached.value, {
