@@ -48,3 +48,6 @@ Thumbs.db
 # SST generated type declarations
 sst-env.d.ts
 **/sst-env.d.ts
+
+# Expo local state
+.expo/
