@@ -10,7 +10,11 @@ import {
 	type RescueHubRole,
 	type RescueHubUser
 } from '$lib/server/auth';
-import { getOrganisations, getRescues } from '$lib/server/graphql';
+import {
+	listAdminAuditEvents,
+	listAdminOrganisations,
+	listAdminRescues
+} from '$lib/server/admin-data';
 import type { Actions, PageServerLoad } from './$types';
 
 const ORGANISATION_ROLES: RescueHubRole[] = [
@@ -49,21 +53,25 @@ function canManageUser(actor: RescueHubUser, target: RescueHubUser) {
 export const load: PageServerLoad = async ({ locals }) => {
 	const actor = await requireAdmin(locals);
 
-	const [organisationsResult, rescuesResult, usersResult] = await Promise.allSettled([
-		getOrganisations(100),
-		getRescues(undefined, 100),
-		listUsers()
+	const [organisationsResult, rescuesResult, usersResult, auditResult] = await Promise.allSettled([
+		listAdminOrganisations(),
+		listAdminRescues(),
+		listUsers(),
+		listAdminAuditEvents()
 	]);
 
 	let organisations =
-		organisationsResult.status === 'fulfilled' ? organisationsResult.value.items : [];
-	const rescues =
-		rescuesResult.status === 'fulfilled' ? rescuesResult.value.items : [];
+		organisationsResult.status === 'fulfilled' ? organisationsResult.value : [];
+	let rescues =
+		rescuesResult.status === 'fulfilled' ? rescuesResult.value : [];
+	const auditEvents =
+		auditResult.status === 'fulfilled' ? auditResult.value : [];
 	let users = usersResult.status === 'fulfilled' ? usersResult.value : [];
 
 	if (!isAuthorityAdmin(actor)) {
 		organisations = organisations.filter((organisation) => organisation.id === actor.organisationId);
 		users = users.filter((user) => user.organisationId === actor.organisationId);
+		rescues = rescues.filter((rescue) => rescue.organisationId === actor.organisationId);
 	}
 
 	const errors = [
@@ -75,6 +83,9 @@ export const load: PageServerLoad = async ({ locals }) => {
 			: null,
 		usersResult.status === 'rejected'
 			? `User directory: ${String(usersResult.reason)}`
+			: null,
+		auditResult.status === 'rejected'
+			? `Audit data: ${String(auditResult.reason)}`
 			: null
 	].filter((value): value is string => Boolean(value));
 
@@ -83,6 +94,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 		organisations,
 		rescues,
 		users,
+		auditEvents,
 		backend: {
 			online: errors.length === 0,
 			errors
