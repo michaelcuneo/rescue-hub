@@ -153,3 +153,52 @@ for (const [n, action, summary, actorUserId, createdAt] of auditEvents) {
     gsi2sk: S(`${createdAt}#${id}`),
   });
 }
+
+
+const hunterMembershipTypes = [
+  ["active-rescuer","Active rescuer","Field rescuer eligible for team dispatch"],
+  ["probationary-rescuer","Probationary rescuer","Field rescuer operating with organisation restrictions"],
+  ["carer","Carer","Wildlife carer receiving animals after rescue"],
+  ["transport-volunteer","Transport volunteer","Volunteer transporting wildlife between rescue, vet and care"],
+  ["support-member","Support member","Organisation member without routine rescue dispatch"]
+] as const;
+
+for (const [id, name, description] of hunterMembershipTypes) {
+  put(`DemoHunterMembershipType-${id}`, {
+    pk: S(`ORG#${HUNTER_ORG}`),
+    sk: S(`MEMBERSHIP_TYPE#${id}`),
+    entity: S("membership_type"),
+    id: S(id),
+    name: S(name),
+    description: S(description),
+    active: B(true),
+    updatedAt: S("2026-09-21T03:00:00.000Z")
+  });
+}
+
+const hunterTeams = [
+  ["bird","Bird team","BIRD",false],
+  ["raptor","Raptor team","RAPTOR",false],
+  ["macropod","Macropod team","MACROPOD",false],
+  ["possum-glider","Possum & glider team","POSSUM_GLIDER",false],
+  ["wombat","Wombat team","WOMBAT",false],
+  ["reptile-non-venomous","Reptile — non-venomous","REPTILE_NON_VENOMOUS",false],
+  ["reptile-venomous","Reptile — venomous","REPTILE_VENOMOUS",false],
+  ["bat-flying-fox","Bat & flying fox team","BAT_FLYING_FOX",false],
+  ["transport","Transport team","",true]
+] as const;
+
+for (const [id, name, capabilityCode, receivesAllRescues] of hunterTeams) {
+  put(`DemoHunterTeam-${id}`, {
+    pk: S(`ORG#${HUNTER_ORG}`),
+    sk: S(`TEAM#${id}`),
+    entity: S("dispatch_team"),
+    id: S(id),
+    name: S(name),
+    description: S(receivesAllRescues ? "Receives every rescue for transport availability" : `${name} dispatch capability`),
+    capabilityCode: S(capabilityCode),
+    receivesAllRescues: B(receivesAllRescues),
+    active: B(true),
+    updatedAt: S("2026-09-21T03:00:00.000Z")
+  });
+}
