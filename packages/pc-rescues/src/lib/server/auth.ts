@@ -46,6 +46,9 @@ export type RescueHubUser = {
 	emailVerified: boolean;
 	organisationId?: string;
 	roles: RescueHubRole[];
+	membershipTypeId?: string;
+	teamIds: string[];
+	availabilityStatus: 'AVAILABLE' | 'BUSY' | 'OFFLINE';
 	createdAt: string;
 	updatedAt: string;
 };
@@ -102,6 +105,11 @@ function toUser(item: Record<string, unknown>): RescueHubUser {
 		emailVerified: Boolean(item.emailVerified),
 		organisationId: item.organisationId ? String(item.organisationId) : undefined,
 		roles: Array.isArray(item.roles) ? item.roles.map(String) as RescueHubRole[] : [],
+		membershipTypeId: item.membershipTypeId ? String(item.membershipTypeId) : undefined,
+		teamIds: Array.isArray(item.teamIds) ? item.teamIds.map(String) : [],
+		availabilityStatus: ['AVAILABLE', 'BUSY', 'OFFLINE'].includes(String(item.availabilityStatus))
+			? String(item.availabilityStatus) as RescueHubUser['availabilityStatus']
+			: 'OFFLINE',
 		createdAt: String(item.createdAt),
 		updatedAt: String(item.updatedAt ?? item.createdAt)
 	};
@@ -347,11 +355,15 @@ export async function inviteUser(input: {
 	email: string;
 	organisationId: string;
 	roles: RescueHubRole[];
+	membershipTypeId?: string;
+	teamIds?: string[];
 }) {
 	const email = normalizeEmail(input.email);
 	const name = input.name.trim();
 	const organisationId = input.organisationId.trim();
 	const roles = [...new Set(input.roles)];
+	const membershipTypeId = input.membershipTypeId?.trim() || 'active-rescuer';
+	const teamIds = [...new Set(input.teamIds ?? [])];
 
 	if (!/^\S+@\S+\.\S+$/.test(email)) throw new Error('Enter a valid email address.');
 	if (!name || name.length > 100) throw new Error('Enter a name.');
@@ -386,6 +398,9 @@ export async function inviteUser(input: {
 						authEpoch: 0,
 						organisationId,
 						roles,
+						membershipTypeId,
+						teamIds,
+						availabilityStatus: 'OFFLINE',
 						createdAt: now,
 						updatedAt: now,
 						gsi1pk: `ORG#${organisationId}#USERS`,
@@ -405,6 +420,9 @@ export async function inviteUser(input: {
 						userId,
 						organisationId,
 						roles,
+						membershipTypeId,
+						teamIds,
+						availabilityStatus: 'OFFLINE',
 						status: 'PENDING',
 						createdAt: now,
 						updatedAt: now
@@ -583,6 +601,59 @@ export async function listUsers() {
 		ExpressionAttributeValues: { ':pk': 'USERS' }
 	}));
 	return (result.Items ?? []).map((item) => toUser(item));
+}
+
+export async function updateUserDispatchMembership(input: {
+	userId: string;
+	membershipTypeId: string;
+	teamIds: string[];
+}) {
+	const now = new Date().toISOString();
+	const teamIds = [...new Set(input.teamIds.filter(Boolean))];
+	await db.send(new TransactWriteCommand({
+		TransactItems: [
+			{
+				Update: {
+					TableName: tableName,
+					Key: { pk: `USER#${input.userId}`, sk: 'PROFILE' },
+					UpdateExpression: 'SET membershipTypeId = :membershipTypeId, teamIds = :teamIds, updatedAt = :at',
+					ExpressionAttributeValues: { ':membershipTypeId': input.membershipTypeId, ':teamIds': teamIds, ':at': now }
+				}
+			},
+			{
+				Update: {
+					TableName: tableName,
+					Key: { pk: `USER#${input.userId}`, sk: 'MEMBERSHIP' },
+					UpdateExpression: 'SET membershipTypeId = :membershipTypeId, teamIds = :teamIds, updatedAt = :at',
+					ExpressionAttributeValues: { ':membershipTypeId': input.membershipTypeId, ':teamIds': teamIds, ':at': now }
+				}
+			}
+		]
+	}));
+}
+
+export async function setUserAvailability(userId: string, availabilityStatus: RescueHubUser['availabilityStatus']) {
+	const now = new Date().toISOString();
+	await db.send(new TransactWriteCommand({
+		TransactItems: [
+			{
+				Update: {
+					TableName: tableName,
+					Key: { pk: `USER#${userId}`, sk: 'PROFILE' },
+					UpdateExpression: 'SET availabilityStatus = :status, updatedAt = :at',
+					ExpressionAttributeValues: { ':status': availabilityStatus, ':at': now }
+				}
+			},
+			{
+				Update: {
+					TableName: tableName,
+					Key: { pk: `USER#${userId}`, sk: 'MEMBERSHIP' },
+					UpdateExpression: 'SET availabilityStatus = :status, updatedAt = :at',
+					ExpressionAttributeValues: { ':status': availabilityStatus, ':at': now }
+				}
+			}
+		]
+	}));
 }
 
 export async function setUserEnabled(userId: string, enabled: boolean) {
