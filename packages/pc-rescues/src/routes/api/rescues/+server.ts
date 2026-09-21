@@ -51,7 +51,7 @@ export const POST: RequestHandler = async ({ request, locals, cookies }) => {
 			status: 'PENDING'
 		});
 
-		void notifyEligibleRescuers({
+		await notifyEligibleRescuers({
 			id: rescue.id,
 			organisationId,
 			type: rescue.type,
