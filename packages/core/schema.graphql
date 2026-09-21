@@ -29,6 +29,7 @@ type OrganisationConnection {
 
 type Rescue {
   id: ID!
+  organisationId: ID
   type: String!
   breed: String
   location: String
