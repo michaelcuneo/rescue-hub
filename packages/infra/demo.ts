@@ -88,3 +88,35 @@ rescues.forEach((r, index) => {
   if (assignedUserId) item.assignedUserId = S(assignedUserId);
   put(`DemoRescue-${id}`, item);
 });
+
+
+const auditEvents = [
+  ["001","RESCUE_CREATED","Magpie rescue reported in Broadmeadow","demo-hunter-alex-mercer","2026-09-21T03:17:00.000Z"],
+  ["002","RESCUE_CREATED","Possum rescue reported in Mayfield","demo-hunter-priya-shah","2026-09-21T03:06:00.000Z"],
+  ["003","RESCUE_ASSIGNED","Kookaburra rescue assigned to Sam Nguyen","demo-hunter-priya-shah","2026-09-21T03:03:00.000Z"],
+  ["004","RESCUE_ASSIGNED","Flying fox rescue assigned to Sam Nguyen","demo-hunter-alex-mercer","2026-09-21T02:46:00.000Z"],
+  ["005","RESCUE_ASSIGNED","Kangaroo rescue assigned to Jamie Foster","demo-hunter-priya-shah","2026-09-21T02:22:00.000Z"],
+  ["006","RESCUE_COMPLETED","Pelican rescue completed and transferred for observation","demo-hunter-casey-morgan","2026-09-21T02:18:00.000Z"],
+  ["007","RESCUE_ASSIGNED","Possum rescue assigned to Riley Chen","demo-hunter-alex-mercer","2026-09-21T02:09:00.000Z"],
+  ["008","RESCUE_ASSIGNED","Echidna rescue assigned to Jordan Blake","demo-hunter-priya-shah","2026-09-21T01:55:00.000Z"],
+  ["009","RESCUE_COMPLETED","Magpie juvenile reunited with parents","demo-hunter-jordan-blake","2026-09-21T01:37:00.000Z"],
+  ["010","AVAILABILITY_CHANGED","Sam Nguyen marked available for rescue dispatch","demo-hunter-sam-nguyen","2026-09-21T01:18:00.000Z"],
+] as const;
+
+for (const [n, action, summary, actorUserId, createdAt] of auditEvents) {
+  const id = `demo-hunter-audit-${n}`;
+  put(`DemoAudit-${id}`, {
+    pk: S(`AUDIT#${id}`),
+    sk: S("EVENT"),
+    entity: S("audit_event"),
+    id: S(id),
+    organisationId: S(HUNTER_ORG),
+    action: S(action),
+    summary: S(summary),
+    actorUserId: S(actorUserId),
+    demo: B(true),
+    createdAt: S(createdAt),
+    gsi2pk: S("AUDIT"),
+    gsi2sk: S(`${createdAt}#${id}`),
+  });
+}
