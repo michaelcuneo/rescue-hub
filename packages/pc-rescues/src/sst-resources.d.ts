@@ -9,6 +9,17 @@ declare module "sst" {
       url: string;
       apiKey: string;
     };
+    RescueHubUsers: {
+      id: string;
+    };
+    RescueHubWeb: {
+      id: string;
+      secret: string;
+    };
+    RescueHubMobile: {
+      id: string;
+      secret: string;
+    };
   }
 }
 
