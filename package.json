@@ -18,7 +18,10 @@
     "build": "npm run build --workspaces --if-present",
     "lint": "npm run lint --workspaces --if-present",
     "format": "npm run format --workspaces --if-present",
-    "dev:web": "npm run dev --workspace=website"
+    "dev:web": "npm run dev --workspace=website",
+    "dev:mobile": "npm run start --workspace=@rescue-hub/mobile",
+    "mobile:ios": "npm run ios --workspace=@rescue-hub/mobile",
+    "mobile:android": "npm run android --workspace=@rescue-hub/mobile"
   },
   "workspaces": [
     "packages/*"
