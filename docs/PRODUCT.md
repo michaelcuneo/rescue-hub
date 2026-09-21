@@ -66,7 +66,7 @@ Each rescue organisation has its own:
 - rescue cases;
 - availability roster.
 
-Organisation users must only have access to data their role and organisation permit, except where an explicit inter-organisation workflow is later introduced.
+Organisation users must only have access to data their role and organisation permit, except where an explicit inter-organisation workflow is later introduced. An operational user belongs to one rescue organisation only; Rescue Hub must not allow simultaneous active membership in multiple wildlife rescue organisations.
 
 The baseline rules and regulations should be centrally represented wherever possible rather than copied and independently maintained for every organisation.
 
@@ -175,6 +175,7 @@ Integration should occur server-side through a dedicated adapter/service layer.
 8. **Sensitive information is minimised.** Rescue, caller, address and user data should only be exposed where operationally necessary.
 9. **External integrations are adapters.** Rescue Hub remains usable if a third-party government service is temporarily unavailable.
 10. **The product remains operationally simple.** Complexity belongs in the platform rules, not in the dispatcher's workflow.
+11. **One rescuer, one organisation.** Operational users may have only one active wildlife rescue organisation membership at a time; regulator/government access is a separate authority scope.
 
 
 ## Verified NSW regulatory context
