@@ -205,29 +205,67 @@ The PC and Admin applications can present different interfaces, but AppSync/serv
 
 ## Identity architecture
 
-Rescue Hub uses one Amazon Cognito User Pool as the shared credential authority for the web application and future native mobile clients.
+Rescue Hub owns its authentication model and does not depend on Amazon Cognito or another hosted identity directory.
 
-Separate Cognito application clients are created for:
+The authentication design follows the same portable pattern used by the project's other SST applications:
 
-- Rescue Hub Web (SvelteKit);
-- Rescue Hub Mobile (future React Native iOS/Android).
+- users, credentials, organisation membership and sessions are stored in the Rescue Hub data store;
+- passwords are salted and hashed with Node.js scrypt;
+- browser sessions use random opaque tokens in HTTP-only cookies;
+- only the SHA-256 hash of a session token is stored server-side;
+- native clients may use the same opaque session token as a Bearer token;
+- session records have expiry/TTL;
+- each user profile has an auth epoch, allowing password changes, disable operations and removals to invalidate existing sessions;
+- invitation and password-reset codes are short lived, stored as hashes and rate limited;
+- email delivery is an adapter. The current AWS deployment uses SES, but authentication data and credential semantics are not tied to SES or AWS.
 
-Cognito owns authentication concerns such as credentials, password reset and account enable/disable state.
+Authentication and authorisation remain separate concerns.
 
-Rescue Hub's own data model remains authoritative for:
+A valid Rescue Hub identity does not grant access to any rescue organisation by itself. Organisation membership and roles are stored in the application data model and are enforced server-side.
 
-- rescue-organisation membership;
-- the one-active-rescue-organisation-per-user constraint;
-- organisation roles;
-- authority/regulator roles;
-- availability;
-- operational permissions;
-- audit history.
+The same identity is intended to work across:
 
-An identity existing in Cognito does not grant access to an organisation by itself.
+- the SvelteKit web application;
+- the future React Native iOS application;
+- the future React Native Android application.
 
-Organisation administrators will manage only users in their own tenant. Governing-authority administrators may have wider jurisdictional visibility according to their authority role.
+Web clients receive secure session cookies. Native clients use the same login/activation/reset endpoints and receive an opaque session token suitable for secure device storage.
 
-Administrative user actions such as invitation, disable/enable, password reset, membership changes and removal must create audit events before production use.
+### Initial deployment
 
-Bulk email and mobile push broadcasts must be organisation/authority scoped, permission checked, queued and auditable. The future React Native clients should register device installations against the same Rescue Hub user identity rather than creating a second mobile-only account system.
+A new deployment exposes a one-time setup flow only while the auth bootstrap record does not exist. The first user created by this flow becomes the platform administrator. The bootstrap record is written transactionally with that account and prevents the setup process from being repeated.
+
+### Organisation invitations
+
+Organisation administrators invite users rather than allowing unrestricted public registration.
+
+An invitation creates:
+
+- the Rescue Hub user record;
+- the unique email lookup;
+- exactly one pending organisation membership;
+- the selected organisation role or roles;
+- a short-lived activation code.
+
+The invited person activates the account by supplying the code and choosing their own password. The membership then becomes active.
+
+This preserves the rule that an operational user can belong to only one wildlife rescue organisation at a time.
+
+### Administrative account actions
+
+Authorised administrators can:
+
+- invite users;
+- enable or disable accounts;
+- send password-reset codes;
+- remove operational access.
+
+Disabling, password changes and removals invalidate previous sessions by changing the user's auth epoch.
+
+Organisation administrators may manage only users within their own organisation. Authority/platform administrators can be granted wider management scope.
+
+### Email and notification portability
+
+The current AWS deployment may use Amazon SES to send invitation and password-reset codes, but SES is a delivery implementation rather than an identity provider.
+
+Future bulk email and mobile push notification services must remain organisation/authority scoped, queued and auditable. Mobile device registrations will attach to the same Rescue Hub user identity rather than creating a separate mobile account system.
