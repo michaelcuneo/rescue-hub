@@ -1,7 +1,7 @@
 <script lang="ts">
-  import type { PageData } from './$types';
+  import type { ActionData, PageData } from './$types';
 
-  let { data }: { data: PageData } = $props();
+  let { data, form }: { data: PageData; form?: ActionData } = $props();
 
   type Section =
     | 'overview'
@@ -75,6 +75,14 @@
   const statusLabel = (status: string) =>
     status.charAt(0) + status.slice(1).toLowerCase();
 
+  const organisationName = (id?: string) =>
+    data.organisations.find((organisation) => organisation.id === id)?.displayName ??
+    (id || 'No organisation');
+
+  const canChooseOrganisation =
+    data.currentUser.roles.includes('PLATFORM_ADMIN') ||
+    data.currentUser.roles.includes('AUTHORITY_ADMIN');
+
   const formatDate = (value: string) =>
     new Intl.DateTimeFormat('en-AU', {
       dateStyle: 'medium',
@@ -126,8 +134,8 @@
       <div class="demo-identity">
         <span class="avatar">MC</span>
         <div>
-          <strong>Demo administrator</strong>
-          <span>Independent Rescue Hub prototype</span>
+          <strong>{data.currentUser.name}</strong>
+          <span>{data.currentUser.roles.join(' · ')}</span>
         </div>
       </div>
     </header>
@@ -406,7 +414,7 @@
             <p class="eyebrow">Identity & permissions</p>
             <h2>People and access</h2>
             <p class="intro">
-              Cognito owns credentials. Rescue Hub owns organisation membership and operational roles.
+              Rescue Hub owns credentials, sessions, organisation membership and operational roles.
               A person may have only one active rescue-organisation membership.
             </p>
           </div>
@@ -423,21 +431,40 @@
           </label>
           <label>
             <span>Organisation</span>
-            <select name="organisationId" disabled>
-              <option>Hunter Wildlife Rescue (demo)</option>
+            <select name="organisationId" disabled={!canChooseOrganisation} required>
+              {#each data.organisations as organisation}
+                <option
+                  value={organisation.id}
+                  selected={organisation.id === data.currentUser.organisationId}
+                >
+                  {organisation.displayName}
+                </option>
+              {/each}
             </select>
           </label>
           <label>
             <span>Role</span>
-            <select name="role" disabled>
-              <option>Rescuer / carer</option>
-              <option>Dispatcher</option>
-              <option>Organisation administrator</option>
-              <option>Data steward</option>
+            <select name="role" required>
+              <option value="RESCUER">Rescuer</option>
+              <option value="CARER">Carer</option>
+              <option value="DISPATCHER">Dispatcher</option>
+              <option value="ORG_ADMIN">Organisation administrator</option>
+              <option value="DATA_STEWARD">Data steward</option>
             </select>
           </label>
           <button class="primary-action invite-button" type="submit">Invite user</button>
         </form>
+
+        {#if form?.error}
+          <div class="people-feedback error">{form.error}</div>
+        {:else if form?.success}
+          <div class="people-feedback success">
+            {form.action === 'inviteUser' ? 'Invitation created.' : 'User updated.'}
+            {#if form.devCode}
+              <code>Development code: {form.devCode}</code>
+            {/if}
+          </div>
+        {/if}
 
         <div class="table-wrap people-table">
           <table>
@@ -454,12 +481,13 @@
               {#each data.users as user}
                 <tr>
                   <td>
-                    <strong>{user.name || user.email || user.username}</strong>
+                    <strong>{user.name || user.email}</strong>
                     <span>{user.email}</span>
                   </td>
                   <td><span class="identity-status">{user.status}</span></td>
                   <td>
-                    <span>Membership record pending</span>
+                    <strong>{organisationName(user.organisationId)}</strong>
+                    <span>{user.roles.join(', ') || 'No operational role'}</span>
                   </td>
                   <td>
                     <span class:enabled={user.enabled} class="access-state">
@@ -469,15 +497,15 @@
                   <td>
                     <div class="user-actions">
                       <form method="POST" action={user.enabled ? '?/disableUser' : '?/enableUser'}>
-                        <input type="hidden" name="username" value={user.username} />
+                        <input type="hidden" name="userId" value={user.id} />
                         <button type="submit">{user.enabled ? 'Disable' : 'Enable'}</button>
                       </form>
                       <form method="POST" action="?/resetPassword">
-                        <input type="hidden" name="username" value={user.username} />
+                        <input type="hidden" name="userId" value={user.id} />
                         <button type="submit">Reset password</button>
                       </form>
                       <form method="POST" action="?/removeUser">
-                        <input type="hidden" name="username" value={user.username} />
+                        <input type="hidden" name="userId" value={user.id} />
                         <button class="danger" type="submit">Remove</button>
                       </form>
                     </div>
@@ -487,8 +515,8 @@
                 <tr>
                   <td colspan="5">
                     <div class="empty-state">
-                      <strong>No Cognito users yet</strong>
-                      <span>Invite the first user above once the SST stage has deployed the user pool.</span>
+                      <strong>No Rescue Hub users in this scope yet</strong>
+                      <span>Invite a user above. Their account and membership will be created together.</span>
                     </div>
                   </td>
                 </tr>
@@ -1264,6 +1292,32 @@
     width: auto;
     margin: 0;
     min-height: 36px;
+  }
+
+  .people-feedback {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 12px;
+    padding: 10px 12px;
+    border-radius: 9px;
+    font-size: 9px;
+  }
+
+  .people-feedback.success {
+    background: #e7f5eb;
+    color: #29633e;
+  }
+
+  .people-feedback.error {
+    background: #fff0ed;
+    color: #9d3c34;
+  }
+
+  .people-feedback code {
+    padding: 3px 6px;
+    border-radius: 5px;
+    background: rgb(255 255 255 / 0.7);
   }
 
   .people-table {
