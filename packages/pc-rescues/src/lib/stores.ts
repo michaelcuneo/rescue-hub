@@ -1,13 +1,41 @@
 import { writable } from 'svelte/store';
 
-export const coords = writable([151.771274, -32.927406]);
-export const mapRef = writable();
-export const selectedRescue = writable(null);
+export type RescueItem = {
+	id: string;
+	longitude: number;
+	latitude: number;
+	type: string;
+	breed?: string | null;
+	location?: string | null;
+	disabled?: boolean;
+	color: string;
+	injury?: string | null;
+	assignedUserId?: string | null;
+	createdAt?: string;
+	updatedAt?: string;
+	status?: string;
+};
+
+export type RescueData = {
+	pending: RescueItem[];
+	assigned: RescueItem[];
+	completed: RescueItem[];
+};
+
+export type DraftLocation = {
+	longitude: number;
+	latitude: number;
+	label: string;
+};
+
+export const coords = writable<[number, number]>([151.771274, -32.927406]);
+export const mapRef = writable<any>(undefined);
+export const selectedRescue = writable<RescueItem | null>(null);
 export const intakeOpen = writable(false);
-export const draftLocation = writable(null);
+export const draftLocation = writable<DraftLocation | null>(null);
 export const available = writable(true);
 
-export const data = writable({
+export const data = writable<RescueData>({
 	pending: [
 		{
 			id: 'awmdfk3k2rtnmr',

@@ -11,12 +11,14 @@
 		onclick?: () => void;
 	} = $props();
 
-	const initials = type
-		.split(' ')
-		.map((value: string) => value.substring(0, 1))
-		.join('')
-		.substring(0, 2)
-		.toUpperCase();
+	const initials = $derived(
+		type
+			.split(' ')
+			.map((value: string) => value.substring(0, 1))
+			.join('')
+			.substring(0, 2)
+			.toUpperCase()
+	);
 </script>
 
 <button

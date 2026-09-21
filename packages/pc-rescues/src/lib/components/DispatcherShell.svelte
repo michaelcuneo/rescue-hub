@@ -23,6 +23,7 @@
 		mapRef,
 		selectedRescue
 	} from '$lib/stores';
+	import type { RescueItem } from '$lib/stores';
 
 	let {
 		backendOnline,
@@ -106,7 +107,7 @@
 		return `${hours}h ago`;
 	};
 
-	function selectRescue(item: any) {
+	function selectRescue(item: RescueItem) {
 		$selectedRescue = item;
 		const rawMap = $mapRef?.getMap?.();
 
@@ -233,7 +234,8 @@
 		event.preventDefault();
 		submitError = '';
 
-		if (!$draftLocation) {
+		const location = $draftLocation;
+		if (!location) {
 			submitError = 'Choose an address or click the map to place the rescue pin.';
 			return;
 		}
@@ -253,9 +255,9 @@
 					type: species.trim(),
 					breed: breed.trim(),
 					injury: injury.trim(),
-					location: addressQuery.trim() || $draftLocation.label,
-					longitude: $draftLocation.longitude,
-					latitude: $draftLocation.latitude,
+					location: addressQuery.trim() || location.label,
+					longitude: location.longitude,
+					latitude: location.latitude,
 					callerName: callerName.trim(),
 					callerPhone: callerPhone.trim()
 				})
@@ -487,7 +489,7 @@
 								autocomplete="off"
 							/>
 							{#if addressSearching}
-								<LoaderCircle size={15} class="spinner" />
+								<span class="address-spinner"><LoaderCircle size={15} /></span>
 							{/if}
 						</div>
 
@@ -1293,9 +1295,11 @@
 		padding-right: 33px;
 	}
 
-	.address-input .spinner {
+	.address-spinner {
 		position: absolute;
 		right: 10px;
+		display: inline-flex;
+		animation: spin 0.85s linear infinite;
 	}
 
 	.address-results {

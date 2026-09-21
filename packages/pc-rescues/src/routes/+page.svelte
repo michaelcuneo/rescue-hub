@@ -18,6 +18,10 @@
 
 		const mapped = data.rescues.map((rescue) => ({
 			...rescue,
+			breed: rescue.breed ?? '',
+			location: rescue.location ?? '',
+			injury: rescue.injury ?? '',
+			assignedUserId: rescue.assignedUserId ?? undefined,
 			color: colourForStatus(rescue.status),
 			disabled: false
 		}));
