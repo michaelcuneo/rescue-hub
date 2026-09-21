@@ -1,4 +1,5 @@
 <script lang="ts">
+  import AdminOperatingAreas from '$lib/components/AdminOperatingAreas.svelte';
   import type { PageData } from './$types';
 
   let { data, form }: { data: PageData; form?: any } = $props();
@@ -399,19 +400,15 @@
           <p class="eyebrow">Operating areas</p>
           <h2>NSW geographic authority</h2>
           <p>
-            This section will combine the DCCEEW operating-area polygons with the seeded organisation
-            directory. It is the administrative source of truth for dispatch routing.
+            Official DCCEEW wildlife rehabilitation boundaries are rendered directly below and linked
+            to the Rescue Hub organisation directory for dispatch routing.
           </p>
           <div class="readiness">
             <span><strong>{gisOrganisations.length}</strong> GIS sources identified</span>
-            <span><strong>{Math.max(0, (data.organisations.length || 35) - gisOrganisations.length)}</strong> text-only areas</span>
+            <span><strong>{Math.max(0, data.organisations.length - gisOrganisations.length)}</strong> text-only areas</span>
           </div>
         </article>
-        <article class="map-placeholder">
-          <span>NSW</span>
-          <strong>Operating-area map</strong>
-          <small>GIS polygons are the next integration step.</small>
-        </article>
+        <AdminOperatingAreas />
       </section>
     {:else if section === 'people'}
       <section class="panel page-panel">
@@ -547,13 +544,30 @@
         </div>
       </section>
     {:else}
-      <section class="panel page-panel empty-feature">
-        <p class="eyebrow">Governance</p>
-        <h2>Audit history</h2>
-        <p>
-          Rescue creation, assignment, status changes, outcomes, euthanasia records and privileged
-          administrative corrections will be surfaced here as immutable audit events.
-        </p>
+      <section class="panel page-panel">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">Governance</p>
+            <h2>Audit history</h2>
+            <p class="intro">Presentation events show how operational changes become a regulator-visible timeline.</p>
+          </div>
+        </div>
+        <div class="audit-list">
+          {#each data.auditEvents as event}
+            <article>
+              <div>
+                <strong>{event.action.replaceAll('_', ' ')}</strong>
+                <span>{event.summary}</span>
+              </div>
+              <time>{formatDate(event.createdAt)}</time>
+            </article>
+          {:else}
+            <div class="empty-state large">
+              <strong>No audit events yet</strong>
+              <span>Operational changes will appear here as immutable audit history.</span>
+            </div>
+          {/each}
+        </div>
       </section>
     {/if}
   </main>
@@ -1422,6 +1436,47 @@
   .broadcast-grid button:disabled {
     opacity: 0.45;
     cursor: not-allowed;
+  }
+
+  .audit-list {
+    display: grid;
+  }
+
+  .audit-list article {
+    display: flex;
+    justify-content: space-between;
+    gap: 20px;
+    padding: 12px 0;
+    border-top: 1px solid var(--line);
+  }
+
+  .audit-list article:first-child {
+    border-top: 0;
+  }
+
+  .audit-list strong,
+  .audit-list span {
+    display: block;
+  }
+
+  .audit-list strong {
+    color: var(--ink);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .audit-list span {
+    margin-top: 3px;
+    color: var(--muted);
+    font-size: 10px;
+  }
+
+  .audit-list time {
+    flex: 0 0 auto;
+    color: var(--muted);
+    font-size: 9px;
+    white-space: nowrap;
   }
 
   .empty-state {
