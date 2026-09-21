@@ -49,6 +49,7 @@ type RescueConnection {
 
 input CreateRescueInput {
   id: ID!
+  organisationId: ID
   type: String!
   breed: String
   location: String
