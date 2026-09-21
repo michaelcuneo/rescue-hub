@@ -72,11 +72,11 @@ Historical region definitions should be retainable so an old rescue remains inte
 
 Represents a person with access to the platform.
 
-A person can potentially have more than one membership, but access is always evaluated in the context of a specific organisation/authority membership.
+An operational wildlife rescue user may have only one active rescue-organisation membership at a time. A person who is an active member of Hunter Wildlife Rescue cannot simultaneously be an active member of WIRES, and vice versa. Government/regulator access is modelled separately as authority access and does not count as a second rescue-organisation membership.
 
 ### Membership
 
-Connects a user to an authority or organisation and grants roles.
+Connects a user to exactly one active rescue organisation and grants operational roles. Authority/government access is represented separately so regulator users are not treated as members of a rescue organisation.
 
 Suggested roles:
 
@@ -106,7 +106,7 @@ Creates rescue incidents, updates dispatch information and coordinates assignmen
 
 Receives eligible rescue work, accepts assignments and records rescue progress/outcomes appropriate to their permissions.
 
-A person may hold more than one role.
+A person may hold more than one role inside their single active rescue organisation, but may not hold active operational memberships in multiple rescue organisations.
 
 ## Visibility rules
 
@@ -122,6 +122,8 @@ By default an organisation-scoped user can access:
 - organisation configuration their role permits.
 
 They must not be able to enumerate another organisation's private rescue or user records simply by changing an identifier in a request.
+
+The backend must also reject any attempt to create a second active rescue-organisation membership for the same user. Moving from one rescue organisation to another must be an explicit transfer/change-of-membership workflow that closes the previous active membership first.
 
 ### Governing authority user
 
