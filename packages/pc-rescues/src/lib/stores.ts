@@ -16,6 +16,14 @@ export type RescueItem = {
 	status?: string;
 };
 
+export type RescueHubPerson = {
+	id: string;
+	name: string;
+	email: string;
+	roles: string[];
+	organisationId?: string;
+};
+
 export type RescueData = {
 	pending: RescueItem[];
 	assigned: RescueItem[];
@@ -34,6 +42,7 @@ export const selectedRescue = writable<RescueItem | null>(null);
 export const intakeOpen = writable(false);
 export const draftLocation = writable<DraftLocation | null>(null);
 export const available = writable(true);
+export const people = writable<RescueHubPerson[]>([]);
 
 export const data = writable<RescueData>({
 	pending: [
