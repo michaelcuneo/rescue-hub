@@ -132,12 +132,17 @@
         </h1>
       </div>
 
+      <div class="admin-actions">
+        {#if canChooseOrganisation}
+          <a class="demo-launch" href="/demo/hunter">Open Hunter demo</a>
+        {/if}
       <div class="demo-identity">
         <span class="avatar">MC</span>
         <div>
           <strong>{data.currentUser.name}</strong>
           <span>{data.currentUser.roles.join(' · ')}</span>
         </div>
+      </div>
       </div>
     </header>
 
@@ -734,6 +739,25 @@
     font-weight: 800;
     text-transform: uppercase;
     letter-spacing: 0.13em;
+  }
+
+  .admin-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .demo-launch {
+    display: inline-flex;
+    align-items: center;
+    min-height: 36px;
+    padding: 0 12px;
+    border-radius: 9px;
+    background: var(--forest);
+    color: white;
+    font-size: 9px;
+    font-weight: 800;
+    text-decoration: none;
   }
 
   .demo-identity {
