@@ -7,6 +7,7 @@ import {
 	removeUser,
 	requestPasswordResetForUser,
 	setUserEnabled,
+	updateUserDispatchMembership,
 	type RescueHubRole,
 	type RescueHubUser
 } from '$lib/server/auth';
@@ -15,6 +16,11 @@ import {
 	listAdminOrganisations,
 	listAdminRescues
 } from '$lib/server/admin-data';
+import {
+	getOrganisationMembershipConfig,
+	STANDARD_MEMBERSHIP_TYPES,
+	STANDARD_TEAMS
+} from '$lib/server/membership';
 import type { Actions, PageServerLoad } from './$types';
 
 const ORGANISATION_ROLES: RescueHubRole[] = [
@@ -68,6 +74,16 @@ export const load: PageServerLoad = async ({ locals }) => {
 		auditResult.status === 'fulfilled' ? auditResult.value : [];
 	let users = usersResult.status === 'fulfilled' ? usersResult.value : [];
 
+	const organisationIds = [...new Set(users.map((user) => user.organisationId).filter((id): id is string => Boolean(id)))];
+	const membershipConfigs = Object.fromEntries(
+		await Promise.all(
+			organisationIds.map(async (organisationId) => [
+				organisationId,
+				await getOrganisationMembershipConfig(organisationId)
+			] as const)
+		)
+	);
+
 	if (!isAuthorityAdmin(actor)) {
 		organisations = organisations.filter((organisation) => organisation.id === actor.organisationId);
 		users = users.filter((user) => user.organisationId === actor.organisationId);
@@ -95,6 +111,9 @@ export const load: PageServerLoad = async ({ locals }) => {
 		rescues,
 		users,
 		auditEvents,
+		membershipConfigs,
+		standardMembershipTypes: STANDARD_MEMBERSHIP_TYPES,
+		standardTeams: STANDARD_TEAMS,
 		backend: {
 			online: errors.length === 0,
 			errors
@@ -110,6 +129,8 @@ export const actions: Actions = {
 		const email = requiredString(form, 'email').toLowerCase();
 		const requestedOrganisationId = requiredString(form, 'organisationId');
 		const requestedRole = requiredString(form, 'role') as RescueHubRole;
+		const membershipTypeId = requiredString(form, 'membershipTypeId') || 'active-rescuer';
+		const teamIds = form.getAll('teamIds').map(String).filter(Boolean);
 
 		const organisationId = isAuthorityAdmin(actor)
 			? requestedOrganisationId
@@ -131,7 +152,9 @@ export const actions: Actions = {
 				name,
 				email,
 				organisationId,
-				roles: [requestedRole]
+				roles: [requestedRole],
+				membershipTypeId,
+				teamIds
 			});
 			return {
 				action: 'inviteUser',
@@ -144,6 +167,25 @@ export const actions: Actions = {
 				error: error instanceof Error ? error.message : 'Unable to invite user.'
 			});
 		}
+	},
+
+	updateDispatchMembership: async ({ request, locals }) => {
+		const actor = await requireAdmin(locals);
+		const form = await request.formData();
+		const userId = requiredString(form, 'userId');
+		const membershipTypeId = requiredString(form, 'membershipTypeId');
+		const teamIds = form.getAll('teamIds').map(String).filter(Boolean);
+		const target = (await listUsers()).find((user) => user.id === userId);
+
+		if (!target || !canManageUser(actor, target)) {
+			return fail(403, { action: 'updateDispatchMembership', error: 'You cannot manage that user.' });
+		}
+		if (!membershipTypeId) {
+			return fail(400, { action: 'updateDispatchMembership', error: 'Choose a membership type.' });
+		}
+
+		await updateUserDispatchMembership({ userId, membershipTypeId, teamIds });
+		return { action: 'updateDispatchMembership', success: true };
 	},
 
 	disableUser: async ({ request, locals }) => {
