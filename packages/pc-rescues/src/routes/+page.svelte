@@ -31,4 +31,4 @@
 </script>
 
 <MapBox />
-<DispatcherShell backendOnline={data.backendOnline} />
+<DispatcherShell backendOnline={data.backendOnline} user={data.user} />
