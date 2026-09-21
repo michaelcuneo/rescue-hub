@@ -1,6 +1,7 @@
 import { json } from '@sveltejs/kit';
 import { createRescue } from '$lib/server/graphql';
 import { getHunterDemo, HUNTER_DEMO_ORGANISATION } from '$lib/server/demo';
+import { notifyEligibleRescuers } from '$lib/server/push';
 import type { RequestHandler } from './$types';
 
 export const POST: RequestHandler = async ({ request, locals, cookies }) => {
@@ -48,6 +49,17 @@ export const POST: RequestHandler = async ({ request, locals, cookies }) => {
 			longitude,
 			injury: body.injury?.trim() || undefined,
 			status: 'PENDING'
+		});
+
+		void notifyEligibleRescuers({
+			id: rescue.id,
+			organisationId,
+			type: rescue.type,
+			breed: rescue.breed ?? undefined,
+			location: rescue.location ?? undefined,
+			injury: rescue.injury ?? undefined
+		}).catch((error) => {
+			console.error('Unable to deliver rescue push notifications.', error);
 		});
 
 		return json({ rescue }, { status: 201 });
