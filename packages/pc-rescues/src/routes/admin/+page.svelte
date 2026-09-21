@@ -80,6 +80,23 @@
     data.organisations.find((organisation) => organisation.id === id)?.displayName ??
     (id || 'No organisation');
 
+  const membershipConfigFor = (user: { organisationId?: string }) =>
+    (user.organisationId ? data.membershipConfigs[user.organisationId] : undefined) ?? {
+      membershipTypes: data.standardMembershipTypes,
+      teams: data.standardTeams
+    };
+
+  const membershipTypeName = (user: { organisationId?: string; membershipTypeId?: string }) =>
+    membershipConfigFor(user).membershipTypes.find((type) => type.id === user.membershipTypeId)?.name ??
+    user.membershipTypeId ??
+    'Not set';
+
+  const teamNames = (user: { organisationId?: string; teamIds: string[] }) => {
+    const config = membershipConfigFor(user);
+    const ids = new Set(user.teamIds ?? []);
+    return config.teams.filter((team) => ids.has(team.id)).map((team) => team.name);
+  };
+
   const canChooseOrganisation = $derived(
     data.currentUser.roles.includes('PLATFORM_ADMIN') ||
       data.currentUser.roles.includes('AUTHORITY_ADMIN')
@@ -414,11 +431,12 @@
       <section class="panel page-panel">
         <div class="panel-heading table-heading">
           <div>
-            <p class="eyebrow">Identity & permissions</p>
+            <p class="eyebrow">Identity, membership & dispatch</p>
             <h2>People and access</h2>
             <p class="intro">
-              Rescue Hub owns credentials, sessions, organisation membership and operational roles.
-              A person may have only one active rescue-organisation membership.
+              Permissions, organisation membership and rescue capability are separate. Roles control
+              what a person can do in Rescue Hub; membership type and teams control which operational
+              work and push notifications they receive.
             </p>
           </div>
         </div>
@@ -455,6 +473,28 @@
               <option value="DATA_STEWARD">Data steward</option>
             </select>
           </label>
+          <label>
+            <span>Membership type</span>
+            <select name="membershipTypeId" required>
+              {#each data.standardMembershipTypes as membershipType}
+                <option value={membershipType.id}>{membershipType.name}</option>
+              {/each}
+            </select>
+          </label>
+
+          <fieldset class="team-picker invite-teams">
+            <legend>Dispatch teams</legend>
+            {#each data.standardTeams as team}
+              <label>
+                <input type="checkbox" name="teamIds" value={team.id} />
+                <span>
+                  <strong>{team.name}</strong>
+                  <small>{team.receivesAllRescues ? 'Receives every rescue' : team.description}</small>
+                </span>
+              </label>
+            {/each}
+          </fieldset>
+
           <button class="primary-action invite-button" type="submit">Invite user</button>
         </form>
 
@@ -474,8 +514,10 @@
             <thead>
               <tr>
                 <th>User</th>
-                <th>Identity status</th>
-                <th>Organisation role</th>
+                <th>Membership</th>
+                <th>Teams</th>
+                <th>Availability</th>
+                <th>Role</th>
                 <th>Access</th>
                 <th>Actions</th>
               </tr>
@@ -486,10 +528,27 @@
                   <td>
                     <strong>{user.name || user.email}</strong>
                     <span>{user.email}</span>
+                    <span>{organisationName(user.organisationId)}</span>
                   </td>
-                  <td><span class="identity-status">{user.status}</span></td>
                   <td>
-                    <strong>{organisationName(user.organisationId)}</strong>
+                    <strong>{membershipTypeName(user)}</strong>
+                    <span class="identity-status">{user.status}</span>
+                  </td>
+                  <td>
+                    <div class="team-tags">
+                      {#each teamNames(user) as team}
+                        <span>{team}</span>
+                      {:else}
+                        <em>No dispatch teams</em>
+                      {/each}
+                    </div>
+                  </td>
+                  <td>
+                    <span class:available={user.availabilityStatus === 'AVAILABLE'} class="availability-state">
+                      {user.availabilityStatus ?? 'OFFLINE'}
+                    </span>
+                  </td>
+                  <td>
                     <span>{user.roles.join(', ') || 'No operational role'}</span>
                   </td>
                   <td>
@@ -499,6 +558,40 @@
                   </td>
                   <td>
                     <div class="user-actions">
+                      <details class="dispatch-editor">
+                        <summary>Teams</summary>
+                        <form method="POST" action="?/updateDispatchMembership">
+                          <input type="hidden" name="userId" value={user.id} />
+                          <label>
+                            <span>Membership type</span>
+                            <select name="membershipTypeId">
+                              {#each membershipConfigFor(user).membershipTypes as membershipType}
+                                <option
+                                  value={membershipType.id}
+                                  selected={membershipType.id === user.membershipTypeId}
+                                >
+                                  {membershipType.name}
+                                </option>
+                              {/each}
+                            </select>
+                          </label>
+                          <fieldset class="team-picker compact">
+                            <legend>Dispatch teams</legend>
+                            {#each membershipConfigFor(user).teams as team}
+                              <label>
+                                <input
+                                  type="checkbox"
+                                  name="teamIds"
+                                  value={team.id}
+                                  checked={(user.teamIds ?? []).includes(team.id)}
+                                />
+                                <span>{team.name}</span>
+                              </label>
+                            {/each}
+                          </fieldset>
+                          <button type="submit">Save membership</button>
+                        </form>
+                      </details>
                       <form method="POST" action={user.enabled ? '?/disableUser' : '?/enableUser'}>
                         <input type="hidden" name="userId" value={user.id} />
                         <button type="submit">{user.enabled ? 'Disable' : 'Enable'}</button>
@@ -515,6 +608,41 @@
                   </td>
                 </tr>
               {:else}
+                <tr>
+                  <td colspan="7">
+                    <div class="empty-state">
+                      <strong>No Rescue Hub users in this scope yet</strong>
+                      <span>Invite a user above. Their identity, membership and team assignments are created together.</span>
+                    </div>
+                  </td>
+                </tr>
+              {/each}
+            </tbody>
+          </table>
+        </div>
+
+        <div class="broadcast-grid">
+          <article>
+            <p class="eyebrow">Push dispatch</p>
+            <h2>Team-targeted notifications</h2>
+            <p>
+              New rescues are matched to available members by team capability. Transport can be
+              configured to receive every rescue.
+            </p>
+            <button type="button" disabled>Notification history</button>
+          </article>
+          <article>
+            <p class="eyebrow">Organisation configuration</p>
+            <h2>Memberships & teams</h2>
+            <p>
+              Rescue Hub provides standard capability codes while each organisation can define its own
+              membership names and team structure.
+            </p>
+            <button type="button" disabled>Configure organisation</button>
+          </article>
+        </div>
+      </section>
+    {:else}
                 <tr>
                   <td colspan="5">
                     <div class="empty-state">
@@ -1290,7 +1418,7 @@
 
   .invite-user {
     display: grid;
-    grid-template-columns: 1fr 1.2fr 1.2fr 1fr auto;
+    grid-template-columns: 1fr 1.2fr 1.2fr 1fr 1fr;
     gap: 10px;
     align-items: end;
     padding: 15px;
@@ -1331,6 +1459,147 @@
     width: auto;
     margin: 0;
     min-height: 36px;
+    align-self: end;
+  }
+
+  .invite-teams {
+    grid-column: 1 / -1;
+  }
+
+  .team-picker {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 7px 12px;
+    margin: 0;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: 9px;
+  }
+
+  .team-picker legend {
+    padding: 0 5px;
+    color: var(--muted);
+    font-size: 8px;
+    font-weight: 800;
+    text-transform: uppercase;
+  }
+
+  .team-picker label {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    min-width: 150px;
+  }
+
+  .team-picker label > span,
+  .team-picker label strong,
+  .team-picker label small {
+    display: block;
+  }
+
+  .team-picker label strong {
+    color: var(--ink);
+    font-size: 9px;
+  }
+
+  .team-picker label small {
+    margin-top: 1px;
+    color: var(--muted);
+    font-size: 8px;
+    text-transform: none;
+    letter-spacing: normal;
+  }
+
+  .team-picker.compact {
+    display: grid;
+    max-width: 250px;
+    margin: 8px 0;
+  }
+
+  .team-picker.compact label {
+    min-width: 0;
+    font-size: 9px;
+  }
+
+  .team-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+
+  .team-tags span {
+    width: max-content;
+    margin: 0;
+    padding: 3px 6px;
+    border-radius: 999px;
+    background: #edf4ef;
+    color: #315e43;
+    font-size: 8px;
+    font-weight: 700;
+  }
+
+  .team-tags em {
+    color: var(--muted);
+    font-size: 9px;
+    font-style: normal;
+  }
+
+  .availability-state {
+    display: inline-flex;
+    width: max-content;
+    padding: 3px 7px;
+    border-radius: 999px;
+    background: #f1f3f2;
+    color: #69766f;
+    font-size: 8px;
+    font-weight: 800;
+  }
+
+  .availability-state.available {
+    background: #e7f5eb;
+    color: #29633e;
+  }
+
+  .dispatch-editor {
+    position: relative;
+  }
+
+  .dispatch-editor summary {
+    padding: 6px 8px;
+    border: 1px solid #d4ddd7;
+    border-radius: 7px;
+    background: white;
+    color: #435249;
+    font-size: 8px;
+    font-weight: 800;
+    cursor: pointer;
+    list-style: none;
+  }
+
+  .dispatch-editor form {
+    position: absolute;
+    z-index: 8;
+    right: 0;
+    width: 290px;
+    padding: 12px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: white;
+    box-shadow: 0 12px 30px rgb(23 61 44 / 0.16);
+  }
+
+  .dispatch-editor form > label {
+    display: grid;
+    gap: 4px;
+  }
+
+  .dispatch-editor select {
+    width: 100%;
+    min-height: 34px;
+    border: 1px solid #d4ddd7;
+    border-radius: 7px;
+    background: white;
+    font-size: 9px;
   }
 
   .people-feedback {
