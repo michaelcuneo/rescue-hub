@@ -1,8 +1,21 @@
 import { json } from '@sveltejs/kit';
 import { createRescue } from '$lib/server/graphql';
+import { getHunterDemo, HUNTER_DEMO_ORGANISATION } from '$lib/server/demo';
 import type { RequestHandler } from './$types';
 
-export const POST: RequestHandler = async ({ request }) => {
+export const POST: RequestHandler = async ({ request, locals, cookies }) => {
+	if (!locals.user) {
+		return json({ error: 'Authentication required.' }, { status: 401 });
+	}
+
+	const demoMode = getHunterDemo(cookies, locals.user);
+	const organisationId = demoMode
+		? HUNTER_DEMO_ORGANISATION
+		: locals.user.organisationId;
+
+	if (!organisationId) {
+		return json({ error: 'An operational organisation is required.' }, { status: 403 });
+	}
 	const body = (await request.json()) as {
 		type?: string;
 		breed?: string;
@@ -27,6 +40,7 @@ export const POST: RequestHandler = async ({ request }) => {
 	try {
 		const rescue = await createRescue({
 			id: crypto.randomUUID(),
+			organisationId,
 			type,
 			breed: body.breed?.trim() || undefined,
 			location: body.location?.trim() || undefined,
