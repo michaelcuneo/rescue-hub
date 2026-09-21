@@ -423,7 +423,20 @@
 
 <style>
   .admin-shell {
+    --ink: #17211d;
+    --muted: #66736c;
+    --line: #d9e1dc;
+    --surface: #ffffff;
+    --surface-soft: #f5f8f6;
+    --forest: #173d2c;
+    --forest-2: #24583f;
+    --lime: #c9f04a;
+    --danger: #b13c3c;
+    --amber: #966d10;
     min-height: 100vh;
+    background:
+      radial-gradient(circle at 80% 0%, rgba(201, 240, 74, 0.10), transparent 30rem),
+      #edf1ee;
     display: grid;
     grid-template-columns: 244px minmax(0, 1fr);
   }

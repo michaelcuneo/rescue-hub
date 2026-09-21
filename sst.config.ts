@@ -20,18 +20,7 @@ export default $config({
     const { api, graphql } = await import("./packages/infra/api");
     await import("./packages/infra/directory");
 
-    const admin = new sst.aws.SvelteKit("Admin", {
-      path: "packages/admin",
-      link: [graphql, data],
-      dev: {
-        autostart: true,
-        command: "npm run dev -- --host 0.0.0.0 --port 5173",
-        title: "Admin",
-        url: "http://localhost:5173",
-      },
-    });
-
-    const rescues = new sst.aws.SvelteKit("PCRescues", {
+    const web = new sst.aws.SvelteKit("Web", {
       path: "packages/pc-rescues",
       link: [graphql, data],
       environment: {
@@ -46,8 +35,7 @@ export default $config({
     });
 
     return {
-      admin: admin.url,
-      rescues: rescues.url,
+      web: web.url,
       dataTable: data.name,
       graphqlUrl: api.url,
     };

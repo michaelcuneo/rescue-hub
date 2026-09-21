@@ -2,7 +2,7 @@
   "name": "rescue-hub",
   "version": "1.0.0",
   "private": true,
-  "description": "NATF Rescue Hub",
+  "description": "Rescue Hub — NSW wildlife rescue coordination platform",
   "license": "ISC",
   "engines": {
     "node": ">=22.19.0"
@@ -10,8 +10,6 @@
   "packageManager": "npm@10.9.8",
   "scripts": {
     "dev": "sst dev",
-    "dev:admin": "npm run dev --workspace=admin",
-    "dev:pc": "npm run dev --workspace=website",
     "sst:install": "sst install",
     "deploy": "sst deploy",
     "deploy:production": "sst deploy --stage production",
@@ -19,7 +17,8 @@
     "check": "npm run check --workspaces --if-present",
     "build": "npm run build --workspaces --if-present",
     "lint": "npm run lint --workspaces --if-present",
-    "format": "npm run format --workspaces --if-present"
+    "format": "npm run format --workspaces --if-present",
+    "dev:web": "npm run dev --workspace=website"
   },
   "workspaces": [
     "packages/*"
