@@ -489,10 +489,12 @@ export async function loginUser(email: string, password: string, cookies?: Cooki
 export async function requestPasswordReset(emailInput: string) {
 	const email = normalizeEmail(emailInput);
 	const userId = await lookupUserIdByEmail(email);
-	if (!userId) return { sent: true };
+	if (!userId) return { sent: true, devCode: undefined };
 
 	const user = await getUserRecord(userId);
-	if (!user || !Boolean(user.enabled) || String(user.status) === 'REMOVED') return { sent: true };
+	if (!user || !Boolean(user.enabled) || String(user.status) === 'REMOVED') {
+		return { sent: true, devCode: undefined };
+	}
 	return issueCode('RESET_PASSWORD', userId, email);
 }
 

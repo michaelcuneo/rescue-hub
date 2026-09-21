@@ -38,16 +38,20 @@
 		};
 	} = $props();
 
-	const userInitials = user.name
-		.split(/\s+/)
-		.filter(Boolean)
-		.slice(0, 2)
-		.map((part) => part[0]?.toUpperCase() ?? '')
-		.join('') || '?';
+	const userInitials = $derived(
+		user.name
+			.split(/\s+/)
+			.filter(Boolean)
+			.slice(0, 2)
+			.map((part) => part[0]?.toUpperCase() ?? '')
+			.join('') || '?'
+	);
 
-	const userRole = user.roles[0]?.replaceAll('_', ' ') ?? 'Member';
-	const userCanAdmin = user.roles.some((role) =>
-		['PLATFORM_ADMIN', 'AUTHORITY_ADMIN', 'ORG_ADMIN'].includes(role)
+	const userRole = $derived(user.roles[0]?.replaceAll('_', ' ') ?? 'Member');
+	const userCanAdmin = $derived(
+		user.roles.some((role) =>
+			['PLATFORM_ADMIN', 'AUTHORITY_ADMIN', 'ORG_ADMIN'].includes(role)
+		)
 	);
 
 	type RescueTab = 'pending' | 'assigned' | 'completed';

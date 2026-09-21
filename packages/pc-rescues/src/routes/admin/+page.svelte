@@ -79,9 +79,10 @@
     data.organisations.find((organisation) => organisation.id === id)?.displayName ??
     (id || 'No organisation');
 
-  const canChooseOrganisation =
+  const canChooseOrganisation = $derived(
     data.currentUser.roles.includes('PLATFORM_ADMIN') ||
-    data.currentUser.roles.includes('AUTHORITY_ADMIN');
+      data.currentUser.roles.includes('AUTHORITY_ADMIN')
+  );
 
   const formatDate = (value: string) =>
     new Intl.DateTimeFormat('en-AU', {
