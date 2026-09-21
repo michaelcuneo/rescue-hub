@@ -16,12 +16,15 @@ Add:
 - User;
 - Membership;
 - roles;
+- one-active-rescue-organisation-per-user constraint;
+- explicit organisation transfer/change-of-membership workflow;
 - Rescue ownership by authority/organisation/region;
 - server-side authorisation primitives.
 
 Acceptance criteria:
 
 - an organisation user cannot read another organisation's private cases;
+- a user cannot hold active operational memberships in two rescue organisations simultaneously;
 - an authorised governing user can view all participating organisations in its jurisdiction;
 - every rescue has explicit tenant and geographic ownership.
 
