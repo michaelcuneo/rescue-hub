@@ -200,7 +200,7 @@ An audit event should contain at least:
 
 The frontend is not a security boundary.
 
-The PC and Admin applications can present different interfaces, but AppSync/server operations must independently verify the actor's authority for every protected operation.
+The dispatcher and administration routes can present different interfaces, but server operations must independently verify the actor's authority for every protected operation.
 
 
 ## Identity architecture
