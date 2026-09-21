@@ -250,6 +250,98 @@ async function createSession(userId: string, cookies?: Cookies) {
 	return token;
 }
 
+
+export async function bootstrapPlatformAdmin(input: {
+	name: string;
+	email: string;
+	password: string;
+}, cookies?: Cookies) {
+	const email = normalizeEmail(input.email);
+	const name = input.name.trim();
+	const passwordError = validatePassword(input.password);
+
+	if (!/^\S+@\S+\.\S+$/.test(email)) throw new Error('Enter a valid email address.');
+	if (!name || name.length > 100) throw new Error('Enter a name.');
+	if (passwordError) throw new Error(passwordError);
+
+	const userId = randomUUID();
+	const now = new Date().toISOString();
+	const credential = await hashPassword(input.password);
+
+	await db.send(new TransactWriteCommand({
+		TransactItems: [
+			{
+				Put: {
+					TableName: tableName,
+					Item: {
+						pk: 'SYSTEM#AUTH',
+						sk: 'BOOTSTRAP',
+						entity: 'auth_bootstrap',
+						createdAt: now,
+						createdByUserId: userId
+					},
+					ConditionExpression: 'attribute_not_exists(pk) AND attribute_not_exists(sk)'
+				}
+			},
+			{
+				Put: {
+					TableName: tableName,
+					Item: { pk: `AUTH#EMAIL#${email}`, sk: 'USER', entity: 'auth_lookup', userId },
+					ConditionExpression: 'attribute_not_exists(pk)'
+				}
+			},
+			{
+				Put: {
+					TableName: tableName,
+					Item: {
+						pk: `USER#${userId}`,
+						sk: 'PROFILE',
+						entity: 'user',
+						id: userId,
+						email,
+						name,
+						enabled: true,
+						status: 'ACTIVE',
+						emailVerified: true,
+						authEpoch: 0,
+						roles: ['PLATFORM_ADMIN'],
+						createdAt: now,
+						updatedAt: now,
+						gsi2pk: 'USERS',
+						gsi2sk: `${name.toLowerCase()}#${userId}`
+					}
+				}
+			},
+			{
+				Put: {
+					TableName: tableName,
+					Item: {
+						pk: `USER#${userId}`,
+						sk: 'PASSWORD',
+						entity: 'credential',
+						salt: credential.salt,
+						passwordHash: credential.hash,
+						updatedAt: now
+					}
+				}
+			}
+		]
+	}));
+
+	return {
+		user: await getUserById(userId),
+		sessionToken: await createSession(userId, cookies)
+	};
+}
+
+export async function hasCompletedBootstrap() {
+	const result = await db.send(new GetCommand({
+		TableName: tableName,
+		Key: { pk: 'SYSTEM#AUTH', sk: 'BOOTSTRAP' }
+	}));
+	return Boolean(result.Item);
+}
+
 export async function inviteUser(input: {
 	name: string;
 	email: string;
