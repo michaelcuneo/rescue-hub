@@ -27,9 +27,11 @@
 
 	let {
 		backendOnline,
-		user
+		user,
+		demoMode = false
 	}: {
 		backendOnline: boolean;
+		demoMode?: boolean;
 		user: {
 			name: string;
 			email: string;
@@ -311,11 +313,12 @@
 			<div class="logo">RH</div>
 			<div>
 				<strong>Hunter Wildlife Rescue</strong>
-				<span>Demo organisation · Newcastle / Hunter</span>
+				<span>{demoMode ? 'Fictional presentation data · Newcastle / Hunter' : 'Newcastle / Hunter'}</span>
 			</div>
 		</div>
 
 		<div class="topbar-actions">
+			{#if demoMode}<span class="demo-badge">DEMO</span>{/if}
 			<span class:offline={!backendOnline} class="backend-state">
 				<i></i>{backendOnline ? 'Live' : 'Demo data'}
 			</span>
@@ -337,7 +340,9 @@
 					<small>{userRole}</small>
 				</div>
 			</div>
-			{#if userCanAdmin}
+			{#if demoMode}
+				<a class="session-link" href="/demo/exit">Exit demo</a>
+			{:else if userCanAdmin}
 				<a class="session-link" href="/admin">Admin</a>
 			{/if}
 			<form method="POST" action="/logout" class="logout-form">
@@ -658,7 +663,8 @@
 	}
 
 	.backend-state,
-	.availability {
+	.availability,
+	.demo-badge {
 		display: inline-flex;
 		align-items: center;
 		gap: 6px;
@@ -669,6 +675,13 @@
 		background: #f7faf8;
 		font-size: 9px;
 		font-weight: 800;
+	}
+
+	.demo-badge {
+		border-color: #d8c45b;
+		background: #fff7c7;
+		color: #715d00;
+		letter-spacing: 0.08em;
 	}
 
 	.backend-state i {
