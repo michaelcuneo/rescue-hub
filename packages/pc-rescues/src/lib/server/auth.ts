@@ -61,7 +61,7 @@ function hashToken(value: string) {
 }
 
 function mailFrom() {
-	return String(Resource.RescueHubMailFrom.value ?? '').trim();
+	return String(process.env.RESCUEHUB_MAIL_FROM ?? '').trim();
 }
 
 function cookieOptions(maxAge?: number) {
