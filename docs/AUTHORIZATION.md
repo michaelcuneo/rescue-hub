@@ -201,3 +201,33 @@ An audit event should contain at least:
 The frontend is not a security boundary.
 
 The PC and Admin applications can present different interfaces, but AppSync/server operations must independently verify the actor's authority for every protected operation.
+
+
+## Identity architecture
+
+Rescue Hub uses one Amazon Cognito User Pool as the shared credential authority for the web application and future native mobile clients.
+
+Separate Cognito application clients are created for:
+
+- Rescue Hub Web (SvelteKit);
+- Rescue Hub Mobile (future React Native iOS/Android).
+
+Cognito owns authentication concerns such as credentials, password reset and account enable/disable state.
+
+Rescue Hub's own data model remains authoritative for:
+
+- rescue-organisation membership;
+- the one-active-rescue-organisation-per-user constraint;
+- organisation roles;
+- authority/regulator roles;
+- availability;
+- operational permissions;
+- audit history.
+
+An identity existing in Cognito does not grant access to an organisation by itself.
+
+Organisation administrators will manage only users in their own tenant. Governing-authority administrators may have wider jurisdictional visibility according to their authority role.
+
+Administrative user actions such as invitation, disable/enable, password reset, membership changes and removal must create audit events before production use.
+
+Bulk email and mobile push broadcasts must be organisation/authority scoped, permission checked, queued and auditable. The future React Native clients should register device installations against the same Rescue Hub user identity rather than creating a second mobile-only account system.
