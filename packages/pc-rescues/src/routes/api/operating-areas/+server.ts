@@ -1,4 +1,5 @@
 import { json } from '@sveltejs/kit';
+import { readOperatingAreasCache, writeOperatingAreasCache } from '$lib/server/operating-areas-cache';
 import type { RequestHandler } from './$types';
 
 type OperatingAreaLayer = {
@@ -110,15 +111,39 @@ async function fetchLayer(fetcher: typeof fetch, layer: OperatingAreaLayer): Pro
 	}));
 }
 
-export const GET: RequestHandler = async ({ fetch }) => {
+export const GET: RequestHandler = async ({ fetch, url }) => {
 	const now = Date.now();
+	const forceRefresh = url.searchParams.get('refresh') === '1';
 
-	if (cached && cached.expiresAt > now) {
+	if (!forceRefresh && cached && cached.expiresAt > now) {
 		return json(cached.value, {
 			headers: {
-				'cache-control': 'public, max-age=3600, s-maxage=43200'
+				'cache-control': 'public, max-age=3600, s-maxage=43200',
+				'x-rescuehub-operating-areas-cache': 'memory'
 			}
 		});
+	}
+
+	if (!forceRefresh) {
+		try {
+			const persisted = await readOperatingAreasCache<GeoJsonCollection>();
+			if (persisted) {
+				cached = {
+					expiresAt: now + 12 * 60 * 60 * 1000,
+					value: persisted.value
+				};
+
+				return json(persisted.value, {
+					headers: {
+						'cache-control': 'public, max-age=3600, s-maxage=43200',
+						'x-rescuehub-operating-areas-cache': 'dynamodb',
+						'x-rescuehub-operating-areas-cached-at': persisted.cachedAt
+					}
+				});
+			}
+		} catch (error) {
+			console.warn('Unable to read persisted operating-area cache.', error);
+		}
 	}
 
 	const settled = await Promise.allSettled(layers.map((layer) => fetchLayer(fetch, layer)));
@@ -159,9 +184,20 @@ export const GET: RequestHandler = async ({ fetch }) => {
 		value
 	};
 
+	let persistentCacheStatus = 'write-skipped';
+	try {
+		await writeOperatingAreasCache(value);
+		persistentCacheStatus = 'written';
+	} catch (error) {
+		persistentCacheStatus = 'write-failed';
+		console.warn('Unable to persist operating-area cache.', error);
+	}
+
 	return json(value, {
 		headers: {
-			'cache-control': 'public, max-age=3600, s-maxage=43200'
+			'cache-control': 'public, max-age=3600, s-maxage=43200',
+			'x-rescuehub-operating-areas-cache': forceRefresh ? 'refreshed' : 'origin',
+			'x-rescuehub-operating-areas-persist': persistentCacheStatus
 		}
 	});
 };
