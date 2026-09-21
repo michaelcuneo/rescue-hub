@@ -20,6 +20,7 @@ export default $config({
     const { api, graphql } = await import("./packages/infra/api");
     const { mailFrom } = await import("./packages/infra/config");
     await import("./packages/infra/directory");
+    await import("./packages/infra/demo");
 
     const web = new sst.aws.SvelteKit("Web", {
       path: "packages/pc-rescues",
