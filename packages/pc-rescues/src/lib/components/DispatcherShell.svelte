@@ -24,7 +24,30 @@
 		selectedRescue
 	} from '$lib/stores';
 
-	let { backendOnline }: { backendOnline: boolean } = $props();
+	let {
+		backendOnline,
+		user
+	}: {
+		backendOnline: boolean;
+		user: {
+			name: string;
+			email: string;
+			roles: string[];
+			organisationId?: string;
+		};
+	} = $props();
+
+	const userInitials = user.name
+		.split(/\s+/)
+		.filter(Boolean)
+		.slice(0, 2)
+		.map((part) => part[0]?.toUpperCase() ?? '')
+		.join('') || '?';
+
+	const userRole = user.roles[0]?.replaceAll('_', ' ') ?? 'Member';
+	const userCanAdmin = user.roles.some((role) =>
+		['PLATFORM_ADMIN', 'AUTHORITY_ADMIN', 'ORG_ADMIN'].includes(role)
+	);
 
 	type RescueTab = 'pending' | 'assigned' | 'completed';
 	type GeocodeResult = {
@@ -302,12 +325,18 @@
 			</button>
 
 			<div class="user">
-				<span>MC</span>
+				<span>{userInitials}</span>
 				<div>
-					<strong>Michael</strong>
-					<small>Volunteer · Demo user</small>
+					<strong>{user.name}</strong>
+					<small>{userRole}</small>
 				</div>
 			</div>
+			{#if userCanAdmin}
+				<a class="session-link" href="/admin">Admin</a>
+			{/if}
+			<form method="POST" action="/logout" class="logout-form">
+				<button class="session-link" type="submit">Sign out</button>
+			</form>
 		</div>
 	</header>
 
@@ -664,6 +693,26 @@
 	.user {
 		gap: 8px;
 		padding-left: 4px;
+	}
+
+	.session-link {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		height: 34px;
+		padding: 0 9px;
+		border: 1px solid #d9e2dc;
+		border-radius: 9px;
+		background: #fff;
+		color: #3f5549;
+		font-size: 8px;
+		font-weight: 800;
+		text-decoration: none;
+		cursor: pointer;
+	}
+
+	.logout-form {
+		margin: 0;
 	}
 
 	.user > span {
