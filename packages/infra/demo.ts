@@ -1,5 +1,4 @@
-import { dynamodb } from "@pulumi/aws";
-import { data } from "./data";
+import { putSeedItem } from "./seed";
 
 const HUNTER_ORG = "native-animal-trust-fund";
 const S = (value: string) => ({ S: value });
@@ -7,14 +6,7 @@ const N = (value: number) => ({ N: String(value) });
 const B = (value: boolean) => ({ BOOL: value });
 const L = (values: string[]) => ({ L: values.map(S) });
 
-function put(name: string, value: Record<string, unknown>) {
-  new dynamodb.TableItem(name, {
-    tableName: data.name,
-    hashKey: "pk",
-    rangeKey: "sk",
-    item: JSON.stringify(value),
-  });
-}
+const put = putSeedItem;
 
 const demoMembership: Record<string, { membershipTypeId: string; teamIds: string[]; availabilityStatus: string }> = {
   "demo-hunter-priya-shah": { membershipTypeId: "active-rescuer", teamIds: ["bird", "possum-glider"], availabilityStatus: "AVAILABLE" },
