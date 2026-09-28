@@ -643,35 +643,6 @@
         </div>
       </section>
     {:else}
-                <tr>
-                  <td colspan="5">
-                    <div class="empty-state">
-                      <strong>No Rescue Hub users in this scope yet</strong>
-                      <span>Invite a user above. Their account and membership will be created together.</span>
-                    </div>
-                  </td>
-                </tr>
-              {/each}
-            </tbody>
-          </table>
-        </div>
-
-        <div class="broadcast-grid">
-          <article>
-            <p class="eyebrow">Broadcasts</p>
-            <h2>Email everyone</h2>
-            <p>Organisation-scoped bulk email will live here. Delivery will be queued and audited.</p>
-            <button type="button" disabled>Compose email</button>
-          </article>
-          <article>
-            <p class="eyebrow">Mobile notifications</p>
-            <h2>Push broadcast</h2>
-            <p>The React Native iOS/Android clients will register device tokens against the same Rescue Hub identity.</p>
-            <button type="button" disabled>Compose notification</button>
-          </article>
-        </div>
-      </section>
-    {:else}
       <section class="panel page-panel">
         <div class="panel-heading">
           <div>
