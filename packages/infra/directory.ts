@@ -1,5 +1,4 @@
-import { dynamodb } from "@pulumi/aws";
-import { data } from "./data";
+import { putSeedItem } from "./seed";
 import {
   NSW_DIRECTORY_SOURCE,
   NSW_DIRECTORY_SOURCE_UPDATED_AT,
@@ -9,14 +8,7 @@ import {
 const S = (value: string) => ({ S: value });
 const L = (values: string[]) => ({ L: values.map(S) });
 
-function put(name: string, value: Record<string, unknown>) {
-  new dynamodb.TableItem(name, {
-    tableName: data.name,
-    hashKey: "pk",
-    rangeKey: "sk",
-    item: JSON.stringify(value),
-  });
-}
+const put = putSeedItem;
 
 put("NswAuthorityDirectory", {
   pk: S("AUTHORITY#NSW-DCCEEW-BHR"),
