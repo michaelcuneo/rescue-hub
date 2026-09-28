@@ -10,8 +10,7 @@ export const api = new sst.aws.AppSync("RescueHubApi", {
   },
 });
 
-const apiKeyExpires =
-  Math.floor(Date.now() / 86_400_000) * 86_400 + 364 * 24 * 60 * 60;
+const apiKeyExpires = new Date(Date.now() + 364 * 24 * 60 * 60 * 1000).toISOString();
 
 const apiKey = new appsync.ApiKey("RescueHubApiKey", {
   apiId: api.id,
