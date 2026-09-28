@@ -87,8 +87,28 @@ export async function readOperatingAreasCache<T>(): Promise<CachedOperatingAreas
 	};
 }
 
+async function putWithBackoff(command: PutCommand) {
+	for (let attempt = 0; ; attempt += 1) {
+		try {
+			return await db.send(command);
+		} catch (error) {
+			const name = error instanceof Error ? error.name : '';
+			const throttled =
+				name === 'ThrottlingException' ||
+				name === 'ProvisionedThroughputExceededException' ||
+				name === 'RequestLimitExceeded';
+
+			if (!throttled || attempt >= 7) throw error;
+
+			const delayMs = Math.min(250 * 2 ** attempt, 4_000);
+			await new Promise((resolve) => setTimeout(resolve, delayMs));
+		}
+	}
+}
+
 export async function writeOperatingAreasCache<T>(value: T) {
-	const compressed = gzipSync(Buffer.from(JSON.stringify(value), 'utf8'), { level: 9 });
+	const json = JSON.stringify(value);
+	const compressed = gzipSync(Buffer.from(json, 'utf8'), { level: 9 });
 	const encoded = compressed.toString('base64');
 	const chunks: string[] = [];
 
@@ -98,26 +118,25 @@ export async function writeOperatingAreasCache<T>(value: T) {
 
 	const cachedAt = new Date().toISOString();
 
-	for (let index = 0; index < chunks.length; index += 20) {
-		await Promise.all(
-			chunks.slice(index, index + 20).map((payload, relativeIndex) => {
-				const chunkIndex = index + relativeIndex;
-				return db.send(new PutCommand({
-					TableName: tableName,
-					Item: {
-						pk: CACHE_PK,
-						sk: `${CHUNK_PREFIX}${String(chunkIndex).padStart(5, '0')}`,
-						entity: 'operating_area_cache_chunk',
-						cacheVersion: CACHE_VERSION,
-						payload,
-						cachedAt
-					}
-				}));
-			})
-		);
+	// All cache chunks intentionally share one partition key so they can be read
+	// with a single Query. A ~300 KB DynamoDB write consumes roughly 300 WCUs;
+	// writing 20 concurrently can exceed the per-partition key-range limit.
+	// Keep these writes sequential and retry throttling with exponential backoff.
+	for (let index = 0; index < chunks.length; index += 1) {
+		await putWithBackoff(new PutCommand({
+			TableName: tableName,
+			Item: {
+				pk: CACHE_PK,
+				sk: `${CHUNK_PREFIX}${String(index).padStart(5, '0')}`,
+				entity: 'operating_area_cache_chunk',
+				cacheVersion: CACHE_VERSION,
+				payload: chunks[index],
+				cachedAt
+			}
+		}));
 	}
 
-	await db.send(new PutCommand({
+	await putWithBackoff(new PutCommand({
 		TableName: tableName,
 		Item: {
 			pk: CACHE_PK,
@@ -127,7 +146,7 @@ export async function writeOperatingAreasCache<T>(value: T) {
 			cachedAt,
 			chunkCount: chunks.length,
 			compressedBytes: compressed.byteLength,
-			uncompressedBytes: Buffer.byteLength(JSON.stringify(value), 'utf8')
+			uncompressedBytes: Buffer.byteLength(json, 'utf8')
 		}
 	}));
 
