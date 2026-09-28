@@ -10,9 +10,13 @@ export const api = new sst.aws.AppSync("RescueHubApi", {
   },
 });
 
+const apiKeyExpires =
+  Math.floor(Date.now() / 86_400_000) * 86_400 + 364 * 24 * 60 * 60;
+
 const apiKey = new appsync.ApiKey("RescueHubApiKey", {
   apiId: api.id,
   description: "Rescue Hub server-side application access",
+  expires: apiKeyExpires,
 });
 
 export const graphql = new sst.Linkable("RescueHubGraphQL", {
