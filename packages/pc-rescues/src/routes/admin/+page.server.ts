@@ -1,4 +1,5 @@
 import { fail, redirect } from '@sveltejs/kit';
+import { HUNTER_DEMO_ORGANISATION } from '$lib/server/demo';
 import {
 	hasAdministrativeRole,
 	hasCompletedBootstrap,
@@ -122,6 +123,27 @@ export const load: PageServerLoad = async ({ locals }) => {
 };
 
 export const actions: Actions = {
+	inviteDemoReviewer: async ({ request, locals }) => {
+		const actor = await requireAdmin(locals);
+		if (!actor.roles.includes('PLATFORM_ADMIN') && !actor.roles.includes('AUTHORITY_ADMIN')) {
+			return fail(403, { action: 'inviteDemoReviewer', error: 'Platform administrator access required.' });
+		}
+		const form = await request.formData();
+		const email = requiredString(form, 'email').toLowerCase();
+		const name = requiredString(form, 'name') || 'DCCEEW Demo Reviewer';
+		if (!/^\\S+@\\S+\\.\\S+$/.test(email)) {
+			return fail(400, { action: 'inviteDemoReviewer', error: 'Enter a valid reviewer email.' });
+		}
+		try {
+			const result = await inviteUser({
+				name, email, organisationId: HUNTER_DEMO_ORGANISATION,
+				roles: ['DISPATCHER'], membershipTypeId: 'support-member', teamIds: []
+			});
+			return { action: 'inviteDemoReviewer', success: true, devCode: result.invitation.devCode };
+		} catch (error) {
+			return fail(400, { action: 'inviteDemoReviewer', error: error instanceof Error ? error.message : 'Unable to invite reviewer.' });
+		}
+	},
 	inviteUser: async ({ request, locals }) => {
 		const actor = await requireAdmin(locals);
 		const form = await request.formData();
