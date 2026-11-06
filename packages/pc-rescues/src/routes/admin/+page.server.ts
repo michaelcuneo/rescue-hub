@@ -123,6 +123,26 @@ export const load: PageServerLoad = async ({ locals }) => {
 };
 
 export const actions: Actions = {
+  inviteAdamRoff: async ({ locals }) => {
+    const actor = await requireAdmin(locals);
+    if (!actor.roles.includes('PLATFORM_ADMIN')) return fail(403, { action: 'inviteAdamRoff', error: 'Platform administrator access required.' });
+    const email = 'adam.roff@dcceew.nsw.gov.au';
+    const existing = (await listUsers()).find((user) => user.email.toLowerCase() === email);
+    if (existing) return fail(409, { action: 'inviteAdamRoff', error: 'Adam already has an account. Review his permissions before changing access.' });
+    try {
+      const result = await inviteUser({
+        name: 'Adam Roff',
+        email,
+        organisationId: actor.organisationId || HUNTER_DEMO_ORGANISATION,
+        roles: ['PLATFORM_ADMIN'],
+        membershipTypeId: 'support-member',
+        teamIds: []
+      });
+      return { action: 'inviteAdamRoff', success: true, devCode: result.invitation.devCode };
+    } catch (error) {
+      return fail(400, { action: 'inviteAdamRoff', error: error instanceof Error ? error.message : 'Unable to invite Adam.' });
+    }
+  },
 	inviteDemoReviewer: async ({ request, locals }) => {
 		const actor = await requireAdmin(locals);
 		if (!actor.roles.includes('PLATFORM_ADMIN') && !actor.roles.includes('AUTHORITY_ADMIN')) {
