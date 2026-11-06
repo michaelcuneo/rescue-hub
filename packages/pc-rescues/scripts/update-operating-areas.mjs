@@ -188,18 +188,46 @@ function geometry(g, tolerance) {
   return { type: g.type, coordinates: g.type === 'Polygon' ? simplified[0] : simplified };
 }
 async function load(layer) {
-  const params = new URLSearchParams({ where: '1=1', outFields: layer.dynamicNameField ?? '*', returnGeometry: 'true', outSR: '4326', f: 'geojson' });
-  const response = await fetch(service + '/' + layer.layerId + '/query?' + params, { signal: AbortSignal.timeout(90000) });
-  if (!response.ok) throw new Error('Layer ' + layer.layerId + ': HTTP ' + response.status);
-  const data = await response.json();
-  if (data.error) throw new Error('Layer ' + layer.layerId + ': ' + data.error.message);
-  return (data.features ?? []).filter((f) => f.geometry?.coordinates).map((f) => ({
-    type: 'Feature', geometry: f.geometry,
-    properties: { layerId: layer.layerId, organisationId: layer.organisationId ?? '', organisationName: layer.organisationName,
-      areaLabel: layer.dynamicNameField && f.properties?.[layer.dynamicNameField] ? 'WIRES — ' + f.properties[layer.dynamicNameField].trim() : layer.organisationName,
-      directoryStatus: layer.directoryStatus, source: 'NSW DCCEEW Wildlife Rehabilitation Group boundaries' }
-  }));
+  const params = new URLSearchParams({
+    where: '1=1',
+    outFields: layer.dynamicNameField ?? '*',
+    returnGeometry: 'true',
+    outSR: '4326',
+    f: 'geojson'
+  });
+  const url = service + '/' + layer.layerId + '/query?' + params;
+  let lastError;
+  for (let attempt = 1; attempt <= 4; attempt++) {
+    try {
+      const response = await fetch(url, {
+        signal: AbortSignal.timeout(90000),
+        headers: { accept: 'application/geo+json, application/json' }
+      });
+      const body = await response.text();
+      if (!response.ok) throw new Error('HTTP ' + response.status + ': ' + body.slice(0, 120).replace(/\\s+/g, ' '));
+      let data;
+      try { data = JSON.parse(body); }
+      catch {
+        throw new Error('Non-JSON response (' + (response.headers.get('content-type') ?? 'unknown content type') + '): ' + body.slice(0, 120).replace(/\\s+/g, ' '));
+      }
+      if (data.error) throw new Error('ArcGIS: ' + (data.error.message ?? JSON.stringify(data.error)));
+      if (!Array.isArray(data.features)) throw new Error('Response does not contain GeoJSON features');
+      console.log('Layer', layer.layerId, 'loaded', data.features.length, 'features');
+      return data.features.filter((f) => f.geometry?.coordinates).map((f) => ({
+        type: 'Feature', geometry: f.geometry,
+        properties: { layerId: layer.layerId, organisationId: layer.organisationId ?? '', organisationName: layer.organisationName,
+          areaLabel: layer.dynamicNameField && f.properties?.[layer.dynamicNameField] ? 'WIRES — ' + f.properties[layer.dynamicNameField].trim() : layer.organisationName,
+          directoryStatus: layer.directoryStatus, source: 'NSW DCCEEW Wildlife Rehabilitation Group boundaries' }
+      }));
+    } catch (error) {
+      lastError = error;
+      console.warn('Layer', layer.layerId, 'attempt', attempt, 'failed:', error.message);
+      if (attempt < 4) await new Promise((resolve) => setTimeout(resolve, attempt * 2000));
+    }
+  }
+  throw new Error('Layer ' + layer.layerId + ' failed after 4 attempts: ' + lastError.message);
 }
+
 console.log('Downloading', layers.length, 'ArcGIS layers...');
 const results = await Promise.allSettled(layers.map(load));
 const failures = results.flatMap((r, i) => r.status === 'rejected' ? [layers[i].layerId + ': ' + r.reason] : []);
