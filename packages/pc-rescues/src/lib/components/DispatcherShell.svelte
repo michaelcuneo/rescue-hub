@@ -352,12 +352,12 @@
 			<div class="logo">RH</div>
 			<div>
 				<strong>Hunter Wildlife Rescue</strong>
-				<span>{demoMode ? 'Fictional presentation data · Newcastle / Hunter' : 'Newcastle / Hunter'}</span>
+				<span>{demoMode || user.organisationId === 'native-animal-trust-fund' ? 'Fictional demonstration data · Newcastle / Hunter' : 'Newcastle / Hunter'}</span>
 			</div>
 		</div>
 
 		<div class="topbar-actions">
-			{#if demoMode}<span class="demo-badge">DEMO</span>{/if}
+			{#if demoMode || user.organisationId === 'native-animal-trust-fund'}<span class="demo-badge">DEMO · FICTIONAL DATA</span>{/if}
 			<span class:offline={!backendOnline} class="backend-state">
 				<i></i>{backendOnline ? 'Live' : 'Demo data'}
 			</span>
