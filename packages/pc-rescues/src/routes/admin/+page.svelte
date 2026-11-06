@@ -153,6 +153,12 @@
       <div class="admin-actions">
         {#if canChooseOrganisation}
           <a class="demo-launch" href="/demo/hunter">Open Hunter demo</a>
+          <form method="POST" action="?/inviteDemoReviewer" class="reviewer-invite">
+            <label for="reviewer-email">DCCEEW reviewer email</label>
+            <input id="reviewer-email" type="email" name="email" placeholder="reviewer@example.gov.au" required autocomplete="off" />
+            <input type="hidden" name="name" value="DCCEEW Demo Reviewer" />
+            <button type="submit">Invite demo reviewer</button>
+          </form>
         {/if}
       <div class="demo-identity">
         <span class="avatar">MC</span>
@@ -1853,4 +1859,9 @@
       grid-template-columns: 1fr;
     }
   }
+
+  .reviewer-invite { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; }
+  .reviewer-invite label { font-size: 11px; font-weight: 700; }
+  .reviewer-invite input { min-height: 34px; padding: 6px 9px; border: 1px solid #cbd7ce; border-radius: 7px; }
+  .reviewer-invite button { min-height: 34px; padding: 6px 10px; border: 0; border-radius: 7px; background: #173d2c; color: white; cursor: pointer; }
 </style>
