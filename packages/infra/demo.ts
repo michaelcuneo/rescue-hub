@@ -97,11 +97,47 @@ const rescues = [
   ["015","Water dragon","Eastern water dragon","Toronto",-33.0133,151.5921,"Minor tail injury after dog encounter","COMPLETED","demo-hunter-riley-chen"],
 ] as const;
 
-rescues.forEach((r, index) => {
+// Additional fictional cases give the demonstration a realistic, varied dispatch workload.
+// All identities, incidents, locations and outcomes below are synthetic.
+const extraCases = [
+  ["016","Koala","Koala","Blackbutt",-32.942,151.700,"Found at base of eucalyptus, lethargic","PENDING",""],
+  ["017","Tawny frogmouth","Tawny frogmouth","Hamilton",-32.925,151.749,"Possible vehicle strike near roundabout","PENDING",""],
+  ["018","Microbat","Little bent-winged bat","New Lambton",-32.929,151.711,"Bat found indoors; specialist handling required","PENDING",""],
+  ["019","Wombat","Common wombat","Beresfield",-32.802,151.658,"Wombat near roadside, possible injury","PENDING",""],
+  ["020","Sea turtle","Green turtle","Stockton",-32.907,151.784,"Stranded animal reported on beach","PENDING",""],
+  ["021","Eastern water dragon","Eastern water dragon","Warners Bay",-32.973,151.645,"Entangled in discarded fishing line","PENDING",""],
+  ["022","Australian magpie","Australian magpie","Islington",-32.915,151.744,"Adult bird unable to stand after collision","PENDING",""],
+  ["023","Ringtail possum","Common ringtail possum","Kotara",-32.944,151.695,"Juvenile discovered on ground without adult","PENDING",""],
+  ["024","Pelican","Australian pelican","Speers Point",-32.964,151.627,"Fishing tackle visible near beak","PENDING",""],
+  ["025","Echidna","Short-beaked echidna","Jesmond",-32.904,151.692,"Animal trapped in drainage channel","PENDING",""],
+  ["026","Grey-headed flying fox","Grey-headed flying fox","Newcastle East",-32.930,151.786,"Flying fox caught in backyard netting; specialist required","ASSIGNED","demo-hunter-sam-nguyen"],
+  ["027","Rainbow lorikeet","Rainbow lorikeet","Merewether",-32.949,151.750,"Wing injury following window strike","ASSIGNED","demo-hunter-priya-shah"],
+  ["028","Eastern grey kangaroo","Eastern grey kangaroo","Thornton",-32.780,151.642,"Roadside rescue with joey reported","ASSIGNED","demo-hunter-jordan-blake"],
+  ["029","Blue-tongue skink","Eastern blue-tongued skink","Cardiff",-32.942,151.655,"Caught beneath garden fencing","ASSIGNED","demo-hunter-riley-chen"],
+  ["030","Common brushtail possum","Common brushtail possum","Lambton",-32.913,151.707,"Adult possum found in roof cavity","ASSIGNED","demo-hunter-casey-morgan"],
+  ["031","Kookaburra","Laughing kookaburra","Wallsend",-32.902,151.673,"Bird with suspected leg fracture","ASSIGNED","demo-hunter-priya-shah"],
+  ["032","Australian wood duck","Australian wood duck","Maitland",-32.733,151.558,"Duckling separated from family group","ASSIGNED","demo-hunter-jamie-foster"],
+  ["033","Sugar glider","Sugar glider","Charlestown",-32.968,151.693,"Small glider rescued from garage","ASSIGNED","demo-hunter-casey-morgan"],
+  ["034","Sulphur-crested cockatoo","Sulphur-crested cockatoo","Belmont",-33.033,151.660,"Suspected beak trauma","ASSIGNED","demo-hunter-sam-nguyen"],
+  ["035","Eastern long-necked turtle","Eastern long-necked turtle","Edgeworth",-32.925,151.621,"Animal found crossing busy road","ASSIGNED","demo-hunter-riley-chen"],
+  ["036","Australian magpie","Australian magpie","Mayfield",-32.897,151.736,"Reunited fledgling with nearby parents","COMPLETED","demo-hunter-priya-shah"],
+  ["037","Common brushtail possum","Common brushtail possum","Hamilton South",-32.940,151.750,"Assessed and transferred to licensed carer","COMPLETED","demo-hunter-casey-morgan"],
+  ["038","Rainbow lorikeet","Rainbow lorikeet","New Lambton",-32.929,151.711,"Transported to wildlife veterinarian","COMPLETED","demo-hunter-sam-nguyen"],
+  ["039","Eastern water dragon","Eastern water dragon","Toronto",-33.013,151.592,"Released at safe habitat after assessment","COMPLETED","demo-hunter-riley-chen"],
+  ["040","Short-beaked echidna","Short-beaked echidna","Cessnock",-32.839,151.352,"Moved away from roadside hazard","COMPLETED","demo-hunter-jamie-foster"],
+  ["041","Tawny frogmouth","Tawny frogmouth","The Junction",-32.938,151.758,"Transferred to rehabilitation for observation","COMPLETED","demo-hunter-priya-shah"],
+  ["042","Eastern grey kangaroo","Eastern grey kangaroo","Kurri Kurri",-32.819,151.480,"Joey safely transferred into specialist care","COMPLETED","demo-hunter-jordan-blake"],
+  ["043","Laughing kookaburra","Laughing kookaburra","Adamstown",-32.938,151.725,"Recovered from temporary entanglement","COMPLETED","demo-hunter-sam-nguyen"],
+  ["044","Common ringtail possum","Common ringtail possum","Birmingham Gardens",-32.894,151.691,"Orphaned juvenile admitted into care","COMPLETED","demo-hunter-casey-morgan"],
+  ["045","Australian pelican","Australian pelican","Swansea",-33.087,151.637,"Hook removed and animal transported for assessment","COMPLETED","demo-hunter-riley-chen"]
+] as const;
+
+const allDemoRescues = [...rescues, ...extraCases];
+
+allDemoRescues.forEach((r, index) => {
   const [n,type,breed,location,latitude,longitude,injury,status,assignedUserId] = r;
   const id = `demo-hunter-rescue-${n}`;
-  const minute = String(55 - index * 3).padStart(2,"0");
-  const at = `2026-09-21T02:${minute}:00.000Z`;
+  const at = new Date(Date.UTC(2026, 10, 5, 9, 0) - index * 17 * 60_000).toISOString();
   const item: Record<string, unknown> = {
     pk: S(`RESCUE#${id}`), sk: S("META"), entity: S("rescue"), id: S(id),
     organisationId: S(HUNTER_ORG), type: S(type), breed: S(breed), location: S(location),
