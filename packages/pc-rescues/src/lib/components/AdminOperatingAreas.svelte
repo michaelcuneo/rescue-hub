@@ -37,6 +37,10 @@
 
 			const collection = (await response.json()) as OperatingAreaCollection;
 			featureCount = collection.features.length;
+			if (!featureCount) {
+				loadStatus = 'error';
+				return;
+			}
 
 			map.addSource('admin-operating-areas', {
 				type: 'geojson',
@@ -131,7 +135,7 @@
 		{#if loadStatus === 'loading'}
 			<span>Loading official DCCEEW geometry…</span>
 		{:else if loadStatus === 'error'}
-			<span class="error">Boundary service unavailable.</span>
+			<span class="error">Boundary data is currently unavailable. The map remains usable; no operating-area coverage is shown.</span>
 		{:else}
 			<span>{featureCount} boundary features loaded{loadStatus === 'partial' ? ' · partial source response' : ''}</span>
 		{/if}
