@@ -176,12 +176,7 @@
       <div class="admin-actions">
         {#if canChooseOrganisation}
           <a class="demo-launch" href="/demo/hunter">Open Hunter demo</a>
-          <form method="POST" action="?/inviteDemoReviewer" class="reviewer-invite">
-            <label for="reviewer-email">DCCEEW reviewer email</label>
-            <input id="reviewer-email" type="email" name="email" placeholder="reviewer@example.gov.au" required autocomplete="off" />
-            <input type="hidden" name="name" value="DCCEEW Demo Reviewer" />
-            <button type="submit">Invite demo reviewer</button>
-          </form>
+
         {/if}
       <div class="demo-identity">
         <span class="avatar">MC</span>
@@ -515,6 +510,9 @@
           <section class="people-dialog" role="dialog" aria-modal="true" aria-labelledby="invite-title">
             <div class="dialog-heading"><div><p class="eyebrow">New team member</p><h2 id="invite-title">Invite a person</h2></div><button class="dialog-close" type="button" aria-label="Close invitation" onclick={() => (showInvite = false)}>×</button></div>
             <form method="POST" action="?/inviteUser" class="person-form">
+              {#if canChooseOrganisation}
+                <div class="reviewer-note"><strong>DCCEEW demonstration access</strong><p>The existing demo reviewer invitation currently grants dispatcher permissions. It is not read-only, so don't use it for an external reviewer until a restricted reviewer role is implemented.</p></div>
+              {/if}
               <div class="form-pair"><label><span>Name</span><input name="name" required placeholder="Jane Smith" /></label><label><span>Email</span><input name="email" type="email" required placeholder="jane@example.org" /></label></div>
               <div class="form-pair"><label><span>Organisation</span><select name="organisationId" bind:value={inviteOrganisationId} disabled={!canChooseOrganisation} required>{#each data.organisations as organisation}<option value={organisation.id}>{organisation.displayName}</option>{/each}</select>{#if !canChooseOrganisation}<input type="hidden" name="organisationId" value={inviteOrganisationId} />{/if}</label><label><span>Role</span><select name="role" required><option value="RESCUER">Rescuer</option><option value="CARER">Carer</option><option value="DISPATCHER">Dispatcher</option><option value="ORG_ADMIN">Organisation administrator</option><option value="DATA_STEWARD">Data steward</option></select></label></div>
               <label><span>Membership type</span><select name="membershipTypeId" required>{#each inviteMembershipConfig.membershipTypes as type}<option value={type.id}>{type.name}</option>{/each}</select></label>
@@ -571,6 +569,9 @@
 </div>
 
 <style>
+  .reviewer-note { padding: 13px 16px; border: 1px solid #dfc995; border-radius: 9px; background: #fff8e7; font-size: 12px; }
+  .reviewer-note p { margin: 5px 0 0; line-height: 1.5; }
+
   .people-workspace { display: grid; gap: 22px; }
   .people-head, .directory-toolbar, .dialog-heading { display: flex; align-items: center; justify-content: space-between; gap: 18px; }
   .people-head h2, .dialog-heading h2 { margin: 5px 0 8px; font-size: 27px; }
