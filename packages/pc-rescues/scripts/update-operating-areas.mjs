@@ -1,14 +1,147 @@
 #!/usr/bin/env node
 // Run from any directory: node packages/pc-rescues/scripts/update-operating-areas.mjs
-import { readFile, mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const source = await readFile(path.join(root, 'src/routes/api/operating-areas/+server.ts'), 'utf8');
 const service = 'https://maptest.environment.nsw.gov.au/arcgis/rest/services/WildlifeRehab/Wildlife_Rehab_Groups/MapServer';
-const layers = [...source.matchAll(/\{ layerId: (\d+), organisationId: (null|'[^']+'), organisationName: '([^']+)', directoryStatus: '([^']+)'(?:, dynamicNameField: '([^']+)')? \}/g)]
-  .map((m) => ({ layerId: Number(m[1]), organisationId: m[2] === 'null' ? null : m[2].slice(1, -1), organisationName: m[3], directoryStatus: m[4], dynamicNameField: m[5] }));
+// Stable ArcGIS mapping maintained independently of the runtime API.
+const layers = [
+  {
+    "layerId": 0,
+    "organisationId": "wires",
+    "organisationName": "WIRES",
+    "directoryStatus": "CURRENT",
+    "dynamicNameField": "WIRES_Branch"
+  },
+  {
+    "layerId": 2,
+    "organisationId": "fawna",
+    "organisationName": "FAWNA",
+    "directoryStatus": "CURRENT"
+  },
+  {
+    "layerId": 3,
+    "organisationId": "friends-of-the-koala",
+    "organisationName": "Friends of the Koala",
+    "directoryStatus": "CURRENT"
+  },
+  {
+    "layerId": 4,
+    "organisationId": null,
+    "organisationName": "Kangaroo Protection Co-op",
+    "directoryStatus": "LEGACY_OR_SHARED"
+  },
+  {
+    "layerId": 5,
+    "organisationId": "koalas-in-care",
+    "organisationName": "Koalas In Care",
+    "directoryStatus": "CURRENT"
+  },
+  {
+    "layerId": 6,
+    "organisationId": "snowy-mountains-wildlife-rescue-laoko",
+    "organisationName": "Snowy Mountains Wildlife Rescue LAOKO",
+    "directoryStatus": "CURRENT"
+  },
+  {
+    "layerId": 7,
+    "organisationId": "native-animal-rescue-group",
+    "organisationName": "Native Animal Rescue Group",
+    "directoryStatus": "CURRENT"
+  },
+  {
+    "layerId": 8,
+    "organisationId": "native-animal-trust-fund",
+    "organisationName": "Hunter Wildlife Rescue",
+    "directoryStatus": "CURRENT"
+  },
+  {
+    "layerId": 9,
+    "organisationId": "northern-rivers-wildlife-carers",
+    "organisationName": "Northern Rivers Wildlife Carers",
+    "directoryStatus": "CURRENT"
+  },
+  {
+    "layerId": 10,
+    "organisationId": "northern-tablelands-wildlife-carers",
+    "organisationName": "Northern Tablelands Wildlife Carers",
+    "directoryStatus": "CURRENT"
+  },
+  {
+    "layerId": 11,
+    "organisationId": "port-macquarie-koala-hospital",
+    "organisationName": "Port Macquarie Koala Hospital",
+    "directoryStatus": "CURRENT"
+  },
+  {
+    "layerId": 12,
+    "organisationId": "port-stephens-koalas",
+    "organisationName": "Port Stephens Koalas",
+    "directoryStatus": "CURRENT"
+  },
+  {
+    "layerId": 13,
+    "organisationId": "sydney-metropolitan-wildlife-services",
+    "organisationName": "Sydney Metropolitan Wildlife Services",
+    "directoryStatus": "CURRENT"
+  },
+  {
+    "layerId": 14,
+    "organisationId": "sona",
+    "organisationName": "Saving Our Native Animals",
+    "directoryStatus": "CURRENT"
+  },
+  {
+    "layerId": 15,
+    "organisationId": "sunraysia-wildlife-carers",
+    "organisationName": "Sunraysia Wildlife Carers",
+    "directoryStatus": "CURRENT"
+  },
+  {
+    "layerId": 16,
+    "organisationId": "tweed-valley-wildlife-carers",
+    "organisationName": "Tweed Valley Wildlife Carers",
+    "directoryStatus": "CURRENT"
+  },
+  {
+    "layerId": 17,
+    "organisationId": "winc",
+    "organisationName": "WINC",
+    "directoryStatus": "CURRENT"
+  },
+  {
+    "layerId": 18,
+    "organisationId": "wildcare-queanbeyan",
+    "organisationName": "Wildcare Queanbeyan",
+    "directoryStatus": "CURRENT"
+  },
+  {
+    "layerId": 19,
+    "organisationId": "wildlife-arc",
+    "organisationName": "Wildlife ARC",
+    "directoryStatus": "CURRENT"
+  },
+  {
+    "layerId": 20,
+    "organisationId": "wildlife-carers-network-central-west",
+    "organisationName": "Wildlife Carers Network Central West",
+    "directoryStatus": "CURRENT"
+  },
+  {
+    "layerId": 21,
+    "organisationId": "wildlife-rescue-south-coast",
+    "organisationName": "Wildlife Rescue South Coast",
+    "directoryStatus": "CURRENT"
+  },
+  {
+    "layerId": 22,
+    "organisationId": null,
+    "organisationName": "NSW coastal wildlife services",
+    "directoryStatus": "LEGACY_OR_SHARED"
+  }
+];
 if (layers.length !== 22) throw new Error('Expected 22 ArcGIS layer mappings; found ' + layers.length);
 
 const round = (n) => Math.round(n * 1e5) / 1e5;
