@@ -133,6 +133,8 @@ async function fetchLayer(fetcher: typeof fetch, layer: OperatingAreaLayer): Pro
 }
 
 export const GET: RequestHandler = async ({ fetch, url, locals }) => {
+	const startedAt = Date.now();
+	console.info('[operating-areas] request started');
 	const now = Date.now();
 	const refreshRequested = url.searchParams.get('refresh') === '1';
 	const forceRefresh = refreshRequested && hasAdministrativeRole(locals.user);
@@ -152,7 +154,9 @@ export const GET: RequestHandler = async ({ fetch, url, locals }) => {
 
 	if (!forceRefresh) {
 		try {
+			console.info('[operating-areas] reading DynamoDB cache');
 			const persisted = await withDeadline(readOperatingAreasCache<GeoJsonCollection>(), CACHE_READ_TIMEOUT_MS);
+			console.info('[operating-areas] cache read finished', { found: Boolean(persisted), elapsedMs: Date.now() - startedAt });
 			if (persisted) {
 				cached = {
 					expiresAt: now + 12 * 60 * 60 * 1000,
@@ -172,7 +176,9 @@ export const GET: RequestHandler = async ({ fetch, url, locals }) => {
 		}
 	}
 
+	console.info('[operating-areas] fetching ArcGIS layers', { count: layers.length, elapsedMs: Date.now() - startedAt });
 	const settled = await Promise.allSettled(layers.map((layer) => fetchLayer(fetch, layer)));
+	console.info('[operating-areas] ArcGIS fetch finished', { elapsedMs: Date.now() - startedAt });
 	const features: GeoJsonFeature[] = [];
 	const loadedLayers: number[] = [];
 	const failedLayers: Array<{ layerId: number; name: string; error: string }> = [];
@@ -217,6 +223,7 @@ export const GET: RequestHandler = async ({ fetch, url, locals }) => {
 	let persistentCacheStatus = 'write-skipped';
 	if (features.length > 0) {
 		try {
+			console.info('[operating-areas] writing DynamoDB cache', { featureCount: features.length, elapsedMs: Date.now() - startedAt });
 			await withDeadline(writeOperatingAreasCache(value), CACHE_WRITE_TIMEOUT_MS);
 			persistentCacheStatus = 'written';
 		} catch (error) {
@@ -225,6 +232,7 @@ export const GET: RequestHandler = async ({ fetch, url, locals }) => {
 		}
 	}
 
+	console.info('[operating-areas] returning response', { featureCount: features.length, elapsedMs: Date.now() - startedAt });
 	return json(value, {
 		status: features.length ? 200 : 503,
 		headers: {
