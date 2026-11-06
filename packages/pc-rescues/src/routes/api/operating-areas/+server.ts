@@ -35,6 +35,8 @@ type GeoJsonCollection = {
 const SERVICE_URL =
 	'https://maptest.environment.nsw.gov.au/arcgis/rest/services/WildlifeRehab/Wildlife_Rehab_Groups/MapServer';
 
+const UPSTREAM_TIMEOUT_MS = 8000;
+
 const layers: OperatingAreaLayer[] = [
 	{ layerId: 0, organisationId: 'wires', organisationName: 'WIRES', directoryStatus: 'CURRENT', dynamicNameField: 'WIRES_Branch' },
 	{ layerId: 2, organisationId: 'fawna', organisationName: 'FAWNA', directoryStatus: 'CURRENT' },
@@ -82,7 +84,9 @@ async function fetchLayer(fetcher: typeof fetch, layer: OperatingAreaLayer): Pro
 		f: 'geojson'
 	});
 
-	const response = await fetcher(`${SERVICE_URL}/${layer.layerId}/query?${params.toString()}`);
+	const response = await fetcher(`${SERVICE_URL}/${layer.layerId}/query?${params.toString()}`, {
+		signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS)
+	});
 
 	if (!response.ok) {
 		throw new Error(`HTTP ${response.status}`);
@@ -185,13 +189,16 @@ export const GET: RequestHandler = async ({ fetch, url, locals }) => {
 		}
 	};
 
-	cached = {
-		expiresAt: now + 12 * 60 * 60 * 1000,
-		value
-	};
+	if (features.length > 0) {
+		cached = {
+			expiresAt: now + 12 * 60 * 60 * 1000,
+			value
+		};
+	}
 
 	let persistentCacheStatus = 'write-skipped';
 	try {
+		if (features.length === 0) throw new Error('No boundary features returned; preserving previous cache.');
 		await writeOperatingAreasCache(value);
 		persistentCacheStatus = 'written';
 	} catch (error) {
@@ -200,8 +207,9 @@ export const GET: RequestHandler = async ({ fetch, url, locals }) => {
 	}
 
 	return json(value, {
+		status: features.length ? 200 : 503,
 		headers: {
-			'cache-control': 'public, max-age=3600, s-maxage=43200',
+			'cache-control': features.length ? 'public, max-age=3600, s-maxage=43200' : 'no-store',
 			'x-rescuehub-operating-areas-cache': forceRefresh ? 'refreshed' : 'origin',
 			'x-rescuehub-operating-areas-persist': persistentCacheStatus
 		}
