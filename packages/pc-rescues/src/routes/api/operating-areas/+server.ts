@@ -36,6 +36,22 @@ const SERVICE_URL =
 	'https://maptest.environment.nsw.gov.au/arcgis/rest/services/WildlifeRehab/Wildlife_Rehab_Groups/MapServer';
 
 const UPSTREAM_TIMEOUT_MS = 8000;
+const CACHE_READ_TIMEOUT_MS = 2500;
+const CACHE_WRITE_TIMEOUT_MS = 2500;
+
+async function withDeadline<T>(work: Promise<T>, ms: number): Promise<T> {
+	let timeout: ReturnType<typeof setTimeout> | undefined;
+	try {
+		return await Promise.race([
+			work,
+			new Promise<never>((_, reject) => {
+				timeout = setTimeout(() => reject(new Error(`Operation exceeded ${ms}ms`)), ms);
+			})
+		]);
+	} finally {
+		if (timeout) clearTimeout(timeout);
+	}
+}
 
 const layers: OperatingAreaLayer[] = [
 	{ layerId: 0, organisationId: 'wires', organisationName: 'WIRES', directoryStatus: 'CURRENT', dynamicNameField: 'WIRES_Branch' },
@@ -136,7 +152,7 @@ export const GET: RequestHandler = async ({ fetch, url, locals }) => {
 
 	if (!forceRefresh) {
 		try {
-			const persisted = await readOperatingAreasCache<GeoJsonCollection>();
+			const persisted = await withDeadline(readOperatingAreasCache<GeoJsonCollection>(), CACHE_READ_TIMEOUT_MS);
 			if (persisted) {
 				cached = {
 					expiresAt: now + 12 * 60 * 60 * 1000,
@@ -196,14 +212,17 @@ export const GET: RequestHandler = async ({ fetch, url, locals }) => {
 		};
 	}
 
+	// A large GeoJSON cache may require many DynamoDB writes. Never hold a public
+	// HTTP request open while waiting for those writes to finish.
 	let persistentCacheStatus = 'write-skipped';
-	try {
-		if (features.length === 0) throw new Error('No boundary features returned; preserving previous cache.');
-		await writeOperatingAreasCache(value);
-		persistentCacheStatus = 'written';
-	} catch (error) {
-		persistentCacheStatus = 'write-failed';
-		console.warn('Unable to persist operating-area cache.', error);
+	if (features.length > 0) {
+		try {
+			await withDeadline(writeOperatingAreasCache(value), CACHE_WRITE_TIMEOUT_MS);
+			persistentCacheStatus = 'written';
+		} catch (error) {
+			persistentCacheStatus = 'deferred-or-failed';
+			console.warn('Operating-area cache write did not finish within request budget.', error);
+		}
 	}
 
 	return json(value, {
