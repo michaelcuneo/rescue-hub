@@ -20,37 +20,41 @@ export const load: PageServerLoad = async ({ locals, cookies }) => {
 		throw redirect(303, '/admin');
 	}
 
-	try {
-		const [rescueResult, users] = await Promise.all([
-			getRescues(undefined, 100),
-			listUsers()
-		]);
-
-		return {
-			user: demoMode
-				? {
-						...locals.user,
-						organisationId: HUNTER_DEMO_ORGANISATION,
-						roles: [...new Set([...locals.user.roles, 'DISPATCHER' as const])]
-					}
-				: locals.user,
-			rescues: organisationId
-				? rescueResult.items.filter((rescue) => rescue.organisationId === organisationId)
-				: rescueResult.items,
-			people: organisationId
-				? users.filter((user) => user.organisationId === organisationId)
-				: [],
-			demoMode,
-			backendOnline: true
-		};
-	} catch (error) {
-		console.warn('Rescue Hub started without live rescue data.', error);
-		return {
-			user: locals.user,
-			rescues: [],
-			people: [],
-			demoMode,
-			backendOnline: false
-		};
-	}
+	const [rescueResult, usersResult] = await Promise.allSettled([
+		(async () => {
+			const items: Awaited<ReturnType<typeof getRescues>>['items'] = [];
+			let nextToken: string | undefined;
+			const seenTokens = new Set<string>();
+			do {
+				const page = await getRescues(undefined, 100, nextToken);
+				items.push(...page.items);
+				nextToken = page.nextToken ?? undefined;
+				if (nextToken && seenTokens.has(nextToken)) throw new Error('Repeated rescue pagination token.');
+				if (nextToken) seenTokens.add(nextToken);
+			} while (nextToken);
+			return items;
+		})(),
+		listUsers()
+	]);
+	if (rescueResult.status === 'rejected') console.error('Unable to load rescue queue.', rescueResult.reason);
+	if (usersResult.status === 'rejected') console.error('Unable to load rescue people.', usersResult.reason);
+	const rescues = rescueResult.status === 'fulfilled' ? rescueResult.value : [];
+	const users = usersResult.status === 'fulfilled' ? usersResult.value : [];
+	return {
+		user: demoMode
+			? {
+					...locals.user,
+					organisationId: HUNTER_DEMO_ORGANISATION,
+					roles: [...new Set([...locals.user.roles, 'DISPATCHER' as const])]
+				}
+			: locals.user,
+		rescues: organisationId
+			? rescues.filter((rescue) => rescue.organisationId === organisationId)
+			: rescues,
+		people: organisationId
+			? users.filter((user) => user.organisationId === organisationId)
+			: [],
+		demoMode,
+		backendOnline: rescueResult.status === 'fulfilled'
+	};
 };
