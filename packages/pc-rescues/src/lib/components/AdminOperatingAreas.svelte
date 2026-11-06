@@ -17,7 +17,7 @@
 	let center: [number, number] = $state([147.8, -32.2]);
 	let zoom = $state(5.4);
 	let ref: any = $state(undefined);
-	let state: 'loading' | 'ready' | 'partial' | 'error' = $state('loading');
+	let loadStatus: 'loading' | 'ready' | 'partial' | 'error' = $state('loading');
 	let featureCount = $state(0);
 
 	const accessToken = env.PUBLIC_MAPBOX_ACCESS_TOKEN ?? '';
@@ -105,10 +105,10 @@
 				}
 			});
 
-			state = collection.metadata?.failedLayers?.length ? 'partial' : 'ready';
+			loadStatus = collection.metadata?.failedLayers?.length ? 'partial' : 'ready';
 		} catch (error) {
 			console.error('Unable to load admin operating-area map.', error);
-			state = 'error';
+			loadStatus = 'error';
 		}
 	}
 </script>
@@ -128,12 +128,12 @@
 
 	<div class="map-status">
 		<strong>NSW wildlife rehabilitation operating areas</strong>
-		{#if state === 'loading'}
+		{#if loadStatus === 'loading'}
 			<span>Loading official DCCEEW geometry…</span>
-		{:else if state === 'error'}
+		{:else if loadStatus === 'error'}
 			<span class="error">Boundary service unavailable.</span>
 		{:else}
-			<span>{featureCount} boundary features loaded{state === 'partial' ? ' · partial source response' : ''}</span>
+			<span>{featureCount} boundary features loaded{loadStatus === 'partial' ? ' · partial source response' : ''}</span>
 		{/if}
 	</div>
 
