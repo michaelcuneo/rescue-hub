@@ -182,12 +182,12 @@
 	}
 
 	.map-status strong {
-		font-size: 11px;
+		font-size: 14px;
 	}
 
 	.map-status span {
 		color: #68756e;
-		font-size: 9px;
+		font-size: 12px;
 	}
 
 	.map-status span.error {
@@ -205,7 +205,7 @@
 		align-items: center;
 		gap: 5px;
 		color: #4f5d55;
-		font-size: 8px;
+		font-size: 12px;
 	}
 
 	.legend i {
