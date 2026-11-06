@@ -1,5 +1,5 @@
 import { json } from '@sveltejs/kit';
-import { readOperatingAreasCache, writeOperatingAreasCache } from '$lib/server/operating-areas-cache';
+import { readOperatingAreasCache } from '$lib/server/operating-areas-cache';
 import { hasAdministrativeRole } from '$lib/server/auth';
 import type { RequestHandler } from './$types';
 
@@ -37,7 +37,6 @@ const SERVICE_URL =
 
 const UPSTREAM_TIMEOUT_MS = 8000;
 const CACHE_READ_TIMEOUT_MS = 2500;
-const CACHE_WRITE_TIMEOUT_MS = 2500;
 
 async function withDeadline<T>(work: Promise<T>, ms: number): Promise<T> {
 	let timeout: ReturnType<typeof setTimeout> | undefined;
@@ -218,19 +217,9 @@ export const GET: RequestHandler = async ({ fetch, url, locals }) => {
 		};
 	}
 
-	// A large GeoJSON cache may require many DynamoDB writes. Never hold a public
-	// HTTP request open while waiting for those writes to finish.
-	let persistentCacheStatus = 'write-skipped';
-	if (features.length > 0) {
-		try {
-			console.info('[operating-areas] writing DynamoDB cache', { featureCount: features.length, elapsedMs: Date.now() - startedAt });
-			await withDeadline(writeOperatingAreasCache(value), CACHE_WRITE_TIMEOUT_MS);
-			persistentCacheStatus = 'written';
-		} catch (error) {
-			persistentCacheStatus = 'deferred-or-failed';
-			console.warn('Operating-area cache write did not finish within request budget.', error);
-		}
-	}
+	// Do not write large GeoJSON datasets to DynamoDB during an HTTP request.
+	// In-memory cache serves warm instances; persistent refresh should be a separate job.
+	const persistentCacheStatus = 'write-skipped';
 
 	console.info('[operating-areas] returning response', { featureCount: features.length, elapsedMs: Date.now() - startedAt });
 	return json(value, {
