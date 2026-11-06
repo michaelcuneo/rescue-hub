@@ -16,6 +16,7 @@
 	} from '@lucide/svelte';
 	import {
 		available,
+		people,
 		coords,
 		data,
 		draftLocation,
@@ -65,6 +66,10 @@
 	};
 
 	let tab = $state<RescueTab>('pending');
+	let assignmentOpen = $state(false);
+	let selectedAssignee = $state('');
+	let actionSaving = $state(false);
+	let actionError = $state('');
 	let search = $state('');
 	let species = $state('');
 	let breed = $state('');
@@ -114,6 +119,9 @@
 	};
 
 	function selectRescue(item: RescueItem) {
+		assignmentOpen = false;
+		actionError = '';
+		selectedAssignee = item.assignedUserId ?? '';
 		$selectedRescue = item;
 		const rawMap = $mapRef?.getMap?.();
 
@@ -122,6 +130,37 @@
 			zoom: Math.max(rawMap.getZoom?.() ?? 11, 13),
 			duration: 550
 		});
+	}
+
+	const eligibleRescuers = $derived($people.filter((person) => person.roles.some((role) => ['RESCUER', 'CARER'].includes(role))));
+	const assignedName = $derived(eligibleRescuers.find((person) => person.id === selected?.assignedUserId)?.name ?? 'Unknown rescuer');
+
+	async function updateSelectedRescue(change: { status?: 'PENDING' | 'ASSIGNED' | 'COMPLETED'; userId?: string }) {
+		if (!selected || actionSaving) return;
+		actionSaving = true;
+		actionError = '';
+		try {
+			const response = await fetch('/api/rescues', {
+				method: 'PATCH',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({ id: selected.id, ...change })
+			});
+			const payload = (await response.json()) as { rescue?: RescueItem; error?: string };
+			if (!response.ok || !payload.rescue) throw new Error(payload.error ?? 'Unable to update rescue.');
+			const updated = { ...payload.rescue, color: payload.rescue.status === 'COMPLETED' ? '238823' : payload.rescue.status === 'ASSIGNED' ? 'ffbf00' : 'd2222d', disabled: false };
+			data.update((current) => ({
+				pending: [...current.pending, ...current.assigned, ...current.completed].filter((item) => item.id !== updated.id && item.status === 'PENDING').concat(updated.status === 'PENDING' ? [updated] : []),
+				assigned: [...current.pending, ...current.assigned, ...current.completed].filter((item) => item.id !== updated.id && item.status === 'ASSIGNED').concat(updated.status === 'ASSIGNED' ? [updated] : []),
+				completed: [...current.pending, ...current.assigned, ...current.completed].filter((item) => item.id !== updated.id && item.status === 'COMPLETED').concat(updated.status === 'COMPLETED' ? [updated] : [])
+			}));
+			$selectedRescue = updated;
+			tab = updated.status === 'COMPLETED' ? 'completed' : updated.status === 'ASSIGNED' ? 'assigned' : 'pending';
+			assignmentOpen = false;
+		} catch (error) {
+			actionError = error instanceof Error ? error.message : 'Unable to update rescue.';
+		} finally {
+			actionSaving = false;
+		}
 	}
 
 	function openIntake() {
@@ -460,13 +499,28 @@
 			</div>
 
 			<div class="detail-actions">
-				<button type="button" class="secondary">
-					<Phone size={14} /> Caller details
+				{#if selected.assignedUserId}
+					<span class="assignment-label"><UserRound size={14} /> Assigned to {assignedName}</span>
+				{/if}
+				<button type="button" class="primary" disabled={actionSaving} onclick={() => (assignmentOpen = !assignmentOpen)}>
+					<UserRound size={14} /> {selected.assignedUserId ? 'Reassign rescuer' : 'Assign rescuer'}
 				</button>
-				<button type="button" class="primary">
-					<UserRound size={14} />
-					{selected.assignedUserId ? 'View assignment' : 'Assign rescuer'}
-				</button>
+				{#if selected.status === 'ASSIGNED'}
+					<button type="button" class="secondary" disabled={actionSaving} onclick={() => updateSelectedRescue({ status: 'COMPLETED' })}>
+						<CircleCheck size={14} /> Complete rescue
+					</button>
+				{/if}
+				{#if assignmentOpen}
+					<label class="assignment-label" for="rescue-assignee">Available rescue team members</label>
+					<select id="rescue-assignee" bind:value={selectedAssignee}>
+						<option value="">Select a rescuer</option>
+						{#each eligibleRescuers as rescuer (rescuer.id)}
+							<option value={rescuer.id}>{rescuer.name}</option>
+						{/each}
+					</select>
+					<button type="button" class="primary" disabled={actionSaving || !selectedAssignee} onclick={() => updateSelectedRescue({ userId: selectedAssignee })}>Confirm assignment</button>
+				{/if}
+				{#if actionError}<p role="alert" class="form-error">{actionError}</p>{/if}
 			</div>
 		</section>
 	{/if}
