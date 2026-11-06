@@ -79,6 +79,18 @@ const layers: OperatingAreaLayer[] = [
 
 let cached: { expiresAt: number; value: GeoJsonCollection } | null = null;
 
+// Reduce ArcGIS polygon precision to approximately metre-level coordinates and
+// omit unused upstream attributes. This preserves polygon topology and holes.
+function compactCoordinates(value: unknown): unknown {
+	if (!Array.isArray(value)) return value;
+	if (value.length >= 2 && typeof value[0] === 'number' && typeof value[1] === 'number') {
+		return value.map((coordinate, index) => index < 2 && typeof coordinate === 'number'
+			? Math.round(coordinate * 100000) / 100000
+			: coordinate);
+	}
+	return value.map(compactCoordinates);
+}
+
 function featureLabel(layer: OperatingAreaLayer, properties: Record<string, unknown>) {
 	if (layer.dynamicNameField) {
 		const dynamicName = properties[layer.dynamicNameField];
@@ -117,14 +129,17 @@ async function fetchLayer(fetcher: typeof fetch, layer: OperatingAreaLayer): Pro
 		throw new Error(payload.error.message ?? 'ArcGIS query failed');
 	}
 
-	return (payload.features ?? []).map((feature) => ({
-		...feature,
+	return (payload.features ?? []).filter((feature) => feature.geometry?.coordinates).map((feature) => ({
+		type: 'Feature' as const,
+		geometry: {
+			type: feature.geometry.type,
+			coordinates: compactCoordinates(feature.geometry.coordinates)
+		},
 		properties: {
-			...feature.properties,
 			layerId: layer.layerId,
 			organisationId: layer.organisationId ?? '',
 			organisationName: layer.organisationName,
-			areaLabel: featureLabel(layer, feature.properties),
+			areaLabel: featureLabel(layer, feature.properties ?? {}),
 			directoryStatus: layer.directoryStatus,
 			source: 'NSW DCCEEW Wildlife Rehabilitation Group boundaries'
 		}
@@ -221,7 +236,11 @@ export const GET: RequestHandler = async ({ fetch, url, locals }) => {
 	// In-memory cache serves warm instances; persistent refresh should be a separate job.
 	const persistentCacheStatus = 'write-skipped';
 
-	console.info('[operating-areas] returning response', { featureCount: features.length, elapsedMs: Date.now() - startedAt });
+	const responseBytes = Buffer.byteLength(JSON.stringify(value), 'utf8');
+	console.info('[operating-areas] returning response', { featureCount: features.length, responseBytes, elapsedMs: Date.now() - startedAt });
+	if (responseBytes > 5_000_000) {
+		return json({ error: 'Boundary geometry exceeds the response budget.', responseBytes }, { status: 503, headers: { 'cache-control': 'no-store' } });
+	}
 	return json(value, {
 		status: features.length ? 200 : 503,
 		headers: {
