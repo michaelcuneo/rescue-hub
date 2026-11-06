@@ -462,6 +462,12 @@
           <button class="primary-action" type="button" onclick={() => { inviteOrganisationId = data.currentUser.organisationId ?? data.organisations[0]?.id ?? ''; showInvite = true; }}>+ Invite person</button>
         </div>
 
+        {#if data.currentUser.roles.includes('PLATFORM_ADMIN') && !data.users.some((user) => user.email.toLowerCase() === 'adam.roff@dcceew.nsw.gov.au')}
+          <form method="POST" action="?/inviteAdamRoff" class="adam-invite">
+            <div><strong>Adam Roff · DCCEEW</strong><p>Invite Adam.Roff@dcceew.nsw.gov.au with full platform administrator access. An invitation email will be sent.</p></div>
+            <button type="submit" class="primary-action">Invite Adam</button>
+          </form>
+        {/if}
         <div class="people-stats" aria-label="People summary">
           <div><span>Total people</span><strong>{data.users.length}</strong></div>
           <div><span>Available now</span><strong>{data.users.filter((user) => user.enabled && user.availabilityStatus === 'AVAILABLE').length}</strong></div>
@@ -473,7 +479,7 @@
           <div class="people-feedback error" role="alert">{form.error}</div>
         {:else if form?.success}
           <div class="people-feedback success" role="status">
-            {form.action === 'inviteUser' ? 'Invitation created.' : 'User updated.'}
+            {form.action === 'inviteUser' || form.action === 'inviteAdamRoff' ? 'Invitation created.' : 'User updated.'}
             {#if form.devCode}<code>Development code: {form.devCode}</code>{/if}
           </div>
         {/if}
@@ -569,6 +575,10 @@
 </div>
 
 <style>
+  .adam-invite { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 20px; border: 1px solid #a7c6b1; background: #f2f8f3; border-radius: 12px; }
+  .adam-invite p { margin: 5px 0 0; font-size: 12px; }
+  @media (max-width: 700px) { .adam-invite { flex-direction: column; align-items: stretch; } }
+
   .reviewer-note { padding: 13px 16px; border: 1px solid #dfc995; border-radius: 9px; background: #fff8e7; font-size: 12px; }
   .reviewer-note p { margin: 5px 0 0; line-height: 1.5; }
 
