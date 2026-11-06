@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { env } from '$env/dynamic/public';
+	import { australianAnimalNames } from '$lib/data/australian-animals';
 	import {
 		Search,
 		Plus,
@@ -72,6 +73,8 @@
 	let actionError = $state('');
 	let search = $state('');
 	let species = $state('');
+	let speciesSuggestionsOpen = $state(false);
+	const speciesMatches = $derived(species.trim() ? australianAnimalNames.filter((name) => name.toLowerCase().includes(species.trim().toLowerCase())).slice(0, 12) : australianAnimalNames.slice(0, 12));
 	let breed = $state('');
 	let injury = $state('');
 	let callerName = $state('');
@@ -590,7 +593,16 @@
 				<div class="form-section two-column">
 					<label class="field">
 						<span>Animal / species</span>
-						<input bind:value={species} placeholder="Possum, magpie, kangaroo…" />
+						<input bind:value={species} role="combobox" aria-autocomplete="list" aria-expanded={speciesSuggestionsOpen} aria-controls="animal-species-options" autocomplete="off" placeholder="Search Australian animals…" onfocus={() => (speciesSuggestionsOpen = true)} oninput={() => (speciesSuggestionsOpen = true)} onkeydown={(event) => { if (event.key === 'Escape') speciesSuggestionsOpen = false; }} />
+						{#if speciesSuggestionsOpen}
+							<div class="animal-options" id="animal-species-options" role="listbox" aria-label="Australian animal suggestions">
+								{#each speciesMatches as animal}
+									<button type="button" role="option" aria-selected={species === animal} onmousedown={(event) => event.preventDefault()} onclick={() => { species = animal; speciesSuggestionsOpen = false; }}>{animal}</button>
+								{:else}
+									<p>No catalogue matches. You can still enter an animal name manually.</p>
+								{/each}
+							</div>
+						{/if}
 					</label>
 
 					<label class="field">
@@ -636,6 +648,11 @@
 </div>
 
 <style>
+	.animal-options { max-height: 230px; overflow-y: auto; border: 1px solid #cbd8ce; background: #fff; border-radius: 9px; box-shadow: 0 8px 20px rgba(0,0,0,.09); margin-top: 4px; position: relative; z-index: 5; }
+	.animal-options button { display: block; width: 100%; padding: 9px 12px; text-align: left; background: white; border: 0; color: #17211d; cursor: pointer; font: inherit; }
+	.animal-options button:hover, .animal-options button:focus-visible { background: #eaf2ec; }
+	.animal-options p { padding: 10px; margin: 0; font-size: 12px; color: #66736c; }
+
 	.dispatcher-shell {
 		position: fixed;
 		inset: 0;
