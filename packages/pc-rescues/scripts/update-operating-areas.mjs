@@ -187,15 +187,7 @@ function geometry(g, tolerance) {
   const simplified = polygons.map((polygon) => polygon.map((r) => ring(r, tolerance)));
   return { type: g.type, coordinates: g.type === 'Polygon' ? simplified[0] : simplified };
 }
-async function load(layer) {
-  const params = new URLSearchParams({
-    where: '1=1',
-    outFields: layer.dynamicNameField ?? '*',
-    returnGeometry: 'true',
-    outSR: '4326',
-    f: 'geojson'
-  });
-  const url = service + '/' + layer.layerId + '/query?' + params;
+async function requestJson(url, label) {
   let lastError;
   for (let attempt = 1; attempt <= 4; attempt++) {
     try {
@@ -204,28 +196,53 @@ async function load(layer) {
         headers: { accept: 'application/geo+json, application/json' }
       });
       const body = await response.text();
-      if (!response.ok) throw new Error('HTTP ' + response.status + ': ' + body.slice(0, 120).replace(/\\s+/g, ' '));
+      if (!response.ok) throw new Error('HTTP ' + response.status + ': ' + body.slice(0, 180).replace(/\\s+/g, ' '));
       let data;
       try { data = JSON.parse(body); }
-      catch {
-        throw new Error('Non-JSON response (' + (response.headers.get('content-type') ?? 'unknown content type') + '): ' + body.slice(0, 120).replace(/\\s+/g, ' '));
-      }
+      catch { throw new Error('Non-JSON response (' + (response.headers.get('content-type') ?? 'unknown') + '): ' + body.slice(0, 180).replace(/\\s+/g, ' ')); }
       if (data.error) throw new Error('ArcGIS: ' + (data.error.message ?? JSON.stringify(data.error)));
-      if (!Array.isArray(data.features)) throw new Error('Response does not contain GeoJSON features');
-      console.log('Layer', layer.layerId, 'loaded', data.features.length, 'features');
-      return data.features.filter((f) => f.geometry?.coordinates).map((f) => ({
-        type: 'Feature', geometry: f.geometry,
-        properties: { layerId: layer.layerId, organisationId: layer.organisationId ?? '', organisationName: layer.organisationName,
-          areaLabel: layer.dynamicNameField && f.properties?.[layer.dynamicNameField] ? 'WIRES — ' + f.properties[layer.dynamicNameField].trim() : layer.organisationName,
-          directoryStatus: layer.directoryStatus, source: 'NSW DCCEEW Wildlife Rehabilitation Group boundaries' }
-      }));
+      return data;
     } catch (error) {
       lastError = error;
-      console.warn('Layer', layer.layerId, 'attempt', attempt, 'failed:', error.message);
+      console.warn(label, 'attempt', attempt, 'failed:', error.message);
       if (attempt < 4) await new Promise((resolve) => setTimeout(resolve, attempt * 2000));
     }
   }
-  throw new Error('Layer ' + layer.layerId + ' failed after 4 attempts: ' + lastError.message);
+  throw new Error(label + ' failed after 4 attempts: ' + lastError.message);
+}
+async function load(layer) {
+  const endpoint = service + '/' + layer.layerId + '/query?';
+  const base = { where: '1=1', outFields: layer.dynamicNameField ?? '*', returnGeometry: 'true', outSR: '4326', f: 'geojson' };
+  const get = (params, label) => requestJson(endpoint + new URLSearchParams(params), label);
+  let features;
+  if (layer.layerId === 0) {
+    // WIRES is substantially larger than the other layers. Query the object
+    // IDs first and fetch small batches rather than requesting one huge response.
+    const ids = await get({ where: '1=1', returnIdsOnly: 'true', f: 'json' }, 'Layer 0 object IDs');
+    const objectIds = ids.objectIds;
+    if (!Array.isArray(objectIds) || !objectIds.length) throw new Error('Layer 0 returned no object IDs');
+    features = [];
+    const batchSize = 10;
+    for (let i = 0; i < objectIds.length; i += batchSize) {
+      const batch = objectIds.slice(i, i + batchSize);
+      const data = await get({ ...base, objectIds: batch.join(',') }, 'Layer 0 batch ' + (Math.floor(i / batchSize) + 1));
+      if (!Array.isArray(data.features)) throw new Error('Layer 0 batch missing features');
+      features.push(...data.features);
+      console.log('WIRES batch', Math.floor(i / batchSize) + 1, 'of', Math.ceil(objectIds.length / batchSize), 'loaded', data.features.length);
+    }
+    if (features.length !== objectIds.length) throw new Error('Layer 0 incomplete: expected ' + objectIds.length + ' features, got ' + features.length);
+  } else {
+    const data = await get(base, 'Layer ' + layer.layerId);
+    if (!Array.isArray(data.features)) throw new Error('Layer ' + layer.layerId + ' missing GeoJSON features');
+    features = data.features;
+  }
+  console.log('Layer', layer.layerId, 'loaded', features.length, 'features');
+  return features.filter((f) => f.geometry?.coordinates).map((f) => ({
+    type: 'Feature', geometry: f.geometry,
+    properties: { layerId: layer.layerId, organisationId: layer.organisationId ?? '', organisationName: layer.organisationName,
+      areaLabel: layer.dynamicNameField && f.properties?.[layer.dynamicNameField] ? 'WIRES — ' + f.properties[layer.dynamicNameField].trim() : layer.organisationName,
+      directoryStatus: layer.directoryStatus, source: 'NSW DCCEEW Wildlife Rehabilitation Group boundaries' }
+  }));
 }
 
 console.log('Downloading', layers.length, 'ArcGIS layers...');
