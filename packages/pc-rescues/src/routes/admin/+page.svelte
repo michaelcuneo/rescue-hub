@@ -739,13 +739,13 @@
   }
 
   .brand strong {
-    font-size: 15px;
+    font-size: 19px;
   }
 
   .brand span {
     margin-top: 2px;
     color: #9fbaa9;
-    font-size: 11px;
+    font-size: 14px;
     text-transform: uppercase;
     letter-spacing: 0.08em;
   }
@@ -782,7 +782,7 @@
     height: 29px;
     border-radius: 8px;
     background: rgba(255, 255, 255, 0.08);
-    font-size: 9px;
+    font-size: 12px;
     font-weight: 800;
     letter-spacing: 0.05em;
   }
@@ -803,13 +803,13 @@
   }
 
   .sidebar-footer strong {
-    font-size: 11px;
+    font-size: 14px;
   }
 
   .sidebar-footer span {
     margin-top: 2px;
     color: #91aa9a;
-    font-size: 10px;
+    font-size: 13px;
   }
 
   .status-dot {
@@ -854,7 +854,7 @@
   .eyebrow {
     margin: 0 0 5px;
     color: #648074;
-    font-size: 10px;
+    font-size: 13px;
     font-weight: 800;
     text-transform: uppercase;
     letter-spacing: 0.13em;
@@ -874,7 +874,7 @@
     border-radius: 9px;
     background: var(--forest);
     color: white;
-    font-size: 9px;
+    font-size: 12px;
     font-weight: 800;
     text-decoration: none;
   }
@@ -892,13 +892,13 @@
   }
 
   .demo-identity strong {
-    font-size: 12px;
+    font-size: 15px;
   }
 
   .demo-identity span {
     margin-top: 2px;
     color: var(--muted);
-    font-size: 10px;
+    font-size: 13px;
   }
 
   .avatar {
@@ -910,7 +910,7 @@
     border-radius: 50%;
     background: #dce8df;
     color: var(--forest);
-    font-size: 11px;
+    font-size: 14px;
     font-weight: 800;
   }
 
@@ -923,7 +923,7 @@
     border-radius: 12px;
     background: #fff8e6;
     color: #674f16;
-    font-size: 12px;
+    font-size: 15px;
   }
 
   .backend-warning span {
@@ -938,7 +938,7 @@
     display: block;
     margin-top: 6px;
     white-space: normal;
-    font-size: 10px;
+    font-size: 13px;
   }
 
   .metrics {
@@ -964,7 +964,7 @@
   }
 
   .metric-label {
-    font-size: 11px;
+    font-size: 14px;
     font-weight: 700;
   }
 
@@ -982,7 +982,7 @@
   }
 
   .metrics small {
-    font-size: 10px;
+    font-size: 13px;
   }
 
   .dashboard-grid {
@@ -1014,7 +1014,7 @@
   }
 
   .panel h2 {
-    font-size: 17px;
+    font-size: 22px;
   }
 
   .text-button {
@@ -1022,7 +1022,7 @@
     border: 0;
     background: none;
     color: var(--forest-2);
-    font-size: 11px;
+    font-size: 14px;
     font-weight: 800;
     cursor: pointer;
   }
@@ -1061,7 +1061,7 @@
     border-radius: 10px;
     background: var(--surface-soft);
     color: var(--forest);
-    font-size: 9px;
+    font-size: 12px;
     font-weight: 900;
   }
 
@@ -1078,14 +1078,14 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    font-size: 12px;
+    font-size: 15px;
   }
 
   .org-main small {
     margin-top: 3px;
     overflow: hidden;
     color: var(--muted);
-    font-size: 10px;
+    font-size: 13px;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
@@ -1099,7 +1099,7 @@
     padding: 3px 8px;
     border-radius: 999px;
     white-space: nowrap;
-    font-size: 9px;
+    font-size: 12px;
     font-weight: 800;
   }
 
@@ -1138,7 +1138,7 @@
 
   .rescue-summary span {
     color: var(--muted);
-    font-size: 9px;
+    font-size: 12px;
   }
 
   .rescue-summary strong {
@@ -1155,7 +1155,7 @@
     border-radius: 10px;
     background: var(--forest);
     color: white;
-    font-size: 11px;
+    font-size: 14px;
     font-weight: 800;
     cursor: pointer;
   }
@@ -1193,13 +1193,13 @@
   .coverage-ring strong {
     position: relative;
     z-index: 1;
-    font-size: 15px;
+    font-size: 19px;
   }
 
   .coverage-figure p {
     margin: 0;
     color: var(--muted);
-    font-size: 11px;
+    font-size: 14px;
     line-height: 1.55;
   }
 
@@ -1216,7 +1216,7 @@
     max-width: 660px;
     margin: 7px 0 0;
     color: var(--muted);
-    font-size: 11px;
+    font-size: 14px;
     line-height: 1.5;
   }
 
@@ -1225,7 +1225,7 @@
     gap: 5px;
     min-width: min(310px, 100%);
     color: var(--muted);
-    font-size: 9px;
+    font-size: 12px;
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.05em;
@@ -1239,7 +1239,7 @@
     outline: none;
     background: white;
     color: var(--ink);
-    font-size: 11px;
+    font-size: 14px;
     text-transform: none;
     letter-spacing: normal;
   }
@@ -1256,14 +1256,14 @@
   table {
     width: 100%;
     border-collapse: collapse;
-    font-size: 11px;
+    font-size: 14px;
   }
 
   th {
     padding: 9px 11px;
     border-bottom: 1px solid var(--line);
     color: #718078;
-    font-size: 9px;
+    font-size: 12px;
     text-align: left;
     text-transform: uppercase;
     letter-spacing: 0.07em;
@@ -1286,13 +1286,13 @@
 
   td strong {
     color: var(--ink);
-    font-size: 11px;
+    font-size: 14px;
   }
 
   td span {
     margin-top: 2px;
     color: var(--muted);
-    font-size: 9px;
+    font-size: 12px;
   }
 
   td em {
@@ -1302,7 +1302,7 @@
     border-radius: 5px;
     background: #eef4da;
     color: #526b18;
-    font-size: 8px;
+    font-size: 12px;
     font-style: normal;
     font-weight: 800;
     text-transform: uppercase;
@@ -1342,7 +1342,7 @@
   .feature-copy > p:not(.eyebrow),
   .empty-feature > p:not(.eyebrow) {
     color: var(--muted);
-    font-size: 12px;
+    font-size: 15px;
     line-height: 1.65;
   }
 
@@ -1358,7 +1358,7 @@
     padding: 11px 0;
     border-top: 1px solid var(--line);
     color: var(--muted);
-    font-size: 11px;
+    font-size: 14px;
   }
 
   .readiness strong {
@@ -1386,7 +1386,7 @@
   }
 
   .map-placeholder strong {
-    font-size: 16px;
+    font-size: 20px;
   }
 
   .map-placeholder small {
@@ -1411,7 +1411,7 @@
 
   .invite-user label > span {
     color: var(--muted);
-    font-size: 8px;
+    font-size: 12px;
     font-weight: 800;
     text-transform: uppercase;
     letter-spacing: 0.06em;
@@ -1425,7 +1425,7 @@
     border: 1px solid #d4ddd7;
     border-radius: 8px;
     background: white;
-    font-size: 10px;
+    font-size: 13px;
   }
 
   .invite-user select:disabled {
@@ -1456,7 +1456,7 @@
   .team-picker legend {
     padding: 0 5px;
     color: var(--muted);
-    font-size: 8px;
+    font-size: 12px;
     font-weight: 800;
     text-transform: uppercase;
   }
@@ -1476,13 +1476,13 @@
 
   .team-picker label strong {
     color: var(--ink);
-    font-size: 9px;
+    font-size: 12px;
   }
 
   .team-picker label small {
     margin-top: 1px;
     color: var(--muted);
-    font-size: 8px;
+    font-size: 12px;
     text-transform: none;
     letter-spacing: normal;
   }
@@ -1495,7 +1495,7 @@
 
   .team-picker.compact label {
     min-width: 0;
-    font-size: 9px;
+    font-size: 12px;
   }
 
   .team-tags {
@@ -1511,13 +1511,13 @@
     border-radius: 999px;
     background: #edf4ef;
     color: #315e43;
-    font-size: 8px;
+    font-size: 12px;
     font-weight: 700;
   }
 
   .team-tags em {
     color: var(--muted);
-    font-size: 9px;
+    font-size: 12px;
     font-style: normal;
   }
 
@@ -1528,7 +1528,7 @@
     border-radius: 999px;
     background: #f1f3f2;
     color: #69766f;
-    font-size: 8px;
+    font-size: 12px;
     font-weight: 800;
   }
 
@@ -1547,7 +1547,7 @@
     border-radius: 7px;
     background: white;
     color: #435249;
-    font-size: 8px;
+    font-size: 12px;
     font-weight: 800;
     cursor: pointer;
     list-style: none;
@@ -1576,7 +1576,7 @@
     border: 1px solid #d4ddd7;
     border-radius: 7px;
     background: white;
-    font-size: 9px;
+    font-size: 12px;
   }
 
   .people-feedback {
@@ -1586,7 +1586,7 @@
     margin-top: 12px;
     padding: 10px 12px;
     border-radius: 9px;
-    font-size: 9px;
+    font-size: 12px;
   }
 
   .people-feedback.success {
@@ -1618,7 +1618,7 @@
     border-radius: 999px;
     background: #f3efe4;
     color: #755c20;
-    font-size: 8px;
+    font-size: 12px;
     font-weight: 800;
   }
 
@@ -1644,7 +1644,7 @@
     border-radius: 7px;
     background: white;
     color: #435249;
-    font-size: 8px;
+    font-size: 12px;
     font-weight: 800;
     cursor: pointer;
   }
@@ -1669,13 +1669,13 @@
   }
 
   .broadcast-grid h2 {
-    font-size: 14px;
+    font-size: 18px;
   }
 
   .broadcast-grid p:not(.eyebrow) {
     min-height: 42px;
     color: var(--muted);
-    font-size: 10px;
+    font-size: 13px;
     line-height: 1.5;
   }
 
@@ -1707,7 +1707,7 @@
 
   .audit-list strong {
     color: var(--ink);
-    font-size: 10px;
+    font-size: 13px;
     text-transform: uppercase;
     letter-spacing: 0.05em;
   }
@@ -1715,13 +1715,13 @@
   .audit-list span {
     margin-top: 3px;
     color: var(--muted);
-    font-size: 10px;
+    font-size: 13px;
   }
 
   .audit-list time {
     flex: 0 0 auto;
     color: var(--muted);
-    font-size: 9px;
+    font-size: 12px;
     white-space: nowrap;
   }
 
@@ -1731,12 +1731,12 @@
     padding: 28px 10px;
     color: var(--muted);
     text-align: center;
-    font-size: 10px;
+    font-size: 13px;
   }
 
   .empty-state strong {
     color: var(--ink);
-    font-size: 12px;
+    font-size: 15px;
   }
 
   .empty-state.large {
@@ -1861,7 +1861,7 @@
   }
 
   .reviewer-invite { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; }
-  .reviewer-invite label { font-size: 11px; font-weight: 700; }
+  .reviewer-invite label { font-size: 14px; font-weight: 700; }
   .reviewer-invite input { min-height: 34px; padding: 6px 9px; border: 1px solid #cbd7ce; border-radius: 7px; }
   .reviewer-invite button { min-height: 34px; padding: 6px 10px; border: 0; border-radius: 7px; background: #173d2c; color: white; cursor: pointer; }
 </style>
