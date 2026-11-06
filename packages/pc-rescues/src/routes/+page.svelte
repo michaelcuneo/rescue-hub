@@ -2,14 +2,18 @@
 	import { onMount } from 'svelte';
 	import MapBox from '$lib/components/MapBox.svelte';
 	import DispatcherShell from '$lib/components/DispatcherShell.svelte';
-	import { data as rescueData, people } from '$lib/stores';
+	import { data as rescueData, people, selectedRescue } from '$lib/stores';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
 
 	onMount(() => {
 		people.set(data.people ?? []);
-		if (!data.rescues.length) return;
+		selectedRescue.set(null);
+		if (!data.rescues.length) {
+			rescueData.set({ pending: [], assigned: [], completed: [] });
+			return;
+		}
 
 		const colourForStatus = (status: string) => {
 			if (status === 'ASSIGNED') return 'ffbf00';
