@@ -691,7 +691,7 @@
 		border-radius: 10px;
 		background: #173d2c;
 		color: #dff15d;
-		font-size: 11px;
+		font-size: 14px;
 		font-weight: 900;
 	}
 
@@ -703,13 +703,13 @@
 	}
 
 	.organisation strong {
-		font-size: 12px;
+		font-size: 15px;
 	}
 
 	.organisation span {
 		margin-top: 2px;
 		color: #718078;
-		font-size: 9px;
+		font-size: 12px;
 	}
 
 	.topbar-actions {
@@ -727,7 +727,7 @@
 		border: 1px solid #d9e2dc;
 		border-radius: 9px;
 		background: #f7faf8;
-		font-size: 9px;
+		font-size: 12px;
 		font-weight: 800;
 	}
 
@@ -778,7 +778,7 @@
 		border-radius: 9px;
 		background: #fff;
 		color: #3f5549;
-		font-size: 8px;
+		font-size: 12px;
 		font-weight: 800;
 		text-decoration: none;
 		cursor: pointer;
@@ -796,18 +796,18 @@
 		border-radius: 50%;
 		background: #dfe9e2;
 		color: #173d2c;
-		font-size: 9px;
+		font-size: 12px;
 		font-weight: 900;
 	}
 
 	.user strong {
-		font-size: 10px;
+		font-size: 13px;
 	}
 
 	.user small {
 		margin-top: 1px;
 		color: #7b8780;
-		font-size: 8px;
+		font-size: 12px;
 	}
 
 	.queue {
@@ -838,7 +838,7 @@
 	.intake header p {
 		margin: 0 0 2px;
 		color: #748078;
-		font-size: 8px;
+		font-size: 12px;
 		font-weight: 900;
 		text-transform: uppercase;
 		letter-spacing: 0.12em;
@@ -865,7 +865,7 @@
 		border-radius: 9px;
 		background: #173d2c;
 		color: white;
-		font-size: 9px;
+		font-size: 12px;
 		font-weight: 800;
 		cursor: pointer;
 	}
@@ -890,7 +890,7 @@
 		outline: 0;
 		background: transparent;
 		color: #17211d;
-		font-size: 10px;
+		font-size: 13px;
 	}
 
 	.tabs {
@@ -914,7 +914,7 @@
 		border-radius: 7px;
 		background: transparent;
 		color: #6d7972;
-		font-size: 8px;
+		font-size: 12px;
 		font-weight: 800;
 		cursor: pointer;
 	}
@@ -933,7 +933,7 @@
 		padding: 0 4px;
 		border-radius: 999px;
 		background: #e5ebe7;
-		font-size: 8px;
+		font-size: 12px;
 	}
 
 	.tabs button.active strong {
@@ -1000,13 +1000,13 @@
 	}
 
 	.rescue-title strong {
-		font-size: 11px;
+		font-size: 14px;
 	}
 
 	.rescue-title small {
 		overflow: hidden;
 		color: #7c8881;
-		font-size: 8px;
+		font-size: 12px;
 		text-overflow: ellipsis;
 		white-space: nowrap;
 	}
@@ -1024,13 +1024,13 @@
 	.rescue-location {
 		margin-top: 3px;
 		color: #516159;
-		font-size: 9px;
+		font-size: 12px;
 	}
 
 	.rescue-injury {
 		margin-top: 2px;
 		color: #849088;
-		font-size: 8px;
+		font-size: 12px;
 	}
 
 	.rescue-time {
@@ -1038,7 +1038,7 @@
 		align-items: center;
 		gap: 3px;
 		color: #89958e;
-		font-size: 8px;
+		font-size: 12px;
 		white-space: nowrap;
 	}
 
@@ -1062,11 +1062,11 @@
 
 	.empty-list strong {
 		color: #293730;
-		font-size: 11px;
+		font-size: 14px;
 	}
 
 	.empty-list span {
-		font-size: 9px;
+		font-size: 12px;
 	}
 
 	.queue-footer {
@@ -1077,7 +1077,7 @@
 		border-top: 1px solid #e5ebe7;
 		background: #fafcfb;
 		color: #6f7d75;
-		font-size: 8px;
+		font-size: 12px;
 	}
 
 	.queue-footer span {
@@ -1130,7 +1130,7 @@
 	.detail-kicker {
 		margin: 0 0 5px;
 		color: #7b8981;
-		font-size: 8px;
+		font-size: 12px;
 		font-weight: 900;
 		text-transform: uppercase;
 		letter-spacing: 0.1em;
@@ -1152,7 +1152,7 @@
 		display: block;
 		margin-top: 2px;
 		color: #7b8880;
-		font-size: 9px;
+		font-size: 12px;
 	}
 
 	.detail-status {
@@ -1160,7 +1160,7 @@
 		border-radius: 999px;
 		background: #edf3ef;
 		color: #3c5f4b;
-		font-size: 7px;
+		font-size: 12px;
 		font-weight: 900;
 	}
 
@@ -1179,13 +1179,13 @@
 	}
 
 	.detail-location strong {
-		font-size: 10px;
+		font-size: 13px;
 	}
 
 	.detail-location span {
 		margin-top: 2px;
 		color: #7c8982;
-		font-size: 8px;
+		font-size: 12px;
 	}
 
 	.condition {
@@ -1199,14 +1199,14 @@
 
 	.condition small {
 		color: #7b8981;
-		font-size: 8px;
+		font-size: 12px;
 		text-transform: uppercase;
 		letter-spacing: 0.07em;
 	}
 
 	.condition strong {
 		margin-top: 4px;
-		font-size: 10px;
+		font-size: 13px;
 		font-weight: 600;
 	}
 
@@ -1224,7 +1224,7 @@
 		justify-content: center;
 		gap: 6px;
 		border-radius: 9px;
-		font-size: 8px;
+		font-size: 12px;
 		font-weight: 800;
 		cursor: pointer;
 	}
@@ -1322,7 +1322,7 @@
 
 	.field > span {
 		color: #66746c;
-		font-size: 8px;
+		font-size: 12px;
 		font-weight: 800;
 		text-transform: uppercase;
 		letter-spacing: 0.07em;
@@ -1337,7 +1337,7 @@
 		outline: 0;
 		background: #fbfcfb;
 		color: #17211d;
-		font-size: 10px;
+		font-size: 13px;
 		resize: vertical;
 		user-select: text;
 	}
@@ -1397,7 +1397,7 @@
 		background: white;
 		color: #33423a;
 		text-align: left;
-		font-size: 9px;
+		font-size: 12px;
 		cursor: pointer;
 	}
 
@@ -1421,14 +1421,14 @@
 		border-radius: 8px;
 		background: white;
 		color: #365444;
-		font-size: 8px;
+		font-size: 12px;
 		font-weight: 800;
 		cursor: pointer;
 	}
 
 	.location-tools > span {
 		color: #859189;
-		font-size: 8px;
+		font-size: 12px;
 	}
 
 	.location-confirmed {
@@ -1447,12 +1447,12 @@
 	}
 
 	.location-confirmed strong {
-		font-size: 9px;
+		font-size: 12px;
 	}
 
 	.location-confirmed span {
 		margin-top: 1px;
-		font-size: 8px;
+		font-size: 12px;
 	}
 
 	.form-error {
@@ -1461,7 +1461,7 @@
 		border-radius: 8px;
 		background: #fff0ed;
 		color: #9c382b;
-		font-size: 9px;
+		font-size: 12px;
 	}
 
 	.intake footer {
@@ -1475,7 +1475,7 @@
 		min-height: 36px;
 		padding: 0 12px;
 		border-radius: 9px;
-		font-size: 9px;
+		font-size: 12px;
 		font-weight: 900;
 		cursor: pointer;
 	}
