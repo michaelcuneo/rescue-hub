@@ -1,7 +1,7 @@
 import { redirect } from '@sveltejs/kit';
 import { hasCompletedBootstrap, listUsers } from '$lib/server/auth';
 import { getHunterDemo, HUNTER_DEMO_ORGANISATION } from '$lib/server/demo';
-import { getRescues } from '$lib/server/graphql';
+import { listAdminRescues } from '$lib/server/admin-data';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ locals, cookies }) => {
@@ -21,19 +21,7 @@ export const load: PageServerLoad = async ({ locals, cookies }) => {
 	}
 
 	const [rescueResult, usersResult] = await Promise.allSettled([
-		(async () => {
-			const items: Awaited<ReturnType<typeof getRescues>>['items'] = [];
-			let nextToken: string | undefined;
-			const seenTokens = new Set<string>();
-			do {
-				const page = await getRescues(undefined, 100, nextToken);
-				items.push(...page.items);
-				nextToken = page.nextToken ?? undefined;
-				if (nextToken && seenTokens.has(nextToken)) throw new Error('Repeated rescue pagination token.');
-				if (nextToken) seenTokens.add(nextToken);
-			} while (nextToken);
-			return items;
-		})(),
+		listAdminRescues(),
 		listUsers()
 	]);
 	if (rescueResult.status === 'rejected') console.error('Unable to load rescue queue.', rescueResult.reason);
