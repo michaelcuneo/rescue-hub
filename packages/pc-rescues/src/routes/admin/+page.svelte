@@ -16,6 +16,29 @@
   let organisationSearch = $state('');
   let rescueSearch = $state('');
 
+  let peopleSearch = $state('');
+  let peopleFilter = $state<'all' | 'available' | 'admins' | 'disabled'>('all');
+  let showInvite = $state(false);
+  let selectedPersonId = $state<string | null>(null);
+  let inviteOrganisationId = $state('');
+
+  const visiblePeople = $derived(data.users.filter((user) => {
+    const query = peopleSearch.trim().toLowerCase();
+    const matches = !query || [user.name, user.email, organisationName(user.organisationId), user.roles.join(' '), ...teamNames(user)].join(' ').toLowerCase().includes(query);
+    const filterMatches = peopleFilter === 'all' ||
+      (peopleFilter === 'available' && user.enabled && user.availabilityStatus === 'AVAILABLE') ||
+      (peopleFilter === 'admins' && user.roles.some((role) => role.includes('ADMIN'))) ||
+      (peopleFilter === 'disabled' && !user.enabled);
+    return matches && filterMatches;
+  }));
+  const selectedPerson = $derived(data.users.find((user) => user.id === selectedPersonId));
+  const inviteMembershipConfig = $derived(
+    data.membershipConfigs[inviteOrganisationId || data.currentUser.organisationId || ''] ?? {
+      membershipTypes: data.standardMembershipTypes,
+      teams: data.standardTeams
+    }
+  );
+
   const openRescues = $derived(
     data.rescues.filter((rescue) => rescue.status === 'PENDING' || rescue.status === 'ASSIGNED')
   );
@@ -434,220 +457,89 @@
         <AdminOperatingAreas />
       </section>
     {:else if section === 'people'}
-      <section class="panel page-panel">
-        <div class="panel-heading table-heading">
+      <section class="people-workspace" aria-label="People and access management">
+        <div class="people-head">
           <div>
-            <p class="eyebrow">Identity, membership & dispatch</p>
-            <h2>People and access</h2>
-            <p class="intro">
-              Permissions, organisation membership and rescue capability are separate. Roles control
-              what a person can do in Rescue Hub; membership type and teams control which operational
-              work and push notifications they receive.
-            </p>
+            <p class="eyebrow">Identity & permissions</p>
+            <h2>People & access</h2>
+            <p class="intro">Manage organisation membership, dispatch capabilities and account access.</p>
           </div>
+          <button class="primary-action" type="button" onclick={() => { inviteOrganisationId = data.currentUser.organisationId ?? data.organisations[0]?.id ?? ''; showInvite = true; }}>+ Invite person</button>
         </div>
 
-        <form class="invite-user" method="POST" action="?/inviteUser">
-          <label>
-            <span>Name</span>
-            <input name="name" placeholder="Jane Smith" required />
-          </label>
-          <label>
-            <span>Email</span>
-            <input name="email" type="email" placeholder="jane@example.org" required />
-          </label>
-          <label>
-            <span>Organisation</span>
-            <select name="organisationId" disabled={!canChooseOrganisation} required>
-              {#each data.organisations as organisation}
-                <option
-                  value={organisation.id}
-                  selected={organisation.id === data.currentUser.organisationId}
-                >
-                  {organisation.displayName}
-                </option>
-              {/each}
-            </select>
-          </label>
-          <label>
-            <span>Role</span>
-            <select name="role" required>
-              <option value="RESCUER">Rescuer</option>
-              <option value="CARER">Carer</option>
-              <option value="DISPATCHER">Dispatcher</option>
-              <option value="ORG_ADMIN">Organisation administrator</option>
-              <option value="DATA_STEWARD">Data steward</option>
-            </select>
-          </label>
-          <label>
-            <span>Membership type</span>
-            <select name="membershipTypeId" required>
-              {#each data.standardMembershipTypes as membershipType}
-                <option value={membershipType.id}>{membershipType.name}</option>
-              {/each}
-            </select>
-          </label>
-
-          <fieldset class="team-picker invite-teams">
-            <legend>Dispatch teams</legend>
-            {#each data.standardTeams as team}
-              <label>
-                <input type="checkbox" name="teamIds" value={team.id} />
-                <span>
-                  <strong>{team.name}</strong>
-                  <small>{team.receivesAllRescues ? 'Receives every rescue' : team.description}</small>
-                </span>
-              </label>
-            {/each}
-          </fieldset>
-
-          <button class="primary-action invite-button" type="submit">Invite user</button>
-        </form>
+        <div class="people-stats" aria-label="People summary">
+          <div><span>Total people</span><strong>{data.users.length}</strong></div>
+          <div><span>Available now</span><strong>{data.users.filter((user) => user.enabled && user.availabilityStatus === 'AVAILABLE').length}</strong></div>
+          <div><span>Administrators</span><strong>{data.users.filter((user) => user.roles.some((role) => role.includes('ADMIN'))).length}</strong></div>
+          <div><span>Access disabled</span><strong>{data.users.filter((user) => !user.enabled).length}</strong></div>
+        </div>
 
         {#if form?.error}
-          <div class="people-feedback error">{form.error}</div>
+          <div class="people-feedback error" role="alert">{form.error}</div>
         {:else if form?.success}
-          <div class="people-feedback success">
+          <div class="people-feedback success" role="status">
             {form.action === 'inviteUser' ? 'Invitation created.' : 'User updated.'}
-            {#if form.devCode}
-              <code>Development code: {form.devCode}</code>
-            {/if}
+            {#if form.devCode}<code>Development code: {form.devCode}</code>{/if}
           </div>
         {/if}
 
-        <div class="table-wrap people-table">
-          <table>
-            <thead>
-              <tr>
-                <th>User</th>
-                <th>Membership</th>
-                <th>Teams</th>
-                <th>Availability</th>
-                <th>Role</th>
-                <th>Access</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {#each data.users as user}
-                <tr>
-                  <td>
-                    <strong>{user.name || user.email}</strong>
-                    <span>{user.email}</span>
-                    <span>{organisationName(user.organisationId)}</span>
-                  </td>
-                  <td>
-                    <strong>{membershipTypeName(user)}</strong>
-                    <span class="identity-status">{user.status}</span>
-                  </td>
-                  <td>
-                    <div class="team-tags">
-                      {#each teamNames(user) as team}
-                        <span>{team}</span>
-                      {:else}
-                        <em>No dispatch teams</em>
-                      {/each}
-                    </div>
-                  </td>
-                  <td>
-                    <span class:available={user.availabilityStatus === 'AVAILABLE'} class="availability-state">
-                      {user.availabilityStatus ?? 'OFFLINE'}
-                    </span>
-                  </td>
-                  <td>
-                    <span>{user.roles.join(', ') || 'No operational role'}</span>
-                  </td>
-                  <td>
-                    <span class:enabled={user.enabled} class="access-state">
-                      {user.enabled ? 'Enabled' : 'Disabled'}
-                    </span>
-                  </td>
-                  <td>
-                    <div class="user-actions">
-                      <details class="dispatch-editor">
-                        <summary>Teams</summary>
-                        <form method="POST" action="?/updateDispatchMembership">
-                          <input type="hidden" name="userId" value={user.id} />
-                          <label>
-                            <span>Membership type</span>
-                            <select name="membershipTypeId">
-                              {#each membershipConfigFor(user).membershipTypes as membershipType}
-                                <option
-                                  value={membershipType.id}
-                                  selected={membershipType.id === user.membershipTypeId}
-                                >
-                                  {membershipType.name}
-                                </option>
-                              {/each}
-                            </select>
-                          </label>
-                          <fieldset class="team-picker compact">
-                            <legend>Dispatch teams</legend>
-                            {#each membershipConfigFor(user).teams as team}
-                              <label>
-                                <input
-                                  type="checkbox"
-                                  name="teamIds"
-                                  value={team.id}
-                                  checked={(user.teamIds ?? []).includes(team.id)}
-                                />
-                                <span>{team.name}</span>
-                              </label>
-                            {/each}
-                          </fieldset>
-                          <button type="submit">Save membership</button>
-                        </form>
-                      </details>
-                      <form method="POST" action={user.enabled ? '?/disableUser' : '?/enableUser'}>
-                        <input type="hidden" name="userId" value={user.id} />
-                        <button type="submit">{user.enabled ? 'Disable' : 'Enable'}</button>
-                      </form>
-                      <form method="POST" action="?/resetPassword">
-                        <input type="hidden" name="userId" value={user.id} />
-                        <button type="submit">Reset password</button>
-                      </form>
-                      <form method="POST" action="?/removeUser">
-                        <input type="hidden" name="userId" value={user.id} />
-                        <button class="danger" type="submit">Remove</button>
-                      </form>
-                    </div>
-                  </td>
-                </tr>
-              {:else}
-                <tr>
-                  <td colspan="7">
-                    <div class="empty-state">
-                      <strong>No Rescue Hub users in this scope yet</strong>
-                      <span>Invite a user above. Their identity, membership and team assignments are created together.</span>
-                    </div>
-                  </td>
-                </tr>
-              {/each}
-            </tbody>
-          </table>
-        </div>
-
-        <div class="broadcast-grid">
-          <article>
-            <p class="eyebrow">Push dispatch</p>
-            <h2>Team-targeted notifications</h2>
-            <p>
-              New rescues are matched to available members by team capability. Transport can be
-              configured to receive every rescue.
-            </p>
-            <button type="button" disabled>Notification history</button>
-          </article>
-          <article>
-            <p class="eyebrow">Organisation configuration</p>
-            <h2>Memberships & teams</h2>
-            <p>
-              Rescue Hub provides standard capability codes while each organisation can define its own
-              membership names and team structure.
-            </p>
-            <button type="button" disabled>Configure organisation</button>
-          </article>
+        <div class="people-directory panel">
+          <div class="directory-toolbar">
+            <div><h3>People directory</h3><p>{visiblePeople.length} of {data.users.length} people</p></div>
+            <label class="people-search"><span class="sr-only">Search people</span><input type="search" bind:value={peopleSearch} placeholder="Search people, organisations or teams…" /></label>
+          </div>
+          <div class="people-filters" aria-label="Filter people">
+            {#each [{ id: 'all', label: 'Everyone' }, { id: 'available', label: 'Available' }, { id: 'admins', label: 'Administrators' }, { id: 'disabled', label: 'Disabled' }] as filter}
+              <button type="button" class:chosen={peopleFilter === filter.id} onclick={() => (peopleFilter = filter.id as typeof peopleFilter)}>{filter.label}</button>
+            {/each}
+          </div>
+          <div class="directory-list">
+            {#each visiblePeople as user (user.id)}
+              <button class="person-row" type="button" onclick={() => (selectedPersonId = user.id)} aria-label={`Manage ${user.name || user.email}`}>
+                <span class="person-avatar" aria-hidden="true">{(user.name || user.email).split(' ').slice(0, 2).map((part) => part[0]?.toUpperCase()).join('')}</span>
+                <span class="person-identity"><strong>{user.name || user.email}</strong><small>{user.email}</small><small>{organisationName(user.organisationId)}</small></span>
+                <span class="person-role"><strong>{user.roles.map((role) => role.replaceAll('_', ' ').toLowerCase()).join(' · ') || 'No role'}</strong><small>{membershipTypeName(user)}</small></span>
+                <span class="person-teams">{teamNames(user).slice(0, 2).join(' · ') || 'No dispatch teams'}{teamNames(user).length > 2 ? ` +${teamNames(user).length - 2}` : ''}</span>
+                <span class="person-status"><span class:available={user.enabled && user.availabilityStatus === 'AVAILABLE'} class="availability-state">{!user.enabled ? 'Disabled' : user.availabilityStatus === 'AVAILABLE' ? 'Available' : 'Offline'}</span></span>
+                <span class="person-chevron" aria-hidden="true">›</span>
+              </button>
+            {:else}
+              <div class="empty-state"><strong>No matching people</strong><span>Try a different search or filter.</span></div>
+            {/each}
+          </div>
         </div>
       </section>
+
+      {#if showInvite}
+        <div class="people-overlay" role="presentation">
+          <section class="people-dialog" role="dialog" aria-modal="true" aria-labelledby="invite-title">
+            <div class="dialog-heading"><div><p class="eyebrow">New team member</p><h2 id="invite-title">Invite a person</h2></div><button class="dialog-close" type="button" aria-label="Close invitation" onclick={() => (showInvite = false)}>×</button></div>
+            <form method="POST" action="?/inviteUser" class="person-form">
+              <div class="form-pair"><label><span>Name</span><input name="name" required placeholder="Jane Smith" /></label><label><span>Email</span><input name="email" type="email" required placeholder="jane@example.org" /></label></div>
+              <div class="form-pair"><label><span>Organisation</span><select name="organisationId" bind:value={inviteOrganisationId} disabled={!canChooseOrganisation} required>{#each data.organisations as organisation}<option value={organisation.id}>{organisation.displayName}</option>{/each}</select>{#if !canChooseOrganisation}<input type="hidden" name="organisationId" value={inviteOrganisationId} />{/if}</label><label><span>Role</span><select name="role" required><option value="RESCUER">Rescuer</option><option value="CARER">Carer</option><option value="DISPATCHER">Dispatcher</option><option value="ORG_ADMIN">Organisation administrator</option><option value="DATA_STEWARD">Data steward</option></select></label></div>
+              <label><span>Membership type</span><select name="membershipTypeId" required>{#each inviteMembershipConfig.membershipTypes as type}<option value={type.id}>{type.name}</option>{/each}</select></label>
+              <fieldset class="capability-picker"><legend>Dispatch teams <small>Choose the rescue notifications this person should receive.</small></legend><div class="capability-grid">{#each inviteMembershipConfig.teams as team}<label class="capability-option"><input type="checkbox" name="teamIds" value={team.id} /><span><strong>{team.name}</strong><small>{team.receivesAllRescues ? 'Receives every rescue' : team.description}</small></span></label>{/each}</div></fieldset>
+              <div class="dialog-actions"><button type="button" onclick={() => (showInvite = false)}>Cancel</button><button class="primary-action" type="submit">Send invitation</button></div>
+            </form>
+          </section>
+        </div>
+      {/if}
+
+      {#if selectedPerson}
+        <div class="people-overlay" role="presentation">
+          <section class="people-dialog person-detail" role="dialog" aria-modal="true" aria-labelledby="person-detail-title">
+            <div class="dialog-heading"><div><p class="eyebrow">Person details</p><h2 id="person-detail-title">{selectedPerson.name || selectedPerson.email}</h2><p class="intro">{selectedPerson.email} · {organisationName(selectedPerson.organisationId)}</p></div><button class="dialog-close" type="button" aria-label="Close person details" onclick={() => (selectedPersonId = null)}>×</button></div>
+            <div class="person-detail-summary"><span class:available={selectedPerson.enabled && selectedPerson.availabilityStatus === 'AVAILABLE'} class="availability-state">{selectedPerson.enabled ? selectedPerson.availabilityStatus ?? 'Offline' : 'Disabled'}</span><span>{selectedPerson.roles.join(' · ')}</span><span>{selectedPerson.status}</span></div>
+            <form method="POST" action="?/updateDispatchMembership" class="person-form">
+              <input type="hidden" name="userId" value={selectedPerson.id} />
+              <label><span>Membership type</span><select name="membershipTypeId">{#each membershipConfigFor(selectedPerson).membershipTypes as type}<option value={type.id} selected={type.id === selectedPerson.membershipTypeId}>{type.name}</option>{/each}</select></label>
+              <fieldset class="capability-picker"><legend>Dispatch teams <small>Control which rescue notifications this person receives.</small></legend><div class="capability-grid">{#each membershipConfigFor(selectedPerson).teams as team}<label class="capability-option"><input type="checkbox" name="teamIds" value={team.id} checked={(selectedPerson.teamIds ?? []).includes(team.id)} /><span><strong>{team.name}</strong><small>{team.receivesAllRescues ? 'Receives every rescue' : team.description}</small></span></label>{/each}</div></fieldset>
+              <div class="dialog-actions"><button class="primary-action" type="submit">Save membership & teams</button></div>
+            </form>
+            <div class="account-management"><h3>Account access</h3><p>These actions affect sign-in access, not dispatch availability.</p><div class="account-actions"><form method="POST" action={selectedPerson.enabled ? '?/disableUser' : '?/enableUser'}><input type="hidden" name="userId" value={selectedPerson.id} /><button type="submit">{selectedPerson.enabled ? 'Disable access' : 'Enable access'}</button></form><form method="POST" action="?/resetPassword"><input type="hidden" name="userId" value={selectedPerson.id} /><button type="submit">Reset password</button></form><form method="POST" action="?/removeUser" onsubmit={(event) => { if (!confirm('Remove this person from Rescue Hub? This cannot be undone.')) event.preventDefault(); }}><input type="hidden" name="userId" value={selectedPerson.id} /><button class="danger" type="submit">Remove person</button></form></div></div>
+          </section>
+        </div>
+      {/if}
     {:else}
       <section class="panel page-panel">
         <div class="panel-heading">
@@ -679,6 +571,60 @@
 </div>
 
 <style>
+  .people-workspace { display: grid; gap: 22px; }
+  .people-head, .directory-toolbar, .dialog-heading { display: flex; align-items: center; justify-content: space-between; gap: 18px; }
+  .people-head h2, .dialog-heading h2 { margin: 5px 0 8px; font-size: 27px; }
+  .people-head .intro { max-width: 660px; }
+  .people-stats { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 12px; }
+  .people-stats > div { background: white; border: 1px solid var(--line); border-radius: 13px; padding: 18px; display: grid; gap: 8px; }
+  .people-stats span { color: var(--muted); font-size: 12px; }
+  .people-stats strong { font-size: 29px; line-height: 1; }
+  .people-directory { overflow: hidden; padding: 0; }
+  .directory-toolbar { padding: 22px 22px 12px; }
+  .directory-toolbar h3 { margin: 0; font-size: 18px; }
+  .directory-toolbar p { margin: 5px 0 0; font-size: 12px; color: var(--muted); }
+  .people-search { min-width: min(100%, 330px); }
+  .people-search input { width: 100%; padding: 11px 13px; border: 1px solid var(--line); border-radius: 9px; background: white; }
+  .people-filters { display: flex; gap: 8px; padding: 4px 22px 18px; flex-wrap: wrap; }
+  .people-filters button { border: 1px solid var(--line); border-radius: 999px; background: white; padding: 8px 14px; font: inherit; font-size: 12px; cursor: pointer; }
+  .people-filters button.chosen { background: var(--forest); color: white; border-color: var(--forest); }
+  .person-row { display: grid; grid-template-columns: 42px minmax(170px, 1.4fr) minmax(130px, 1fr) minmax(130px, 1fr) 90px 16px; gap: 15px; align-items: center; width: 100%; text-align: left; padding: 16px 22px; border: 0; border-top: 1px solid var(--line); background: white; color: var(--ink); cursor: pointer; font: inherit; }
+  .person-row:hover, .person-row:focus-visible { background: var(--surface-soft); }
+  .person-avatar { width: 42px; height: 42px; border-radius: 50%; display: grid; place-items: center; background: #e5eee7; color: var(--forest); font-size: 13px; font-weight: 750; }
+  .person-identity, .person-role { display: grid; gap: 3px; min-width: 0; }
+  .person-identity strong, .person-role strong { font-size: 13px; overflow-wrap: anywhere; }
+  .person-identity small, .person-role small, .person-teams { color: var(--muted); font-size: 11px; overflow-wrap: anywhere; }
+  .person-chevron { font-size: 25px; color: var(--muted); }
+  .people-overlay { position: fixed; inset: 0; z-index: 100; background: rgba(10,27,18,.56); display: flex; justify-content: flex-end; }
+  .people-dialog { width: min(100%, 690px); height: 100%; overflow-y: auto; padding: 28px; background: white; box-shadow: -15px 0 50px rgba(0,0,0,.14); }
+  .dialog-heading { align-items: flex-start; border-bottom: 1px solid var(--line); padding-bottom: 18px; margin-bottom: 20px; }
+  .dialog-close { border: 1px solid var(--line); background: white; border-radius: 9px; width: 36px; height: 36px; font-size: 25px; cursor: pointer; }
+  .person-form { display: grid; gap: 18px; }
+  .person-form label:not(.capability-option) { display: grid; gap: 7px; font-size: 12px; font-weight: 700; }
+  .person-form input:not([type='checkbox']), .person-form select { width: 100%; padding: 11px; border: 1px solid var(--line); border-radius: 8px; background: white; font: inherit; }
+  .form-pair { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 14px; }
+  .capability-picker { border: 0; padding: 0; margin: 0; min-width: 0; }
+  .capability-picker legend { font-weight: 750; font-size: 14px; margin-bottom: 12px; }
+  .capability-picker legend small { display: block; font-weight: 400; color: var(--muted); margin-top: 4px; }
+  .capability-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 9px; }
+  .capability-option { display: flex; gap: 10px; align-items: flex-start; padding: 12px; border: 1px solid var(--line); border-radius: 10px; cursor: pointer; }
+  .capability-option:has(input:checked) { background: #f0f7e7; border-color: #91b58c; }
+  .capability-option input { margin: 3px 0 0; flex-shrink: 0; accent-color: var(--forest); }
+  .capability-option span { display: grid; gap: 4px; }
+  .capability-option strong { font-size: 12px; }
+  .capability-option small { font-size: 11px; font-weight: 400; color: var(--muted); line-height: 1.4; }
+  .dialog-actions { display: flex; justify-content: flex-end; gap: 10px; padding-top: 16px; border-top: 1px solid var(--line); }
+  .dialog-actions button, .account-actions button { padding: 10px 15px; border-radius: 8px; border: 1px solid var(--line); cursor: pointer; font: inherit; }
+  .person-detail-summary { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 22px; color: var(--muted); font-size: 12px; }
+  .account-management { margin-top: 28px; padding-top: 20px; border-top: 1px solid var(--line); }
+  .account-management h3 { margin: 0 0 7px; }
+  .account-management p { color: var(--muted); font-size: 12px; }
+  .account-actions { display: flex; gap: 9px; flex-wrap: wrap; margin-top: 16px; }
+  .account-actions .danger { color: #a32929; border-color: #e6b6b6; }
+  .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+  @media (max-width: 1100px) { .person-row { grid-template-columns: 42px minmax(150px,1.5fr) minmax(110px,1fr) 90px 16px; } .person-teams { display: none; } }
+  @media (max-width: 700px) { .people-head, .directory-toolbar { align-items: stretch; flex-direction: column; } .people-stats { grid-template-columns: repeat(2,minmax(0,1fr)); } .person-row { grid-template-columns: 38px minmax(0,1fr) 18px; gap: 10px; padding: 13px; } .person-role, .person-status { display: none; } .people-dialog { padding: 18px; } .form-pair, .capability-grid { grid-template-columns: 1fr; } }
+
   .admin-shell {
     --ink: #17211d;
     --muted: #66736c;
