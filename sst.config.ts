@@ -24,6 +24,12 @@ export default $config({
 
     const web = new sst.aws.SvelteKit("Web", {
       path: "packages/pc-rescues",
+      ...( $app.stage === "demo" ? {
+        domain: {
+          name: "rescue.michaelcuneo.com.au",
+          dns: sst.aws.dns({ zone: "michaelcuneo.com.au" }),
+        },
+      } : {}),
       link: [graphql, data, mailFrom],
       environment: {
         PUBLIC_MAPBOX_ACCESS_TOKEN: process.env.PUBLIC_MAPBOX_ACCESS_TOKEN ?? "",
