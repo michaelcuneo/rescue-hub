@@ -1,6 +1,7 @@
 import { fail, redirect } from '@sveltejs/kit';
 import { HUNTER_DEMO_ORGANISATION } from '$lib/server/demo';
 import {
+	createPlatformAdminWithTemporaryPassword,
 	hasAdministrativeRole,
 	hasCompletedBootstrap,
 	inviteUser,
@@ -123,24 +124,18 @@ export const load: PageServerLoad = async ({ locals }) => {
 };
 
 export const actions: Actions = {
-  inviteAdamRoff: async ({ locals }) => {
+  prepareAdamRoff: async ({ locals }) => {
     const actor = await requireAdmin(locals);
-    if (!actor.roles.includes('PLATFORM_ADMIN')) return fail(403, { action: 'inviteAdamRoff', error: 'Platform administrator access required.' });
+    if (!actor.roles.includes('PLATFORM_ADMIN')) return fail(403, { action: 'prepareAdamRoff', error: 'Platform administrator access required.' });
     const email = 'adam.roff@dcceew.nsw.gov.au';
-    const existing = (await listUsers()).find((user) => user.email.toLowerCase() === email);
-    if (existing) return fail(409, { action: 'inviteAdamRoff', error: 'Adam already has an account. Review his permissions before changing access.' });
+    if ((await listUsers()).some((user) => user.email.toLowerCase() === email)) {
+      return fail(409, { action: 'prepareAdamRoff', error: 'Adam already has an account. Do not create duplicate credentials.' });
+    }
     try {
-      const result = await inviteUser({
-        name: 'Adam Roff',
-        email,
-        organisationId: actor.organisationId || HUNTER_DEMO_ORGANISATION,
-        roles: ['PLATFORM_ADMIN'],
-        membershipTypeId: 'support-member',
-        teamIds: []
-      });
-      return { action: 'inviteAdamRoff', success: true, devCode: result.invitation.devCode };
+      const result = await createPlatformAdminWithTemporaryPassword('Adam Roff', email);
+      return { action: 'prepareAdamRoff', success: true, temporaryPassword: result.temporaryPassword };
     } catch (error) {
-      return fail(400, { action: 'inviteAdamRoff', error: error instanceof Error ? error.message : 'Unable to invite Adam.' });
+      return fail(400, { action: 'prepareAdamRoff', error: error instanceof Error ? error.message : 'Unable to prepare account.' });
     }
   },
 	inviteDemoReviewer: async ({ request, locals }) => {
