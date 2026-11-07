@@ -1,7 +1,6 @@
 import { fail, redirect } from '@sveltejs/kit';
 import { HUNTER_DEMO_ORGANISATION } from '$lib/server/demo';
 import {
-	createPlatformAdminWithTemporaryPassword,
 	hasAdministrativeRole,
 	hasCompletedBootstrap,
 	inviteUser,
@@ -124,39 +123,6 @@ export const load: PageServerLoad = async ({ locals }) => {
 };
 
 export const actions: Actions = {
-  generatePlatformAdminLogin: async ({ request, locals }) => {
-    const actor = await requireAdmin(locals);
-    if (!actor.roles.includes('PLATFORM_ADMIN')) return fail(403, { action: 'generatePlatformAdminLogin', error: 'Platform administrator access required.' });
-    const form = await request.formData();
-    const email = requiredString(form, 'email').toLowerCase();
-    const name = requiredString(form, 'name');
-    if (!name || !/^\S+@\S+\.\S+$/.test(email)) {
-      return fail(400, { action: 'generatePlatformAdminLogin', error: 'Enter a name and valid email address.' });
-    }
-    if ((await listUsers()).some((user) => user.email.toLowerCase() === email)) {
-      return fail(409, { action: 'generatePlatformAdminLogin', error: 'An account already exists for that email.' });
-    }
-    try {
-      const result = await createPlatformAdminWithTemporaryPassword(name, email);
-      return { action: 'generatePlatformAdminLogin', success: true, accountEmail: email, temporaryPassword: result.temporaryPassword };
-    } catch (error) {
-      return fail(400, { action: 'generatePlatformAdminLogin', error: error instanceof Error ? error.message : 'Unable to generate login.' });
-    }
-  },
-  prepareAdamRoff: async ({ locals }) => {
-    const actor = await requireAdmin(locals);
-    if (!actor.roles.includes('PLATFORM_ADMIN')) return fail(403, { action: 'prepareAdamRoff', error: 'Platform administrator access required.' });
-    const email = 'adam.roff@dcceew.nsw.gov.au';
-    if ((await listUsers()).some((user) => user.email.toLowerCase() === email)) {
-      return fail(409, { action: 'prepareAdamRoff', error: 'Adam already has an account. Do not create duplicate credentials.' });
-    }
-    try {
-      const result = await createPlatformAdminWithTemporaryPassword('Adam Roff', email);
-      return { action: 'prepareAdamRoff', success: true, temporaryPassword: result.temporaryPassword };
-    } catch (error) {
-      return fail(400, { action: 'prepareAdamRoff', error: error instanceof Error ? error.message : 'Unable to prepare account.' });
-    }
-  },
 	inviteDemoReviewer: async ({ request, locals }) => {
 		const actor = await requireAdmin(locals);
 		if (!actor.roles.includes('PLATFORM_ADMIN') && !actor.roles.includes('AUTHORITY_ADMIN')) {
