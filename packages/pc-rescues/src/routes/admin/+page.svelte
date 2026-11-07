@@ -179,7 +179,7 @@
 
         {/if}
       <div class="demo-identity">
-        <span class="avatar">MC</span>
+        <span class="avatar" aria-hidden="true">{data.currentUser.name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]?.toUpperCase()).join('') || '?'}</span>
         <div>
           <strong>{data.currentUser.name}</strong>
           <span>{data.currentUser.roles.join(' · ')}</span>
@@ -844,7 +844,7 @@
   }
 
   .demo-identity strong,
-  .demo-identity span {
+  .demo-identity > div > span {
     display: block;
     text-align: right;
   }
@@ -853,7 +853,7 @@
     font-size: 15px;
   }
 
-  .demo-identity span {
+  .demo-identity > div > span {
     margin-top: 2px;
     color: var(--muted);
     font-size: 13px;
@@ -861,10 +861,15 @@
 
   .avatar {
     order: 2;
-    display: grid;
-    place-items: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 38px;
     width: 38px;
     height: 38px;
+    margin: 0;
+    padding: 0;
+    line-height: 1;
     border-radius: 50%;
     background: #dce8df;
     color: var(--forest);
