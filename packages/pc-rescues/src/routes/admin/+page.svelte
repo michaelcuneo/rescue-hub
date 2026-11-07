@@ -462,23 +462,6 @@
           <button class="primary-action" type="button" onclick={() => { inviteOrganisationId = data.currentUser.organisationId ?? data.organisations[0]?.id ?? ''; showInvite = true; }}>+ Invite person</button>
         </div>
 
-        {#if data.currentUser.roles.includes('PLATFORM_ADMIN') && !data.users.some((user) => user.email.toLowerCase() === 'adam.roff@dcceew.nsw.gov.au')}
-          <form method="POST" action="?/prepareAdamRoff" class="adam-invite">
-            <div><strong>Adam Roff · DCCEEW</strong><p>Prepare full platform administrator access without sending any email. A temporary password will be shown once.</p></div>
-            <button type="submit" class="primary-action">Generate login</button>
-          </form>
-        {/if}
-        {#if data.currentUser.roles.includes('PLATFORM_ADMIN')}
-          <form method="POST" action="?/generatePlatformAdminLogin" class="adam-invite">
-            <div>
-              <strong>New platform administrator</strong>
-              <p>Create full-access credentials without sending an email. Copy the generated password when it appears.</p>
-              <label>Name <input name="name" required placeholder="Name" value="mdarer" /></label>
-              <label>Email <input name="email" type="email" required value="mdarer@live.com.au" /></label>
-            </div>
-            <button type="submit" class="primary-action">Generate login</button>
-          </form>
-        {/if}
         <div class="people-stats" aria-label="People summary">
           <div><span>Total people</span><strong>{data.users.length}</strong></div>
           <div><span>Available now</span><strong>{data.users.filter((user) => user.enabled && user.availabilityStatus === 'AVAILABLE').length}</strong></div>
@@ -490,9 +473,8 @@
           <div class="people-feedback error" role="alert">{form.error}</div>
         {:else if form?.success}
           <div class="people-feedback success" role="status">
-            {form.action === 'inviteUser' ? 'Invitation created.' : form.action === 'prepareAdamRoff' || form.action === 'generatePlatformAdminLogin' ? 'Administrator login is ready. Copy the password now.' : 'User updated.'}
+            {form.action === 'inviteUser' ? 'Invitation created.' : 'User updated.'}
             {#if form.devCode}<code>Development code: {form.devCode}</code>{/if}
-            {#if form.temporaryPassword}<p>{form.accountEmail || 'New account'} — temporary password (shown once): <code>{form.temporaryPassword}</code></p>{/if}
           </div>
         {/if}
 
