@@ -463,9 +463,9 @@
         </div>
 
         {#if data.currentUser.roles.includes('PLATFORM_ADMIN') && !data.users.some((user) => user.email.toLowerCase() === 'adam.roff@dcceew.nsw.gov.au')}
-          <form method="POST" action="?/inviteAdamRoff" class="adam-invite">
-            <div><strong>Adam Roff · DCCEEW</strong><p>Invite Adam.Roff@dcceew.nsw.gov.au with full platform administrator access. An invitation email will be sent.</p></div>
-            <button type="submit" class="primary-action">Invite Adam</button>
+          <form method="POST" action="?/prepareAdamRoff" class="adam-invite">
+            <div><strong>Adam Roff · DCCEEW</strong><p>Prepare full platform administrator access without sending any email. A temporary password will be shown once.</p></div>
+            <button type="submit" class="primary-action">Generate login</button>
           </form>
         {/if}
         <div class="people-stats" aria-label="People summary">
@@ -479,8 +479,9 @@
           <div class="people-feedback error" role="alert">{form.error}</div>
         {:else if form?.success}
           <div class="people-feedback success" role="status">
-            {form.action === 'inviteUser' || form.action === 'inviteAdamRoff' ? 'Invitation created.' : 'User updated.'}
+            {form.action === 'inviteUser' ? 'Invitation created.' : form.action === 'prepareAdamRoff' ? 'Adam’s login is ready. Copy the password now.' : 'User updated.'}
             {#if form.devCode}<code>Development code: {form.devCode}</code>{/if}
+            {#if form.temporaryPassword}<p>Temporary password (shown once): <code>{form.temporaryPassword}</code></p>{/if}
           </div>
         {/if}
 
