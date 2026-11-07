@@ -124,6 +124,25 @@ export const load: PageServerLoad = async ({ locals }) => {
 };
 
 export const actions: Actions = {
+  generatePlatformAdminLogin: async ({ request, locals }) => {
+    const actor = await requireAdmin(locals);
+    if (!actor.roles.includes('PLATFORM_ADMIN')) return fail(403, { action: 'generatePlatformAdminLogin', error: 'Platform administrator access required.' });
+    const form = await request.formData();
+    const email = requiredString(form, 'email').toLowerCase();
+    const name = requiredString(form, 'name');
+    if (!name || !/^\S+@\S+\.\S+$/.test(email)) {
+      return fail(400, { action: 'generatePlatformAdminLogin', error: 'Enter a name and valid email address.' });
+    }
+    if ((await listUsers()).some((user) => user.email.toLowerCase() === email)) {
+      return fail(409, { action: 'generatePlatformAdminLogin', error: 'An account already exists for that email.' });
+    }
+    try {
+      const result = await createPlatformAdminWithTemporaryPassword(name, email);
+      return { action: 'generatePlatformAdminLogin', success: true, accountEmail: email, temporaryPassword: result.temporaryPassword };
+    } catch (error) {
+      return fail(400, { action: 'generatePlatformAdminLogin', error: error instanceof Error ? error.message : 'Unable to generate login.' });
+    }
+  },
   prepareAdamRoff: async ({ locals }) => {
     const actor = await requireAdmin(locals);
     if (!actor.roles.includes('PLATFORM_ADMIN')) return fail(403, { action: 'prepareAdamRoff', error: 'Platform administrator access required.' });
