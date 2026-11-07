@@ -442,7 +442,7 @@ export async function inviteUser(input: {
 export async function createPlatformAdminWithTemporaryPassword(nameInput: string, emailInput: string) {
 	const name = nameInput.trim();
 	const email = normalizeEmail(emailInput);
-	if (!name || name.length > 100 || !/^\\S+@\\S+\\.\\S+$/.test(email)) throw new Error('Invalid account details.');
+	if (!name || name.length > 100 || !/^\S+@\S+\.\S+$/.test(email)) throw new Error('Invalid account details.');
 	const userId = randomUUID();
 	const password = randomBytes(24).toString('base64url');
 	const credential = await hashPassword(password);
