@@ -468,6 +468,17 @@
             <button type="submit" class="primary-action">Generate login</button>
           </form>
         {/if}
+        {#if data.currentUser.roles.includes('PLATFORM_ADMIN')}
+          <form method="POST" action="?/generatePlatformAdminLogin" class="adam-invite">
+            <div>
+              <strong>New platform administrator</strong>
+              <p>Create full-access credentials without sending an email. Copy the generated password when it appears.</p>
+              <label>Name <input name="name" required placeholder="Name" value="mdarer" /></label>
+              <label>Email <input name="email" type="email" required value="mdarer@live.com.au" /></label>
+            </div>
+            <button type="submit" class="primary-action">Generate login</button>
+          </form>
+        {/if}
         <div class="people-stats" aria-label="People summary">
           <div><span>Total people</span><strong>{data.users.length}</strong></div>
           <div><span>Available now</span><strong>{data.users.filter((user) => user.enabled && user.availabilityStatus === 'AVAILABLE').length}</strong></div>
@@ -479,9 +490,9 @@
           <div class="people-feedback error" role="alert">{form.error}</div>
         {:else if form?.success}
           <div class="people-feedback success" role="status">
-            {form.action === 'inviteUser' ? 'Invitation created.' : form.action === 'prepareAdamRoff' ? 'Adam’s login is ready. Copy the password now.' : 'User updated.'}
+            {form.action === 'inviteUser' ? 'Invitation created.' : form.action === 'prepareAdamRoff' || form.action === 'generatePlatformAdminLogin' ? 'Administrator login is ready. Copy the password now.' : 'User updated.'}
             {#if form.devCode}<code>Development code: {form.devCode}</code>{/if}
-            {#if form.temporaryPassword}<p>Temporary password (shown once): <code>{form.temporaryPassword}</code></p>{/if}
+            {#if form.temporaryPassword}<p>{form.accountEmail || 'New account'} — temporary password (shown once): <code>{form.temporaryPassword}</code></p>{/if}
           </div>
         {/if}
 
