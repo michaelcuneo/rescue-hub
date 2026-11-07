@@ -437,34 +437,6 @@ export async function inviteUser(input: {
 	return { user: await getUserById(userId), invitation };
 }
 
-// Provision a platform administrator without emailing an invitation.
-// Only call from a server action that has verified PLATFORM_ADMIN permissions.
-export async function createPlatformAdminWithTemporaryPassword(nameInput: string, emailInput: string) {
-	const name = nameInput.trim();
-	const email = normalizeEmail(emailInput);
-	if (!name || name.length > 100 || !/^\S+@\S+\.\S+$/.test(email)) throw new Error('Invalid account details.');
-	const userId = randomUUID();
-	const password = randomBytes(24).toString('base64url');
-	const credential = await hashPassword(password);
-	const now = new Date().toISOString();
-	await db.send(new TransactWriteCommand({
-		TransactItems: [
-			{ Put: { TableName: tableName, Item: { pk: `AUTH#EMAIL#${email}`, sk: 'USER', entity: 'auth_lookup', userId }, ConditionExpression: 'attribute_not_exists(pk)' } },
-			{ Put: { TableName: tableName, Item: {
-				pk: `USER#${userId}`, sk: 'PROFILE', entity: 'user', id: userId, email, name,
-				enabled: true, status: 'ACTIVE', emailVerified: false, authEpoch: 0,
-				roles: ['PLATFORM_ADMIN'], teamIds: [], availabilityStatus: 'OFFLINE',
-				createdAt: now, updatedAt: now, gsi2pk: 'USERS', gsi2sk: `${name.toLowerCase()}#${userId}`
-			}, ConditionExpression: 'attribute_not_exists(pk)' } },
-			{ Put: { TableName: tableName, Item: {
-				pk: `USER#${userId}`, sk: 'PASSWORD', entity: 'credential',
-				salt: credential.salt, passwordHash: credential.hash, updatedAt: now
-			}, ConditionExpression: 'attribute_not_exists(pk)' } }
-		]
-	}));
-	return { user: await getUserById(userId), temporaryPassword: password };
-}
-
 export async function acceptInvite(email: string, code: string, password: string, cookies?: Cookies) {
 	const passwordError = validatePassword(password);
 	if (passwordError) throw new Error(passwordError);
