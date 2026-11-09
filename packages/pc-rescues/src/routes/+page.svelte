@@ -40,4 +40,4 @@
 </script>
 
 <MapBox />
-<DispatcherShell backendOnline={data.backendOnline} user={data.user} demoMode={data.demoMode} />
+<DispatcherShell backendOnline={data.backendOnline} user={data.user} demoMode={data.demoMode} membershipConfig={data.membershipConfig} />
