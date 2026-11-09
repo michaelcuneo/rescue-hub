@@ -1,7 +1,6 @@
 <script lang="ts">
 	import { env } from '$env/dynamic/public';
 	import { australianAnimalNames } from '$lib/data/australian-animals';
-	import { classifyDispatchCapability, memberCanReceiveCapability } from '$lib/server/membership';
 	import type { OrganisationMembershipConfig } from '$lib/server/membership';
 	import {
 		Search,
@@ -139,17 +138,24 @@
 		});
 	}
 
-	const eligibleRescuers = $derived($people.filter((person) =>
-        person.enabled &&
-        person.status === 'ACTIVE' &&
-        person.availabilityStatus === 'AVAILABLE' &&
-        person.roles.some((role) => ['RESCUER', 'CARER'].includes(role)) &&
-        (!selected || memberCanReceiveCapability(
-            person.teamIds,
-            membershipConfig,
-            classifyDispatchCapability(selected.type, selected.breed ?? '')
-        ))
-    ));
+	const eligibleRescuers = $derived($people.filter((person) => {
+        if (!person.enabled || person.status !== 'ACTIVE' || person.availabilityStatus !== 'AVAILABLE') return false;
+        if (!person.roles.some((role) => ['RESCUER', 'CARER'].includes(role))) return false;
+        if (!selected) return true;
+        const animal = `${selected.type} ${selected.breed ?? ''}`.toLowerCase();
+        const capability = /eagle|hawk|falcon|kite|owl|raptor/.test(animal) ? 'RAPTOR'
+            : /flying fox|flying-fox|microbat|\\bbat\\b/.test(animal) ? 'BAT_FLYING_FOX'
+            : /kangaroo|wallaby|pademelon|wallaroo/.test(animal) ? 'MACROPOD'
+            : /possum|glider/.test(animal) ? 'POSSUM_GLIDER'
+            : /wombat/.test(animal) ? 'WOMBAT'
+            : /brown snake|red[- ]bellied|tiger snake|death adder|taipan|venomous/.test(animal) ? 'REPTILE_VENOMOUS'
+            : /snake|lizard|blue[- ]?tongue|dragon|skink|gecko|python/.test(animal) ? 'REPTILE_NON_VENOMOUS'
+            : /turtle|sea snake|seal|dolphin|whale|marine/.test(animal) ? 'MARINE'
+            : /bird|magpie|lorikeet|kookaburra|pelican|frogmouth|duck|cockatoo|galah|ibis/.test(animal) ? 'BIRD'
+            : 'OTHER';
+        return membershipConfig.teams.some((team) => person.teamIds.includes(team.id) && team.active &&
+            (team.receivesAllRescues || team.capabilityCode === capability));
+    }));
 	const assignedName = $derived(eligibleRescuers.find((person) => person.id === selected?.assignedUserId)?.name ?? 'Unknown rescuer');
 
 	async function updateSelectedRescue(change: { status?: 'PENDING' | 'ASSIGNED' | 'COMPLETED'; userId?: string }) {
