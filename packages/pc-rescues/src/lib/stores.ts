@@ -22,6 +22,10 @@ export type RescueHubPerson = {
 	email: string;
 	roles: string[];
 	organisationId?: string;
+    enabled: boolean;
+    status: 'INVITED' | 'ACTIVE' | 'REMOVED';
+    availabilityStatus: 'AVAILABLE' | 'BUSY' | 'OFFLINE';
+    teamIds: string[];
 };
 
 export type RescueData = {
