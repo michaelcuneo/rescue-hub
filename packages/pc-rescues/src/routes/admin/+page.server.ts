@@ -131,7 +131,7 @@ export const actions: Actions = {
 		const form = await request.formData();
 		const email = requiredString(form, 'email').toLowerCase();
 		const name = requiredString(form, 'name') || 'DCCEEW Demo Reviewer';
-		if (!/^\\S+@\\S+\\.\\S+$/.test(email)) {
+		if (!/^\S+@\S+\.\S+$/.test(email)) {
 			return fail(400, { action: 'inviteDemoReviewer', error: 'Enter a valid reviewer email.' });
 		}
 		try {
