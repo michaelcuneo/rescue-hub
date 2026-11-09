@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { env } from '$env/dynamic/public';
 	import { australianAnimalNames } from '$lib/data/australian-animals';
+	import { classifyDispatchCapability, memberCanReceiveCapability } from '$lib/server/membership';
+	import type { OrganisationMembershipConfig } from '$lib/server/membership';
 	import {
 		Search,
 		Plus,
@@ -30,10 +32,12 @@
 	let {
 		backendOnline,
 		user,
-		demoMode = false
+		demoMode = false,
+        membershipConfig
 	}: {
 		backendOnline: boolean;
 		demoMode?: boolean;
+        membershipConfig: OrganisationMembershipConfig;
 		user: {
 			name: string;
 			email: string;
@@ -135,7 +139,17 @@
 		});
 	}
 
-	const eligibleRescuers = $derived($people.filter((person) => person.roles.some((role) => ['RESCUER', 'CARER'].includes(role))));
+	const eligibleRescuers = $derived($people.filter((person) =>
+        person.enabled &&
+        person.status === 'ACTIVE' &&
+        person.availabilityStatus === 'AVAILABLE' &&
+        person.roles.some((role) => ['RESCUER', 'CARER'].includes(role)) &&
+        (!selected || memberCanReceiveCapability(
+            person.teamIds,
+            membershipConfig,
+            classifyDispatchCapability(selected.type, selected.breed ?? '')
+        ))
+    ));
 	const assignedName = $derived(eligibleRescuers.find((person) => person.id === selected?.assignedUserId)?.name ?? 'Unknown rescuer');
 
 	async function updateSelectedRescue(change: { status?: 'PENDING' | 'ASSIGNED' | 'COMPLETED'; userId?: string }) {
