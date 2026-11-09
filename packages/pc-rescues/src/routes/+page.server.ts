@@ -2,6 +2,7 @@ import { redirect } from '@sveltejs/kit';
 import { hasCompletedBootstrap, listUsers } from '$lib/server/auth';
 import { getHunterDemo, HUNTER_DEMO_ORGANISATION } from '$lib/server/demo';
 import { listAdminRescues } from '$lib/server/admin-data';
+import { getOrganisationMembershipConfig } from '$lib/server/membership';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ locals, cookies }) => {
@@ -28,7 +29,9 @@ export const load: PageServerLoad = async ({ locals, cookies }) => {
 	if (usersResult.status === 'rejected') console.error('Unable to load rescue people.', usersResult.reason);
 	const rescues = rescueResult.status === 'fulfilled' ? rescueResult.value : [];
 	const users = usersResult.status === 'fulfilled' ? usersResult.value : [];
+	const membershipConfig = await getOrganisationMembershipConfig(organisationId ?? HUNTER_DEMO_ORGANISATION);
 	return {
+        membershipConfig,
 		user: demoMode
 			? {
 					...locals.user,
