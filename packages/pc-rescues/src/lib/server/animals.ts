@@ -1,6 +1,7 @@
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, GetCommand, QueryCommand, TransactWriteCommand } from '@aws-sdk/lib-dynamodb';
 import { Resource } from 'sst';
+import { publishRescueChange } from './realtime';
 
 const db = DynamoDBDocumentClient.from(new DynamoDBClient({}), { marshallOptions: { removeUndefinedValues: true } });
 const table = Resource.RescueHubData.name;
@@ -100,6 +101,7 @@ export async function createAnimal(input: {
       type: 'ANIMAL_REGISTERED', actorUserId: input.custodianUserId, createdAt: now
     } }}
   ] }));
+  await publishRescueChange();
   return animal;
 }
 
@@ -132,6 +134,7 @@ export async function recordAnimalEvent(animal: AnimalRecord, actorUserId: strin
     if (error instanceof Error && error.name === 'TransactionCanceledException') throw new AnimalConflict('Animal custody or status changed. Refresh and retry.');
     throw error;
   });
+  await publishRescueChange();
 }
 
 export async function getPendingAnimalTransfer(animal: AnimalRecord) {
@@ -230,5 +233,6 @@ export async function changeAnimalState(animal: AnimalRecord, actorUserId: strin
     if (error instanceof Error && error.name === 'TransactionCanceledException') throw new AnimalConflict('Animal changed since it was loaded. Refresh and retry.');
     throw error;
   });
+  await publishRescueChange();
   return getAnimal(animal.id);
 }
