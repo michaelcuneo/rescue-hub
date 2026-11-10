@@ -59,7 +59,6 @@ input CreateRescueInput {
   longitude: Float!
   injury: String
   status: RescueStatus = PENDING
-  assignedUserId: ID
 }
 
 input UpdateRescueStatusInput {
