@@ -605,6 +605,16 @@ export async function createOrLoginSocialReporter(input: {
   return { user: await getUserById(userId), sessionToken: await createSession(userId, cookies) };
 }
 
+/** Issue a new mobile session only after a one-time PKCE handoff is redeemed. */
+export async function createPublicReporterSession(userId: string) {
+  const user = await getUserById(userId);
+  if (!user || !user.enabled || user.status !== 'ACTIVE' || !user.emailVerified ||
+      user.organisationId || !user.roles.includes('PUBLIC_REPORTER')) {
+    throw new Error('Verified public reporter account required.');
+  }
+  return { user, sessionToken: await createSession(userId) };
+}
+
 export async function loginUser(email: string, password: string, cookies?: Cookies) {
 	const userId = await lookupUserIdByEmail(email);
 	if (!userId) throw new Error('Invalid email or password.');
