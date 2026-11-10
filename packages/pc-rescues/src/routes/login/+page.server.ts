@@ -4,6 +4,7 @@ import type { Actions, PageServerLoad } from './$types';
 
 function loginDestination(user: RescueHubUser, next: string | null) {
 	// Honour explicitly requested local destinations, but never redirect off-site.
+	if (user.roles.includes('PUBLIC_REPORTER')) return '/report';
 	if (next?.startsWith('/') && !next.startsWith('//') && !next.includes('\\')) return next;
 	return user.roles.includes('PLATFORM_ADMIN') || user.roles.includes('AUTHORITY_ADMIN') ? '/admin' : '/';
 }
