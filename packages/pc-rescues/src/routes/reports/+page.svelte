@@ -62,6 +62,7 @@
     };
   });
   let busy = $state('');
+  let selectedOrganisation = $state<Record<string,string>>({});
   let error = $state('');
   let notice = $state('');
 
@@ -69,7 +70,13 @@
     if (busy) return;
     busy = id; error = ''; notice = '';
     try {
-      const response = await fetch(`/api/dispatch/reports/${encodeURIComponent(id)}/convert`, { method: 'POST' });
+      const organisationId = selectedOrganisation[id] || data.defaultOrganisationId;
+      if (!organisationId) throw new Error('Choose an organisation responsible for this report.');
+      const response = await fetch(`/api/dispatch/reports/${encodeURIComponent(id)}/convert`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ organisationId })
+      });
       const payload = await response.json() as { rescue?: { id: string }; error?: string };
       if (!response.ok || !payload.rescue) throw new Error(payload.error ?? 'Could not convert report.');
       reports = reports.map(report => report.id === id
@@ -107,7 +114,21 @@
           <a href="https://www.openstreetmap.org/?mlat={report.latitude}&mlon={report.longitude}#map=15/{report.latitude}/{report.longitude}"
             target="_blank" rel="noopener noreferrer">Inspect reported location</a>
           {#if report.status === 'SUBMITTED'}
-            <button onclick={() => void approve(report.id)} disabled={busy !== ''}>
+            <label class="select-org">
+              Responsible organisation
+              <select value={selectedOrganisation[report.id] || data.defaultOrganisationId}
+                onchange={(event) => selectedOrganisation[report.id] = event.currentTarget.value}>
+                <option value="">Select organisation</option>
+                {#if data.defaultOrganisationId && !data.organisations.some(org => org.id === data.defaultOrganisationId)}
+                  <option value={data.defaultOrganisationId}>Active demo organisation</option>
+                {/if}
+                {#each data.organisations as org (org.id)}
+                  <option value={org.id}>{org.displayName}</option>
+                {/each}
+              </select>
+            </label>
+            <button onclick={() => void approve(report.id)}
+              disabled={busy !== '' || !(selectedOrganisation[report.id] || data.defaultOrganisationId)}>
               {busy === report.id ? 'Converting…' : 'Accept and dispatch'}
             </button>
           {:else if report.rescueId}
@@ -132,6 +153,8 @@
   .location{font-size:12px;font-weight:800}
   .actions{display:flex;flex-wrap:wrap;align-items:center;gap:12px}
   button{padding:10px 13px;background:#173d2c;color:white;border:0;border-radius:9px;cursor:pointer;font-weight:800}
+  .select-org{display:grid;gap:5px;font-size:12px;color:#173d2c;font-weight:800;min-width:200px;flex:1}
+  select{background:#fff;max-width:100%;padding:10px;border:1px solid #cbd9d0;border-radius:9px;font:inherit}
   button:disabled{opacity:.5}
   .error{color:#a23f35;font-weight:800}.success{background:#e4f2e8;padding:10px;border-radius:10px;color:#24583f}
 </style>
