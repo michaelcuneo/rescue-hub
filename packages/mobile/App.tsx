@@ -78,6 +78,7 @@ export default function App() {
     let connected = false;
     let subscription: (() => void) | null = null;
     let retryConfig: ReturnType<typeof setTimeout> | null = null;
+    let delayedRefresh: ReturnType<typeof setTimeout> | null = null;
     let generation = 0;
     let inFlight = false;
     let pending = false;
@@ -122,7 +123,13 @@ export default function App() {
         const config = await getRealtimeConfig();
         if (closed || !foreground || currentGeneration !== generation) return;
         subscription = subscribeRescueChanges(config, {
-          onChange: () => void sync(),
+          onChange: () => {
+            void sync();
+            // Refresh again after GSI propagation; no continuous polling
+            // while the subscription is connected.
+            if (delayedRefresh) clearTimeout(delayedRefresh);
+            delayedRefresh = setTimeout(() => void sync(), 1500);
+          },
           onConnected: () => void sync(),
           onStatus: online => { connected = online; }
         });
@@ -149,6 +156,7 @@ export default function App() {
       } else {
         ++generation;
         if (retryConfig) { clearTimeout(retryConfig); retryConfig = null; }
+        if (delayedRefresh) { clearTimeout(delayedRefresh); delayedRefresh = null; }
         connected = false;
         subscription?.();
         subscription = null;
@@ -159,6 +167,7 @@ export default function App() {
       ++generation;
       clearInterval(fallback);
       if (retryConfig) clearTimeout(retryConfig);
+      if (delayedRefresh) clearTimeout(delayedRefresh);
       appStateSubscription.remove();
       subscription?.();
     };
