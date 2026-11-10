@@ -15,7 +15,7 @@ export default function AnimalCare({ rescue, userId, onBack, onUnclaim }: Props)
   const [animals, setAnimals] = useState<Animal[]>([]);
   const [selected, setSelected] = useState<Animal | null>(null);
   const [events, setEvents] = useState<AnimalEvent[]>([]);
-  const [species, setSpecies] = useState('');
+  const [species, setSpecies] = useState(rescue.type ?? '');
   const [description, setDescription] = useState('');
   const [notes, setNotes] = useState('');
   const [eventType, setEventType] = useState<(typeof eventTypes)[number]>('OBSERVATION');
@@ -135,11 +135,35 @@ export default function AnimalCare({ rescue, userId, onBack, onUnclaim }: Props)
           {rescue.assignedUserId === userId && (
             <View style={styles.card}>
               <Text style={styles.section}>Register an animal</Text>
-              <TextInput style={styles.input} placeholder="Species *" value={species} onChangeText={setSpecies} maxLength={120} />
-              <TextInput style={styles.input} placeholder="Description / identifying details" value={description} onChangeText={setDescription} multiline maxLength={2000} />
+              <Text style={styles.muted}>Record each animal you collect separately. These details follow the animal through rescue, vet care and handovers.</Text>
+              <Text style={styles.fieldLabel}>Animal species / type <Text style={styles.required}>*</Text></Text>
+              <TextInput
+                style={styles.input}
+                value={species}
+                onChangeText={setSpecies}
+                placeholder="e.g. Eastern blue-tongue lizard"
+                accessibilityLabel="Animal species or type, required"
+                accessibilityHint="The kind of animal you collected. Prefilled from the rescue; edit it if needed."
+                autoCapitalize="sentences"
+                maxLength={120}
+              />
+              <Text style={styles.fieldHelp}>Prefilled from the rescue report. Correct it if the animal is a different species.</Text>
+              <Text style={styles.fieldLabel}>Identifying details <Text style={styles.optional}>(optional)</Text></Text>
+              <TextInput
+                style={[styles.input, styles.multilineInput]}
+                value={description}
+                onChangeText={setDescription}
+                placeholder="e.g. Approx. 35 cm, pale blue tail, netting marks on left leg"
+                accessibilityLabel="Identifying details, optional"
+                accessibilityHint="Size, colour, distinctive markings, condition or injuries that identify this animal."
+                multiline
+                textAlignVertical="top"
+                maxLength={2000}
+              />
+              <Text style={styles.fieldHelp}>Include approximate size, colours, distinguishing marks or visible injuries.</Text>
               <Pressable style={styles.button} disabled={busy || !species.trim()} onPress={() => void run(async () => {
                 await registerAnimal(rescue.id, species.trim(), description.trim());
-                setSpecies(''); setDescription('');
+                setSpecies(rescue.type ?? ''); setDescription('');
               })}>
                 <Text style={styles.buttonText}>{busy ? 'Saving…' : 'Register animal'}</Text>
               </Pressable>
@@ -267,6 +291,11 @@ const styles = StyleSheet.create({
   link: { color: '#24583f', fontWeight: '700', paddingVertical: 8 },
   card: { padding: 16, backgroundColor: '#fff', borderWidth: 1, borderColor: '#d9e1dc', borderRadius: 14, gap: 8 },
   input: { backgroundColor: '#f9fbf9', borderWidth: 1, borderColor: '#d9e1dc', borderRadius: 10, padding: 12, minHeight: 46 },
+  multilineInput: { minHeight: 96 },
+  fieldLabel: { color: '#17211d', fontWeight: '800', fontSize: 14, marginTop: 5 },
+  required: { color: '#a23f35' },
+  optional: { color: '#66736c', fontWeight: '500', fontSize: 12 },
+  fieldHelp: { color: '#66736c', fontSize: 12, lineHeight: 18 },
   button: { backgroundColor: '#173d2c', borderRadius: 10, padding: 13, alignItems: 'center' },
   buttonText: { color: '#fff', fontWeight: '800' },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 7 },
