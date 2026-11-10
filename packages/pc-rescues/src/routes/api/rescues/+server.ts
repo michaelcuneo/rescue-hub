@@ -56,7 +56,7 @@ export const POST: RequestHandler = async ({ request, locals, cookies }) => {
 			status: 'PENDING'
 		});
 
-		await notifyEligibleRescuers({
+		const notifications = await notifyEligibleRescuers({
 			id: rescue.id,
 			organisationId,
 			type: rescue.type,
@@ -65,9 +65,17 @@ export const POST: RequestHandler = async ({ request, locals, cookies }) => {
 			injury: rescue.injury ?? undefined
 		}).catch((error) => {
 			console.error('Unable to deliver rescue push notifications.', error);
+			return {
+				capability: classifyDispatchCapability(rescue.type, rescue.breed ?? ''),
+				eligibleUsers: 0,
+				pushTokens: 0,
+				accepted: 0,
+				rejected: 0,
+				errors: [error instanceof Error ? error.message : 'Push delivery request failed']
+			};
 		});
 
-		return json({ rescue }, { status: 201 });
+		return json({ rescue, notifications }, { status: 201 });
 	} catch (error) {
 		console.error('Unable to create rescue.', error);
 
