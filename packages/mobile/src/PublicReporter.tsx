@@ -1,8 +1,8 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import WebView, { type WebViewMessageEvent } from 'react-native-webview';
 import * as Location from 'expo-location';
-import { submitPublicReport } from './api';
+import { myPublicReports, submitPublicReport, type PublicWildlifeReport } from './api';
 import ReporterConversation from './ReporterConversation';
 
 type Pin = { latitude: number; longitude: number };
@@ -49,6 +49,9 @@ export default function PublicReporter({ onSignOut }: Props) {
   const [locating, setLocating] = useState(false);
   const [sending, setSending] = useState(false);
   const [receipt, setReceipt] = useState('');
+  const [history, setHistory] = useState<PublicWildlifeReport[]>([]);
+  const refreshHistory = () => { void myPublicReports().then(data => setHistory(data.items)).catch(() => {}); };
+  useEffect(() => { refreshHistory(); }, []);
 
   const onMessage = (event: WebViewMessageEvent) => {
     try {
@@ -91,6 +94,7 @@ export default function PublicReporter({ onSignOut }: Props) {
       const result = await submitPublicReport(animal.trim(), condition.trim(), pin.latitude, pin.longitude,
         { allowMessages, allowPhoneContact, contactPhone: allowPhoneContact ? contactPhone : undefined });
       setReceipt(result.report.id);
+      refreshHistory();
       setAnimal('');
       setCondition('');
       setPin(null);
@@ -158,6 +162,14 @@ export default function PublicReporter({ onSignOut }: Props) {
           <Text style={styles.submitText}>{sending ? 'Sending…' : 'Send wildlife report'}</Text>
         </Pressable>
       </>}
+      <View style={styles.reportHistory}>
+        <Text style={styles.bold}>Your reports</Text>
+        {history.map(report => <View style={styles.historyItem} key={report.id}>
+          <Text style={styles.label}>{report.animal}</Text>
+          <Text style={styles.small}>{report.status.replace(/_/g, ' ')} · {new Date(report.createdAt).toLocaleString()}</Text>
+          {report.allowMessages ? <Pressable accessibilityRole="button" onPress={() => setConversationId(report.id)}><Text style={styles.link}>Open messages</Text></Pressable> : null}
+        </View>)}
+      </View>
     </ScrollView>
   </View>;
 }
@@ -179,5 +191,6 @@ const styles = StyleSheet.create({
   error:{fontSize:12,color:'#a23f35',padding:10},
   submit:{backgroundColor:'#173d2c',borderRadius:10,padding:14,alignItems:'center',marginTop:8},
   submitText:{color:'#fff',fontWeight:'900'},success:{backgroundColor:'#fff',padding:18,borderRadius:12,gap:9},
-  bold:{fontSize:17,fontWeight:'800',color:'#173d2c'},link:{color:'#24583f',fontWeight:'800'}
+  bold:{fontSize:17,fontWeight:'800',color:'#173d2c'},link:{color:'#24583f',fontWeight:'800'},
+  reportHistory:{marginTop:20,gap:10},historyItem:{backgroundColor:'#fff',padding:12,borderRadius:10,gap:6}
 });
