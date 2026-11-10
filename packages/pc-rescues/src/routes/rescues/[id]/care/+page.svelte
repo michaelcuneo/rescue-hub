@@ -136,7 +136,7 @@
       phoneSaved = result.update.finalOutcome
         ? `Veterinary outcome ${result.update.finalOutcome.toLowerCase()} recorded. Animal care is complete and remains in historical records.`
         : result.update.transportRescueId
-          ? 'Telephone update saved. A new transport job is awaiting a qualified volunteer to claim.'
+          ? 'Telephone update saved. Animal offered to qualified carers; transport becomes available when one claims the animal and chooses a destination.'
           : 'Telephone update saved to this animal’s permanent history.';
       await refresh();
     } catch (error) {
@@ -255,7 +255,7 @@
             {#if callbackAllowed}<label>Callback number<input required type="tel" maxlength="25" bind:value={callbackNumber} /></label>{/if}
             {#if selected.status === 'AT_VET' && !phoneOutcome}
               <label class="inline-check"><input type="checkbox" bind:checked={requestTransport} disabled={!!selected.activeTransportRescueId} />
-                Also place this animal into the available transport queue for a volunteer to claim
+                Offer this animal to carers, then open transport once a carer claims it
               </label>
               {#if requestTransport && !selected.activeTransportRescueId}
                 <label for="vet-pickup-address">Veterinary pickup address
@@ -282,7 +282,7 @@
                     <input id="vet-pickup-longitude" type="number" min="-180" max="180" step="any" required bind:value={pickupLongitude} />
                   </label>
                 </div>
-                <p>Verify that the coordinates are at the veterinary clinic, not the original injury location. The transport job will appear at this pickup point.</p>
+                <p>Verify that the coordinates are at the veterinary clinic, not the original injury location. The transport pickup will become available once a carer reserves the animal and selects a private delivery destination.</p>
               {/if}
               {#if selected.activeTransportRescueId}<p class="notice">Transport already requested for this animal. A new job cannot be created until its custody handover is completed.</p>{/if}
             {/if}
