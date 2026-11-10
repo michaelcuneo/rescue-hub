@@ -1,20 +1,29 @@
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
-import { getAvailability, saveAvailability, type AvailabilityPolicy, type Weekday, type AvailabilityMode } from './api';
+import { getAvailability, getPushDeviceStatus, saveAvailability, type AvailabilityPolicy, type Weekday, type AvailabilityMode } from './api';
+import type { PushRegistration } from './notifications';
 
 const DAYS: Weekday[] = ['MON','TUE','WED','THU','FRI','SAT','SUN'];
 const NAMES = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
 const VALID_TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
 
-export default function AvailabilitySettings({ onBack, onSave, onSignOut }: {
+export default function AvailabilitySettings({ onBack, onSave, onSignOut, pushStatus, onRetryPush }: {
   onBack: () => void;
   onSave: (policy: AvailabilityPolicy, status: 'AVAILABLE' | 'OFFLINE' | 'BUSY') => void;
   onSignOut: () => void | Promise<void>;
+  pushStatus: PushRegistration | null;
+  onRetryPush: () => Promise<PushRegistration>;
 }) {
   const [policy,setPolicy] = useState<AvailabilityPolicy | null>(null);
   const [busy,setBusy] = useState(false);
   const [error,setError] = useState('');
   const [message,setMessage] = useState('');
+  const [registeredDevices,setRegisteredDevices] = useState<number | null>(null);
+  const [pushChecking,setPushChecking] = useState(false);
+  useEffect(() => {
+    getPushDeviceStatus().then(result => setRegisteredDevices(result.registeredDevices))
+      .catch(() => setRegisteredDevices(null));
+  }, [pushStatus?.status]);
   useEffect(()=>{
     getAvailability().then(r=>setPolicy(r.policy)).catch(e=>setError(e instanceof Error?e.message:'Could not load settings.'));
   },[]);
@@ -77,6 +86,25 @@ export default function AvailabilitySettings({ onBack, onSave, onSignOut }: {
   if(!policy) return <View style={styles.root}>{header}<View style={styles.center}>{error?<Text style={styles.error}>{error}</Text>:<ActivityIndicator />}</View></View>;
   return <ScrollView style={styles.root} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
     {header}
+    <View style={styles.pushStatus}>
+      <Text style={styles.overrideTitle}>Push notification readiness</Text>
+      <Text style={styles.helpOverride}>{pushStatus?.message ?? 'Not checked yet.'}</Text>
+      {registeredDevices !== null ?
+        <Text style={styles.helpOverride}>{registeredDevices} registered device(s) on this account.</Text> : null}
+      <Pressable accessibilityRole="button" disabled={pushChecking} style={styles.pushRetry}
+        onPress={async () => {
+          setPushChecking(true);
+          try {
+            await onRetryPush();
+            const result = await getPushDeviceStatus();
+            setRegisteredDevices(result.registeredDevices);
+          } catch(e) {
+            setError(e instanceof Error ? e.message : 'Could not verify push registration.');
+          } finally { setPushChecking(false); }
+        }}>
+        <Text style={styles.link}>{pushChecking ? 'Checking…' : 'Check push registration'}</Text>
+      </Pressable>
+    </View>
     <Text style={styles.label}>AVAILABILITY MODE</Text>
     <View style={styles.modes}>
       <Pressable accessibilityRole="button" disabled={busy}
@@ -149,6 +177,8 @@ const styles=StyleSheet.create({
  modes:{marginHorizontal:16,flexDirection:'row',gap:8},mode:{flex:1,paddingVertical:15,paddingHorizontal:6,backgroundColor:'#fff',borderRadius:11,alignItems:'center',borderWidth:1,borderColor:'#d9e1dc'},
  override:{marginHorizontal:16,marginTop:10,padding:15,backgroundColor:'#fff',borderWidth:1,borderColor:'#d9e1dc',borderRadius:13,flexDirection:'row',alignItems:'center',gap:12},
  overrideDescription:{flex:1},overrideTitle:{color:'#173d2c',fontWeight:'800',fontSize:15},helpOverride:{fontSize:12,color:'#6c7972',lineHeight:18,marginTop:4},
+ pushStatus:{marginHorizontal:16,padding:15,backgroundColor:'#fff',borderWidth:1,borderColor:'#d9e1dc',borderRadius:13,gap:5},
+ pushRetry:{alignSelf:'flex-start',paddingVertical:10,paddingRight:10},
  modeActive:{backgroundColor:'#173d2c',borderColor:'#173d2c'},modeText:{color:'#40594c',fontWeight:'800',fontSize:12},modeTextActive:{color:'#fff'},
  field:{marginHorizontal:16,backgroundColor:'#fff',borderWidth:1,borderColor:'#d9e1dc',borderRadius:10,padding:12,fontSize:15,color:'#17211d'},
  help:{marginHorizontal:18,marginTop:6,fontSize:12,color:'#6c7972',lineHeight:18},
