@@ -168,6 +168,8 @@ export async function changeAnimalState(animal: AnimalRecord, actorUserId: strin
   if (input.kind === 'TRANSFER') {
     if (animal.pendingTransferId) throw new AnimalConflict('A transfer is already pending.');
     if (!input.recipientUserId || input.recipientUserId === actorUserId || actorUserId !== animal.currentCustodianUserId) throw new AnimalConflict('Current custodian must nominate a different recipient.');
+    if (animal.reservedCarerUserId && input.purpose !== 'TRANSPORT' && input.recipientUserId !== animal.reservedCarerUserId)
+      throw new AnimalConflict('The receiving carer has already been reserved. Transfer care to that carer.');
     condition += ' AND currentCustodianUserId = :actor AND attribute_not_exists(pendingTransferId)';
     values[':actor'] = actorUserId;
     type = 'TRANSFER_REQUESTED';
@@ -178,10 +180,12 @@ export async function changeAnimalState(animal: AnimalRecord, actorUserId: strin
     if (!animal.pendingTransferId) throw new AnimalConflict('No transfer is pending.');
     const transfer = await getPendingAnimalTransfer(animal);
     if (!transfer || transfer.toUserId !== actorUserId) throw new AnimalConflict('Only the nominated recipient can accept custody.');
+    if (animal.reservedCarerUserId && transfer.purpose === 'CARE' && animal.reservedCarerUserId !== actorUserId)
+      throw new AnimalConflict('This animal was already reserved by another carer.');
     condition += ' AND pendingTransferId = :transferId';
     values[':transferId'] = animal.pendingTransferId;
     type = 'TRANSFER_ACCEPTED';
-    update = 'SET currentCustodianUserId = :user, currentLocation = :location, #status = :care, gsi1pk = :custodianKey, updatedAt = :now, version = :next REMOVE pendingTransferId, vetStage, activeTransportRescueId';
+    update = 'SET currentCustodianUserId = :user, currentLocation = :location, #status = :care, gsi1pk = :custodianKey, updatedAt = :now, version = :next REMOVE pendingTransferId, vetStage, activeTransportRescueId, reservedCarerUserId';
     values = { ...values, ':user': actorUserId, ':location': String(transfer.destination ?? ''), ':care': transfer.purpose === 'TRANSPORT' ? 'IN_TRANSIT' : 'IN_CARE', ':custodianKey': `CUSTODIAN#${animal.organisationId}#${actorUserId}` };
     extra = { transferId: animal.pendingTransferId, fromUserId: transfer.fromUserId, toUserId: actorUserId };
   } else if (input.kind === 'VET_TRANSPORT_STARTED') {
