@@ -191,8 +191,10 @@ export async function finishSocialOAuth(input: {
   const response = await fetch(`https://graph.facebook.com/me?${meQuery}`, { signal: AbortSignal.timeout(15000) });
   if (!response.ok) throw new Error('Facebook account details were unavailable.');
   const profile = await response.json() as { id?: string; email?: string; name?: string };
-  if (!tokenString(profile.id) || !tokenString(profile.email)) {
+  const fbId = tokenString(profile.id);
+  const fbEmail = tokenString(profile.email);
+  if (!fbId || !fbEmail) {
     throw new Error('Facebook did not provide an email address. Use another sign-in method.');
   }
-  return { provider, subject: profile.id, email: profile.email, name: profile.name || 'Wildlife reporter' };
+  return { provider, subject: fbId, email: fbEmail, name: profile.name || 'Wildlife reporter' };
 }
