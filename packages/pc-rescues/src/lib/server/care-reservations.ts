@@ -151,6 +151,66 @@ export async function claimAnimalCare(
   return { animalId: animal.id, transportRescueId: job.id, reservedCarerUserId: carerUserId };
 }
 
+/** Carer can revise a one-time delivery position before physical pickup.
+ * This is an explicit action, never background GPS tracking.
+ */
+export async function updateCareDestination(
+  animalId: string, organisationId: string, carerUserId: string,
+  destination: ValidDeliveryDestination
+) {
+  const animal = await getAnimal(animalId);
+  if (!animal || animal.organisationId !== organisationId ||
+      animal.reservedCarerUserId !== carerUserId || !animal.activeTransportRescueId ||
+      !['AT_VET'].includes(animal.status)) {
+    throw new CareReservationConflict('Delivery location can only be updated before the animal is collected.');
+  }
+  const job = await getRescue(animal.activeTransportRescueId);
+  if (!job || job.organisationId !== organisationId || job.transportAnimalId !== animal.id ||
+      !['PENDING','ASSIGNED'].includes(job.status) || job.pickedUpAt) {
+    throw new CareReservationConflict('The transporter has already collected this animal.');
+  }
+  const now = new Date().toISOString(), id = crypto.randomUUID();
+  try {
+    await db.send(new TransactWriteCommand({ TransactItems: [
+      { Update: {
+        TableName: table,
+        Key: { pk: `ANIMAL#${animal.id}`, sk: 'CARE_DELIVERY' },
+        UpdateExpression: 'SET #mode = :mode, address = :address, latitude = :lat, longitude = :lng, updatedAt = :now',
+        ConditionExpression: 'organisationId = :org AND carerUserId = :user',
+        ExpressionAttributeNames: { '#mode': 'mode' },
+        ExpressionAttributeValues: {
+          ':mode': destination.mode, ':address': destination.address,
+          ':lat': destination.latitude, ':lng': destination.longitude,
+          ':now': now, ':org': organisationId, ':user': carerUserId
+        }
+      }},
+      { ConditionCheck: {
+        TableName: table,
+        Key: { pk: `RESCUE#${job.id}`, sk: 'META' },
+        ConditionExpression: '#status = :current AND attribute_not_exists(pickedUpAt) AND transportAnimalId = :animal',
+        ExpressionAttributeNames: { '#status': 'status' },
+        ExpressionAttributeValues: { ':current': job.status, ':animal': animal.id }
+      }},
+      { Put: {
+        TableName: table,
+        Item: {
+          pk: `ANIMAL#${animal.id}`, sk: `EVENT#${now}#${id}`,
+          entity: 'animal_event', type: 'CARE_DELIVERY_DESTINATION_UPDATED',
+          id, animalId: animal.id, organisationId, actorUserId: carerUserId,
+          deliveryMode: destination.mode, createdAt: now
+        },
+        ConditionExpression: 'attribute_not_exists(pk)'
+      }}
+    ] }));
+  } catch (error) {
+    if (error instanceof Error && error.name === 'TransactionCanceledException')
+      throw new CareReservationConflict('Pickup or delivery details changed. Refresh before updating your destination.');
+    throw error;
+  }
+  await publishRescueChange();
+  return { animalId: animal.id, updatedAt: now };
+}
+
 /** Only the reserving carer, actual transport claimant or organisation
  * coordinator may retrieve the private destination after a claim.
  */
