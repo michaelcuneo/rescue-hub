@@ -24,5 +24,10 @@ jobs:
         run: node --experimental-strip-types --test packages/core/realtime-client.test.mjs
       - name: TypeScript and warning-free Svelte checks
         run: npm run check
-      - name: Production SvelteKit bundle
+      - name: Production SvelteKit bundle (dummy SST links for CI only)
+        env:
+          SST_RESOURCE_RescueHubData: '{"name":"ci-placeholder-table"}'
+          SST_RESOURCE_RescueHubGraphQL: '{"url":"https://example.invalid/graphql","apiKey":"ci-placeholder"}'
+          SST_RESOURCE_RescueHubRealtime: '{"url":"https://example.appsync-api.ap-southeast-2.amazonaws.com/graphql","apiKey":"ci-placeholder"}'
+          SST_RESOURCE_RescueHubMailFrom: '{"value":"ci@example.invalid"}'
         run: npm run build --workspace=website
