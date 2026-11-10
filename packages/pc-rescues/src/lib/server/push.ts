@@ -110,7 +110,7 @@ export async function notifyEligibleRescuers(input: {
 	);
 
 	const tokens = [...new Set((await Promise.all(eligible.map((user) => pushTokensForUser(user.id)))).flat())];
-	if (!tokens.length) return { capability, eligibleUsers: eligible.length, pushTokens: 0 };
+	if (!tokens.length) return { capability, eligibleUsers: eligible.length, pushTokens: 0, accepted: 0, rejected: 0, errors: [] as string[] };
 
 	const response = await fetch('https://exp.host/--/api/v2/push/send', {
 		method: 'POST',
@@ -124,5 +124,25 @@ export async function notifyEligibleRescuers(input: {
 		})))
 	});
 	if (!response.ok) throw new Error(`Expo push request failed: ${response.status}`);
-	return { capability, eligibleUsers: eligible.length, pushTokens: tokens.length };
+	const result = await response.json() as {
+		data?: Array<{ status: 'ok' | 'error'; message?: string; details?: unknown }> |
+			{ status: 'ok' | 'error'; message?: string; details?: unknown };
+		errors?: Array<{ message?: string }>;
+	};
+	const tickets = Array.isArray(result.data) ? result.data : result.data ? [result.data] : [];
+	const accepted = tickets.filter(ticket => ticket.status === 'ok').length;
+	const rejected = tickets.filter(ticket => ticket.status === 'error').length;
+	const errors = [
+		...(result.errors ?? []).map(error => error.message ?? 'Expo delivery error'),
+		...tickets.filter(ticket => ticket.status === 'error')
+			.map(ticket => ticket.message ?? 'Expo rejected push token')
+	].slice(0, 5);
+	return {
+		capability,
+		eligibleUsers: eligible.length,
+		pushTokens: tokens.length,
+		accepted,
+		rejected,
+		errors
+	};
 }
