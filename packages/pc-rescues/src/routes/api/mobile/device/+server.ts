@@ -1,5 +1,5 @@
 import { json } from '@sveltejs/kit';
-import { registerPushDevice } from '$lib/server/push';
+import { getPushDeviceRegistrationCount, registerPushDevice } from '$lib/server/push';
 import type { RequestHandler } from './$types';
 
 export const POST: RequestHandler = async ({ locals, request }) => {
@@ -23,4 +23,10 @@ export const POST: RequestHandler = async ({ locals, request }) => {
 	} catch (error) {
 		return json({ error: error instanceof Error ? error.message : 'Unable to register device.' }, { status: 400 });
 	}
+};
+
+export const GET: RequestHandler = async ({ locals }) => {
+  if (!locals.user) return json({ error: 'Authentication required.' }, { status: 401 });
+  const registeredDevices = await getPushDeviceRegistrationCount(locals.user.id);
+  return json({ registeredDevices }, { headers: { 'cache-control': 'private, no-store' } });
 };
