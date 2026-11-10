@@ -189,7 +189,7 @@
           <button type="button" onclick={() => selectedId = ''}>Cancel</button>
         {/if}
       </article>
-    {:else if !loading}
+    {:else}
       <p>No animals are currently awaiting a carer.</p>
     {/each}
   </section>
