@@ -4,7 +4,7 @@ import { DeleteCommand, DynamoDBDocumentClient, PutCommand } from '@aws-sdk/lib-
 import { createRemoteJWKSet, jwtVerify } from 'jose';
 import { Resource } from 'sst';
 
-const db = DynamoDBDocumentClient.from(new DynamoDBClient({}));
+const db = DynamoDBDocumentClient.from(new DynamoDBClient({}), { marshallOptions: { removeUndefinedValues: true } });
 const table = Resource.RescueHubData.name;
 export type SocialProvider = 'google' | 'apple' | 'facebook';
 export const isSocialProvider = (value: string): value is SocialProvider =>
