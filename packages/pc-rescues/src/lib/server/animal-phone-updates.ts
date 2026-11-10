@@ -174,5 +174,10 @@ export async function recordAnimalPhoneUpdate(
     throw error;
   }
   await publishRescueChange();
+  if (input.finalOutcome) {
+    const { completeRescueIfAllAnimalsFinal } = await import('./rescue-completion');
+    await completeRescueIfAllAnimalsFinal(animal.rescueId, animal.organisationId, actorUserId)
+      .catch(error => console.error('Vet-reported completion reconciliation failed:', error));
+  }
   return event;
 }
