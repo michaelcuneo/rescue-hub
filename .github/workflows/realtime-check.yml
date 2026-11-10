@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - deploy/rescue-demo-domain
+      - feature/public-gps-routing-and-contact
   workflow_dispatch:
 
 permissions:
@@ -20,6 +21,8 @@ jobs:
           node-version: '22'
       - name: Install workspaces
         run: npm install --no-audit --no-fund
+      - name: GIS routing unit tests
+        run: node --experimental-strip-types --test packages/core/operating-area-routing.test.mjs
       - name: AppSync websocket protocol test
         run: node --experimental-strip-types --test packages/core/realtime-client.test.mjs
       - name: TypeScript and warning-free Svelte checks
