@@ -1,0 +1,24 @@
+name: Rescue Hub realtime type and Svelte validation
+
+on:
+  push:
+    branches:
+      - deploy/rescue-demo-domain
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install workspaces
+        run: npm install --no-audit --no-fund
+      - name: TypeScript and warning-free Svelte checks
+        run: npm run check
