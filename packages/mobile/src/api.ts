@@ -274,6 +274,11 @@ export async function getRescues() {
 export async function correctReportedRescue(id: string, type: string, injury: string) {
   return request<{ rescue: Rescue }>(`/api/mobile/rescues/${encodeURIComponent(id)}/correction`, { method: 'PATCH', body: JSON.stringify({ type, injury }) });
 }
+export async function confirmRescuePickup(id: string, notes = '') {
+  return request<{ rescue: Rescue }>(`/api/mobile/rescues/${encodeURIComponent(id)}/pickup`, {
+    method: 'POST', body: JSON.stringify({ notes })
+  });
+}
 export async function claimRescue(id: string) {
   return request<{ rescue: Rescue }>(`/api/mobile/rescues/${encodeURIComponent(id)}/claim`, {
     method: 'POST'
