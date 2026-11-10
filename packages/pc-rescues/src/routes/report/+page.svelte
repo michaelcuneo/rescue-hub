@@ -61,7 +61,7 @@
 </svelte:head>
 
 <main>
-  <header><a href="/report" class="brand">RESCUE HUB</a><span>Report injured wildlife</span><a href="/logout">Sign out</a></header>
+  <header><a href="/report" class="brand">RESCUE HUB</a><span>Report injured wildlife</span><form method="POST" action="/logout"><button type="submit" class="signout">Sign out</button></form></header>
   <div class="layout">
     <section class="intro">
       <p class="eyebrow">PUBLIC WILDLIFE REPORT</p>
@@ -121,7 +121,8 @@
   :global(body){margin:0;background:#edf1ee;font-family:Inter,system-ui,sans-serif;color:#17211d}
   header{height:56px;padding:0 20px;display:flex;align-items:center;gap:24px;background:#173d2c;color:white}
   header a{color:white;text-decoration:none;font-size:13px}
-  header a:last-child{margin-left:auto}
+  header form{margin-left:auto;margin-top:0;display:block}
+  header .signout{background:transparent;color:white;padding:8px;font-size:13px;font-weight:700;min-height:40px}
   .brand{font-weight:900;letter-spacing:.1em}
   .layout{display:grid;grid-template-columns:minmax(320px,420px) minmax(0,1fr);min-height:calc(100dvh - 56px)}
   .intro{padding:28px;max-height:calc(100dvh - 56px);overflow:auto;background:white}
