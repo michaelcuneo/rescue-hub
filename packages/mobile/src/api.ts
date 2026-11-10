@@ -269,8 +269,13 @@ export type Animal = {
   status: 'IN_RESCUE' | 'IN_TRANSIT' | 'AT_VET' | 'IN_CARE' | 'RELEASED' | 'EUTHANISED' | 'DECEASED';
   currentCustodianUserId?: string; currentLocation?: string; pendingTransferId?: string;
   vetStage?: 'AWAITING_ASSESSMENT' | 'ASSESSED_AWAITING_TRANSPORT';
-  createdAt: string; updatedAt: string;
+  version?: number; createdAt: string; updatedAt: string;
 };
+export async function correctAnimalIdentification(id: string, species: string, description: string) {
+  return request<{ animal: Animal }>(`/api/mobile/animals/${encodeURIComponent(id)}`, {
+    method: 'PATCH', body: JSON.stringify({ species, description })
+  });
+}
 export type AnimalEvent = {
   id: string; type: string; actorUserId: string; notes?: string;
   createdAt: string; occurredAt?: string; outcome?: string;
