@@ -58,10 +58,15 @@ export async function createAnimal(input: {
     version: 1, createdAt: now, updatedAt: now
   };
   await db.send(new TransactWriteCommand({ TransactItems: [
-    { ConditionCheck: {
+    { Update: {
       TableName: table, Key: { pk: `RESCUE#${input.rescueId}`, sk: 'META' },
-      ConditionExpression: 'organisationId = :org AND assignedUserId = :user',
-      ExpressionAttributeValues: { ':org': input.organisationId, ':user': input.custodianUserId }
+      UpdateExpression: 'ADD animalCount :one',
+      ConditionExpression: 'organisationId = :org AND assignedUserId = :user AND #status = :assigned',
+      ExpressionAttributeNames: { '#status': 'status' },
+      ExpressionAttributeValues: {
+        ':org': input.organisationId, ':user': input.custodianUserId,
+        ':assigned': 'ASSIGNED', ':one': 1
+      }
     }},
     { Put: { TableName: table, Item: { ...key(id), ...animal, entity: 'animal',
       gsi2pk: `RESCUE_ANIMALS#${input.rescueId}`, gsi2sk: `${now}#${id}` },
