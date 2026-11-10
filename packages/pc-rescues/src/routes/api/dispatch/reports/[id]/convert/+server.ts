@@ -1,20 +1,34 @@
 import { json } from '@sveltejs/kit';
-import { createRescue, getRescue } from '$lib/server/graphql';
+import { createRescue, getRescue, getOrganisation } from '$lib/server/graphql';
 import { getHunterDemo, HUNTER_DEMO_ORGANISATION } from '$lib/server/demo';
 import { canTriage, getPublicReport, markPublicReportConverted } from '$lib/server/public-reports';
 import { notifyEligibleRescuers } from '$lib/server/push';
 import type { RequestHandler } from './$types';
 
 /** Dispatch explicitly reviews and accepts a public sighting before dispatch. */
-export const POST: RequestHandler = async ({ locals, cookies, params }) => {
+export const POST: RequestHandler = async ({ locals, cookies, params, request }) => {
   const user = locals.user;
   if (!canTriage(user) || !(
     user.roles.some(role => ['PLATFORM_ADMIN', 'AUTHORITY_ADMIN'].includes(role)) ||
     getHunterDemo(cookies, user)
   )) return json({ error: 'Central public-report triage access required.' }, { status: 403 });
-  const organisationId = getHunterDemo(cookies, user)
+  const defaultOrganisationId = getHunterDemo(cookies, user)
     ? HUNTER_DEMO_ORGANISATION : user.organisationId;
-  if (!organisationId) return json({ error: 'Select an organisation before converting a report.' }, { status: 403 });
+  const input = await request.json().catch(() => ({})) as { organisationId?: unknown };
+  const requestedOrganisationId = typeof input.organisationId === 'string'
+    ? input.organisationId.trim() : '';
+  if (requestedOrganisationId && requestedOrganisationId.length > 150) {
+    return json({ error: 'Organisation ID is invalid.' }, { status: 400 });
+  }
+  const organisationId = requestedOrganisationId || defaultOrganisationId;
+  if (!organisationId) return json({ error: 'Choose the organisation responsible for dispatch.' }, { status: 400 });
+  if (requestedOrganisationId && requestedOrganisationId !== defaultOrganisationId) {
+    if (!user.roles.some(role => ['PLATFORM_ADMIN', 'AUTHORITY_ADMIN'].includes(role))) {
+      return json({ error: 'Only central dispatch can choose another organisation.' }, { status: 403 });
+    }
+    const organisation = await getOrganisation(requestedOrganisationId);
+    if (!organisation) return json({ error: 'Select an organisation from the verified directory.' }, { status: 400 });
+  }
   const report = await getPublicReport(params.id);
   if (!report) return json({ error: 'Report not found.' }, { status: 404 });
   if (report.status === 'CONVERTED') return json({ error: 'Report has already been converted.' }, { status: 409 });
