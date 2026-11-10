@@ -4,7 +4,7 @@ import { getAvailability, saveAvailability, type AvailabilityPolicy, type Weekda
 
 const DAYS: Weekday[] = ['MON','TUE','WED','THU','FRI','SAT','SUN'];
 const NAMES = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
-const VALID_TIME = /^([01]\\d|2[0-3]):[0-5]\\d$/;
+const VALID_TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
 
 export default function AvailabilitySettings({ onBack, onSave }: { onBack: () => void; onSave: (policy: AvailabilityPolicy, status: 'AVAILABLE' | 'OFFLINE' | 'BUSY') => void }) {
   const [policy,setPolicy] = useState<AvailabilityPolicy | null>(null);
