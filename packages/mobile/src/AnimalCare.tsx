@@ -2,7 +2,7 @@ import ReporterConversation from './ReporterConversation';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import {
-  acceptAnimalTransfer, addAnimalNote, getAnimalHistory, getRescueAnimals, confirmRescuePickup,
+  acceptAnimalTransfer, addAnimalNote, getAnimalHistory, getRescueAnimals, confirmRescuePickup, getCareDelivery, type CareDeliveryDestination,
   recordAnimalOutcome, registerAnimal, requestAnimalTransfer, startVetTransport, recordVetDropoff, recordVetAssessment, unclaimRescue,
   correctAnimalIdentification, correctReportedRescue, getRescuerReporterContact, type Animal, type AnimalEvent, type Rescue
 } from './api';
@@ -14,6 +14,7 @@ const terminal = new Set<string>(outcomes);
 
 export default function AnimalCare({ rescue, userId, onBack, onUnclaim }: Props) {
   const [conversationOpen, setConversationOpen] = useState(false);
+  const [deliveryInfo, setDeliveryInfo] = useState<(CareDeliveryDestination & { carerUserId: string }) | null>(null);
   const [collected, setCollected] = useState(Boolean(rescue.pickedUpAt));
   const [collectionNotes, setCollectionNotes] = useState('');
   const [reporterContact, setReporterContact] = useState<{ reportId: string; allowMessages: boolean; contactPhone: string | null } | null>(null);
@@ -52,8 +53,17 @@ export default function AnimalCare({ rescue, userId, onBack, onUnclaim }: Props)
       setCorrectedSpecies(history.animal.species);
       setCorrectedDescription(history.animal.description ?? '');
       setEvents(history.events);
+      if (rescue.transportAnimalId) {
+        const delivery = await getCareDelivery(id).catch(() => null);
+        setDeliveryInfo(delivery?.destination ?? null);
+        if (delivery?.destination) {
+          setRecipientId(delivery.destination.carerUserId);
+          setDestination(delivery.destination.address);
+          setTransferPurpose('CARE');
+        }
+      }
     }
-  }, [rescue.id]);
+  }, [rescue.id, rescue.transportAnimalId]);
 
   useEffect(() => {
     let active = true;
@@ -87,6 +97,15 @@ export default function AnimalCare({ rescue, userId, onBack, onUnclaim }: Props)
       const history = await getAnimalHistory(id);
       setSelected(history.animal);
       setEvents(history.events);
+      if (rescue.transportAnimalId) {
+        const delivery = await getCareDelivery(id).catch(() => null);
+        setDeliveryInfo(delivery?.destination ?? null);
+        if (delivery?.destination) {
+          setRecipientId(delivery.destination.carerUserId);
+          setDestination(delivery.destination.address);
+          setTransferPurpose('CARE');
+        }
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Unable to load animal history.');
     } finally {
@@ -134,7 +153,8 @@ export default function AnimalCare({ rescue, userId, onBack, onUnclaim }: Props)
       ) : null}
       {rescue.transportAnimalId ? <View style={styles.card}>
         <Text style={styles.section}>Transport pickup job</Text>
-        <Text style={styles.muted}>This animal already has a permanent record. Claiming transport reserves the pickup, but does not transfer custody. Once you physically collect the animal at the veterinary facility, tap Animal picked up to accept custody, then arrange an acknowledged handover to the carer.</Text>
+        <Text style={styles.muted}>This animal already has a permanent record. Claiming transport reserves the pickup, but does not transfer custody. Once you physically collect it at the vet, confirm pickup and deliver it to the nominated carer.</Text>
+        {deliveryInfo ? <Text style={styles.body}>Deliver to: {deliveryInfo.address} ({deliveryInfo.mode.replace(/_/g,' ').toLowerCase()})\nGPS: {deliveryInfo.latitude.toFixed(5)}, {deliveryInfo.longitude.toFixed(5)}</Text> : null}
       </View> : null}
       {rescue.status === 'ASSIGNED' && rescue.assignedUserId === userId ? (
         <View style={styles.card}>
@@ -323,9 +343,11 @@ export default function AnimalCare({ rescue, userId, onBack, onUnclaim }: Props)
                 ) : <Text style={styles.muted}>Assessment recorded. Arrange transport or transfer to a carer below.</Text>}
               </View>
               <View style={styles.card}>
-                <Text style={styles.section}>Request custody handover</Text>
+                <Text style={styles.section}>{selected.reservedCarerUserId ? 'Deliver to nominated carer' : 'Request custody handover'}</Text>
                 <Text style={styles.muted}>The recipient must accept custody before this case leaves your active list.</Text>
-                <View style={styles.chips}>
+                {selected.reservedCarerUserId ? (
+                  <Text style={styles.muted}>The carer has already accepted responsibility for future care. Complete an acknowledged custody handover after physical delivery.</Text>
+                ) : <View style={styles.chips}>
                   {(['CARE','TRANSPORT'] as const).map(purpose => (
                     <Pressable key={purpose} style={[styles.chip, transferPurpose === purpose && styles.chipSelected]}
                       accessibilityRole="button" onPress={() => setTransferPurpose(purpose)}>
@@ -334,10 +356,12 @@ export default function AnimalCare({ rescue, userId, onBack, onUnclaim }: Props)
                       </Text>
                     </Pressable>
                   ))}
-                </View>
-                <TextInput style={styles.input} placeholder="Recipient user ID *" autoCapitalize="none" value={recipientId} onChangeText={setRecipientId} />
-                <TextInput style={styles.input} placeholder="Destination / facility" value={destination} onChangeText={setDestination} maxLength={250} />
-                <Pressable style={styles.button} disabled={busy || !recipientId.trim()} onPress={() => void run(() => requestAnimalTransfer(selected.id, recipientId.trim(), destination.trim(), '', transferPurpose), selected.id)}>
+                </View>}
+                <TextInput style={styles.input} editable={!selected.reservedCarerUserId}
+                  placeholder="Recipient user ID *" autoCapitalize="none" value={recipientId} onChangeText={setRecipientId} />
+                <TextInput style={styles.input} placeholder="Destination / facility" editable={!selected.reservedCarerUserId}
+                  value={destination} onChangeText={setDestination} maxLength={250} />
+                <Pressable style={styles.button} disabled={busy || !recipientId.trim()} onPress={() => void run(() => requestAnimalTransfer(selected.id, selected.reservedCarerUserId ?? recipientId.trim(), destination.trim(), '', selected.reservedCarerUserId ? 'CARE' : transferPurpose), selected.id)}>
                   <Text style={styles.buttonText}>Request handover</Text>
                 </Pressable>
               </View>
