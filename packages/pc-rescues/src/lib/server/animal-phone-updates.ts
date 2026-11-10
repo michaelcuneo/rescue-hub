@@ -97,8 +97,6 @@ export async function recordAnimalPhoneUpdate(
     const original = await getRescue(animal.rescueId);
     if (!original || original.organisationId !== animal.organisationId)
       throw new AnimalPhoneConflict('The original rescue cannot be verified for this animal.');
-    if (!Number.isFinite(original.latitude) || !Number.isFinite(original.longitude))
-      throw new AnimalPhoneConflict('Transport pickup location is unavailable.');
     writes.push({ Put: {
       TableName: table,
       Item: {
@@ -106,8 +104,8 @@ export async function recordAnimalPhoneUpdate(
         id: transportRescueId, organisationId: animal.organisationId,
         type: animal.species, breed: 'Transport',
         injury: 'Transport pickup requested following veterinary telephone update',
-        location: animal.currentLocation || original.location || 'Veterinary facility; confirm pickup location',
-        latitude: original.latitude, longitude: original.longitude,
+        location: input.pickupLocation!,
+        latitude: input.pickupLatitude!, longitude: input.pickupLongitude!,
         status: 'PENDING', transportAnimalId: animal.id,
         transportSourceRescueId: original.id,
         createdAt: now, updatedAt: now,
