@@ -18,9 +18,9 @@ function base64Ascii(input: string): string {
   let output = '';
   for (let i = 0; i < bytes.length; i += 3) {
     const n = (bytes[i]! << 16) | ((bytes[i + 1] ?? 0) << 8) | (bytes[i + 2] ?? 0);
-    output += BASE64[(n >>> 18) & 63] + BASE64[(n >>> 12) & 63] +
-      (i + 1 < bytes.length ? BASE64[(n >>> 6) & 63] : '=') +
-      (i + 2 < bytes.length ? BASE64[n & 63] : '=');
+    output += BASE64.charAt((n >>> 18) & 63) + BASE64.charAt((n >>> 12) & 63) +
+      (i + 1 < bytes.length ? BASE64.charAt((n >>> 6) & 63) : '=') +
+      (i + 2 < bytes.length ? BASE64.charAt(n & 63) : '=');
   }
   return output;
 }
