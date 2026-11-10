@@ -1,5 +1,5 @@
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
-import { DynamoDBDocumentClient, QueryCommand, TransactWriteCommand } from '@aws-sdk/lib-dynamodb';
+import { DynamoDBDocumentClient, QueryCommand, TransactWriteCommand, type TransactWriteCommandInput } from '@aws-sdk/lib-dynamodb';
 import { Resource } from 'sst';
 import { getRescue } from './graphql';
 import { publishRescueChange } from './realtime';
@@ -61,7 +61,7 @@ export async function recordAnimalPhoneUpdate(
     type: 'PHONE_UPDATE', source: 'PHONE', actorUserId, createdAt: now,
     ...(transportRescueId ? { transportRescueId } : {})
   };
-  const writes: Array<Record<string, unknown>> = [
+  const writes: NonNullable<TransactWriteCommandInput['TransactItems']> = [
     { Update: {
       TableName: table,
       Key: { pk: `ANIMAL#${animal.id}`, sk: 'META' },
