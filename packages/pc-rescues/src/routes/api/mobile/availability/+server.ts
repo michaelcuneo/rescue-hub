@@ -1,15 +1,38 @@
 import { json } from '@sveltejs/kit';
-import { setUserAvailability } from '$lib/server/auth';
+import { saveUserAvailabilityPolicy } from '$lib/server/auth';
+import { defaultAvailabilityPolicy, effectiveAvailability, validateAvailabilityPolicy } from '$lib/server/availability';
 import type { RequestHandler } from './$types';
 
-const ALLOWED = new Set(['AVAILABLE', 'BUSY', 'OFFLINE']);
+export const GET: RequestHandler = async ({ locals }) => {
+	if (!locals.user) return json({ error: 'Authentication required.' }, { status: 401 });
+	const policy = locals.user.availabilityPolicy ?? defaultAvailabilityPolicy(locals.user.availabilityStatus);
+	return json({ policy, status: effectiveAvailability({ availabilityPolicy: policy }) }, { headers: { 'cache-control': 'no-store' } });
+};
+
+export const PUT: RequestHandler = async ({ locals, request }) => {
+	if (!locals.user) return json({ error: 'Authentication required.' }, { status: 401 });
+	try {
+		const policy = validateAvailabilityPolicy(await request.json());
+		const status = await saveUserAvailabilityPolicy(locals.user.id, policy);
+		return json({ ok: true, policy, status });
+	} catch (error) {
+		return json({ error: error instanceof Error ? error.message : 'Unable to save availability.' }, { status: 400 });
+	}
+};
 
 export const POST: RequestHandler = async ({ locals, request }) => {
 	if (!locals.user) return json({ error: 'Authentication required.' }, { status: 401 });
-	const body = (await request.json()) as { status?: string };
-	if (!body.status || !ALLOWED.has(body.status)) {
-		return json({ error: 'Choose AVAILABLE, BUSY or OFFLINE.' }, { status: 400 });
+	try {
+		const body = await request.json() as { status?: 'AVAILABLE' | 'OFFLINE' | 'BUSY' };
+		if (!['AVAILABLE', 'OFFLINE', 'BUSY'].includes(String(body.status))) {
+			return json({ error: 'Choose AVAILABLE, BUSY or OFFLINE.' }, { status: 400 });
+		}
+		const policy = { ...(locals.user.availabilityPolicy ?? defaultAvailabilityPolicy(locals.user.availabilityStatus)),
+			mode: body.status === 'AVAILABLE' ? 'ON' : 'OFF' };
+		const verified = validateAvailabilityPolicy(policy);
+		const status = await saveUserAvailabilityPolicy(locals.user.id, verified);
+		return json({ ok: true, policy: verified, status });
+	} catch (error) {
+		return json({ error: error instanceof Error ? error.message : 'Unable to update availability.' }, { status: 400 });
 	}
-	await setUserAvailability(locals.user.id, body.status as 'AVAILABLE' | 'BUSY' | 'OFFLINE');
-	return json({ ok: true, status: body.status });
 };
