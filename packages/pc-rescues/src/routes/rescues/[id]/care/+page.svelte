@@ -61,6 +61,9 @@
     <div><p class="eyebrow">RESCUE HUB · ANIMAL CARE</p><h1>{data.rescue.type}</h1><p>{data.rescue.location || 'Location not recorded'} · Response: {data.rescue.status}</p></div>
     <span class="tag">{animals.length} animal{animals.length === 1 ? '' : 's'}</span>
   </header>
+  {#if data.rescue.id.startsWith('public-report-') && data.rescue.assignedUserId === data.userId}
+    <p><a href="/report/messages/{data.rescue.id.slice('public-report-'.length)}">Contact the person who reported this animal (with their consent)</a></p>
+  {/if}
   {#if errorMessage}<p class="error" role="alert">{errorMessage}</p>{/if}
   <div class="layout">
     <aside class="panel">
