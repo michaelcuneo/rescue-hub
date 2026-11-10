@@ -1,5 +1,5 @@
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
-import { DynamoDBDocumentClient, GetCommand, PutCommand, QueryCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
+import { DynamoDBDocumentClient, GetCommand, QueryCommand, TransactWriteCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
 import { Resource } from 'sst';
 import type { RescueHubUser } from './auth';
 import { publishRescueChange } from './realtime';
@@ -50,38 +50,42 @@ export async function submitWildlifeReport(
   // One report per user per minute limits accidental repeat submissions.
   const lock = { pk: `REPORT_RATE#${user.id}`, sk: 'LATEST' };
   const now = Date.now(), iso = new Date(now).toISOString();
-  try {
-    await db.send(new UpdateCommand({
-      TableName: table,
-      Key: lock,
-      UpdateExpression: 'SET lastAt = :now, #ttl = :ttl',
-      ConditionExpression: 'attribute_not_exists(lastAt) OR lastAt < :limit',
-      ExpressionAttributeNames: { '#ttl': 'ttl' },
-      ExpressionAttributeValues: {
-        ':now': now, ':limit': now - reportingWindowMs,
-        ':ttl': Math.floor(now / 1000) + 3600
-      }
-    }));
-  } catch (error) {
-    if (error instanceof Error && error.name === 'ConditionalCheckFailedException') {
-      throw new Error('Please wait a minute before submitting another report.');
-    }
-    throw error;
-  }
   const id = crypto.randomUUID();
   const report: PublicWildlifeReport = {
     id, reporterUserId: user.id, animal, condition,
     latitude, longitude, status: 'SUBMITTED', createdAt: iso, updatedAt: iso
   };
-  await db.send(new PutCommand({
-    TableName: table,
-    Item: {
-      pk: `PUBLIC_REPORT#${id}`, sk: 'META', entity: 'public_wildlife_report',
-      ...report, gsi1pk: `REPORTER#${user.id}`, gsi1sk: `${iso}#${id}`,
-      gsi2pk: 'PUBLIC_REPORTS', gsi2sk: `${iso}#${id}`
-    },
-    ConditionExpression: 'attribute_not_exists(pk)'
-  }));
+  try {
+    // Submit the report and move its rate-limit watermark atomically, so a
+    // failed write doesn't leave a legitimate reporter blocked from retrying.
+    await db.send(new TransactWriteCommand({ TransactItems: [
+      { Update: {
+        TableName: table,
+        Key: lock,
+        UpdateExpression: 'SET lastAt = :now, #ttl = :ttl',
+        ConditionExpression: 'attribute_not_exists(lastAt) OR lastAt < :limit',
+        ExpressionAttributeNames: { '#ttl': 'ttl' },
+        ExpressionAttributeValues: {
+          ':now': now, ':limit': now - reportingWindowMs,
+          ':ttl': Math.floor(now / 1000) + 3600
+        }
+      }},
+      { Put: {
+        TableName: table,
+        Item: {
+          pk: `PUBLIC_REPORT#${id}`, sk: 'META', entity: 'public_wildlife_report',
+          ...report, gsi1pk: `REPORTER#${user.id}`, gsi1sk: `${iso}#${id}`,
+          gsi2pk: 'PUBLIC_REPORTS', gsi2sk: `${iso}#${id}`
+        },
+        ConditionExpression: 'attribute_not_exists(pk)'
+      }}
+    ] }));
+  } catch (error) {
+    if (error instanceof Error && ['TransactionCanceledException','ConditionalCheckFailedException'].includes(error.name)) {
+      throw new Error('Please wait a minute before submitting another report.');
+    }
+    throw error;
+  }
   await publishRescueChange();
   return report;
 }
