@@ -9,7 +9,7 @@ export const GET: RequestHandler = async ({ locals, params }) => {
   const rescue = await getRescue(params.id);
   if (!rescue || rescue.organisationId !== user.organisationId) return json({ error: 'Rescue not found.' }, { status: 404 });
   const items = await listRescueAnimals(params.id, user.organisationId);
-  if (rescue.transportAnimalId && rescue.assignedUserId === user.id) {
+  if (rescue.transportAnimalId && (rescue.assignedUserId === user.id || user.roles.some(role => ['ORG_ADMIN', 'DISPATCHER', 'PLATFORM_ADMIN', 'AUTHORITY_ADMIN'].includes(role)))) {
     const linked = await getAnimal(rescue.transportAnimalId);
     if (linked && linked.organisationId === user.organisationId && !items.some(a => a.id === linked.id)) items.push(linked);
   }
