@@ -1192,12 +1192,12 @@
 
 	.detail-actions {
 		display: grid;
-		grid-template-columns: 1fr 1fr;
+		grid-template-columns: 1fr;
 		gap: 7px;
 		margin-top: 15px;
 	}
 
-	.detail-actions button {
+	.detail-actions a {
 		min-height: 34px;
 		display: inline-flex;
 		align-items: center;
@@ -1206,12 +1206,8 @@
 		border-radius: 9px;
 		font-size: 12px;
 		font-weight: 800;
+		text-decoration: none;
 		cursor: pointer;
-	}
-
-	.detail-actions .secondary {
-		border: 1px solid #d9e2dc;
-		background: white;
 	}
 
 	.detail-actions .primary {
