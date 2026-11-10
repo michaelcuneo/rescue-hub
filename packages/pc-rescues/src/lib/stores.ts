@@ -13,6 +13,7 @@ export type RescueItem = {
 	assignedUserId?: string | null;
 	pickedUpAt?: string | null;
 	transportAnimalId?: string | null;
+	awaitingCarer?: boolean | null;
 	transportSourceRescueId?: string | null;
 	createdAt?: string;
 	updatedAt?: string;
