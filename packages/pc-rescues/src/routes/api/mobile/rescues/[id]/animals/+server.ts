@@ -8,7 +8,7 @@ export const GET: RequestHandler = async ({ locals, params }) => {
   if (!user?.organisationId || !user.enabled || user.status !== 'ACTIVE') return json({ error: 'Access denied.' }, { status: 403 });
   const rescue = await getRescue(params.id);
   if (!rescue || rescue.organisationId !== user.organisationId) return json({ error: 'Rescue not found.' }, { status: 404 });
-  if (rescue.assignedUserId !== user.id && !user.roles.some((r) => ['ORG_ADMIN', 'DISPATCHER', 'CARER'].includes(r))) return json({ error: 'Access denied.' }, { status: 403 });
+  if (rescue.assignedUserId !== user.id && !user.roles.some((r) => ['ORG_ADMIN', 'DISPATCHER', 'CARER', 'PLATFORM_ADMIN', 'AUTHORITY_ADMIN'].includes(r))) return json({ error: 'Access denied.' }, { status: 403 });
   return json({ items: await listRescueAnimals(params.id, user.organisationId) });
 };
 export const POST: RequestHandler = async ({ locals, params, request }) => {
