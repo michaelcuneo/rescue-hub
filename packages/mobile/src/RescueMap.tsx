@@ -8,7 +8,7 @@ type MapConfiguration = { token: string; style: string; operatingAreasUrl: strin
 
 // These are public client-side values, injected by Expo/Metro at bundle time.
 // Mapbox never needs an authenticated Rescue Hub API route to obtain its public token.
-const API_ORIGIN = (process.env.EXPO_PUBLIC_RESCUE_HUB_API_URL ?? '').replace(/\\/$/, '');
+const API_ORIGIN = (process.env.EXPO_PUBLIC_RESCUE_HUB_API_URL ?? '').replace(/\/$/, '');
 const MAPBOX_TOKEN = (process.env.EXPO_PUBLIC_MAPBOX_ACCESS_TOKEN ?? '').trim();
 const MAP_CONFIGURATION: MapConfiguration = {
   token: MAPBOX_TOKEN,
