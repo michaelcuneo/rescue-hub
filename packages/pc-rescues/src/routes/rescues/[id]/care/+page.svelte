@@ -9,8 +9,8 @@
   let events = $state<Event[]>([]);
   let species = $state('');
   let description = $state('');
-  let incidentSpecies = $state(data.rescue.type);
-  let incidentCondition = $state(data.rescue.injury ?? '');
+  let incidentSpecies = $state('');
+  let incidentCondition = $state('');
   let correctedSpecies = $state('');
   let correctedDescription = $state('');
   let note = $state('');
@@ -41,7 +41,11 @@
       events = detail.events;
     }
   }
-  onMount(() => { void refresh().catch((error) => errorMessage = String(error)); });
+  onMount(() => {
+    incidentSpecies = data.rescue.type;
+    incidentCondition = data.rescue.injury ?? '';
+    void refresh().catch((error) => errorMessage = String(error));
+  });
   async function openAnimal(animal: Animal) {
     selected = animal;
     correctedSpecies = animal.species;
