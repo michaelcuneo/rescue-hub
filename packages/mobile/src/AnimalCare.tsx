@@ -1,17 +1,17 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import {
   acceptAnimalTransfer, addAnimalNote, getAnimalHistory, getRescueAnimals,
-  recordAnimalOutcome, registerAnimal, requestAnimalTransfer,
+  recordAnimalOutcome, registerAnimal, requestAnimalTransfer, recordVetDropoff, recordVetAssessment, unclaimRescue,
   type Animal, type AnimalEvent, type Rescue
 } from './api';
 
-type Props = { rescue: Rescue; userId: string; onBack: () => void };
+type Props = { rescue: Rescue; userId: string; onBack: () => void; onUnclaim: () => void };
 const eventTypes = ['OBSERVATION', 'VET_ASSESSMENT', 'TREATMENT', 'FEEDING', 'WEIGHT', 'REVIEW'] as const;
 const outcomes = ['RELEASED', 'EUTHANISED', 'DECEASED'] as const;
 const terminal = new Set<string>(outcomes);
 
-export default function AnimalCare({ rescue, userId, onBack }: Props) {
+export default function AnimalCare({ rescue, userId, onBack, onUnclaim }: Props) {
   const [animals, setAnimals] = useState<Animal[]>([]);
   const [selected, setSelected] = useState<Animal | null>(null);
   const [events, setEvents] = useState<AnimalEvent[]>([]);
@@ -21,6 +21,9 @@ export default function AnimalCare({ rescue, userId, onBack }: Props) {
   const [eventType, setEventType] = useState<(typeof eventTypes)[number]>('OBSERVATION');
   const [recipientId, setRecipientId] = useState('');
   const [destination, setDestination] = useState('');
+  const [vetLocation, setVetLocation] = useState('');
+  const [transferPurpose, setTransferPurpose] = useState<'CARE' | 'TRANSPORT'>('CARE');
+  const [unclaimReason, setUnclaimReason] = useState('');
   const [outcome, setOutcome] = useState<(typeof outcomes)[number]>('RELEASED');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -75,6 +78,20 @@ export default function AnimalCare({ rescue, userId, onBack }: Props) {
     }
   }
 
+  async function releaseClaim() {
+    if (busy) return;
+    setBusy(true);
+    setError('');
+    try {
+      await unclaimRescue(rescue.id, unclaimReason);
+      onUnclaim();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Unable to release claim.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   const isCustodian = selected?.currentCustodianUserId === userId;
   const isFinal = selected ? terminal.has(selected.status) : false;
 
@@ -99,6 +116,22 @@ export default function AnimalCare({ rescue, userId, onBack }: Props) {
             </Pressable>
           ))}
           {animals.length === 0 && !loading ? <Text style={styles.muted}>No animals registered yet.</Text> : null}
+          {rescue.assignedUserId === userId && animals.length === 0 && !loading ? (
+            <View style={styles.card}>
+              <Text style={styles.section}>Release this rescue</Text>
+              <Text style={styles.muted}>Can't attend? Return the case to qualified rescuers. Once an animal is registered, arrange a custody handover instead.</Text>
+              <TextInput style={styles.input} value={unclaimReason} onChangeText={setUnclaimReason}
+                maxLength={500} multiline placeholder="Reason (optional)" />
+              <Pressable disabled={busy} style={styles.releaseButton}
+                accessibilityRole="button" onPress={() => Alert.alert(
+                  'Release rescue claim?',
+                  'This rescue will become available for another qualified volunteer.',
+                  [{ text:'Keep rescue', style:'cancel' }, { text:'Release claim', style:'destructive', onPress: () => { void releaseClaim(); } }]
+                )}>
+                <Text style={styles.releaseText}>{busy ? 'Updating…' : 'Release claim'}</Text>
+              </Pressable>
+            </View>
+          ) : null}
           {rescue.assignedUserId === userId && (
             <View style={styles.card}>
               <Text style={styles.section}>Register an animal</Text>
@@ -120,6 +153,10 @@ export default function AnimalCare({ rescue, userId, onBack }: Props) {
             <Text style={styles.muted}>Custodian: {isCustodian ? 'You' : selected.currentCustodianUserId || 'Unassigned'}</Text>
             <Text style={styles.muted}>Location: {selected.currentLocation || 'Not recorded'}</Text>
             <Text style={styles.muted}>Updated: {new Date(selected.updatedAt).toLocaleString()}</Text>
+            {selected.vetStage === 'AWAITING_ASSESSMENT' ?
+              <Text style={styles.warning}>At vet · awaiting assessment</Text> : null}
+            {selected.vetStage === 'ASSESSED_AWAITING_TRANSPORT' ?
+              <Text style={styles.warning}>Assessed · awaiting transport</Text> : null}
             {selected.pendingTransferId ? <Text style={styles.warning}>Custody transfer awaiting acknowledgement</Text> : null}
           </View>
           <Text style={styles.section}>Care history</Text>
@@ -148,11 +185,42 @@ export default function AnimalCare({ rescue, userId, onBack }: Props) {
                 </Pressable>
               </View>
               <View style={styles.card}>
+                <Text style={styles.section}>Veterinary milestones</Text>
+                <Text style={styles.muted}>The animal remains in your active list while it is at the vet and awaiting assessment or transport. Record each milestone without closing the animal.</Text>
+                {selected.status !== 'AT_VET' ? (
+                  <>
+                    <TextInput style={styles.input} placeholder="Veterinary facility / location *"
+                      value={vetLocation} onChangeText={setVetLocation} maxLength={250} />
+                    <Pressable style={styles.button} disabled={busy || !vetLocation.trim()}
+                      accessibilityRole="button" onPress={() => void run(
+                        () => recordVetDropoff(selected.id, vetLocation.trim()), selected.id
+                      )}>
+                      <Text style={styles.buttonText}>Record vet drop-off</Text>
+                    </Pressable>
+                  </>
+                ) : selected.vetStage !== 'ASSESSED_AWAITING_TRANSPORT' ? (
+                  <Pressable style={styles.button} disabled={busy} accessibilityRole="button"
+                    onPress={() => void run(() => recordVetAssessment(selected.id, 'Assessment completed; awaiting transport.'), selected.id)}>
+                    <Text style={styles.buttonText}>Assessed · awaiting transport</Text>
+                  </Pressable>
+                ) : <Text style={styles.muted}>Assessment recorded. Arrange transport or transfer to a carer below.</Text>}
+              </View>
+              <View style={styles.card}>
                 <Text style={styles.section}>Request custody handover</Text>
-                <Text style={styles.muted}>The receiving rescuer or carer must acknowledge the transfer.</Text>
+                <Text style={styles.muted}>The recipient must accept custody before this case leaves your active list.</Text>
+                <View style={styles.chips}>
+                  {(['CARE','TRANSPORT'] as const).map(purpose => (
+                    <Pressable key={purpose} style={[styles.chip, transferPurpose === purpose && styles.chipSelected]}
+                      accessibilityRole="button" onPress={() => setTransferPurpose(purpose)}>
+                      <Text style={transferPurpose === purpose ? styles.chipTextSelected : styles.chipText}>
+                        {purpose === 'CARE' ? 'Hand to carer' : 'Arrange transport'}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
                 <TextInput style={styles.input} placeholder="Recipient user ID *" autoCapitalize="none" value={recipientId} onChangeText={setRecipientId} />
                 <TextInput style={styles.input} placeholder="Destination / facility" value={destination} onChangeText={setDestination} maxLength={250} />
-                <Pressable style={styles.button} disabled={busy || !recipientId.trim()} onPress={() => void run(() => requestAnimalTransfer(selected.id, recipientId.trim(), destination.trim(), ''), selected.id)}>
+                <Pressable style={styles.button} disabled={busy || !recipientId.trim()} onPress={() => void run(() => requestAnimalTransfer(selected.id, recipientId.trim(), destination.trim(), '', transferPurpose), selected.id)}>
                   <Text style={styles.buttonText}>Request handover</Text>
                 </Pressable>
               </View>
@@ -207,5 +275,7 @@ const styles = StyleSheet.create({
   chipText: { color: '#435249', fontSize: 11, fontWeight: '700' },
   chipTextSelected: { color: '#fff', fontSize: 11, fontWeight: '700' },
   warning: { color: '#875c0c', fontSize: 12, lineHeight: 18 },
+  releaseButton: { borderWidth: 1, borderColor: '#a23f35', borderRadius: 10, padding: 13, alignItems: 'center' },
+  releaseText: { color: '#a23f35', fontWeight: '800' },
   error: { color: '#a23f35', fontWeight: '700' }
 });
