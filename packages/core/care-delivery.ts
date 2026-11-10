@@ -48,3 +48,13 @@ export function canTransportForOrganisation(user: {
   return user.roles.some(role => ['RESCUER','CARER','ORG_ADMIN'].includes(role)) ||
     user.membershipTypeId === 'transport-volunteer';
 }
+
+/** Receipt from the receiving carer completes an already collected transport.
+ * Claim alone, cancellation or animal death never counts as delivered.
+ */
+export function transportCloseStatus(
+  eventKind: string, jobStatus: string, pickedUpAt?: string | null
+): 'COMPLETED' | 'CANCELLED' {
+  return eventKind === 'ACCEPT_TRANSFER' && jobStatus === 'ASSIGNED' && !!pickedUpAt
+    ? 'COMPLETED' : 'CANCELLED';
+}
