@@ -1,5 +1,7 @@
 # Implementation Roadmap
 
+> **Authoritative clarification (10 November 2026):** Read [ANIMAL-LIFECYCLE.md](ANIMAL-LIFECYCLE.md) first. Eligible rescuers self-claim jobs; routine manual dispatch is not the operating model. An animal remains tracked through veterinary care, custody transfers and long-term rehabilitation until an explicit final outcome. Rescue response completion does not close the animal record. Older wording below is historical and must not override these requirements.
+
 This roadmap records the intended next steps after the SvelteKit/SST modernisation.
 
 It is ordered around operational value rather than attempting to build every enterprise feature at once.
@@ -58,7 +60,7 @@ Build:
 - eligible-rescuer calculation;
 - targeted notifications;
 - claim/accept operation;
-- dispatcher assignment;
+- exceptional authorised administrative intervention (not routine assignment);
 - atomic assignment protection.
 
 Acceptance criteria:
@@ -67,7 +69,7 @@ Acceptance criteria:
 - two users cannot successfully claim the same rescue;
 - assignment changes appear in real time.
 
-## Phase 4 — Rescue lifecycle and animal outcome
+## Phase 4 — Rescue response, permanent animal lifecycle and outcome
 
 Build:
 
