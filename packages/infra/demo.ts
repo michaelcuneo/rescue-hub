@@ -230,3 +230,43 @@ for (const [id, name, capabilityCode, receivesAllRescues] of hunterTeams) {
     updatedAt: S("2026-09-21T03:00:00.000Z")
   });
 }
+
+// Additional clearly synthetic, open reptile rescues for the demo mobile map.
+// Stable IDs/timestamps make repeated deployments idempotent. Never seed these
+// extra demo incidents into production.
+if ($app.stage === "demo") {
+  const reptileDemoRescues = [
+    ["blue-tongue-new-lambton", "Blue-tongue lizard", "Eastern blue-tongue", "New Lambton", -32.9272, 151.7121, "Caught in garden netting; alert and responsive"],
+    ["python-kotara", "Diamond python", "Diamond python", "Kotara", -32.9441, 151.6963, "Snake reported inside a backyard shed; requires safe relocation"],
+    ["water-dragon-warners-bay", "Eastern water dragon", "Eastern water dragon", "Warners Bay", -32.9719, 151.6474, "Tail tangled in discarded fishing line"],
+    ["garden-skink-hamilton", "Garden skink", "Garden skink", "Hamilton", -32.9247, 151.7452, "Small lizard trapped in a window well"],
+    ["bearded-dragon-waratah", "Bearded dragon", "Bearded dragon", "Waratah", -32.9064, 151.7234, "Found in a netted vegetable patch"],
+    ["blue-tongue-mayfield", "Blue-tongue lizard", "Eastern blue-tongue", "Mayfield", -32.8963, 151.7364, "Possible minor foot injury near a driveway"],
+  ] as const;
+
+  reptileDemoRescues.forEach(([suffix, type, breed, location, latitude, longitude, injury], index) => {
+    const id = `demo-natf-mobile-${suffix}`;
+    const at = new Date(Date.UTC(2026, 10, 10, 3, 0) - index * 12 * 60_000).toISOString();
+    put(`DemoMobileRescue-${suffix}`, {
+      pk: S(`RESCUE#${id}`),
+      sk: S("META"),
+      entity: S("rescue"),
+      id: S(id),
+      organisationId: S(HUNTER_ORG),
+      type: S(type),
+      breed: S(breed),
+      location: S(location),
+      latitude: N(latitude),
+      longitude: N(longitude),
+      injury: S(injury),
+      status: S("PENDING"),
+      demo: B(true),
+      createdAt: S(at),
+      updatedAt: S(at),
+      gsi1pk: S("STATUS#PENDING"),
+      gsi1sk: S(`${at}#${id}`),
+      gsi2pk: S("RESCUES"),
+      gsi2sk: S(`${at}#${id}`),
+    });
+  });
+}
