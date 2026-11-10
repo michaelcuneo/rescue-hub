@@ -50,6 +50,7 @@ export type Rescue = {
   longitude: number;
   status: string;
   assignedUserId?: string | null;
+  pickedUpAt?: string | null;
   transportAnimalId?: string | null;
   transportSourceRescueId?: string | null;
   custodyRole?: 'CUSTODIAN';
