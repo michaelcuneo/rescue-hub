@@ -13,6 +13,9 @@ export type PhoneUpdateInput = {
   callbackPhone?: unknown;
   animalId?: unknown;
   requestTransport?: unknown;
+  pickupLocation?: unknown;
+  pickupLatitude?: unknown;
+  pickupLongitude?: unknown;
 };
 
 export type ValidPhoneUpdate = {
@@ -23,6 +26,9 @@ export type ValidPhoneUpdate = {
   callbackPhone?: string;
   animalId?: string;
   requestTransport: boolean;
+  pickupLocation?: string;
+  pickupLatitude?: number;
+  pickupLongitude?: number;
 };
 
 export function validatePhoneUpdate(input: PhoneUpdateInput): ValidPhoneUpdate {
@@ -36,7 +42,15 @@ export function validatePhoneUpdate(input: PhoneUpdateInput): ValidPhoneUpdate {
   const phone = typeof input.callbackPhone === 'string' ? input.callbackPhone.trim() : '';
   const animalId = typeof input.animalId === 'string' ? input.animalId.trim() : '';
   const requestTransport = input.requestTransport === true;
+  const pickupLocation = typeof input.pickupLocation === 'string' ? input.pickupLocation.trim() : '';
+  const pickupLatitude = input.pickupLatitude;
+  const pickupLongitude = input.pickupLongitude;
   if (requestTransport && !animalId) throw new Error('Select the animal before requesting a transport volunteer.');
+  if (requestTransport && (pickupLocation.length < 5 || pickupLocation.length > 250 ||
+      typeof pickupLatitude !== 'number' || !Number.isFinite(pickupLatitude) || pickupLatitude < -90 || pickupLatitude > 90 ||
+      typeof pickupLongitude !== 'number' || !Number.isFinite(pickupLongitude) || pickupLongitude < -180 || pickupLongitude > 180)) {
+    throw new Error('Select the exact veterinary pickup address on the map search before offering transport.');
+  }
   if (animalId && !/^[a-f0-9-]{36}$/i.test(animalId)) throw new Error('Invalid animal ID.');
   if (!callerName || callerName.length > 120) {
     throw new Error('Record who called (maximum 120 characters).');
@@ -53,6 +67,7 @@ export function validatePhoneUpdate(input: PhoneUpdateInput): ValidPhoneUpdate {
   return {
     callerName, callerRole: callerRole as CallerRole, notes, callbackPermitted, requestTransport,
     ...(animalId ? { animalId } : {}),
+    ...(requestTransport ? { pickupLocation, pickupLatitude: pickupLatitude as number, pickupLongitude: pickupLongitude as number } : {}),
     ...(callbackPermitted ? { callbackPhone: phone } : {})
   };
 }
