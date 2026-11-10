@@ -40,6 +40,16 @@ export default function AnimalCare({ rescue, userId, onBack, onUnclaim }: Props)
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!rescue.transportAnimalId || rescue.assignedUserId !== userId) return;
+    void getCareDelivery(rescue.transportAnimalId).then(result => {
+      setDeliveryInfo(result.destination);
+      setRecipientId(result.destination.carerUserId);
+      setDestination(result.destination.address);
+      setTransferPurpose('CARE');
+    }).catch(() => {});
+  }, [rescue.transportAnimalId, rescue.assignedUserId, userId]);
+
+  useEffect(() => {
     if (!rescue.id.startsWith('public-report-') || rescue.assignedUserId !== userId) return;
     void getRescuerReporterContact(rescue.id).then(result => setReporterContact(result.contact)).catch(() => {});
   }, [rescue.id, rescue.assignedUserId, userId]);
@@ -154,7 +164,13 @@ export default function AnimalCare({ rescue, userId, onBack, onUnclaim }: Props)
       {rescue.transportAnimalId ? <View style={styles.card}>
         <Text style={styles.section}>Transport pickup job</Text>
         <Text style={styles.muted}>This animal already has a permanent record. Claiming transport reserves the pickup, but does not transfer custody. Once you physically collect it at the vet, confirm pickup and deliver it to the nominated carer.</Text>
-        {deliveryInfo ? <Text style={styles.body}>Deliver to: {deliveryInfo.address} ({deliveryInfo.mode.replace(/_/g,' ').toLowerCase()})\nGPS: {deliveryInfo.latitude.toFixed(5)}, {deliveryInfo.longitude.toFixed(5)}</Text> : null}
+        {deliveryInfo ? <>
+          <Text style={styles.body}>Deliver to: {deliveryInfo.address} ({deliveryInfo.mode.replace(/_/g,' ').toLowerCase()})\nGPS: {deliveryInfo.latitude.toFixed(5)}, {deliveryInfo.longitude.toFixed(5)}</Text>
+          <Pressable accessibilityRole="button" onPress={() => void Linking.openURL(
+            'https://www.google.com/maps/dir/?api=1&destination=' +
+            encodeURIComponent(`${deliveryInfo.latitude},${deliveryInfo.longitude}`)
+          )}><Text style={styles.link}>Directions to nominated carer</Text></Pressable>
+        </> : null}
       </View> : null}
       {rescue.status === 'ASSIGNED' && rescue.assignedUserId === userId ? (
         <View style={styles.card}>
