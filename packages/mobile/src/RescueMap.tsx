@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
-import { getDeviceMapPosition, MAPBOX_LOCATION_CONTROL, MAPBOX_LOCATION_CONTROL_CSS } from './map-location';
+import { getDeviceMapPosition } from './map-location';
 import WebView, { type WebViewMessageEvent } from 'react-native-webview';
 import { type Rescue } from './api';
 import { pinForRescue, RESCUE_PIN_GROUPS, type RescuePinGroup } from './rescue-pins';
@@ -25,7 +25,7 @@ function html(config: MapConfiguration) {
   const areas = JSON.stringify(config.operatingAreasUrl);
   return `<!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <link href="https://api.mapbox.com/mapbox-gl-js/v3.16.0/mapbox-gl.css" rel="stylesheet">
-<style>html,body,#map{padding:0;margin:0;width:100%;height:100%;overflow:hidden;background:#e2ebe5}.mapboxgl-ctrl-bottom-left,.mapboxgl-ctrl-bottom-right{display:none}.pin{position:relative;width:42px;height:42px;box-sizing:border-box;border-radius:50%;border:3px solid #fff;box-shadow:0 2px 8px #0004,0 0 0 1px #0002;display:grid;place-items:center;cursor:pointer;transition:transform 120ms,box-shadow 120ms}.pin span{color:#fff;font:900 11px system-ui;letter-spacing:-.03em}.pin.selected{transform:scale(1.12);box-shadow:0 3px 11px #0005,0 0 0 3px #ffffffa6}.pin .status-dot{position:absolute;right:-3px;bottom:-3px;width:12px;height:12px;box-sizing:border-box;border-radius:50%;border:2px solid #fff;background:#e9af34}.pin .status-dot.assigned{background:#276cd0}.user-location{width:18px;height:18px;box-sizing:border-box;border-radius:50%;background:#2679eb;border:3px solid white;box-shadow:0 0 0 9px #2679eb33,0 2px 8px #0004}.mapboxgl-popup-content{font:13px system-ui;color:#173d2c;padding:11px 13px;border-radius:10px}${MAPBOX_LOCATION_CONTROL_CSS}</style>
+<style>html,body,#map{padding:0;margin:0;width:100%;height:100%;overflow:hidden;background:#e2ebe5}.mapboxgl-ctrl-bottom-left,.mapboxgl-ctrl-bottom-right{display:none}.pin{position:relative;width:42px;height:42px;box-sizing:border-box;border-radius:50%;border:3px solid #fff;box-shadow:0 2px 8px #0004,0 0 0 1px #0002;display:grid;place-items:center;cursor:pointer;transition:transform 120ms,box-shadow 120ms}.pin span{color:#fff;font:900 11px system-ui;letter-spacing:-.03em}.pin.selected{transform:scale(1.12);box-shadow:0 3px 11px #0005,0 0 0 3px #ffffffa6}.pin .status-dot{position:absolute;right:-3px;bottom:-3px;width:12px;height:12px;box-sizing:border-box;border-radius:50%;border:2px solid #fff;background:#e9af34}.pin .status-dot.assigned{background:#276cd0}.user-location{width:18px;height:18px;box-sizing:border-box;border-radius:50%;background:#2679eb;border:3px solid white;box-shadow:0 0 0 9px #2679eb33,0 2px 8px #0004}.mapboxgl-popup-content{font:13px system-ui;color:#173d2c;padding:11px 13px;border-radius:10px}</style>
 </head><body><div id="map"></div>
 <script src="https://api.mapbox.com/mapbox-gl-js/v3.16.0/mapbox-gl.js"></script>
 <script>
@@ -35,7 +35,12 @@ if (!window.mapboxgl) { send({type:'error', message:'Mapbox could not load.'}); 
 mapboxgl.accessToken = ${token};
 const map = new mapboxgl.Map({container:'map',style:${style},center:[151.7,-32.93],zoom:9,attributionControl:false});
 map.addControl(new mapboxgl.NavigationControl({showCompass:false}), 'top-right');
-${MAPBOX_LOCATION_CONTROL}
+map.addControl(new mapboxgl.GeolocateControl({
+  positionOptions: { enableHighAccuracy: true, timeout: 15000 },
+  trackUserLocation: false,
+  showUserLocation: false,
+  showAccuracyCircle: false
+}), 'top-right');
 const markers = new window.Map();
 let records = [];
 let lastPayload = '';
@@ -168,7 +173,7 @@ export default function RescueMap({ rescues, onSelect }: Props) {
     return <View style={styles.feedback}><Text style={styles.error}>Set EXPO_PUBLIC_MAPBOX_ACCESS_TOKEN in packages/mobile/.env and restart Expo.</Text></View>;
   }
   return <View style={styles.container}>
-    <WebView<{}> ref={map} source={source}
+    <WebView<{}> ref={map} source={source} geolocationEnabled
       style={styles.webview} onMessage={handleMessage} javaScriptEnabled domStorageEnabled
       originWhitelist={['https://*']} onError={e=>setError(e.nativeEvent.description)}
       accessibilityLabel="Map of eligible and assigned rescue locations" />
