@@ -1,5 +1,8 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
+  import { page } from '$app/state';
+  import type { PageData } from './$types';
+  let { data }: { data: PageData } = $props();
   let name = $state('');
   let email = $state('');
   let password = $state('');
@@ -69,12 +72,17 @@
     {/if}
     {#if error}<p class="error" role="alert">{error}</p>{/if}
     <div class="signin">Already have an account? <a href="/login?next=/report">Sign in</a></div>
-    <div class="providers">
-      <p>Or continue with</p>
-      <a href="/auth/social/google">Google</a>
-      <a href="/auth/social/apple">Apple</a>
-      <a href="/auth/social/facebook">Facebook</a>
-    </div>
+    {#if page.url.searchParams.get('social_error')}
+      <p class="error" role="alert">Social sign-in could not be completed. Please try again or use email.</p>
+    {/if}
+    {#if data.providers.length}
+      <div class="providers">
+        <p>Or continue with</p>
+        {#each data.providers as provider}
+          <a href="/auth/social/{provider}">{provider === 'google' ? 'Google' : provider === 'apple' ? 'Apple' : 'Facebook'}</a>
+        {/each}
+      </div>
+    {/if}
     <p class="safety">Your reporter account lets you submit sightings, not claim or handle animals.</p>
   </section>
 </main>
