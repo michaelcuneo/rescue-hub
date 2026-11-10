@@ -357,7 +357,7 @@
 
 			data.update((current) => ({
 				...current,
-				pending: [rescue, ...current.pending]
+				pending: [rescue, ...current.pending.filter(item => item.id !== rescue.id)]
 			}));
 
 			tab = 'pending';
