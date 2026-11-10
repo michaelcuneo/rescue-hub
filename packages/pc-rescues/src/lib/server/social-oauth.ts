@@ -51,7 +51,10 @@ async function oauthJson(url: string, data: URLSearchParams): Promise<Record<str
   return body;
 }
 
-export async function startSocialOAuth(provider: SocialProvider, origin: string) {
+export async function startSocialOAuth(provider: SocialProvider, origin: string, mobileChallenge?: string) {
+  if (mobileChallenge !== undefined && !/^[A-Za-z0-9_-]{43}$/.test(mobileChallenge)) {
+    throw new Error('Invalid mobile authentication challenge.');
+  }
   const config = settings(provider);
   if (!config) throw new Error(`${provider} sign-in has not been configured yet.`);
   const state = urlSafe(randomBytes(32));
@@ -63,7 +66,7 @@ export async function startSocialOAuth(provider: SocialProvider, origin: string)
     TableName: table,
     Item: {
       pk: `OAUTH#STATE#${hash(state)}`, sk: 'META', entity: 'social_oauth_state',
-      provider, nonce, verifier, redirect,
+      provider, nonce, verifier, redirect, mobileChallenge,
       createdAt: now, ttl: now + 600
     }, ConditionExpression: 'attribute_not_exists(pk)'
   }));
@@ -110,7 +113,7 @@ function appleClientSecret(clientId: string) {
 export async function finishSocialOAuth(input: {
   provider: SocialProvider; origin: string; state: string; code: string;
   appleUser?: string;
-}): Promise<{ provider: SocialProvider; subject: string; email: string; name: string }> {
+}): Promise<{ provider: SocialProvider; subject: string; email: string; name: string; mobileChallenge?: string }> {
   const { provider, origin, state, code } = input;
   if (!state || !code || state.length > 300 || code.length > 4096) throw new Error('Invalid sign-in response.');
   const consumed = await db.send(new DeleteCommand({
@@ -126,6 +129,7 @@ export async function finishSocialOAuth(input: {
   }
   const config = settings(provider);
   if (!config) throw new Error('Sign-in provider is unavailable.');
+  const mobileChallenge = typeof record.mobileChallenge === 'string' ? record.mobileChallenge : undefined;
   const common = new URLSearchParams({
     client_id: config.clientId,
     redirect_uri: String(record.redirect),
@@ -148,7 +152,7 @@ export async function finishSocialOAuth(input: {
       throw new Error('Google identity verification failed.');
     }
     return { provider, subject: String(claims.sub), email: String(claims.email),
-      name: tokenString(claims.name) ?? 'Wildlife reporter' };
+      name: tokenString(claims.name) ?? 'Wildlife reporter', mobileChallenge };
   }
 
   if (provider === 'apple') {
@@ -171,7 +175,7 @@ export async function finishSocialOAuth(input: {
         appleName = [details.name?.firstName, details.name?.lastName].filter(Boolean).join(' ').trim() || appleName;
       } catch { /* Apple supplies optional name only on the first authorisation. */ }
     }
-    return { provider, subject: String(claims.sub), email: String(claims.email), name: appleName };
+    return { provider, subject: String(claims.sub), email: String(claims.email), name: appleName, mobileChallenge };
   }
 
   common.set('client_secret', config.clientSecret ?? '');
@@ -196,5 +200,5 @@ export async function finishSocialOAuth(input: {
   if (!fbId || !fbEmail) {
     throw new Error('Facebook did not provide an email address. Use another sign-in method.');
   }
-  return { provider, subject: fbId, email: fbEmail, name: profile.name || 'Wildlife reporter' };
+  return { provider, subject: fbId, email: fbEmail, name: profile.name || 'Wildlife reporter', mobileChallenge };
 }
