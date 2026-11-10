@@ -22,7 +22,7 @@ export const POST: RequestHandler = async ({ locals, params, request }) => {
     // cause a duplicate care claim or undo the independently claimable job.
     const transport = await getRescue(claim.transportRescueId).catch(() => null);
     if (transport) {
-      void notifyEligibleRescuers({
+      await notifyEligibleRescuers({
         id: transport.id, organisationId: user.organisationId,
         type: transport.type, breed: 'Transport',
         location: transport.location ?? undefined,
