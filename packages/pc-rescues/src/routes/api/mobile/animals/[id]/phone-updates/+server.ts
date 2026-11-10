@@ -18,8 +18,10 @@ async function access(event: Parameters<RequestHandler>[0], write: boolean) {
     ['DISPATCHER', 'ORG_ADMIN', 'PLATFORM_ADMIN', 'AUTHORITY_ADMIN'].includes(role));
   const rescue = await getRescue(animal.rescueId);
   if (!rescue || rescue.organisationId !== organisationId) return null;
+  const transport = animal.activeTransportRescueId ? await getRescue(animal.activeTransportRescueId) : null;
+  const claimedTransport = transport?.organisationId === organisationId && transport.assignedUserId === user.id;
   if (write ? !coordinator :
-    !coordinator && animal.currentCustodianUserId !== user.id && rescue.assignedUserId !== user.id)
+    !coordinator && animal.currentCustodianUserId !== user.id && rescue.assignedUserId !== user.id && !claimedTransport)
     return null;
   return { user, animal, coordinator };
 }
