@@ -214,7 +214,7 @@ export default function App() {
         style={styles.rescueList}
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.list}
-        ListHeaderComponent={view==='map' ? <Text style={styles.listNote}>Rescue details · tap a pin to locate a rescue</Text> : null}
+        ListHeaderComponent={view==='map' ? <Text style={styles.listNote}>Rescue details · tap a pin to locate a rescue</Text> : undefined}
         ListEmptyComponent={<Text style={styles.empty}>No matching rescues are waiting right now.</Text>}
         renderItem={({ item }) => (
           <View style={styles.card}>
