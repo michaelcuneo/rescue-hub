@@ -77,7 +77,7 @@ export async function createAnimal(input: {
 
 export async function recordAnimalEvent(animal: AnimalRecord, actorUserId: string, input: {
   type: 'OBSERVATION' | 'VET_ASSESSMENT' | 'TREATMENT' | 'FEEDING' | 'WEIGHT' | 'REVIEW';
-  notes: string; occurredAt?: string;
+  notes: string; occurredAt?: string; source?: 'PHONE' | 'DIRECT'; reportedByName?: string; coordinatorOverride?: boolean;
 }) {
   if (terminal.has(animal.status)) throw new AnimalConflict('Animal has a final outcome.');
   if (animal.pendingTransferId) throw new AnimalConflict('Resolve the pending custody transfer first.');
@@ -85,7 +85,9 @@ export async function recordAnimalEvent(animal: AnimalRecord, actorUserId: strin
   await db.send(new TransactWriteCommand({ TransactItems: [
     { ConditionCheck: {
       TableName: table, Key: key(animal.id),
-      ConditionExpression: 'version = :version AND organisationId = :org AND currentCustodianUserId = :user AND attribute_not_exists(pendingTransferId) AND NOT (#status IN (:released, :euthanised, :deceased))',
+      ConditionExpression: input.coordinatorOverride
+        ? 'version = :version AND organisationId = :org AND NOT (#status IN (:released, :euthanised, :deceased))'
+        : 'version = :version AND organisationId = :org AND currentCustodianUserId = :user AND attribute_not_exists(pendingTransferId) AND NOT (#status IN (:released, :euthanised, :deceased))',
       ExpressionAttributeNames: { '#status': 'status' },
       ExpressionAttributeValues: {
         ':version': animal.version, ':org': animal.organisationId, ':user': actorUserId,
@@ -96,7 +98,7 @@ export async function recordAnimalEvent(animal: AnimalRecord, actorUserId: strin
       pk: `ANIMAL#${animal.id}`, sk: `EVENT#${now}#${eventId}`,
       entity: 'animal_event', id: eventId, animalId: animal.id, organisationId: animal.organisationId,
       type: input.type, notes: input.notes, occurredAt: input.occurredAt ?? now,
-      actorUserId, createdAt: now
+      actorUserId, createdAt: now, source: input.source ?? 'DIRECT', reportedByName: input.reportedByName
     }, ConditionExpression: 'attribute_not_exists(pk)' }}
   ] })).catch((error) => {
     if (error instanceof Error && error.name === 'TransactionCanceledException') throw new AnimalConflict('Animal custody or status changed. Refresh and retry.');
