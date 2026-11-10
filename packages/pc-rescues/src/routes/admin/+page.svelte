@@ -1384,19 +1384,6 @@
 
   
 
-  .team-picker label strong {
-    color: var(--ink);
-    font-size: 12px;
-  }
-
-  .team-picker label small {
-    margin-top: 1px;
-    color: var(--muted);
-    font-size: 12px;
-    text-transform: none;
-    letter-spacing: normal;
-  }
-
   .team-picker.compact {
     display: grid;
     max-width: 250px;
