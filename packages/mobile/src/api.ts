@@ -108,7 +108,18 @@ export type PublicWildlifeReport = {
   longitude: number;
   status: 'SUBMITTED' | 'UNDER_REVIEW' | 'CONVERTED';
   createdAt: string;
+  rescueId?: string;
+  allowMessages?: boolean;
+  allowPhoneContact?: boolean;
 };
+
+export type ReporterMessage = { id: string; reportId: string; senderUserId: string; senderRole: 'REPORTER' | 'RESCUER'; text: string; createdAt: string };
+export async function getReporterConversation(reportId: string) {
+  return request<{ items: ReporterMessage[]; role: 'REPORTER' | 'RESCUER'; rescueId: string | null; contactPhone: string | null }>(`/api/public/reports/${encodeURIComponent(reportId)}/messages`);
+}
+export async function sendReporterMessage(reportId: string, text: string) {
+  return request<{ message: ReporterMessage }>(`/api/public/reports/${encodeURIComponent(reportId)}/messages`, { method: 'POST', body: JSON.stringify({ text }) });
+}
 
 export async function signupReporter(name: string, email: string, password: string) {
   return request<{ ok: true; message: string }>('/api/public/signup', {
@@ -125,10 +136,11 @@ export async function verifyReporter(email: string, code: string) {
 }
 
 export async function submitPublicReport(
-  animal: string, condition: string, latitude: number, longitude: number
+  animal: string, condition: string, latitude: number, longitude: number,
+  options: { allowMessages?: boolean; allowPhoneContact?: boolean; contactPhone?: string } = {}
 ) {
   return request<{ report: PublicWildlifeReport }>('/api/public/reports', {
-    method: 'POST', body: JSON.stringify({ animal, condition, latitude, longitude })
+    method: 'POST', body: JSON.stringify({ animal, condition, latitude, longitude, ...options })
   });
 }
 
