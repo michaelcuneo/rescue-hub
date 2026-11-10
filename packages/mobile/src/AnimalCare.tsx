@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import {
   acceptAnimalTransfer, addAnimalNote, getAnimalHistory, getRescueAnimals, confirmRescuePickup,
-  recordAnimalOutcome, registerAnimal, requestAnimalTransfer, recordVetDropoff, recordVetAssessment, unclaimRescue,
+  recordAnimalOutcome, registerAnimal, requestAnimalTransfer, startVetTransport, recordVetDropoff, recordVetAssessment, unclaimRescue,
   correctAnimalIdentification, correctReportedRescue, getRescuerReporterContact, type Animal, type AnimalEvent, type Rescue
 } from './api';
 
@@ -295,16 +295,24 @@ export default function AnimalCare({ rescue, userId, onBack, onUnclaim }: Props)
               </View>
               <View style={styles.card}>
                 <Text style={styles.section}>Veterinary milestones</Text>
-                <Text style={styles.muted}>The animal remains in your active list while it is at the vet and awaiting assessment or transport. Record each milestone without closing the animal.</Text>
+                <Text style={styles.muted}>Record transport and drop-off separately. After confirmed collection, the animal stays in its permanent care record but is off the operational map.</Text>
                 {selected.status !== 'AT_VET' ? (
                   <>
                     <TextInput style={styles.input} placeholder="Veterinary facility / location *"
                       value={vetLocation} onChangeText={setVetLocation} maxLength={250} />
+                    {selected.status !== 'IN_TRANSIT' && collected ? (
+                      <Pressable style={styles.button} disabled={busy || !vetLocation.trim()}
+                        accessibilityRole="button" onPress={() => void run(
+                          () => startVetTransport(selected.id, vetLocation.trim()), selected.id
+                        )}>
+                        <Text style={styles.buttonText}>Transporting to veterinary clinic</Text>
+                      </Pressable>
+                    ) : null}
                     <Pressable style={styles.button} disabled={busy || !vetLocation.trim()}
                       accessibilityRole="button" onPress={() => void run(
                         () => recordVetDropoff(selected.id, vetLocation.trim()), selected.id
                       )}>
-                      <Text style={styles.buttonText}>Record vet drop-off</Text>
+                      <Text style={styles.buttonText}>Dropped off at veterinary clinic</Text>
                     </Pressable>
                   </>
                 ) : selected.vetStage !== 'ASSESSED_AWAITING_TRANSPORT' ? (
