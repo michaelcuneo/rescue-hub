@@ -1,17 +1,19 @@
 import { json } from '@sveltejs/kit';
 import { getRescue } from '$lib/server/graphql';
+import { getHunterDemo, HUNTER_DEMO_ORGANISATION } from '$lib/server/demo';
 import { createAnimal, getAnimal, listRescueAnimals } from '$lib/server/animals';
 import type { RequestHandler } from './$types';
 
-export const GET: RequestHandler = async ({ locals, params }) => {
+export const GET: RequestHandler = async ({ locals, params, cookies }) => {
   const user = locals.user;
-  if (!user?.organisationId || !user.enabled || user.status !== 'ACTIVE') return json({ error: 'Access denied.' }, { status: 403 });
+  const organisationId = getHunterDemo(cookies, user) ? HUNTER_DEMO_ORGANISATION : user?.organisationId;
+  if (!user || !organisationId || !user.enabled || user.status !== 'ACTIVE') return json({ error: 'Access denied.' }, { status: 403 });
   const rescue = await getRescue(params.id);
-  if (!rescue || rescue.organisationId !== user.organisationId) return json({ error: 'Rescue not found.' }, { status: 404 });
-  const items = await listRescueAnimals(params.id, user.organisationId);
+  if (!rescue || rescue.organisationId !== organisationId) return json({ error: 'Rescue not found.' }, { status: 404 });
+  const items = await listRescueAnimals(params.id, organisationId);
   if (rescue.transportAnimalId && (rescue.assignedUserId === user.id || user.roles.some(role => ['ORG_ADMIN', 'DISPATCHER', 'PLATFORM_ADMIN', 'AUTHORITY_ADMIN'].includes(role)))) {
     const linked = await getAnimal(rescue.transportAnimalId);
-    if (linked && linked.organisationId === user.organisationId && !items.some(a => a.id === linked.id)) items.push(linked);
+    if (linked && linked.organisationId === organisationId && !items.some(a => a.id === linked.id)) items.push(linked);
   }
   const ownsAnimal = items.some(animal => animal.currentCustodianUserId === user.id);
   if (rescue.assignedUserId !== user.id && !ownsAnimal && !user.roles.some((r) =>
