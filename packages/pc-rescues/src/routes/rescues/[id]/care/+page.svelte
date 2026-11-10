@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { env } from '$env/dynamic/public';
   import type { PageData } from './$types';
   let { data }: { data: PageData } = $props();
   type Animal = { id: string; species: string; status: string; currentCustodianUserId?: string; currentLocation?: string; pendingTransferId?: string; activeTransportRescueId?: string };
@@ -23,6 +24,46 @@
   let callbackNumber = $state('');
   let requestTransport = $state(false);
   let phoneSaved = $state('');
+  type PickupPlace = { id: string; label: string; latitude: number; longitude: number };
+  const mapboxToken = env.PUBLIC_MAPBOX_ACCESS_TOKEN ?? '';
+  let pickupAddress = $state('');
+  let pickupLatitude = $state<number | null>(null);
+  let pickupLongitude = $state<number | null>(null);
+  let pickupOptions = $state<PickupPlace[]>([]);
+  let pickupSearching = $state(false);
+  let pickupError = $state('');
+  async function searchPickup() {
+    if (!mapboxToken || pickupAddress.trim().length < 3) {
+      pickupError = 'Enter a veterinary pickup address and configure the Mapbox search token.';
+      return;
+    }
+    pickupSearching = true; pickupError = ''; pickupOptions = [];
+    try {
+      const params = new URLSearchParams({ q: pickupAddress.trim(), access_token: mapboxToken, country: 'au', limit: '5' });
+      const response = await fetch(`https://api.mapbox.com/search/geocode/v6/forward?${params}`);
+      if (!response.ok) throw new Error('Address lookup unavailable.');
+      const payload = await response.json() as {
+        features?: Array<{ id: string; geometry: { coordinates: [number, number] }; properties?: { full_address?: string; name?: string; place_formatted?: string } }>
+      };
+      pickupOptions = (payload.features ?? []).map(feature => ({
+        id: feature.id,
+        label: feature.properties?.full_address ||
+          [feature.properties?.name, feature.properties?.place_formatted].filter(Boolean).join(', ') ||
+          'Vet pickup location',
+        longitude: feature.geometry.coordinates[0], latitude: feature.geometry.coordinates[1]
+      }));
+      if (!pickupOptions.length) pickupError = 'No matching addresses. Add the exact pickup coordinates manually.';
+    } catch (error) {
+      pickupError = error instanceof Error ? error.message : 'Pickup address search failed.';
+    } finally { pickupSearching = false; }
+  }
+  function choosePickup(place: PickupPlace) {
+    pickupAddress = place.label;
+    pickupLatitude = place.latitude;
+    pickupLongitude = place.longitude;
+    pickupOptions = [];
+    pickupError = '';
+  }
   let eventType = $state('OBSERVATION');
   let recipientId = $state('');
   let location = $state('');
@@ -61,6 +102,11 @@
     phoneEvents = [];
     phoneSaved = '';
     requestTransport = false;
+    pickupAddress = animal.currentLocation ?? '';
+    pickupLatitude = null;
+    pickupLongitude = null;
+    pickupOptions = [];
+    pickupError = '';
     correctedSpecies = animal.species;
     correctedDescription = '';
     try { await refresh(); } catch (error) { errorMessage = String(error); }
@@ -73,11 +119,13 @@
       const result = await api(`/api/mobile/animals/${selected.id}/phone-updates`, {
         callerName: phoneCaller, callerRole: phoneRole, notes: phoneNotes,
         animalId: selected.id, requestTransport,
+        ...(requestTransport ? { pickupLocation: pickupAddress, pickupLatitude, pickupLongitude } : {}),
         callbackPermitted: callbackAllowed,
         ...(callbackAllowed ? { callbackPhone: callbackNumber } : {})
       });
       phoneNotes = '';
       callbackNumber = '';
+      pickupOptions = [];
       callbackAllowed = false;
       requestTransport = false;
       phoneSaved = result.update.transportRescueId
@@ -192,9 +240,36 @@
               <label class="inline-check"><input type="checkbox" bind:checked={requestTransport} disabled={!!selected.activeTransportRescueId} />
                 Also place this animal into the available transport queue for a volunteer to claim
               </label>
+              {#if requestTransport && !selected.activeTransportRescueId}
+                <label for="vet-pickup-address">Veterinary pickup address
+                  <input id="vet-pickup-address" required bind:value={pickupAddress}
+                    oninput={() => { pickupLatitude = null; pickupLongitude = null; }}
+                    maxlength="250" placeholder="Search for the veterinary clinic or enter its precise address" />
+                </label>
+                <button type="button" class="primary" onclick={() => void searchPickup()} disabled={pickupSearching || !mapboxToken}>
+                  {pickupSearching ? 'Searching…' : 'Find veterinary pickup address'}
+                </button>
+                {#if pickupError}<p class="error" role="alert">{pickupError}</p>{/if}
+                {#if pickupOptions.length}
+                  <ul aria-label="Matching veterinary pickup addresses">
+                    {#each pickupOptions as place (place.id)}
+                      <li><button type="button" onclick={() => choosePickup(place)}>{place.label}</button></li>
+                    {/each}
+                  </ul>
+                {/if}
+                <div class="phone-coordinates">
+                  <label for="vet-pickup-latitude">Pickup latitude
+                    <input id="vet-pickup-latitude" type="number" min="-90" max="90" step="any" required bind:value={pickupLatitude} />
+                  </label>
+                  <label for="vet-pickup-longitude">Pickup longitude
+                    <input id="vet-pickup-longitude" type="number" min="-180" max="180" step="any" required bind:value={pickupLongitude} />
+                  </label>
+                </div>
+                <p>Verify that the coordinates are at the veterinary clinic, not the original injury location. The transport job will appear at this pickup point.</p>
+              {/if}
               {#if selected.activeTransportRescueId}<p class="notice">Transport already requested for this animal. A new job cannot be created until its custody handover is completed.</p>{/if}
             {/if}
-            <button class="primary" disabled={busy || !phoneCaller.trim() || !phoneNotes.trim() || (callbackAllowed && !callbackNumber.trim())}>Record phone update</button>
+            <button class="primary" disabled={busy || !phoneCaller.trim() || !phoneNotes.trim() || (callbackAllowed && !callbackNumber.trim()) || (requestTransport && (!pickupAddress.trim() || pickupLatitude === null || pickupLongitude === null))}>Record phone update</button>
           </form>
           {#if phoneSaved}<p role="status">{phoneSaved}</p>{/if}
         {/if}
@@ -238,5 +313,5 @@
 </main>
 <style>
   :global(body){margin:0;background:#f1f4f1;color:#1b2d24;font-family:system-ui,sans-serif}
-  .inline-check{display:flex;align-items:center;gap:10px}.inline-check input{width:auto;margin:0} .care{max-width:1250px;margin:auto;padding:32px 22px 80px}.care>a{color:#24583f;font-weight:700}header,.record-head{display:flex;justify-content:space-between;align-items:center;gap:16px}header{margin:22px 0}.eyebrow{font-size:11px;font-weight:800;letter-spacing:1.3px;color:#648074}h1{font-size:32px;margin:4px 0}h2{margin:0 0 14px}h3{margin:22px 0 12px}p{line-height:1.5;color:#52655a}.layout{display:grid;grid-template-columns:minmax(260px,1fr) minmax(0,2fr);gap:18px}.panel{background:white;border:1px solid #dce5df;border-radius:16px;padding:22px;min-width:0}.tag{background:#e1eee6;border-radius:20px;padding:8px 12px;font-size:12px;font-weight:800}.animal-row{display:flex;flex-direction:column;align-items:flex-start;width:100%;background:white;border:1px solid #dce5df;border-radius:10px;padding:12px;margin:8px 0;cursor:pointer}.animal-row.active{background:#e1eee6;border-color:#24583f}small{display:block;color:#6a7c70;margin-top:5px}form{border-top:1px solid #e3e9e5;margin-top:22px;padding-top:4px}label{display:block;font-size:13px;font-weight:700;margin:12px 0}input,textarea,select{box-sizing:border-box;display:block;width:100%;margin-top:7px;padding:11px;border:1px solid #cbd9d0;border-radius:9px;font:inherit}textarea{min-height:90px}.primary{background:#173d2c;color:white;border:0;border-radius:9px;padding:12px 16px;font-weight:700;cursor:pointer}.primary:disabled{opacity:.5;cursor:not-allowed}dl{display:flex;gap:24px;flex-wrap:wrap}dt{font-size:12px;color:#6a7c70}dd{margin:5px 0;font-weight:700}.timeline{padding-left:24px}.timeline li{border-left:2px solid #bdd2c4;padding:0 0 18px 16px;margin-left:-4px}.timeline p{margin:6px 0}.notice{color:#805a12;background:#fff6dc;padding:12px;border-radius:9px}.error{color:#a23f35;font-weight:700}@media(max-width:750px){.layout{grid-template-columns:1fr}.care{padding:18px 12px}header{align-items:flex-start}}
+  .phone-coordinates{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}@media(max-width:600px){.phone-coordinates{grid-template-columns:1fr}} .inline-check{display:flex;align-items:center;gap:10px}.inline-check input{width:auto;margin:0} .care{max-width:1250px;margin:auto;padding:32px 22px 80px}.care>a{color:#24583f;font-weight:700}header,.record-head{display:flex;justify-content:space-between;align-items:center;gap:16px}header{margin:22px 0}.eyebrow{font-size:11px;font-weight:800;letter-spacing:1.3px;color:#648074}h1{font-size:32px;margin:4px 0}h2{margin:0 0 14px}h3{margin:22px 0 12px}p{line-height:1.5;color:#52655a}.layout{display:grid;grid-template-columns:minmax(260px,1fr) minmax(0,2fr);gap:18px}.panel{background:white;border:1px solid #dce5df;border-radius:16px;padding:22px;min-width:0}.tag{background:#e1eee6;border-radius:20px;padding:8px 12px;font-size:12px;font-weight:800}.animal-row{display:flex;flex-direction:column;align-items:flex-start;width:100%;background:white;border:1px solid #dce5df;border-radius:10px;padding:12px;margin:8px 0;cursor:pointer}.animal-row.active{background:#e1eee6;border-color:#24583f}small{display:block;color:#6a7c70;margin-top:5px}form{border-top:1px solid #e3e9e5;margin-top:22px;padding-top:4px}label{display:block;font-size:13px;font-weight:700;margin:12px 0}input,textarea,select{box-sizing:border-box;display:block;width:100%;margin-top:7px;padding:11px;border:1px solid #cbd9d0;border-radius:9px;font:inherit}textarea{min-height:90px}.primary{background:#173d2c;color:white;border:0;border-radius:9px;padding:12px 16px;font-weight:700;cursor:pointer}.primary:disabled{opacity:.5;cursor:not-allowed}dl{display:flex;gap:24px;flex-wrap:wrap}dt{font-size:12px;color:#6a7c70}dd{margin:5px 0;font-weight:700}.timeline{padding-left:24px}.timeline li{border-left:2px solid #bdd2c4;padding:0 0 18px 16px;margin-left:-4px}.timeline p{margin:6px 0}.notice{color:#805a12;background:#fff6dc;padding:12px;border-radius:9px}.error{color:#a23f35;font-weight:700}@media(max-width:750px){.layout{grid-template-columns:1fr}.care{padding:18px 12px}header{align-items:flex-start}}
 </style>
