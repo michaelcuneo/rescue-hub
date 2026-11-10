@@ -34,6 +34,7 @@ export default function App() {
   const [session, setSession] = useState<Session | null>(null);
   const [rescues, setRescues] = useState<Rescue[]>([]);
   const [activeRescue, setActiveRescue] = useState<Rescue | null>(null);
+  const [selectedMapRescue, setSelectedMapRescue] = useState<Rescue | null>(null);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -82,7 +83,9 @@ export default function App() {
     setError('');
     try {
       await claimRescue(id);
-      setRescues((await getRescues()).items);
+      const result = await getRescues();
+      setRescues(result.items);
+      setSelectedMapRescue(result.items.find((item) => item.id === id) ?? null);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Unable to claim rescue.');
       await getRescues().then((result) => setRescues(result.items)).catch(console.warn);
@@ -91,11 +94,22 @@ export default function App() {
     }
   }
 
+  async function signOut() {
+    await logout();
+    setSession(null);
+    setRescues([]);
+    setActiveRescue(null);
+    setSelectedMapRescue(null);
+    setPolicy(null);
+    setView('map');
+  }
+
   async function refresh() {
     setError('');
     try {
       const [rescuesResult, availabilityResult] = await Promise.all([getRescues(), getAvailability()]);
       setRescues(rescuesResult.items);
+      setSelectedMapRescue((current) => current ? rescuesResult.items.find((item) => item.id === current.id) ?? null : null);
       setPolicy(availabilityResult.policy);
       if (session) setSession({ ...session, user: { ...session.user, availabilityStatus: availabilityResult.status } });
     } catch (e) { setError(e instanceof Error ? e.message : 'Could not refresh rescues.'); }
@@ -123,10 +137,10 @@ export default function App() {
   }
 
   const available = session.user.availabilityStatus === 'AVAILABLE';
-  const currentMode = policy?.mode ?? (available ? 'ON' : 'OFF');
 
   if (view === 'settings') return <SafeAreaView style={styles.root}><AvailabilitySettings
     onBack={() => { setView('map'); void refresh(); }}
+    onSignOut={signOut}
     onSave={(savedPolicy, status) => {
       setPolicy(savedPolicy);
       setSession({ ...session, user: { ...session.user, availabilityStatus: status, availabilityPolicy: savedPolicy } });
@@ -140,88 +154,92 @@ export default function App() {
       <StatusBar barStyle="dark-content" />
       <View style={styles.header}>
         <View style={styles.headerCopy}>
-          <Text style={styles.kicker}>RESCUE HUB · NATF</Text>
-          <Text style={styles.title}>{session.user.name}</Text>
-          <Text style={styles.copy}>{teamNames.join(' · ') || 'No rescue teams assigned'}</Text>
+          <Text style={styles.kicker}>RESCUE HUB</Text>
+          <Text style={styles.context} numberOfLines={1}>{teamNames.join(' · ') || session.user.name}</Text>
         </View>
-        <Pressable style={styles.settingsButton} onPress={() => setView('settings')} accessibilityRole="button"
-          accessibilityLabel="Open availability settings"><Text style={styles.settingsText}>Settings ⚙</Text></Pressable>
-      </View>
-
-      <View style={styles.availability}>
-        <Text style={styles.availabilityTitle}>{available ? 'Rescue alerts enabled' : 'Rescue alerts paused'}</Text>
-        <Text style={styles.copy}>
-          {currentMode === 'SCHEDULE'
-            ? 'Following your weekly availability schedule. Manage it in Settings.'
-            : currentMode === 'ON'
-              ? 'You are available for rescue notifications. Change this in Settings.'
-              : 'Notifications are paused. You can still browse eligible rescues. Change this in Settings.'}
-        </Text>
-      </View>
-
-      <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>Rescues</Text>
-        <Pressable onPress={refresh} accessibilityRole="button"><Text style={styles.refresh}>Refresh</Text></Pressable>
-      </View>
-      <View style={styles.modeRowWide}>
-        <Pressable style={[styles.viewButton,view==='map'&&styles.viewSelected]} onPress={()=>setView('map')} accessibilityRole="button">
-          <Text style={[styles.viewText,view==='map'&&styles.viewTextSelected]}>Map</Text>
+        <Pressable style={styles.headerAction} onPress={refresh} accessibilityRole="button" accessibilityLabel="Refresh rescues">
+          <Text style={styles.headerActionText}>Refresh</Text>
         </Pressable>
-        <Pressable style={[styles.viewButton,view==='list'&&styles.viewSelected]} onPress={()=>setView('list')} accessibilityRole="button">
-          <Text style={[styles.viewText,view==='list'&&styles.viewTextSelected]}>List</Text>
+        <Pressable style={styles.headerAction} onPress={() => setView('settings')} accessibilityRole="button"
+          accessibilityLabel="Open settings"><Text style={styles.headerActionText}>Settings</Text></Pressable>
+      </View>
+
+      <View style={styles.viewBar}>
+        <Pressable style={[styles.viewButton,view==='map' && styles.viewSelected]} onPress={() => setView('map')} accessibilityRole="button"
+          accessibilityState={{selected:view==='map'}}>
+          <Text style={[styles.viewText,view==='map' && styles.viewTextSelected]}>Map</Text>
+        </Pressable>
+        <Pressable style={[styles.viewButton,view==='list' && styles.viewSelected]} onPress={() => setView('list')} accessibilityRole="button"
+          accessibilityState={{selected:view==='list'}}>
+          <Text style={[styles.viewText,view==='list' && styles.viewTextSelected]}>List ({rescues.length})</Text>
         </Pressable>
       </View>
-
-      {view === 'map' ? <RescueMap rescues={rescues} onSelect={(item) => {
-        if (item.assignedUserId === session.user.id) setActiveRescue(item);
-        else setView('list');
-      }} /> : null}
 
       {error ? <Text style={styles.errorBanner}>{error}</Text> : null}
-      <FlatList
-        data={rescues}
-        style={styles.rescueList}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.list}
-        ListHeaderComponent={view==='map' ? <Text style={styles.listNote}>Rescue details · tap a pin to locate a rescue</Text> : undefined}
-        ListEmptyComponent={<Text style={styles.empty}>No matching rescues are waiting right now.</Text>}
-        renderItem={({ item }) => (
-          <View style={styles.card}>
-            <View style={styles.cardTop}>
-              <Text style={styles.animal}>{item.type}</Text>
-              <Text style={styles.status}>{item.status}</Text>
-            </View>
-            <Text style={styles.location}>{item.location || 'Location not recorded'}</Text>
-            <Text style={styles.injury}>{item.injury || 'Condition not recorded'}</Text>
-            {item.status === 'PENDING' ? (
-              <Pressable style={styles.claimButton} disabled={busy || !available} onPress={() => handleClaim(item.id)}>
-                <Text style={styles.primaryButtonText}>{busy ? 'Please wait…' : 'Claim rescue'}</Text>
-              </Pressable>
-            ) : item.assignedUserId === session.user.id ? (
-              <>
-                <Text style={styles.mine}>Claimed by you · response in progress</Text>
-                <Pressable style={styles.claimButton} onPress={() => setActiveRescue(item)}>
-                  <Text style={styles.primaryButtonText}>Manage animals and care history</Text>
+      {view === 'map' ? (
+        <View style={styles.mapBody}>
+          <RescueMap rescues={rescues} onSelect={setSelectedMapRescue} />
+          {selectedMapRescue ? (
+            <View style={styles.selectedRescue}>
+              <View style={styles.selectedHeading}>
+                <Text style={styles.animal} numberOfLines={1}>{selectedMapRescue.type}</Text>
+                <Pressable accessibilityRole="button" accessibilityLabel="Close rescue details"
+                  onPress={() => setSelectedMapRescue(null)} style={styles.dismiss}>
+                  <Text style={styles.dismissText}>×</Text>
                 </Pressable>
-              </>
-            ) : null}
-          </View>
-        )}
-      />
+              </View>
+              <Text style={styles.location}>{selectedMapRescue.location || 'Location not recorded'}</Text>
+              <Text style={styles.injury} numberOfLines={2}>{selectedMapRescue.injury || 'Condition not recorded'}</Text>
+              {selectedMapRescue.status === 'PENDING' ? available ? (
+                <Pressable style={styles.claimButton} disabled={busy} onPress={() => handleClaim(selectedMapRescue.id)}
+                  accessibilityRole="button">
+                  <Text style={styles.primaryButtonText}>{busy ? 'Please wait…' : 'Claim rescue'}</Text>
+                </Pressable>
+              ) : (
+                <Pressable style={styles.claimButton} onPress={() => setView('settings')} accessibilityRole="button">
+                  <Text style={styles.primaryButtonText}>Change availability in Settings to claim</Text>
+                </Pressable>
+              ) : selectedMapRescue.assignedUserId === session.user.id ? (
+                <Pressable style={styles.claimButton} onPress={() => setActiveRescue(selectedMapRescue)}
+                  accessibilityRole="button">
+                  <Text style={styles.primaryButtonText}>Manage animal care</Text>
+                </Pressable>
+              ) : null}
+            </View>
+          ) : null}
+        </View>
+      ) : (
+        <FlatList
+          data={rescues}
+          style={styles.rescueList}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={styles.list}
+          ListEmptyComponent={<Text style={styles.empty}>No matching rescues are waiting right now.</Text>}
+          renderItem={({ item }) => (
+            <View style={styles.card}>
+              <View style={styles.cardTop}>
+                <Text style={styles.animal}>{item.type}</Text>
+                <Text style={styles.status}>{item.status}</Text>
+              </View>
+              <Text style={styles.location}>{item.location || 'Location not recorded'}</Text>
+              <Text style={styles.injury}>{item.injury || 'Condition not recorded'}</Text>
+              {item.status === 'PENDING' ? (
+                <Pressable style={styles.claimButton} disabled={busy || !available} onPress={() => handleClaim(item.id)}>
+                  <Text style={styles.primaryButtonText}>{busy ? 'Please wait…' : available ? 'Claim rescue' : 'Available in Settings to claim'}</Text>
+                </Pressable>
+              ) : item.assignedUserId === session.user.id ? (
+                <>
+                  <Text style={styles.mine}>Claimed by you · response in progress</Text>
+                  <Pressable style={styles.claimButton} onPress={() => setActiveRescue(item)}>
+                    <Text style={styles.primaryButtonText}>Manage animals and care history</Text>
+                  </Pressable>
+                </>
+              ) : null}
+            </View>
+          )}
+        />
+      )}
 
-      <Pressable
-        style={styles.signOut}
-        onPress={async () => {
-          await logout();
-          setSession(null);
-          setRescues([]);
-          setActiveRescue(null);
-          setPolicy(null);
-          setView('map');
-        }}
-      >
-        <Text style={styles.signOutText}>Sign out</Text>
-      </Pressable>
     </SafeAreaView>
   );
 }
@@ -237,17 +255,27 @@ const styles = StyleSheet.create({
   error: { color: '#a23f35', fontSize: 12 },
   primaryButton: { backgroundColor: '#173d2c', borderRadius: 12, padding: 15, alignItems: 'center' },
   primaryButtonText: { color: '#fff', fontWeight: '800' },
-  header: { padding: 20, flexDirection: 'row', justifyContent: 'space-between', gap: 18, alignItems: 'center' },
-  headerCopy: { flex: 1 },
-  availability: { marginHorizontal: 16, padding: 16, backgroundColor: '#fff', borderRadius: 14, borderWidth: 1, borderColor: '#d9e1dc' },
-  availabilityTitle: { color: '#173d2c', fontWeight: '800', marginBottom: 4 },
-  sectionHeader: { marginTop: 22, paddingHorizontal: 20, flexDirection: 'row', justifyContent: 'space-between' },
-  sectionTitle: { color: '#17211d', fontWeight: '800', fontSize: 16 },
-  refresh: { color: '#24583f', fontWeight: '700' },
-  list: { padding: 16, gap: 10 },
+  header: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, paddingTop: 10, paddingBottom: 8 },
+  headerCopy: { flex: 1, minWidth: 0 },
+  context: { color: '#4b6555', fontSize: 12, marginTop: 3, fontWeight: '600' },
+  headerAction: { paddingHorizontal: 10, paddingVertical: 11, backgroundColor: '#fff', borderRadius: 10 },
+  headerActionText: { color: '#173d2c', fontSize: 13, fontWeight: '800' },
+  viewBar: { flexDirection: 'row', gap: 6, paddingHorizontal: 14, paddingBottom: 8 },
+  viewButton: { flex: 1, alignItems: 'center', borderRadius: 9, backgroundColor: '#fff', paddingVertical: 9 },
+  viewSelected: { backgroundColor: '#173d2c' },
+  viewText: { color: '#173d2c', fontSize: 13, fontWeight: '800' },
+  viewTextSelected: { color: '#fff' },
+  mapBody: { flex: 1, position: 'relative' },
+  selectedRescue: { position: 'absolute', bottom: 14, left: 14, right: 14, borderRadius: 16,
+    padding: 16, backgroundColor: '#fff', borderWidth: 1, borderColor: '#d9e1dc',
+    shadowColor: '#000', shadowOpacity: 0.13, shadowRadius: 14, elevation: 5 },
+  selectedHeading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  dismiss: { paddingHorizontal: 8, paddingVertical: 2 },
+  dismissText: { color: '#4b6555', fontSize: 25, lineHeight: 28 },
+  list: { padding: 14, gap: 10 },
   card: { backgroundColor: '#fff', borderRadius: 14, padding: 15, borderWidth: 1, borderColor: '#d9e1dc' },
   cardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  animal: { color: '#17211d', fontWeight: '800', fontSize: 16 },
+  animal: { color: '#17211d', fontWeight: '800', fontSize: 16, flexShrink: 1 },
   status: { color: '#7b5b0d', backgroundColor: '#fff1cd', borderRadius: 99, paddingHorizontal: 8, paddingVertical: 4, fontSize: 10, fontWeight: '800' },
   location: { marginTop: 7, color: '#435249', fontWeight: '700' },
   injury: { marginTop: 4, color: '#76837b', lineHeight: 18 },
@@ -255,12 +283,5 @@ const styles = StyleSheet.create({
   claimButton: { backgroundColor: '#173d2c', borderRadius: 10, padding: 12, alignItems: 'center', marginTop: 12 },
   mine: { color: '#24583f', fontWeight: '700', marginTop: 12 },
   errorBanner: { color: '#a23f35', paddingHorizontal: 20, paddingTop: 10 },
-  signOut: { margin: 16, padding: 12, alignItems: 'center' },
-  signOutText: { color: '#6c7972', fontWeight: '700' },
-  settingsButton:{padding:10,backgroundColor:'#fff',borderRadius:10},
-  settingsText:{fontSize:13,color:'#173d2c',fontWeight:'800'},
-  modeRowWide:{flexDirection:'row',marginHorizontal:16,marginTop:10,gap:8},
-  viewButton:{flex:1,alignItems:'center',padding:9,backgroundColor:'#fff',borderRadius:9},
-  viewSelected:{backgroundColor:'#173d2c'},viewText:{fontWeight:'700',color:'#173d2c'},viewTextSelected:{color:'#fff'},
-  rescueList:{flex:1},listNote:{fontSize:12,color:'#58695f',paddingBottom:5}
+  rescueList: { flex: 1 }
 });
