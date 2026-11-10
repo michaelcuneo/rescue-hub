@@ -47,6 +47,7 @@ export type Rescue = {
   status: string;
   assignedUserId?: string | null;
   custodyRole?: 'CUSTODIAN';
+  stageLabel?: string;
 };
 
 function endpoint(path: string) {
