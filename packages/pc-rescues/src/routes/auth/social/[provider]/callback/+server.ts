@@ -7,7 +7,7 @@ import type { RequestHandler } from './$types';
 async function finish(input: {
   provider: string; origin: string; state: string; code: string;
   appleUser?: string; cookies: Parameters<RequestHandler>[0]['cookies']
-}) {
+}): Promise<Response> {
   if (!isSocialProvider(input.provider)) throw redirect(303, '/join?social_error=unknown');
   try {
     const identity = await finishSocialOAuth({
