@@ -64,7 +64,9 @@ export const GET: RequestHandler = async ({ locals }) => {
   // Current custody (not historical claimant) governs ongoing care visibility.
   // After every registered animal has been accepted by another custodian,
   // the original rescuer's completed handoff disappears from their queue.
-  const currentCustody = await listCustodianAnimals(user.organisationId, user.id);
+  const finalOutcomes = new Set(['RELEASED', 'EUTHANISED', 'DECEASED']);
+  const currentCustody = (await listCustodianAnimals(user.organisationId, user.id))
+    .filter(animal => !finalOutcomes.has(animal.status));
   const custodianRescueIds = new Set(currentCustody.map(animal => animal.rescueId));
   const owned = inOrganisation.filter(rescue => rescue.assignedUserId === user.id);
   const ownedAnimalGroups = await Promise.all(owned.map(async rescue => ({
@@ -73,9 +75,30 @@ export const GET: RequestHandler = async ({ locals }) => {
   })));
   const activeOwned = new Set(ownedAnimalGroups.filter(group =>
     group.animals.length === 0 || group.animals.some(animal =>
-      animal.currentCustodianUserId === user.id
+      animal.currentCustodianUserId === user.id && !finalOutcomes.has(animal.status)
     )
   ).map(group => group.id));
+
+  const stages = new Map<string, string>();
+  for (const group of ownedAnimalGroups) {
+    if (group.animals.some(animal => animal.status === 'AT_VET' &&
+      animal.vetStage === 'ASSESSED_AWAITING_TRANSPORT')) {
+      stages.set(group.id, 'Assessed · awaiting transport');
+    } else if (group.animals.some(animal => animal.status === 'AT_VET')) {
+      stages.set(group.id, 'At vet · being assessed');
+    } else if (group.animals.some(animal => animal.status === 'IN_TRANSIT')) {
+      stages.set(group.id, 'Animal in transport');
+    } else if (group.animals.some(animal => animal.status === 'IN_CARE')) {
+      stages.set(group.id, 'In care');
+    }
+  }
+  for (const animal of currentCustody) {
+    if (!stages.has(animal.rescueId)) stages.set(animal.rescueId,
+      animal.status === 'AT_VET'
+        ? animal.vetStage === 'ASSESSED_AWAITING_TRANSPORT' ? 'Assessed · awaiting transport' : 'At vet · being assessed'
+        : animal.status === 'IN_TRANSIT' ? 'Animal in transport'
+          : animal.status === 'IN_CARE' ? 'In care' : 'Rescue in progress');
+  }
 
   const items = inOrganisation.filter(rescue =>
     activeOwned.has(rescue.id) ||
@@ -86,7 +109,8 @@ export const GET: RequestHandler = async ({ locals }) => {
       ))
   ).map(rescue => ({
     ...rescue,
-    custodyRole: custodianRescueIds.has(rescue.id) ? 'CUSTODIAN' : undefined
+    custodyRole: custodianRescueIds.has(rescue.id) ? 'CUSTODIAN' : undefined,
+    stageLabel: stages.get(rescue.id)
   }));
 
   return json({
