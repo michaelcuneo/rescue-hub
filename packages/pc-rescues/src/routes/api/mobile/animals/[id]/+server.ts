@@ -13,11 +13,14 @@ export const GET: RequestHandler = async ({ locals, params, cookies }) => {
   const pending = await getPendingAnimalTransfer(animal);
   const transport = animal.activeTransportRescueId ? await getRescue(animal.activeTransportRescueId) : null;
   const claimedTransport = transport?.organisationId === organisationId && transport.assignedUserId === user.id;
-  if (animal.currentCustodianUserId !== user.id && pending?.toUserId !== user.id && !claimedTransport && !user.roles.some((r) => ['ORG_ADMIN', 'DISPATCHER', 'PLATFORM_ADMIN', 'AUTHORITY_ADMIN'].includes(r))) {
+  if (animal.currentCustodianUserId !== user.id && pending?.toUserId !== user.id && animal.reservedCarerUserId !== user.id && !claimedTransport && !user.roles.some((r) => ['ORG_ADMIN', 'DISPATCHER', 'PLATFORM_ADMIN', 'AUTHORITY_ADMIN'].includes(r))) {
     return json({ error: 'Access denied.' }, { status: 403 });
   }
   const events = await listAnimalEvents(animal.id);
-  return json({ animal, events: user.roles.some((r) => ['ORG_ADMIN', 'DISPATCHER'].includes(r)) || (animal.currentCustodianUserId === user.id || claimedTransport) ? events : events.filter((event) => event.id === animal.pendingTransferId) });
+  return json({ animal: {
+    ...animal,
+    pendingTransferToUserId: pending?.toUserId === user.id ? user.id : undefined
+  }, events: user.roles.some((r) => ['ORG_ADMIN', 'DISPATCHER'].includes(r)) || (animal.currentCustodianUserId === user.id || claimedTransport) ? events : events.filter((event) => event.id === animal.pendingTransferId) });
 };
 
 export const PATCH: RequestHandler = async ({ locals, params, request }) => {
