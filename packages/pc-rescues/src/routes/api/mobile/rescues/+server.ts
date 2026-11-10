@@ -1,6 +1,7 @@
 import { json } from '@sveltejs/kit';
 import { getRescues, type Rescue } from '$lib/server/graphql';
 import { listAdminRescues } from '$lib/server/admin-data';
+import { listRescueAnimals, listCustodianAnimals } from '$lib/server/animals';
 import {
   classifyDispatchCapability,
   getOrganisationMembershipConfig,
@@ -60,13 +61,33 @@ export const GET: RequestHandler = async ({ locals }) => {
   );
   const canBrowse = user.enabled && user.status === 'ACTIVE' && permittedRole;
 
-  const items = inOrganisation.filter((rescue) =>
-    rescue.assignedUserId === user.id ||
+  // Current custody (not historical claimant) governs ongoing care visibility.
+  // After every registered animal has been accepted by another custodian,
+  // the original rescuer's completed handoff disappears from their queue.
+  const currentCustody = await listCustodianAnimals(user.organisationId, user.id);
+  const custodianRescueIds = new Set(currentCustody.map(animal => animal.rescueId));
+  const owned = inOrganisation.filter(rescue => rescue.assignedUserId === user.id);
+  const ownedAnimalGroups = await Promise.all(owned.map(async rescue => ({
+    id: rescue.id,
+    animals: await listRescueAnimals(rescue.id, user.organisationId!)
+  })));
+  const activeOwned = new Set(ownedAnimalGroups.filter(group =>
+    group.animals.length === 0 || group.animals.some(animal =>
+      animal.currentCustodianUserId === user.id
+    )
+  ).map(group => group.id));
+
+  const items = inOrganisation.filter(rescue =>
+    activeOwned.has(rescue.id) ||
+    custodianRescueIds.has(rescue.id) ||
     (canBrowse && rescue.status === 'PENDING' && !rescue.assignedUserId &&
       memberCanReceiveCapability(
         user.teamIds, membership, classifyDispatchCapability(rescue.type, rescue.breed ?? '')
       ))
-  );
+  ).map(rescue => ({
+    ...rescue,
+    custodyRole: custodianRescueIds.has(rescue.id) ? 'CUSTODIAN' : undefined
+  }));
 
   return json({
     items,
