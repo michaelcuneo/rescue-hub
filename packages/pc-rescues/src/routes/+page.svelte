@@ -42,6 +42,7 @@
     let disposed = false;
     let connected = false;
     let stop: (() => void) | null = null;
+    let retryConfig: ReturnType<typeof setTimeout> | null = null;
     let inFlight = false;
     let pending = false;
 
@@ -74,10 +75,19 @@
           onStatus: online => { connected = online; }
         });
       } catch (error) {
-        console.error('Desktop realtime connection unavailable:', error);
+        if (!disposed) {
+          console.error('Desktop realtime connection unavailable:', error);
+          retryConfig = setTimeout(() => void start(), 10_000);
+        }
       }
     };
     void start();
+    const whenVisible = () => {
+      if (document.visibilityState === 'visible') void reload();
+    };
+    const whenOnline = () => void reload();
+    document.addEventListener('visibilitychange', whenVisible);
+    window.addEventListener('online', whenOnline);
     // Safety net only while disconnected; normal updates are subscriptions.
     const fallback = setInterval(() => {
       if (!connected) void reload();
@@ -85,6 +95,9 @@
     return () => {
       disposed = true;
       clearInterval(fallback);
+      if (retryConfig) clearTimeout(retryConfig);
+      document.removeEventListener('visibilitychange', whenVisible);
+      window.removeEventListener('online', whenOnline);
       stop?.();
     };
   });
