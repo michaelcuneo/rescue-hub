@@ -1,6 +1,7 @@
 import ReporterConversation from './ReporterConversation';
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
+import { KeyboardAwareScrollView, KeyboardAwareTextInput } from './KeyboardAware';
 import {
   acceptAnimalTransfer, addAnimalNote, getAnimalHistory, getRescueAnimals, confirmRescuePickup, getCareDelivery, type CareDeliveryDestination,
   recordAnimalOutcome, registerAnimal, requestAnimalTransfer, startVetTransport, recordVetDropoff, recordVetAssessment, unclaimRescue,
@@ -145,7 +146,7 @@ export default function AnimalCare({ rescue, userId, onBack, onUnclaim }: Props)
   const isFinal = selected ? terminal.has(selected.status) : false;
 
   return (
-    <ScrollView style={styles.root} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+    <KeyboardAwareScrollView style={styles.root} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
       <Pressable onPress={selected ? () => { setSelected(null); setEvents([]); setError(''); } : onBack}>
         <Text style={styles.link}>‹ {selected ? 'All animals' : 'Rescues'}</Text>
       </Pressable>
@@ -189,7 +190,7 @@ export default function AnimalCare({ rescue, userId, onBack, onUnclaim }: Props)
           ) : (
             <>
               <Text style={styles.muted}>Claiming the job did not collect the animal. Confirm only after physically picking up the animal. This removes its pin from the map, not its care record.</Text>
-              <TextInput style={[styles.input,styles.multilineInput]} value={collectionNotes} onChangeText={setCollectionNotes}
+              <KeyboardAwareTextInput style={[styles.input,styles.multilineInput]} value={collectionNotes} onChangeText={setCollectionNotes}
                 multiline maxLength={1000} placeholder="Collection notes (optional)" accessibilityLabel="Animal collection notes" />
               <Pressable style={styles.button} disabled={busy} accessibilityRole="button"
                 onPress={() => Alert.alert('Confirm physical collection?', 'The animal will disappear from the operational map but remain in your care records.', [
@@ -213,8 +214,8 @@ export default function AnimalCare({ rescue, userId, onBack, onUnclaim }: Props)
           {rescue.assignedUserId === userId && rescue.status === 'ASSIGNED' ? <View style={styles.card}>
             <Text style={styles.section}>Correct the public observation</Text>
             <Text style={styles.muted}>The reporter's original information is retained. Correct what you found at the scene.</Text>
-            <TextInput style={styles.input} value={incidentSpecies} onChangeText={setIncidentSpecies} maxLength={120} accessibilityLabel="Verified animal identification" placeholder="Confirmed animal" />
-            <TextInput style={[styles.input,styles.multilineInput]} value={incidentCondition} onChangeText={setIncidentCondition} maxLength={2000} multiline accessibilityLabel="Verified condition" placeholder="Observed injury or condition" />
+            <KeyboardAwareTextInput style={styles.input} value={incidentSpecies} onChangeText={setIncidentSpecies} maxLength={120} accessibilityLabel="Verified animal identification" placeholder="Confirmed animal" />
+            <KeyboardAwareTextInput style={[styles.input,styles.multilineInput]} value={incidentCondition} onChangeText={setIncidentCondition} maxLength={2000} multiline accessibilityLabel="Verified condition" placeholder="Observed injury or condition" />
             <Pressable style={styles.button} disabled={busy || incidentSpecies.trim().length < 2}
               onPress={() => void run(() => correctReportedRescue(rescue.id, incidentSpecies, incidentCondition))}>
               <Text style={styles.buttonText}>{busy ? 'Saving…' : 'Save verified observation'}</Text>
@@ -233,7 +234,7 @@ export default function AnimalCare({ rescue, userId, onBack, onUnclaim }: Props)
             <View style={styles.card}>
               <Text style={styles.section}>Release this rescue</Text>
               <Text style={styles.muted}>Can't attend? Return the case to qualified rescuers. Once an animal is registered, arrange a custody handover instead.</Text>
-              <TextInput style={styles.input} value={unclaimReason} onChangeText={setUnclaimReason}
+              <KeyboardAwareTextInput style={styles.input} value={unclaimReason} onChangeText={setUnclaimReason}
                 maxLength={500} multiline placeholder="Reason (optional)" />
               <Pressable disabled={busy} style={styles.releaseButton}
                 accessibilityRole="button" onPress={() => Alert.alert(
@@ -250,7 +251,7 @@ export default function AnimalCare({ rescue, userId, onBack, onUnclaim }: Props)
               <Text style={styles.section}>Register an animal</Text>
               <Text style={styles.muted}>Record each animal you collect separately. These details follow the animal through rescue, vet care and handovers.</Text>
               <Text style={styles.fieldLabel}>Animal species / type <Text style={styles.required}>*</Text></Text>
-              <TextInput
+              <KeyboardAwareTextInput
                 style={styles.input}
                 value={species}
                 onChangeText={setSpecies}
@@ -262,7 +263,7 @@ export default function AnimalCare({ rescue, userId, onBack, onUnclaim }: Props)
               />
               <Text style={styles.fieldHelp}>Prefilled from the rescue report. Correct it if the animal is a different species.</Text>
               <Text style={styles.fieldLabel}>Identifying details <Text style={styles.optional}>(optional)</Text></Text>
-              <TextInput
+              <KeyboardAwareTextInput
                 style={[styles.input, styles.multilineInput]}
                 value={description}
                 onChangeText={setDescription}
@@ -288,8 +289,8 @@ export default function AnimalCare({ rescue, userId, onBack, onUnclaim }: Props)
           <View style={styles.card}>
             <Text style={styles.section}>Correct the animal identification</Text>
             <Text style={styles.muted}>The public report remains unchanged; all corrections are recorded in the animal history.</Text>
-            <TextInput style={styles.input} value={correctedSpecies} onChangeText={setCorrectedSpecies} maxLength={120} accessibilityLabel="Corrected animal species" placeholder="Confirmed species" />
-            <TextInput style={[styles.input,styles.multilineInput]} value={correctedDescription} onChangeText={setCorrectedDescription} maxLength={2000} multiline accessibilityLabel="Corrected identifying details" placeholder="Identifying details or corrected condition" />
+            <KeyboardAwareTextInput style={styles.input} value={correctedSpecies} onChangeText={setCorrectedSpecies} maxLength={120} accessibilityLabel="Corrected animal species" placeholder="Confirmed species" />
+            <KeyboardAwareTextInput style={[styles.input,styles.multilineInput]} value={correctedDescription} onChangeText={setCorrectedDescription} maxLength={2000} multiline accessibilityLabel="Corrected identifying details" placeholder="Identifying details or corrected condition" />
             <Pressable style={styles.button} disabled={busy || !correctedSpecies.trim() || !isCustodian || isFinal}
               onPress={() => void run(() => correctAnimalIdentification(selected!.id, correctedSpecies, correctedDescription), selected!.id)}>
               <Text style={styles.buttonText}>{busy ? 'Saving…' : 'Save verified identification'}</Text>
@@ -333,7 +334,7 @@ export default function AnimalCare({ rescue, userId, onBack, onUnclaim }: Props)
                     </Pressable>
                   ))}
                 </View>
-                <TextInput style={styles.input} placeholder="Care observations or treatment notes *" multiline value={notes} onChangeText={setNotes} maxLength={4000} />
+                <KeyboardAwareTextInput style={styles.input} placeholder="Care observations or treatment notes *" multiline value={notes} onChangeText={setNotes} maxLength={4000} />
                 <Pressable style={styles.button} disabled={busy || !notes.trim()} onPress={() => void run(() => addAnimalNote(selected.id, eventType, notes.trim()), selected.id)}>
                   <Text style={styles.buttonText}>Save care note</Text>
                 </Pressable>
@@ -343,7 +344,7 @@ export default function AnimalCare({ rescue, userId, onBack, onUnclaim }: Props)
                 <Text style={styles.muted}>Record transport and drop-off separately. After confirmed collection, the animal stays in its permanent care record but is off the operational map.</Text>
                 {selected.status !== 'AT_VET' ? (
                   <>
-                    <TextInput style={styles.input} placeholder="Veterinary facility / location *"
+                    <KeyboardAwareTextInput style={styles.input} placeholder="Veterinary facility / location *"
                       value={vetLocation} onChangeText={setVetLocation} maxLength={250} />
                     {selected.status !== 'IN_TRANSIT' && collected ? (
                       <Pressable style={styles.button} disabled={busy || !vetLocation.trim()}
@@ -382,9 +383,9 @@ export default function AnimalCare({ rescue, userId, onBack, onUnclaim }: Props)
                     </Pressable>
                   ))}
                 </View>}
-                <TextInput style={styles.input} editable={!selected.reservedCarerUserId}
+                <KeyboardAwareTextInput style={styles.input} editable={!selected.reservedCarerUserId}
                   placeholder="Recipient user ID *" autoCapitalize="none" value={recipientId} onChangeText={setRecipientId} />
-                <TextInput style={styles.input} placeholder="Destination / facility" editable={!selected.reservedCarerUserId}
+                <KeyboardAwareTextInput style={styles.input} placeholder="Destination / facility" editable={!selected.reservedCarerUserId}
                   value={destination} onChangeText={setDestination} maxLength={250} />
                 <Pressable style={styles.button} disabled={busy || !recipientId.trim()} onPress={() => void run(() => requestAnimalTransfer(selected.id, selected.reservedCarerUserId ?? recipientId.trim(), destination.trim(), '', selected.reservedCarerUserId ? 'CARE' : transferPurpose), selected.id)}>
                   <Text style={styles.buttonText}>Request handover</Text>
@@ -400,7 +401,7 @@ export default function AnimalCare({ rescue, userId, onBack, onUnclaim }: Props)
                   ))}
                 </View>
                 <Text style={styles.warning}>Final outcomes close this animal's active care record.</Text>
-                <TextInput style={styles.input} placeholder="Outcome notes *" multiline value={notes} onChangeText={setNotes} />
+                <KeyboardAwareTextInput style={styles.input} placeholder="Outcome notes *" multiline value={notes} onChangeText={setNotes} />
                 <Pressable style={styles.button} disabled={busy || !notes.trim()} onPress={() => void run(() => recordAnimalOutcome(selected.id, outcome, notes.trim()), selected.id)}>
                   <Text style={styles.buttonText}>Confirm final outcome</Text>
                 </Pressable>
@@ -418,7 +419,7 @@ export default function AnimalCare({ rescue, userId, onBack, onUnclaim }: Props)
           ) : null}
         </>
       )}
-    </ScrollView>
+    </KeyboardAwareScrollView>
   );
 }
 
