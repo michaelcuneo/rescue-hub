@@ -1,0 +1,211 @@
+import { useCallback, useEffect, useState } from 'react';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import {
+  acceptAnimalTransfer, addAnimalNote, getAnimalHistory, getRescueAnimals,
+  recordAnimalOutcome, registerAnimal, requestAnimalTransfer,
+  type Animal, type AnimalEvent, type Rescue
+} from './api';
+
+type Props = { rescue: Rescue; userId: string; onBack: () => void };
+const eventTypes = ['OBSERVATION', 'VET_ASSESSMENT', 'TREATMENT', 'FEEDING', 'WEIGHT', 'REVIEW'] as const;
+const outcomes = ['RELEASED', 'EUTHANISED', 'DECEASED'] as const;
+const terminal = new Set<string>(outcomes);
+
+export default function AnimalCare({ rescue, userId, onBack }: Props) {
+  const [animals, setAnimals] = useState<Animal[]>([]);
+  const [selected, setSelected] = useState<Animal | null>(null);
+  const [events, setEvents] = useState<AnimalEvent[]>([]);
+  const [species, setSpecies] = useState('');
+  const [description, setDescription] = useState('');
+  const [notes, setNotes] = useState('');
+  const [eventType, setEventType] = useState<(typeof eventTypes)[number]>('OBSERVATION');
+  const [recipientId, setRecipientId] = useState('');
+  const [destination, setDestination] = useState('');
+  const [outcome, setOutcome] = useState<(typeof outcomes)[number]>('RELEASED');
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  const refresh = useCallback(async (id?: string) => {
+    const result = await getRescueAnimals(rescue.id);
+    setAnimals(result.items);
+    if (id) {
+      const history = await getAnimalHistory(id);
+      setSelected(history.animal);
+      setEvents(history.events);
+    }
+  }, [rescue.id]);
+
+  useEffect(() => {
+    let active = true;
+    getRescueAnimals(rescue.id).then((result) => {
+      if (active) setAnimals(result.items);
+    }).catch((e: unknown) => {
+      if (active) setError(e instanceof Error ? e.message : 'Unable to load animals.');
+    }).finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, [rescue.id]);
+
+  async function run(action: () => Promise<unknown>, selectedId?: string) {
+    if (busy) return;
+    setBusy(true);
+    setError('');
+    try {
+      await action();
+      await refresh(selectedId);
+      setNotes('');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Unable to save.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function openAnimal(id: string) {
+    setBusy(true);
+    setError('');
+    try {
+      const history = await getAnimalHistory(id);
+      setSelected(history.animal);
+      setEvents(history.events);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Unable to load animal history.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const isCustodian = selected?.currentCustodianUserId === userId;
+  const isFinal = selected ? terminal.has(selected.status) : false;
+
+  return (
+    <ScrollView style={styles.root} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      <Pressable onPress={selected ? () => { setSelected(null); setEvents([]); setError(''); } : onBack}>
+        <Text style={styles.link}>‹ {selected ? 'All animals' : 'Rescues'}</Text>
+      </Pressable>
+      <Text style={styles.heading}>{selected ? selected.species : rescue.type}</Text>
+      <Text style={styles.muted}>{selected ? `Status: ${selected.status.replace(/_/g, ' ')}` : rescue.location || 'Location not recorded'}</Text>
+      {error ? <Text style={styles.error}>{error}</Text> : null}
+      {loading ? <ActivityIndicator /> : null}
+
+      {!selected ? (
+        <>
+          <Text style={styles.section}>Animals in this rescue ({animals.length})</Text>
+          {animals.map((animal) => (
+            <Pressable key={animal.id} style={styles.card} onPress={() => void openAnimal(animal.id)}>
+              <Text style={styles.bold}>{animal.species}</Text>
+              <Text style={styles.muted}>{animal.status.replace(/_/g, ' ')} · {animal.currentLocation || 'Location not recorded'}</Text>
+              <Text style={styles.link}>View care history ›</Text>
+            </Pressable>
+          ))}
+          {animals.length === 0 && !loading ? <Text style={styles.muted}>No animals registered yet.</Text> : null}
+          {rescue.assignedUserId === userId && (
+            <View style={styles.card}>
+              <Text style={styles.section}>Register an animal</Text>
+              <TextInput style={styles.input} placeholder="Species *" value={species} onChangeText={setSpecies} maxLength={120} />
+              <TextInput style={styles.input} placeholder="Description / identifying details" value={description} onChangeText={setDescription} multiline maxLength={2000} />
+              <Pressable style={styles.button} disabled={busy || !species.trim()} onPress={() => void run(async () => {
+                await registerAnimal(rescue.id, species.trim(), description.trim());
+                setSpecies(''); setDescription('');
+              })}>
+                <Text style={styles.buttonText}>{busy ? 'Saving…' : 'Register animal'}</Text>
+              </Pressable>
+            </View>
+          )}
+        </>
+      ) : (
+        <>
+          <View style={styles.card}>
+            <Text style={styles.section}>Current custody</Text>
+            <Text style={styles.muted}>Custodian: {isCustodian ? 'You' : selected.currentCustodianUserId || 'Unassigned'}</Text>
+            <Text style={styles.muted}>Location: {selected.currentLocation || 'Not recorded'}</Text>
+            <Text style={styles.muted}>Updated: {new Date(selected.updatedAt).toLocaleString()}</Text>
+            {selected.pendingTransferId ? <Text style={styles.warning}>Custody transfer awaiting acknowledgement</Text> : null}
+          </View>
+          <Text style={styles.section}>Care history</Text>
+          {events.map((event) => (
+            <View style={styles.card} key={event.id}>
+              <Text style={styles.bold}>{event.type.replace(/_/g, ' ')}</Text>
+              <Text style={styles.muted}>{new Date(event.occurredAt || event.createdAt).toLocaleString()}</Text>
+              {event.notes ? <Text style={styles.body}>{event.notes}</Text> : null}
+              {event.outcome ? <Text style={styles.body}>Outcome: {event.outcome}</Text> : null}
+            </View>
+          ))}
+          {isCustodian && !isFinal && !selected.pendingTransferId ? (
+            <>
+              <View style={styles.card}>
+                <Text style={styles.section}>Add care note</Text>
+                <View style={styles.chips}>
+                  {eventTypes.map((type) => (
+                    <Pressable key={type} onPress={() => setEventType(type)} style={[styles.chip, eventType === type && styles.chipSelected]}>
+                      <Text style={eventType === type ? styles.chipTextSelected : styles.chipText}>{type.replace(/_/g, ' ')}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+                <TextInput style={styles.input} placeholder="Care observations or treatment notes *" multiline value={notes} onChangeText={setNotes} maxLength={4000} />
+                <Pressable style={styles.button} disabled={busy || !notes.trim()} onPress={() => void run(() => addAnimalNote(selected.id, eventType, notes.trim()), selected.id)}>
+                  <Text style={styles.buttonText}>Save care note</Text>
+                </Pressable>
+              </View>
+              <View style={styles.card}>
+                <Text style={styles.section}>Request custody handover</Text>
+                <Text style={styles.muted}>The receiving rescuer or carer must acknowledge the transfer.</Text>
+                <TextInput style={styles.input} placeholder="Recipient user ID *" autoCapitalize="none" value={recipientId} onChangeText={setRecipientId} />
+                <TextInput style={styles.input} placeholder="Destination / facility" value={destination} onChangeText={setDestination} maxLength={250} />
+                <Pressable style={styles.button} disabled={busy || !recipientId.trim()} onPress={() => void run(() => requestAnimalTransfer(selected.id, recipientId.trim(), destination.trim(), ''), selected.id)}>
+                  <Text style={styles.buttonText}>Request handover</Text>
+                </Pressable>
+              </View>
+              <View style={styles.card}>
+                <Text style={styles.section}>Record final outcome</Text>
+                <View style={styles.chips}>
+                  {outcomes.map((status) => (
+                    <Pressable key={status} style={[styles.chip, outcome === status && styles.chipSelected]} onPress={() => setOutcome(status)}>
+                      <Text style={outcome === status ? styles.chipTextSelected : styles.chipText}>{status}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+                <Text style={styles.warning}>Final outcomes close this animal's active care record.</Text>
+                <TextInput style={styles.input} placeholder="Outcome notes *" multiline value={notes} onChangeText={setNotes} />
+                <Pressable style={styles.button} disabled={busy || !notes.trim()} onPress={() => void run(() => recordAnimalOutcome(selected.id, outcome, notes.trim()), selected.id)}>
+                  <Text style={styles.buttonText}>Confirm final outcome</Text>
+                </Pressable>
+              </View>
+            </>
+          ) : null}
+          {!isCustodian && selected.pendingTransferId && !isFinal ? (
+            <View style={styles.card}>
+              <Text style={styles.section}>Incoming handover</Text>
+              <Text style={styles.muted}>Accept only when you have received the animal and confirmed custody.</Text>
+              <Pressable style={styles.button} disabled={busy} onPress={() => void run(() => acceptAnimalTransfer(selected.id), selected.id)}>
+                <Text style={styles.buttonText}>Accept custody</Text>
+              </Pressable>
+            </View>
+          ) : null}
+        </>
+      )}
+    </ScrollView>
+  );
+}
+
+const styles = StyleSheet.create({
+  root: { flex: 1, backgroundColor: '#edf1ee' },
+  content: { padding: 20, paddingBottom: 50, gap: 12 },
+  heading: { color: '#17211d', fontSize: 26, fontWeight: '800' },
+  section: { fontSize: 17, fontWeight: '800', color: '#17211d', marginBottom: 6 },
+  bold: { color: '#17211d', fontWeight: '700', fontSize: 15 },
+  body: { color: '#435249', marginTop: 6, lineHeight: 20 },
+  muted: { color: '#66736c', fontSize: 13, lineHeight: 19 },
+  link: { color: '#24583f', fontWeight: '700', paddingVertical: 8 },
+  card: { padding: 16, backgroundColor: '#fff', borderWidth: 1, borderColor: '#d9e1dc', borderRadius: 14, gap: 8 },
+  input: { backgroundColor: '#f9fbf9', borderWidth: 1, borderColor: '#d9e1dc', borderRadius: 10, padding: 12, minHeight: 46 },
+  button: { backgroundColor: '#173d2c', borderRadius: 10, padding: 13, alignItems: 'center' },
+  buttonText: { color: '#fff', fontWeight: '800' },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 7 },
+  chip: { borderWidth: 1, borderColor: '#d9e1dc', borderRadius: 9, padding: 8 },
+  chipSelected: { backgroundColor: '#173d2c', borderColor: '#173d2c' },
+  chipText: { color: '#435249', fontSize: 11, fontWeight: '700' },
+  chipTextSelected: { color: '#fff', fontSize: 11, fontWeight: '700' },
+  warning: { color: '#875c0c', fontSize: 12, lineHeight: 18 },
+  error: { color: '#a23f35', fontWeight: '700' }
+});
