@@ -4,7 +4,7 @@ import { ActivityIndicator, Alert, Linking, Pressable, ScrollView, StyleSheet, T
 import {
   acceptAnimalTransfer, addAnimalNote, getAnimalHistory, getRescueAnimals,
   recordAnimalOutcome, registerAnimal, requestAnimalTransfer, recordVetDropoff, recordVetAssessment, unclaimRescue,
-  correctAnimalIdentification, getRescuerReporterContact, type Animal, type AnimalEvent, type Rescue
+  correctAnimalIdentification, correctReportedRescue, getRescuerReporterContact, type Animal, type AnimalEvent, type Rescue
 } from './api';
 
 type Props = { rescue: Rescue; userId: string; onBack: () => void; onUnclaim: () => void };
@@ -20,6 +20,8 @@ export default function AnimalCare({ rescue, userId, onBack, onUnclaim }: Props)
   const [events, setEvents] = useState<AnimalEvent[]>([]);
   const [species, setSpecies] = useState(rescue.type ?? '');
   const [description, setDescription] = useState('');
+  const [incidentSpecies, setIncidentSpecies] = useState(rescue.type);
+  const [incidentCondition, setIncidentCondition] = useState(rescue.injury ?? '');
   const [correctedSpecies, setCorrectedSpecies] = useState('');
   const [correctedDescription, setCorrectedDescription] = useState('');
   const [notes, setNotes] = useState('');
@@ -133,6 +135,16 @@ export default function AnimalCare({ rescue, userId, onBack, onUnclaim }: Props)
 
       {!selected ? (
         <>
+          {rescue.assignedUserId === userId && rescue.status === 'ASSIGNED' ? <View style={styles.card}>
+            <Text style={styles.section}>Correct the public observation</Text>
+            <Text style={styles.muted}>The reporter's original information is retained. Correct what you found at the scene.</Text>
+            <TextInput style={styles.input} value={incidentSpecies} onChangeText={setIncidentSpecies} maxLength={120} accessibilityLabel="Verified animal identification" placeholder="Confirmed animal" />
+            <TextInput style={[styles.input,styles.multilineInput]} value={incidentCondition} onChangeText={setIncidentCondition} maxLength={2000} multiline accessibilityLabel="Verified condition" placeholder="Observed injury or condition" />
+            <Pressable style={styles.button} disabled={busy || incidentSpecies.trim().length < 2}
+              onPress={() => void run(() => correctReportedRescue(rescue.id, incidentSpecies, incidentCondition))}>
+              <Text style={styles.buttonText}>{busy ? 'Saving…' : 'Save verified observation'}</Text>
+            </Pressable>
+          </View> : null}
           <Text style={styles.section}>Animals in this rescue ({animals.length})</Text>
           {animals.map((animal) => (
             <Pressable key={animal.id} style={styles.card} onPress={() => void openAnimal(animal.id)}>
