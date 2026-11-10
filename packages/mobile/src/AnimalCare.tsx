@@ -170,6 +170,15 @@ export default function AnimalCare({ rescue, userId, onBack, onUnclaim }: Props)
             'https://www.google.com/maps/dir/?api=1&destination=' +
             encodeURIComponent(`${deliveryInfo.latitude},${deliveryInfo.longitude}`)
           )}><Text style={styles.link}>Directions to nominated carer</Text></Pressable>
+          <Pressable accessibilityRole="button" onPress={() => {
+            if (!rescue.transportAnimalId) return;
+            void getCareDelivery(rescue.transportAnimalId).then(result => {
+              setDeliveryInfo(result.destination);
+              setRecipientId(result.destination.carerUserId);
+              setDestination(result.destination.address);
+              setTransferPurpose('CARE');
+            }).catch(e => setError(e instanceof Error ? e.message : 'Could not refresh delivery instructions.'));
+          }}><Text style={styles.link}>Refresh carer delivery location</Text></Pressable>
         </> : null}
       </View> : null}
       {rescue.status === 'ASSIGNED' && rescue.assignedUserId === userId ? (
