@@ -19,6 +19,8 @@ import {
   login,
   logout,
   restoreSession,
+  signupReporter,
+  verifyReporter,
   type AvailabilityPolicy,
   type MembershipConfig,
   type Rescue,
@@ -29,9 +31,10 @@ import { registerForPushNotifications, type PushRegistration } from './src/notif
 import AnimalCare from './src/AnimalCare';
 import AvailabilitySettings from './src/AvailabilitySettings';
 import RescueMap from './src/RescueMap';
+import PublicReporter from './src/PublicReporter';
 import { subscribeRescueChanges } from '../core/realtime-client';
 
-type Session = { user: User; membership: MembershipConfig };
+type Session = { user: User; membership: MembershipConfig | null };
 
 export default function App() {
   const [loading, setLoading] = useState(true);
@@ -41,6 +44,9 @@ export default function App() {
   const [selectedMapRescue, setSelectedMapRescue] = useState<Rescue | null>(null);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [reporterName, setReporterName] = useState('');
+  const [verificationCode, setVerificationCode] = useState('');
+  const [authMode, setAuthMode] = useState<'login' | 'signup' | 'verify'>('login');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [view, setView] = useState<'map' | 'list' | 'settings'>('map');
@@ -53,7 +59,8 @@ export default function App() {
       const restored = await restoreSession();
       if (restored) {
         setSession(restored);
-        setPushStatus(await registerForPushNotifications());
+        if (!restored.user.roles?.includes('PUBLIC_REPORTER')) {
+          setPushStatus(await registerForPushNotifications());
         try {
           const result = await getRescues();
           setRescues(result.items);
@@ -62,6 +69,7 @@ export default function App() {
           setError(e instanceof Error ? e.message : 'Unable to load rescues.');
         }
         await getAvailability().then(({ policy }) => setPolicy(policy)).catch(console.warn);
+        }
       }
       setLoading(false);
     })();
@@ -71,7 +79,7 @@ export default function App() {
   // server filters actual records by organisation/team/custodian; the websocket
   // carries no rescue or location data and has no mutation permissions.
   useEffect(() => {
-    if (!session?.user.id) return;
+    if (!session?.user.id || session.user.roles?.includes('PUBLIC_REPORTER')) return;
     const userId = session.user.id;
     let closed = false;
     let foreground = AppState.currentState === 'active';
@@ -176,7 +184,7 @@ export default function App() {
   const teamNames = useMemo(() => {
     if (!session) return [];
     const ids = new Set(session.user.teamIds);
-    return session.membership.teams.filter((team) => ids.has(team.id)).map((team) => team.name);
+    return (session.membership?.teams ?? []).filter((team) => ids.has(team.id)).map((team) => team.name);
   }, [session]);
 
   async function handleLogin() {
@@ -185,16 +193,39 @@ export default function App() {
     try {
       const result = await login(email.trim(), password);
       setSession({ user: result.user, membership: result.membership });
-      setPushStatus(await registerForPushNotifications());
-      const initial = await getRescues();
-      setRescues(initial.items);
-      setFeed(initial.feed ?? null);
-      await getAvailability().then(({ policy }) => setPolicy(policy)).catch(console.warn);
+      if (!result.user.roles?.includes('PUBLIC_REPORTER')) {
+        setPushStatus(await registerForPushNotifications());
+        const initial = await getRescues();
+        setRescues(initial.items);
+        setFeed(initial.feed ?? null);
+        await getAvailability().then(({ policy }) => setPolicy(policy)).catch(console.warn);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Unable to sign in.');
     } finally {
       setBusy(false);
     }
+  }
+
+  async function handleSignup() {
+    setBusy(true); setError('');
+    try {
+      await signupReporter(reporterName.trim(), email.trim(), password);
+      setPassword('');
+      setAuthMode('verify');
+    } catch (e) { setError(e instanceof Error ? e.message : 'Unable to create reporter account.'); }
+    finally { setBusy(false); }
+  }
+
+  async function handleVerify() {
+    setBusy(true); setError('');
+    try {
+      const result = await verifyReporter(email.trim(), verificationCode.trim());
+      setSession(result);
+      setAuthMode('login');
+      setVerificationCode('');
+    } catch (e) { setError(e instanceof Error ? e.message : 'Could not verify your email.'); }
+    finally { setBusy(false); }
   }
 
   async function handleClaim(id: string) {
@@ -246,17 +277,71 @@ export default function App() {
         <StatusBar barStyle="dark-content" />
         <View style={styles.login}>
           <Text style={styles.kicker}>RESCUE HUB</Text>
-          <Text style={styles.title}>Rescuer sign in</Text>
-          <Text style={styles.copy}>Receive rescue notifications for the teams you are qualified to support.</Text>
-          <TextInput autoCapitalize="none" keyboardType="email-address" placeholder="Email" value={email} onChangeText={setEmail} style={styles.input} />
-          <TextInput secureTextEntry placeholder="Password" value={password} onChangeText={setPassword} style={styles.input} />
+          <Text style={styles.title}>
+            {authMode === 'signup' ? 'Report injured wildlife' :
+              authMode === 'verify' ? 'Verify your email' : 'Sign in'}
+          </Text>
+          <Text style={styles.copy}>
+            {authMode === 'signup'
+              ? 'Anyone can report an injured animal. No wildlife organisation membership is needed.'
+              : authMode === 'verify'
+                ? 'Enter the six-digit verification code sent to your email address.'
+                : 'Sign in to rescue wildlife, or create a public reporter account.'}
+          </Text>
+          {authMode === 'signup' ? (
+            <>
+              <Text style={styles.fieldTitle}>Your name</Text>
+              <TextInput style={styles.input} accessibilityLabel="Full name"
+                autoCapitalize="words" value={reporterName} onChangeText={setReporterName} maxLength={100} />
+            </>
+          ) : null}
+          <Text style={styles.fieldTitle}>Email address</Text>
+          <TextInput style={styles.input} accessibilityLabel="Email address"
+            autoCapitalize="none" keyboardType="email-address" value={email}
+            onChangeText={setEmail} autoComplete="email" />
+          {authMode === 'verify' ? (
+            <>
+              <Text style={styles.fieldTitle}>Six-digit verification code</Text>
+              <TextInput style={styles.input} accessibilityLabel="Email verification code"
+                value={verificationCode} onChangeText={setVerificationCode}
+                keyboardType="number-pad" maxLength={6} autoComplete="one-time-code" />
+            </>
+          ) : (
+            <>
+              <Text style={styles.fieldTitle}>Password</Text>
+              <TextInput style={styles.input} accessibilityLabel="Password" secureTextEntry
+                value={password} onChangeText={setPassword}
+                autoComplete={authMode === 'signup' ? 'new-password' : 'current-password'} />
+            </>
+          )}
           {error ? <Text style={styles.error}>{error}</Text> : null}
-          <Pressable style={styles.primaryButton} onPress={handleLogin} disabled={busy}>
-            <Text style={styles.primaryButtonText}>{busy ? 'Signing in…' : 'Sign in'}</Text>
+          <Pressable style={styles.primaryButton} disabled={busy}
+            onPress={() => void (authMode === 'signup' ? handleSignup() : authMode === 'verify' ? handleVerify() : handleLogin())}
+            accessibilityRole="button">
+            <Text style={styles.primaryButtonText}>
+              {busy ? 'Please wait…' : authMode === 'signup' ? 'Create reporter account' :
+                authMode === 'verify' ? 'Verify and continue' : 'Sign in'}
+            </Text>
           </Pressable>
+          <Pressable accessibilityRole="button" onPress={() => { setError(''); setAuthMode(authMode === 'login' ? 'signup' : 'login'); }}>
+            <Text style={styles.modeLink}>
+              {authMode === 'login' ? 'Not a rescuer? Create a public reporter account' : 'Already have an account? Sign in'}
+            </Text>
+          </Pressable>
+          {authMode === 'verify' ? (
+            <Pressable accessibilityRole="button" onPress={() => void handleSignup()}>
+              <Text style={styles.modeLink}>Resend verification code</Text>
+            </Pressable>
+          ) : null}
         </View>
       </SafeAreaView>
     );
+  }
+
+  if (session.user.roles?.includes('PUBLIC_REPORTER')) {
+    return <SafeAreaView style={styles.root}>
+      <PublicReporter onSignOut={signOut} />
+    </SafeAreaView>;
   }
 
   const available = session.user.availabilityStatus === 'AVAILABLE';
@@ -401,6 +486,8 @@ const styles = StyleSheet.create({
   title: { color: '#17211d', fontSize: 28, fontWeight: '800', letterSpacing: -0.8 },
   copy: { color: '#66736c', fontSize: 13, lineHeight: 19 },
   input: { backgroundColor: '#fff', borderWidth: 1, borderColor: '#d9e1dc', borderRadius: 12, padding: 14 },
+  fieldTitle: { color: '#173d2c', fontSize: 13, fontWeight: '800' },
+  modeLink: { color: '#24583f', fontWeight: '800', fontSize: 13, textAlign: 'center', paddingVertical: 9 },
   error: { color: '#a23f35', fontSize: 12 },
   primaryButton: { backgroundColor: '#173d2c', borderRadius: 12, padding: 15, alignItems: 'center' },
   primaryButtonText: { color: '#fff', fontWeight: '800' },
