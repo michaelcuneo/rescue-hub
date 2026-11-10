@@ -12,10 +12,12 @@ export const POST: RequestHandler = async ({ request }) => {
 
 	try {
 		const result = await loginUser(body.email, body.password);
-		if (!result.user?.organisationId) {
-			return json({ error: 'This account is not attached to a rescue organisation.' }, { status: 403 });
+		if (!result.user?.organisationId && !result.user?.roles.includes('PUBLIC_REPORTER')) {
+			return json({ error: 'This account cannot use the mobile application.' }, { status: 403 });
 		}
-		const membership = await getOrganisationMembershipConfig(result.user.organisationId);
+		const membership = result.user.organisationId
+			? await getOrganisationMembershipConfig(result.user.organisationId)
+			: null;
 		return json({ token: result.sessionToken, user: { ...result.user, availabilityStatus: effectiveAvailability(result.user) }, membership });
 	} catch (error) {
 		return json({ error: error instanceof Error ? error.message : 'Unable to sign in.' }, { status: 401 });
