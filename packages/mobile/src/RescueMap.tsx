@@ -63,7 +63,9 @@ export default function RescueMap({ rescues, onSelect }: Props) {
   const [config, setConfig] = useState<MapConfiguration | null>(null);
   const [ready, setReady] = useState(false);
   const [error, setError] = useState('');
-  const map = useRef<WebView>(null);
+  // WebView 14.0.1 defaults its props generic to undefined, making JSX props 'never'.
+  // Explicitly instantiate with an empty extension until the library type fix ships.
+  const map = useRef<WebView<{}>>(null);
   const payload = useMemo(() => JSON.stringify(rescues.map(r => ({
     id:r.id, type:r.type, status:r.status, latitude:r.latitude, longitude:r.longitude
   }))), [rescues]);
@@ -93,7 +95,7 @@ export default function RescueMap({ rescues, onSelect }: Props) {
 
   if(error && !config) return <View style={styles.feedback}><Text style={styles.error}>{error}</Text></View>;
   return <View style={styles.container}>
-    {config ? <WebView ref={map} source={{html:html(config),baseUrl:'https://api.mapbox.com'}}
+    {config ? <WebView<{}> ref={map} source={{html:html(config),baseUrl:'https://api.mapbox.com'}}
       style={styles.webview} onMessage={handleMessage} javaScriptEnabled domStorageEnabled
       originWhitelist={['https://*']} onError={e=>setError(e.nativeEvent.description)}
       accessibilityLabel="Map of eligible and assigned rescue locations" /> : null}
@@ -105,7 +107,7 @@ export default function RescueMap({ rescues, onSelect }: Props) {
 const styles = StyleSheet.create({
  container:{height:320,borderRadius:16,overflow:'hidden',backgroundColor:'#dce6df',marginHorizontal:16,marginTop:14},
  webview:{flex:1,backgroundColor:'#dce6df'},
- loading:{...StyleSheet.absoluteFillObject,alignItems:'center',justifyContent:'center',gap:8},
+ loading:{...StyleSheet.absoluteFill,alignItems:'center',justifyContent:'center',gap:8},
  feedback:{margin:16,padding:15,backgroundColor:'#fff',borderRadius:12},
  hint:{color:'#53695d',fontSize:13},
  warning:{position:'absolute',top:8,left:8,right:8,padding:8,backgroundColor:'#fff8ee',borderRadius:8},
