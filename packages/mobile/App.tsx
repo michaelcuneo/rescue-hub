@@ -21,6 +21,9 @@ import {
   restoreSession,
   signupReporter,
   verifyReporter,
+  availableSocialProviders,
+  loginSocialReporter,
+  type SocialProvider,
   type AvailabilityPolicy,
   type MembershipConfig,
   type Rescue,
@@ -47,12 +50,17 @@ export default function App() {
   const [reporterName, setReporterName] = useState('');
   const [verificationCode, setVerificationCode] = useState('');
   const [authMode, setAuthMode] = useState<'login' | 'signup' | 'verify'>('login');
+  const [socialProviders, setSocialProviders] = useState<SocialProvider[]>([]);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [view, setView] = useState<'map' | 'list' | 'settings'>('map');
   const [policy, setPolicy] = useState<AvailabilityPolicy | null>(null);
   const [pushStatus, setPushStatus] = useState<PushRegistration | null>(null);
   const [feed, setFeed] = useState<RescueFeedDiagnostics | null>(null);
+
+  useEffect(() => {
+    void availableSocialProviders().then(result => setSocialProviders(result.providers)).catch(() => {});
+  }, []);
 
   useEffect(() => {
     void (async () => {
@@ -228,6 +236,16 @@ export default function App() {
     finally { setBusy(false); }
   }
 
+  async function handleSocialLogin(provider: SocialProvider) {
+    setBusy(true); setError('');
+    try {
+      const result = await loginSocialReporter(provider);
+      if (result) setSession(result);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Social sign-in failed.');
+    } finally { setBusy(false); }
+  }
+
   async function handleClaim(id: string) {
     setBusy(true);
     setError('');
@@ -332,6 +350,21 @@ export default function App() {
             <Pressable accessibilityRole="button" onPress={() => void handleSignup()}>
               <Text style={styles.modeLink}>Resend verification code</Text>
             </Pressable>
+          ) : null}
+          {socialProviders.length && authMode !== 'verify' ? (
+            <View style={styles.socialOptions}>
+              <Text style={styles.copy}>Or sign in as a public wildlife reporter with:</Text>
+              <View style={styles.socialRow}>
+                {socialProviders.map(provider => (
+                  <Pressable key={provider} accessibilityRole="button" disabled={busy}
+                    style={styles.socialButton} onPress={() => void handleSocialLogin(provider)}>
+                    <Text style={styles.socialButtonText}>
+                      {provider === 'google' ? 'Google' : provider === 'apple' ? 'Apple' : 'Facebook'}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
           ) : null}
         </View>
       </SafeAreaView>
@@ -488,6 +521,11 @@ const styles = StyleSheet.create({
   input: { backgroundColor: '#fff', borderWidth: 1, borderColor: '#d9e1dc', borderRadius: 12, padding: 14 },
   fieldTitle: { color: '#173d2c', fontSize: 13, fontWeight: '800' },
   modeLink: { color: '#24583f', fontWeight: '800', fontSize: 13, textAlign: 'center', paddingVertical: 9 },
+  socialOptions: { marginTop: 14, gap: 8 },
+  socialRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  socialButton: { backgroundColor: '#fff', borderColor: '#d9e1dc', borderWidth: 1,
+    borderRadius: 10, paddingHorizontal: 16, paddingVertical: 11 },
+  socialButtonText: { color: '#173d2c', fontSize: 13, fontWeight: '800' },
   error: { color: '#a23f35', fontSize: 12 },
   primaryButton: { backgroundColor: '#173d2c', borderRadius: 12, padding: 15, alignItems: 'center' },
   primaryButtonText: { color: '#fff', fontWeight: '800' },
