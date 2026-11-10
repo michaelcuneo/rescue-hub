@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
-import * as Location from 'expo-location';
+import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { getDeviceMapPosition, MAPBOX_LOCATION_CONTROL, MAPBOX_LOCATION_CONTROL_CSS } from './map-location';
 import WebView, { type WebViewMessageEvent } from 'react-native-webview';
 import { type Rescue } from './api';
 import { pinForRescue, RESCUE_PIN_GROUPS, type RescuePinGroup } from './rescue-pins';
@@ -25,7 +25,7 @@ function html(config: MapConfiguration) {
   const areas = JSON.stringify(config.operatingAreasUrl);
   return `<!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <link href="https://api.mapbox.com/mapbox-gl-js/v3.16.0/mapbox-gl.css" rel="stylesheet">
-<style>html,body,#map{padding:0;margin:0;width:100%;height:100%;overflow:hidden;background:#e2ebe5}.mapboxgl-ctrl-bottom-left,.mapboxgl-ctrl-bottom-right{display:none}.pin{position:relative;width:42px;height:42px;box-sizing:border-box;border-radius:50%;border:3px solid #fff;box-shadow:0 2px 8px #0004,0 0 0 1px #0002;display:grid;place-items:center;cursor:pointer;transition:transform 120ms,box-shadow 120ms}.pin span{color:#fff;font:900 11px system-ui;letter-spacing:-.03em}.pin.selected{transform:scale(1.12);box-shadow:0 3px 11px #0005,0 0 0 3px #ffffffa6}.pin .status-dot{position:absolute;right:-3px;bottom:-3px;width:12px;height:12px;box-sizing:border-box;border-radius:50%;border:2px solid #fff;background:#e9af34}.pin .status-dot.assigned{background:#276cd0}.user-location{width:18px;height:18px;box-sizing:border-box;border-radius:50%;background:#2679eb;border:3px solid white;box-shadow:0 0 0 9px #2679eb33,0 2px 8px #0004}.mapboxgl-popup-content{font:13px system-ui;color:#173d2c;padding:11px 13px;border-radius:10px}</style>
+<style>html,body,#map{padding:0;margin:0;width:100%;height:100%;overflow:hidden;background:#e2ebe5}.mapboxgl-ctrl-bottom-left,.mapboxgl-ctrl-bottom-right{display:none}.pin{position:relative;width:42px;height:42px;box-sizing:border-box;border-radius:50%;border:3px solid #fff;box-shadow:0 2px 8px #0004,0 0 0 1px #0002;display:grid;place-items:center;cursor:pointer;transition:transform 120ms,box-shadow 120ms}.pin span{color:#fff;font:900 11px system-ui;letter-spacing:-.03em}.pin.selected{transform:scale(1.12);box-shadow:0 3px 11px #0005,0 0 0 3px #ffffffa6}.pin .status-dot{position:absolute;right:-3px;bottom:-3px;width:12px;height:12px;box-sizing:border-box;border-radius:50%;border:2px solid #fff;background:#e9af34}.pin .status-dot.assigned{background:#276cd0}.user-location{width:18px;height:18px;box-sizing:border-box;border-radius:50%;background:#2679eb;border:3px solid white;box-shadow:0 0 0 9px #2679eb33,0 2px 8px #0004}.mapboxgl-popup-content{font:13px system-ui;color:#173d2c;padding:11px 13px;border-radius:10px}${MAPBOX_LOCATION_CONTROL_CSS}</style>
 </head><body><div id="map"></div>
 <script src="https://api.mapbox.com/mapbox-gl-js/v3.16.0/mapbox-gl.js"></script>
 <script>
@@ -35,6 +35,7 @@ if (!window.mapboxgl) { send({type:'error', message:'Mapbox could not load.'}); 
 mapboxgl.accessToken = ${token};
 const map = new mapboxgl.Map({container:'map',style:${style},center:[151.7,-32.93],zoom:9,attributionControl:false});
 map.addControl(new mapboxgl.NavigationControl({showCompass:false}), 'top-right');
+${MAPBOX_LOCATION_CONTROL}
 const markers = new window.Map();
 let records = [];
 let lastPayload = '';
@@ -107,7 +108,7 @@ map.on('error',e=>send({type:'error',message:e.error?.message||'Map error'}));
 export default function RescueMap({ rescues, onSelect }: Props) {
   const [ready, setReady] = useState(false);
   const [error, setError] = useState('');
-  const [locating, setLocating] = useState(false);
+  const locatingRef = useRef(false);
   const [locationError, setLocationError] = useState('');
   // WebView 14.0.1 defaults its props generic to undefined, making JSX props 'never'.
   // Explicitly instantiate with an empty extension until the library type fix ships.
@@ -127,33 +128,33 @@ export default function RescueMap({ rescues, onSelect }: Props) {
     return (Object.keys(RESCUE_PIN_GROUPS) as RescuePinGroup[]).filter(key => keys.has(key));
   }, [rescues]);
 
-  const locateMe = async () => {
-    if (locating) return;
-    setLocationError('');
-    setLocating(true);
+  const locateMe = async (quiet = false) => {
+    if (locatingRef.current) return;
+    locatingRef.current = true;
+    if (!quiet) setLocationError('');
     try {
-      const permission = await Location.requestForegroundPermissionsAsync();
-      if (permission.status !== 'granted') {
-        setLocationError('Enable location access for Rescue Hub in iPhone Settings.');
+      const position = await getDeviceMapPosition();
+      if (!position) {
+        if (!quiet) setLocationError('Location access is off. Enable it in device settings, or browse the map manually.');
         return;
       }
-      const position = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-      const { latitude, longitude } = position.coords;
-      if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
-        throw new Error('Device location unavailable.');
-      }
-      map.current?.injectJavaScript(`window.showUserLocation(${longitude},${latitude});true;`);
+      map.current?.injectJavaScript(`window.showUserLocation(${position.longitude},${position.latitude});true;`);
     } catch (e) {
-      setLocationError(e instanceof Error ? e.message : 'Could not locate your device.');
+      if (!quiet) setLocationError(e instanceof Error ? e.message : 'Could not determine device location.');
     } finally {
-      setLocating(false);
+      locatingRef.current = false;
     }
   };
 
   const handleMessage = (event: WebViewMessageEvent) => {
     try {
       const message = JSON.parse(event.nativeEvent.data) as { type:string; id?:string; message?:string };
-      if(message.type==='ready') setReady(true);
+      if(message.type==='ready') {
+        setReady(true);
+        // Automatically centre once the map loads; a prior OS grant is reused.
+        void locateMe(true);
+      }
+      if(message.type==='locate') void locateMe();
       if(message.type==='error') setError(message.message ?? 'Mapbox unavailable');
       if(message.type==='select'){
         const rescue = rescues.find(item => item.id===message.id);
@@ -172,10 +173,6 @@ export default function RescueMap({ rescues, onSelect }: Props) {
       accessibilityLabel="Map of eligible and assigned rescue locations" />
     {!ready && !error ? <View style={styles.loading}><ActivityIndicator /><Text style={styles.hint}>Loading rescue map…</Text></View> : null}
     {error ? <View style={styles.warning}><Text style={styles.error}>{error}</Text></View> : null}
-    <Pressable style={styles.locate} accessibilityRole="button" accessibilityLabel="Show my location on the map"
-      disabled={!ready || locating} onPress={() => void locateMe()}>
-      <Text style={styles.locateText}>{locating ? 'Locating…' : 'Locate me'}</Text>
-    </Pressable>
     {locationError ? <View style={styles.locationWarning}><Text style={styles.error}>{locationError}</Text></View> : null}
     <View style={styles.legend} accessibilityLabel="Animal group map legend">
       {activeGroups.map(key => <View style={styles.legendItem} key={key}>
@@ -193,9 +190,7 @@ const styles = StyleSheet.create({
  hint:{color:'#53695d',fontSize:13},
  warning:{position:'absolute',top:8,left:8,right:8,padding:8,backgroundColor:'#fff8ee',borderRadius:8},
  error:{color:'#9a3b2e',fontSize:12},
- locate:{position:'absolute',top:52,right:10,backgroundColor:'#fff',borderRadius:10,paddingHorizontal:12,paddingVertical:12,shadowColor:'#000',shadowOpacity:0.13,shadowRadius:5,elevation:3},
- locateText:{color:'#173d2c',fontSize:13,fontWeight:'800'},
- locationWarning:{position:'absolute',top:104,right:10,left:10,backgroundColor:'#fff',padding:8,borderRadius:9},
+ locationWarning:{position:'absolute',bottom:16,left:12,right:60,backgroundColor:'#fff',padding:10,borderRadius:9},
  legend:{position:'absolute',top:10,left:10,backgroundColor:'#fffffff0',borderRadius:10,padding:9,gap:5,maxWidth:168},
  legendItem:{flexDirection:'row',gap:7,alignItems:'center'},
  legendDot:{height:10,width:10,borderRadius:5,borderWidth:1,borderColor:'#fff'},
