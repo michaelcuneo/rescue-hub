@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import {
   getRescues,
+  getRealtimeConfig,
   getAvailability,
   claimRescue,
   login,
@@ -28,6 +29,7 @@ import { registerForPushNotifications, type PushRegistration } from './src/notif
 import AnimalCare from './src/AnimalCare';
 import AvailabilitySettings from './src/AvailabilitySettings';
 import RescueMap from './src/RescueMap';
+import { subscribeRescueChanges } from '../core/realtime-client';
 
 type Session = { user: User; membership: MembershipConfig };
 
@@ -65,50 +67,94 @@ export default function App() {
     })();
   }, []);
 
-  // Poll the authenticated GraphQL-backed rescue feed while the app is foregrounded.
-  // Do not wait for a user to tap Refresh; avoid overlapping requests on slow networks.
+  // AppSync subscriptions invalidate the authenticated rescue feed. The
+  // server filters actual records by organisation/team/custodian; the websocket
+  // carries no rescue or location data and has no mutation permissions.
   useEffect(() => {
     if (!session?.user.id) return;
     const userId = session.user.id;
     let closed = false;
-    let inFlight = false;
     let foreground = AppState.currentState === 'active';
+    let connected = false;
+    let subscription: (() => void) | null = null;
+    let generation = 0;
+    let inFlight = false;
+    let pending = false;
 
     const sync = async () => {
-      if (closed || !foreground || inFlight) return;
+      if (closed || !foreground) return;
+      if (inFlight) { pending = true; return; }
       inFlight = true;
       try {
         const [rescueResult, availabilityResult] = await Promise.all([
           getRescues(), getAvailability()
         ]);
-        if (closed) return;
+        if (closed || !foreground) return;
         setRescues(rescueResult.items);
         setFeed(rescueResult.feed ?? null);
         setSelectedMapRescue(current =>
           current ? rescueResult.items.find(rescue => rescue.id === current.id) ?? null : null);
         setPolicy(availabilityResult.policy);
         setSession(current => current?.user.id === userId
-          ? { ...current, user: { ...current.user, availabilityStatus: availabilityResult.status,
+          ? { ...current, user: { ...current.user,
+              availabilityStatus: availabilityResult.status,
               availabilityPolicy: availabilityResult.policy } }
           : current);
         setError('');
       } catch (e) {
-        if (!closed) setError(e instanceof Error ? e.message : 'Live rescue updates unavailable.');
+        if (!closed && foreground) {
+          setError(e instanceof Error ? e.message : 'Live rescue updates unavailable.');
+        }
       } finally {
         inFlight = false;
+        if (pending && !closed && foreground) {
+          pending = false;
+          void sync();
+        }
+      }
+    };
+
+    const connect = async () => {
+      if (closed || !foreground) return;
+      const currentGeneration = ++generation;
+      try {
+        const config = await getRealtimeConfig();
+        if (closed || !foreground || currentGeneration !== generation) return;
+        subscription = subscribeRescueChanges(config, {
+          onChange: () => void sync(),
+          onConnected: () => void sync(),
+          onStatus: online => { connected = online; }
+        });
+      } catch (e) {
+        console.warn('Realtime socket unavailable; fallback refresh enabled:', e);
       }
     };
 
     void sync();
-    const interval = setInterval(() => { void sync(); }, 10000);
-    const subscription = AppState.addEventListener('change', state => {
-      foreground = state === 'active';
-      if (foreground) void sync();
+    void connect();
+    const fallback = setInterval(() => {
+      if (foreground && !connected) void sync();
+    }, 30_000);
+    const appStateSubscription = AppState.addEventListener('change', state => {
+      const active = state === 'active';
+      if (active === foreground) return;
+      foreground = active;
+      if (active) {
+        void sync();
+        void connect();
+      } else {
+        ++generation;
+        connected = false;
+        subscription?.();
+        subscription = null;
+      }
     });
     return () => {
       closed = true;
-      clearInterval(interval);
-      subscription.remove();
+      ++generation;
+      clearInterval(fallback);
+      appStateSubscription.remove();
+      subscription?.();
     };
   }, [session?.user.id]);
 
