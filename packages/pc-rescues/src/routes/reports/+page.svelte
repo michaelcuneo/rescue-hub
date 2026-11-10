@@ -62,7 +62,6 @@
     };
   });
   let busy = $state('');
-  let selectedOrganisation = $state<Record<string,string>>({});
   let error = $state('');
   let notice = $state('');
 
@@ -70,12 +69,9 @@
     if (busy) return;
     busy = id; error = ''; notice = '';
     try {
-      const organisationId = selectedOrganisation[id] || data.defaultOrganisationId;
-      if (!organisationId) throw new Error('Choose an organisation responsible for this report.');
       const response = await fetch(`/api/dispatch/reports/${encodeURIComponent(id)}/convert`, {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ organisationId })
+        headers: { 'content-type': 'application/json' }
       });
       const payload = await response.json() as { rescue?: { id: string }; error?: string };
       if (!response.ok || !payload.rescue) throw new Error(payload.error ?? 'Could not convert report.');
@@ -94,7 +90,7 @@
     <div><p class="eyebrow">RESCUE HUB · DISPATCH</p><h1>Public wildlife reports</h1></div>
     <a href="/">Back to dispatch map</a>
   </header>
-  <p>Reports from people who aren't affiliated with an organisation. These are <strong>unverified sightings</strong> until you accept them as operational rescues. Review the pin and species before dispatching volunteers.</p>
+  <p>Reports from the public. GPS-matched reports are sent to the relevant organisation automatically. This queue keeps the original unverified observations and lets central coordinators review exceptions. No manual organisation selection.</p>
   {#if error}<p role="alert" class="error">{error}</p>{/if}
   {#if notice}<p role="status" class="success">{notice}</p>{/if}
   {#if reports.length === 0}<p>No public reports received yet.</p>{/if}
@@ -114,22 +110,10 @@
           <a href="https://www.openstreetmap.org/?mlat={report.latitude}&mlon={report.longitude}#map=15/{report.latitude}/{report.longitude}"
             target="_blank" rel="noopener noreferrer">Inspect reported location</a>
           {#if report.status === 'SUBMITTED'}
-            <label class="select-org">
-              Responsible organisation
-              <select value={selectedOrganisation[report.id] || data.defaultOrganisationId}
-                onchange={(event) => selectedOrganisation[report.id] = event.currentTarget.value}>
-                <option value="">Select organisation</option>
-                {#if data.defaultOrganisationId && !data.organisations.some(org => org.id === data.defaultOrganisationId)}
-                  <option value={data.defaultOrganisationId}>Active demo organisation</option>
-                {/if}
-                {#each data.organisations as org (org.id)}
-                  <option value={org.id}>{org.displayName}</option>
-                {/each}
-              </select>
-            </label>
+            <p class="routing">GPS routing: {report.routingStatus === 'MATCHED' ? report.areaLabel || report.organisationId : report.routingReason || 'Awaiting boundary lookup'}</p>
             <button onclick={() => void approve(report.id)}
-              disabled={busy !== '' || !(selectedOrganisation[report.id] || data.defaultOrganisationId)}>
-              {busy === report.id ? 'Converting…' : 'Accept and dispatch'}
+              disabled={busy !== ''}>
+              {busy === report.id ? 'Rechecking…' : 'Retry GPS dispatch'}
             </button>
           {:else if report.rescueId}
             <a href="/rescues/{report.rescueId}/care">View operational case</a>
@@ -153,7 +137,7 @@
   .location{font-size:12px;font-weight:800}
   .actions{display:flex;flex-wrap:wrap;align-items:center;gap:12px}
   button{padding:10px 13px;background:#173d2c;color:white;border:0;border-radius:9px;cursor:pointer;font-weight:800}
-  .select-org{display:grid;gap:5px;font-size:12px;color:#173d2c;font-weight:800;min-width:200px;flex:1}
+  .routing{font-size:12px;font-weight:800;color:#173d2c}
   select{background:#fff;max-width:100%;padding:10px;border:1px solid #cbd9d0;border-radius:9px;font:inherit}
   button:disabled{opacity:.5}
   .error{color:#a23f35;font-weight:800}.success{background:#e4f2e8;padding:10px;border-radius:10px;color:#24583f}
