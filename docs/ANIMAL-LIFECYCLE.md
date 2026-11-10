@@ -21,6 +21,16 @@ A rescue response ending is **not** the same as an animal record ending. Droppin
 7. Outcome: explicitly record release (including release location/date), euthanasia (with appropriate authorisation/performer), natural death, or other approved final disposition. Do not infer final outcome from a transport or handover.
 8. Oversight: organisations and authorised governing bodies can reconstruct the full history and identify animals currently in care, their current custodians, outstanding handovers, overdue reviews and final outcomes.
 
+## Telephone updates, veterinary callback and transport queue (11 November 2026)
+
+**Telephone notes belong to the permanent animal history.** Dispatch/coordinators record the caller's name and role (vet, rescuer, carer or public reporter), their unverified statement, recording user and timestamp, and an optional callback number **only with explicit permission**. The caller does not need a Rescue Hub account. Telephone notes are not automatically treated as clinical findings.
+
+When an animal is registered and marked **At Vet**, dispatch may record a call saying that the animal is ready for collection. By selecting **offer transport** and a verified veterinary pickup address/coordinates, dispatch creates a separate pending transport rescue linked to the existing permanent animal, source incident and phone event. Qualified available volunteers receive the new offer and **claim it themselves**. Dispatch never assigns the responder. The pickup pin must be at the veterinary facility, not the initial injury scene.
+
+The new job does not move the animal or change its custodian. The existing custodian must nominate the receiving volunteer and that volunteer must acknowledge physical handover. On successful handover, the linked transport job closes in the same database transaction; a different confirmed handover cancels the now-obsolete transport offer. Only one outstanding transport offer per animal is allowed. Volunteers can read linked history after claiming, but cannot register a duplicate animal for the transport job.
+
+Pre-registration telephone updates still need their own provisional intake/animal model: this implementation records permanent **animal-level** telephone updates only after animal registration. Do not claim that callbacks for unclaimed, unregistered sightings are supported by this form.
+
 ## Claim release and active-worklist rules (10 November 2026)
 
 - A rescuer can **release an uncollected claim** from Manage Animals & Care History. This puts the incident back in the eligible volunteer queue. Release is conditional and audited, and cannot orphan an already registered animal.

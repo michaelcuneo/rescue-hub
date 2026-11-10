@@ -1,7 +1,8 @@
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
-import { DynamoDBDocumentClient, GetCommand, QueryCommand, TransactWriteCommand } from '@aws-sdk/lib-dynamodb';
+import { DynamoDBDocumentClient, GetCommand, QueryCommand, TransactWriteCommand, type TransactWriteCommandInput } from '@aws-sdk/lib-dynamodb';
 import { Resource } from 'sst';
 import { publishRescueChange } from './realtime';
+import { getRescue } from './graphql';
 
 const db = DynamoDBDocumentClient.from(new DynamoDBClient({}), { marshallOptions: { removeUndefinedValues: true } });
 const table = Resource.RescueHubData.name;
@@ -11,7 +12,7 @@ export type AnimalRecord = {
   id: string; rescueId: string; organisationId: string; species: string; description?: string;
   status: AnimalStatus; currentCustodianUserId?: string; currentLocation?: string;
   vetStage?: 'AWAITING_ASSESSMENT' | 'ASSESSED_AWAITING_TRANSPORT';
-  pendingTransferId?: string; version: number; createdAt: string; updatedAt: string;
+  pendingTransferId?: string; activeTransportRescueId?: string; version: number; createdAt: string; updatedAt: string;
 };
 export class AnimalConflict extends Error {}
 const key = (id: string) => ({ pk: `ANIMAL#${id}`, sk: 'META' });
@@ -180,7 +181,7 @@ export async function changeAnimalState(animal: AnimalRecord, actorUserId: strin
     condition += ' AND pendingTransferId = :transferId';
     values[':transferId'] = animal.pendingTransferId;
     type = 'TRANSFER_ACCEPTED';
-    update = 'SET currentCustodianUserId = :user, currentLocation = :location, #status = :care, gsi1pk = :custodianKey, updatedAt = :now, version = :next REMOVE pendingTransferId, vetStage';
+    update = 'SET currentCustodianUserId = :user, currentLocation = :location, #status = :care, gsi1pk = :custodianKey, updatedAt = :now, version = :next REMOVE pendingTransferId, vetStage, activeTransportRescueId';
     values = { ...values, ':user': actorUserId, ':location': String(transfer.destination ?? ''), ':care': transfer.purpose === 'TRANSPORT' ? 'IN_TRANSIT' : 'IN_CARE', ':custodianKey': `CUSTODIAN#${animal.organisationId}#${actorUserId}` };
     extra = { transferId: animal.pendingTransferId, fromUserId: transfer.fromUserId, toUserId: actorUserId };
   } else if (input.kind === 'VET_DROPOFF' || input.kind === 'VET_ASSESSED') {
@@ -215,7 +216,7 @@ export async function changeAnimalState(animal: AnimalRecord, actorUserId: strin
     condition += ' AND currentCustodianUserId = :actor AND attribute_not_exists(pendingTransferId)';
     values[':actor'] = actorUserId;
     type = 'FINAL_OUTCOME';
-    update = 'SET #status = :care, updatedAt = :now, version = :next';
+    update = 'SET #status = :care, updatedAt = :now, version = :next REMOVE activeTransportRescueId';
     values[':care'] = input.status;
     extra = { outcome: input.status, location: input.location ?? '', notes: input.notes };
   }
@@ -224,12 +225,50 @@ export async function changeAnimalState(animal: AnimalRecord, actorUserId: strin
     entity: 'animal_event', id: eventId, animalId: animal.id, organisationId: animal.organisationId,
     type, actorUserId, createdAt: now, ...extra
   };
-  await db.send(new TransactWriteCommand({ TransactItems: [
+  const writes: NonNullable<TransactWriteCommandInput['TransactItems']> = [
     { Update: { TableName: table, Key: key(animal.id), UpdateExpression: update,
       ConditionExpression: condition, ExpressionAttributeNames: { '#guardStatus': 'status', ...(update.includes('#status') ? { '#status': 'status' } : {}) },
       ExpressionAttributeValues: values }},
     { Put: { TableName: table, Item: event, ConditionExpression: 'attribute_not_exists(pk)' }}
-  ] })).catch((error) => {
+  ];
+  // Completing a real custody handover also closes the outstanding pickup
+  // offer. We never treat a mere phone call or job claim as a handover.
+  if ((input.kind === 'ACCEPT_TRANSFER' || input.kind === 'OUTCOME') && animal.activeTransportRescueId) {
+    const pickup = await getRescue(animal.activeTransportRescueId);
+    if (!pickup || pickup.organisationId !== animal.organisationId ||
+        pickup.transportAnimalId !== animal.id ||
+        !['PENDING', 'ASSIGNED'].includes(pickup.status)) {
+      throw new AnimalConflict('Linked transport request is no longer active. Refresh the record before accepting custody.');
+    }
+    const isPickupResponder = pickup.status === 'ASSIGNED' && pickup.assignedUserId === actorUserId;
+    const endStatus = input.kind === 'ACCEPT_TRANSFER' && isPickupResponder ? 'COMPLETED' : 'CANCELLED';
+    const jobEventId = crypto.randomUUID();
+    writes.push({ Update: {
+      TableName: table,
+      Key: { pk: `RESCUE#${pickup.id}`, sk: 'META' },
+      UpdateExpression: 'SET #status = :end, gsi1pk = :gsi, updatedAt = :now',
+      ConditionExpression: '#status = :prior AND organisationId = :org AND transportAnimalId = :animal' +
+        (isPickupResponder ? ' AND assignedUserId = :actor' : ''),
+      ExpressionAttributeNames: { '#status': 'status' },
+      ExpressionAttributeValues: {
+        ':end': endStatus, ':gsi': `STATUS#${endStatus}`, ':now': now,
+        ':prior': pickup.status, ':org': animal.organisationId, ':animal': animal.id,
+        ...(isPickupResponder ? { ':actor': actorUserId } : {})
+      }
+    }}, { Put: {
+      TableName: table,
+      Item: {
+        pk: `RESCUE#${pickup.id}`, sk: `EVENT#${now}#${jobEventId}`,
+        entity: 'rescue_event', id: jobEventId,
+        rescueId: pickup.id, organisationId: animal.organisationId, animalId: animal.id,
+        actorUserId, type: endStatus === 'COMPLETED' ? 'TRANSPORT_HANDOVER_ACCEPTED' :
+          input.kind === 'OUTCOME' ? 'TRANSPORT_REQUEST_CANCELLED_ON_FINAL_OUTCOME' : 'TRANSPORT_REQUEST_CANCELLED_ON_HANDOVER',
+        createdAt: now
+      },
+      ConditionExpression: 'attribute_not_exists(pk)'
+    }});
+  }
+  await db.send(new TransactWriteCommand({ TransactItems: writes })).catch((error) => {
     if (error instanceof Error && error.name === 'TransactionCanceledException') throw new AnimalConflict('Animal changed since it was loaded. Refresh and retry.');
     throw error;
   });

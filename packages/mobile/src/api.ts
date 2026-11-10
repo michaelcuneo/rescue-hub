@@ -50,6 +50,8 @@ export type Rescue = {
   longitude: number;
   status: string;
   assignedUserId?: string | null;
+  transportAnimalId?: string | null;
+  transportSourceRescueId?: string | null;
   custodyRole?: 'CUSTODIAN';
   stageLabel?: string;
 };
@@ -285,7 +287,7 @@ export async function unclaimRescue(id: string, reason = '') {
 export type Animal = {
   id: string; rescueId: string; species: string; description?: string;
   status: 'IN_RESCUE' | 'IN_TRANSIT' | 'AT_VET' | 'IN_CARE' | 'RELEASED' | 'EUTHANISED' | 'DECEASED';
-  currentCustodianUserId?: string; currentLocation?: string; pendingTransferId?: string;
+  currentCustodianUserId?: string; currentLocation?: string; pendingTransferId?: string; activeTransportRescueId?: string;
   vetStage?: 'AWAITING_ASSESSMENT' | 'ASSESSED_AWAITING_TRANSPORT';
   version?: number; createdAt: string; updatedAt: string;
 };
@@ -298,6 +300,8 @@ export type AnimalEvent = {
   id: string; type: string; actorUserId: string; notes?: string;
   createdAt: string; occurredAt?: string; outcome?: string;
   toUserId?: string; fromUserId?: string;
+  callerName?: string; callerRole?: string; source?: string; transportRescueId?: string;
+  callbackPermitted?: boolean; callbackPhone?: string;
 };
 export async function getRescueAnimals(rescueId: string) {
   return request<{ items: Animal[] }>(`/api/mobile/rescues/${encodeURIComponent(rescueId)}/animals`);

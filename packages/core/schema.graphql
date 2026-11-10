@@ -38,6 +38,8 @@ type Rescue {
   injury: String
   status: RescueStatus!
   assignedUserId: ID
+  transportAnimalId: ID
+  transportSourceRescueId: ID
   createdAt: AWSDateTime!
   updatedAt: AWSDateTime!
 }
@@ -57,17 +59,11 @@ input CreateRescueInput {
   longitude: Float!
   injury: String
   status: RescueStatus = PENDING
-  assignedUserId: ID
 }
 
 input UpdateRescueStatusInput {
   id: ID!
   status: RescueStatus!
-}
-
-input AssignRescueInput {
-  id: ID!
-  userId: ID!
 }
 
 type Query {
@@ -80,7 +76,6 @@ type Query {
 type Mutation {
   createRescue(input: CreateRescueInput!): Rescue!
   updateRescueStatus(input: UpdateRescueStatusInput!): Rescue!
-  assignRescue(input: AssignRescueInput!): Rescue!
 }
 
 schema {

@@ -70,6 +70,8 @@ export async function listAdminRescues(): Promise<Rescue[]> {
 		injury: item.injury ? String(item.injury) : null,
 		status: String(item.status) as Rescue['status'],
 		assignedUserId: item.assignedUserId ? String(item.assignedUserId) : null,
+    transportAnimalId: item.transportAnimalId ? String(item.transportAnimalId) : null,
+    transportSourceRescueId: item.transportSourceRescueId ? String(item.transportSourceRescueId) : null,
 		createdAt: String(item.createdAt),
 		updatedAt: String(item.updatedAt)
 	}));

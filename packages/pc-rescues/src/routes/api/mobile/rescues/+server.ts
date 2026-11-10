@@ -68,7 +68,8 @@ export const GET: RequestHandler = async ({ locals }) => {
   const currentCustody = (await listCustodianAnimals(user.organisationId, user.id))
     .filter(animal => !finalOutcomes.has(animal.status));
   const custodianRescueIds = new Set(currentCustody.map(animal => animal.rescueId));
-  const owned = inOrganisation.filter(rescue => rescue.assignedUserId === user.id);
+  const owned = inOrganisation.filter(rescue => rescue.assignedUserId === user.id &&
+    !['COMPLETED', 'CANCELLED'].includes(rescue.status));
   const ownedAnimalGroups = await Promise.all(owned.map(async rescue => ({
     id: rescue.id,
     animals: await listRescueAnimals(rescue.id, user.organisationId!)
@@ -110,7 +111,7 @@ export const GET: RequestHandler = async ({ locals }) => {
   ).map(rescue => ({
     ...rescue,
     custodyRole: custodianRescueIds.has(rescue.id) ? 'CUSTODIAN' : undefined,
-    stageLabel: stages.get(rescue.id)
+    stageLabel: rescue.transportAnimalId ? 'Transport pickup job' : stages.get(rescue.id)
   }));
 
   return json({

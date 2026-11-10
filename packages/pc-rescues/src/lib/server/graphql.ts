@@ -14,6 +14,8 @@ export type Rescue = {
   injury?: string | null;
   status: RescueStatus;
   assignedUserId?: string | null;
+  transportAnimalId?: string | null;
+  transportSourceRescueId?: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -24,7 +26,7 @@ type RescueConnection = {
 };
 
 const RESCUE_FIELDS =
-  "id organisationId type breed location latitude longitude injury status assignedUserId createdAt updatedAt";
+  "id organisationId type breed location latitude longitude injury status assignedUserId transportAnimalId transportSourceRescueId createdAt updatedAt";
 
 async function request<T>(
   query: string,
@@ -96,7 +98,6 @@ export async function createRescue(input: {
   longitude: number;
   injury?: string;
   status?: RescueStatus;
-  assignedUserId?: string;
 }): Promise<Rescue> {
   const mutation = `mutation CreateRescue($input: CreateRescueInput!) {
     createRescue(input: $input) { ${RESCUE_FIELDS} }
@@ -119,18 +120,6 @@ export async function updateRescueStatus(
   await publishRescueChange();
   return data.updateRescueStatus;
 }
-
-export async function assignRescue(id: string, userId: string): Promise<Rescue> {
-  const mutation = `mutation AssignRescue($input: AssignRescueInput!) {
-    assignRescue(input: $input) { ${RESCUE_FIELDS} }
-  }`;
-  const data = await request<{ assignRescue: Rescue }>(mutation, {
-    input: { id, userId },
-  });
-  await publishRescueChange();
-  return data.assignRescue;
-}
-
 
 export type OrganisationDirectoryEntry = {
   id: string;
