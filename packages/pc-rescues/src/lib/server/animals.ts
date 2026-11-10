@@ -1,5 +1,5 @@
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
-import { DynamoDBDocumentClient, GetCommand, QueryCommand, PutCommand, TransactWriteCommand } from '@aws-sdk/lib-dynamodb';
+import { DynamoDBDocumentClient, GetCommand, QueryCommand, TransactWriteCommand } from '@aws-sdk/lib-dynamodb';
 import { Resource } from 'sst';
 
 const db = DynamoDBDocumentClient.from(new DynamoDBClient({}), { marshallOptions: { removeUndefinedValues: true } });
@@ -82,12 +82,43 @@ export async function recordAnimalEvent(animal: AnimalRecord, actorUserId: strin
   if (terminal.has(animal.status)) throw new AnimalConflict('Animal has a final outcome.');
   if (animal.pendingTransferId) throw new AnimalConflict('Resolve the pending custody transfer first.');
   const now = new Date().toISOString(), eventId = crypto.randomUUID();
-  await db.send(new PutCommand({ TableName: table, Item: {
-    pk: `ANIMAL#${animal.id}`, sk: `EVENT#${now}#${eventId}`,
-    entity: 'animal_event', id: eventId, animalId: animal.id, organisationId: animal.organisationId,
-    type: input.type, notes: input.notes, occurredAt: input.occurredAt ?? now,
-    actorUserId, createdAt: now
-  }, ConditionExpression: 'attribute_not_exists(pk)' }));
+  await db.send(new TransactWriteCommand({ TransactItems: [
+    { ConditionCheck: {
+      TableName: table, Key: key(animal.id),
+      ConditionExpression: 'version = :version AND organisationId = :org AND currentCustodianUserId = :user AND attribute_not_exists(pendingTransferId) AND NOT (#status IN (:released, :euthanised, :deceased))',
+      ExpressionAttributeNames: { '#status': 'status' },
+      ExpressionAttributeValues: {
+        ':version': animal.version, ':org': animal.organisationId, ':user': actorUserId,
+        ':released': 'RELEASED', ':euthanised': 'EUTHANISED', ':deceased': 'DECEASED'
+      }
+    }},
+    { Put: { TableName: table, Item: {
+      pk: `ANIMAL#${animal.id}`, sk: `EVENT#${now}#${eventId}`,
+      entity: 'animal_event', id: eventId, animalId: animal.id, organisationId: animal.organisationId,
+      type: input.type, notes: input.notes, occurredAt: input.occurredAt ?? now,
+      actorUserId, createdAt: now
+    }, ConditionExpression: 'attribute_not_exists(pk)' }}
+  ] })).catch((error) => {
+    if (error instanceof Error && error.name === 'TransactionCanceledException') throw new AnimalConflict('Animal custody or status changed. Refresh and retry.');
+    throw error;
+  });
+}
+
+export async function getPendingAnimalTransfer(animal: AnimalRecord) {
+  if (!animal.pendingTransferId) return null;
+  let nextKey: Record<string, unknown> | undefined;
+  do {
+    const result = await db.send(new QueryCommand({
+      TableName: table, KeyConditionExpression: 'pk = :pk AND begins_with(sk, :prefix)',
+      FilterExpression: 'id = :id',
+      ExpressionAttributeValues: {
+        ':pk': `ANIMAL#${animal.id}`, ':prefix': 'EVENT#', ':id': animal.pendingTransferId
+      }, ExclusiveStartKey: nextKey
+    }));
+    if (result.Items?.[0]) return result.Items[0];
+    nextKey = result.LastEvaluatedKey;
+  } while (nextKey);
+  return null;
 }
 
 export async function changeAnimalState(animal: AnimalRecord, actorUserId: string, input: {
@@ -96,27 +127,25 @@ export async function changeAnimalState(animal: AnimalRecord, actorUserId: strin
 }) {
   if (terminal.has(animal.status)) throw new AnimalConflict('Animal already has a final outcome.');
   const now = new Date().toISOString(), eventId = crypto.randomUUID();
-  let update = '', condition = 'version = :version AND organisationId = :org', values: Record<string, unknown> = {
-    ':version': animal.version, ':org': animal.organisationId, ':now': now, ':next': animal.version + 1
+  let update = '', condition = 'version = :version AND organisationId = :org AND NOT (#guardStatus IN (:released, :euthanised, :deceased))', values: Record<string, unknown> = {
+    ':version': animal.version, ':org': animal.organisationId, ':now': now, ':next': animal.version + 1, ':released': 'RELEASED', ':euthanised': 'EUTHANISED', ':deceased': 'DECEASED'
   };
   let type = '', extra: Record<string, unknown> = {};
   if (input.kind === 'TRANSFER') {
     if (animal.pendingTransferId) throw new AnimalConflict('A transfer is already pending.');
     if (!input.recipientUserId || input.recipientUserId === actorUserId || actorUserId !== animal.currentCustodianUserId) throw new AnimalConflict('Current custodian must nominate a different recipient.');
+    condition += ' AND currentCustodianUserId = :actor AND attribute_not_exists(pendingTransferId)';
+    values[':actor'] = actorUserId;
     type = 'TRANSFER_REQUESTED';
     update = 'SET pendingTransferId = :transfer, updatedAt = :now, version = :next';
     values[':transfer'] = eventId;
     extra = { fromUserId: actorUserId, toUserId: input.recipientUserId, destination: input.location ?? '', notes: input.notes ?? '' };
   } else if (input.kind === 'ACCEPT_TRANSFER') {
     if (!animal.pendingTransferId) throw new AnimalConflict('No transfer is pending.');
-    const pending = await db.send(new QueryCommand({
-      TableName: table, KeyConditionExpression: 'pk = :pk AND begins_with(sk, :prefix)',
-      FilterExpression: 'id = :id', ExpressionAttributeValues: {
-        ':pk': `ANIMAL#${animal.id}`, ':prefix': 'EVENT#', ':id': animal.pendingTransferId
-      }
-    }));
-    const transfer = pending.Items?.[0];
+    const transfer = await getPendingAnimalTransfer(animal);
     if (!transfer || transfer.toUserId !== actorUserId) throw new AnimalConflict('Only the nominated recipient can accept custody.');
+    condition += ' AND pendingTransferId = :transferId';
+    values[':transferId'] = animal.pendingTransferId;
     type = 'TRANSFER_ACCEPTED';
     update = 'SET currentCustodianUserId = :user, currentLocation = :location, #status = :care, updatedAt = :now, version = :next REMOVE pendingTransferId';
     values = { ...values, ':user': actorUserId, ':location': String(transfer.destination ?? ''), ':care': 'IN_CARE' };
@@ -126,6 +155,8 @@ export async function changeAnimalState(animal: AnimalRecord, actorUserId: strin
     if (!input.status || !terminal.has(input.status)) throw new AnimalConflict('An explicit final outcome is required.');
     if (actorUserId !== animal.currentCustodianUserId) throw new AnimalConflict('Only current custodian can record outcome.');
     if (!input.notes?.trim()) throw new AnimalConflict('Outcome notes are required.');
+    condition += ' AND currentCustodianUserId = :actor AND attribute_not_exists(pendingTransferId)';
+    values[':actor'] = actorUserId;
     type = 'FINAL_OUTCOME';
     update = 'SET #status = :care, updatedAt = :now, version = :next';
     values[':care'] = input.status;
@@ -138,7 +169,7 @@ export async function changeAnimalState(animal: AnimalRecord, actorUserId: strin
   };
   await db.send(new TransactWriteCommand({ TransactItems: [
     { Update: { TableName: table, Key: key(animal.id), UpdateExpression: update,
-      ConditionExpression: condition, ExpressionAttributeNames: update.includes('#status') ? { '#status': 'status' } : undefined,
+      ConditionExpression: condition, ExpressionAttributeNames: { '#guardStatus': 'status', ...(update.includes('#status') ? { '#status': 'status' } : {}) },
       ExpressionAttributeValues: values }},
     { Put: { TableName: table, Item: event, ConditionExpression: 'attribute_not_exists(pk)' }}
   ] })).catch((error) => {
