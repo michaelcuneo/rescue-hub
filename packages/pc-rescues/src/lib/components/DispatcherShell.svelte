@@ -86,6 +86,7 @@
 	let addressResults = $state<GeocodeResult[]>([]);
 	let addressSearching = $state(false);
 	let submitError = $state('');
+	let dispatchNotice = $state('');
 	let saving = $state(false);
 	let searchTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -334,6 +335,14 @@
 			const payload = (await response.json()) as {
 				rescue?: any;
 				error?: string;
+				notifications?: {
+					capability: string;
+					eligibleUsers: number;
+					pushTokens: number;
+					accepted: number;
+					rejected: number;
+					errors: string[];
+				};
 			};
 
 			if (!response.ok || !payload.rescue) {
@@ -354,6 +363,12 @@
 			tab = 'pending';
 			$selectedRescue = rescue;
 			closeIntake();
+			const push = payload.notifications;
+			dispatchNotice = !push
+				? 'Rescue created; notification delivery status unavailable.'
+				: push.errors.length
+					? `Rescue created. Push delivery error: ${push.errors.join('; ')}`
+					: `Rescue created. ${push.eligibleUsers} eligible rescuer(s), ${push.pushTokens} registered device(s), ${push.accepted} accepted by Expo, ${push.rejected} rejected. Expo acceptance does not confirm phone delivery.`;
 
 			species = '';
 			breed = '';
@@ -425,6 +440,9 @@
 			</button>
 		</div>
 
+		{#if dispatchNotice}
+			<p role="status" class="dispatch-notice">{dispatchNotice}</p>
+		{/if}
 		<label class="queue-search">
 			<Search size={15} />
 			<input bind:value={search} placeholder="Search animal, suburb, condition…" />
@@ -669,6 +687,7 @@
 </div>
 
 <style>
+	.dispatch-notice { margin: 8px 12px; padding: 10px 12px; background: #eff6f0; border: 1px solid #b8d6c3; border-radius: 9px; color: #173d2c; font-size: 12px; line-height: 1.5; }
 	.animal-options { max-height: 230px; overflow-y: auto; border: 1px solid #cbd8ce; background: #fff; border-radius: 9px; box-shadow: 0 8px 20px rgba(0,0,0,.09); margin-top: 4px; position: relative; z-index: 5; }
 	.animal-options button { display: block; width: 100%; padding: 9px 12px; text-align: left; background: white; border: 0; color: #17211d; cursor: pointer; font: inherit; }
 	.animal-options button:hover, .animal-options button:focus-visible { background: #eaf2ec; }
