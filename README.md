@@ -2,7 +2,7 @@
 
 Rescue Hub is a multi-tenant wildlife rescue coordination platform for Australian wildlife rescue organisations and the government authorities that oversee them.
 
-The product is intended to provide one shared operational system while preserving strict regional and organisational boundaries. A local rescue organisation can dispatch and manage rescues inside its authorised coverage area, while an authorised governing body can inspect the complete record across the organisations within its jurisdiction.
+The product is intended to provide one shared operational system while preserving strict regional and organisational boundaries. A local rescue organisation can coordinate self-claimed rescues and ongoing animal care inside its authorised coverage area, while an authorised governing body can inspect the complete record across the organisations within its jurisdiction.
 
 The implementation contains one SvelteKit application in `packages/pc-rescues`.
 
@@ -24,6 +24,9 @@ Amplify is not part of the backend architecture.
 ## Product documentation
 
 The product direction is documented here:
+
+- **[Authoritative animal lifecycle and custody model](docs/ANIMAL-LIFECYCLE.md) — read first; supersedes conflicting older workflow descriptions.**
+- [AI agent instructions](AGENTS.md)
 
 - [Product vision and operating model](docs/PRODUCT.md)
 - [Tenancy, roles and authorisation](docs/AUTHORIZATION.md)
