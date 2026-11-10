@@ -36,7 +36,8 @@ export type RescueHubRole =
 	| 'DISPATCHER'
 	| 'RESCUER'
 	| 'CARER'
-	| 'DATA_STEWARD';
+	| 'DATA_STEWARD'
+	| 'PUBLIC_REPORTER';
 
 export type RescueHubUser = {
 	id: string;
@@ -55,7 +56,7 @@ export type RescueHubUser = {
 	updatedAt: string;
 };
 
-type CodePurpose = 'INVITE' | 'RESET_PASSWORD';
+type CodePurpose = 'INVITE' | 'RESET_PASSWORD' | 'PUBLIC_SIGNUP';
 
 function normalizeEmail(value: string) {
 	return value.trim().toLowerCase();
@@ -152,10 +153,12 @@ async function sendCode(email: string, code: string, purpose: CodePurpose) {
 	}
 
 	const invitation = purpose === 'INVITE';
-	const subject = invitation ? 'Your Rescue Hub invitation' : 'Reset your Rescue Hub password';
-	const heading = invitation ? 'RESCUE HUB INVITATION' : 'RESET YOUR PASSWORD';
+	const signup = purpose === 'PUBLIC_SIGNUP';
+	const subject = invitation ? 'Your Rescue Hub invitation' : signup ? 'Verify your Rescue Hub reporter account' : 'Reset your Rescue Hub password';
+	const heading = invitation ? 'RESCUE HUB INVITATION' : signup ? 'VERIFY YOUR REPORTER ACCOUNT' : 'RESET YOUR PASSWORD';
 	const intro = invitation
 		? 'Use this six-digit code to activate your Rescue Hub account and choose a password.'
+		: signup ? 'Enter this six-digit code to confirm your email before reporting an injured animal.'
 		: 'Use this six-digit code to choose a new Rescue Hub password.';
 	const text = `${heading}\n\n${intro}\n\n${code}\n\nThis code expires in 15 minutes.`;
 
@@ -483,6 +486,123 @@ export async function acceptInvite(email: string, code: string, password: string
 	}));
 
 	return { user: await getUserById(record.userId), sessionToken: await createSession(record.userId, cookies) };
+}
+
+/**
+ * Public self-registration NEVER grants organisation membership or staff
+ * permissions. Reporter accounts can only submit and view their own reports.
+ * Existing invitation/organisation accounts are never overwritten or linked.
+ */
+export async function registerPublicReporter(input: {
+  name: string; email: string; password: string;
+}) {
+  const email = normalizeEmail(input.email);
+  const name = input.name.trim().replace(/\\s+/g, ' ');
+  const passwordError = validatePassword(input.password);
+  if (!/^\\S+@\\S+\\.\\S+$/.test(email) || email.length > 254) throw new Error('Enter a valid email address.');
+  if (!name || name.length > 100) throw new Error('Enter a name (100 characters maximum).');
+  if (passwordError) throw new Error(passwordError);
+
+  const existingId = await lookupUserIdByEmail(email);
+  if (existingId) {
+    const current = await getUserById(existingId);
+    if (!current || !current.roles.includes('PUBLIC_REPORTER') || current.status !== 'INVITED') {
+      throw new Error('An account with this email already exists. Sign in or reset its password.');
+    }
+    return issueCode('PUBLIC_SIGNUP', existingId, email);
+  }
+
+  const userId = randomUUID(), now = new Date().toISOString();
+  const credential = await hashPassword(input.password);
+  await db.send(new TransactWriteCommand({
+    TransactItems: [
+      { Put: { TableName: tableName,
+        Item: { pk: `AUTH#EMAIL#${email}`, sk: 'USER', entity: 'auth_lookup', userId },
+        ConditionExpression: 'attribute_not_exists(pk)' } },
+      { Put: { TableName: tableName,
+        Item: { pk: `USER#${userId}`, sk: 'PROFILE', entity: 'user', id: userId,
+          email, name, enabled: true, status: 'INVITED', emailVerified: false,
+          authEpoch: 0, roles: ['PUBLIC_REPORTER'], teamIds: [],
+          availabilityStatus: 'OFFLINE', createdAt: now, updatedAt: now,
+          gsi2pk: 'USERS', gsi2sk: `${name.toLowerCase()}#${userId}` },
+        ConditionExpression: 'attribute_not_exists(pk)' } },
+      { Put: { TableName: tableName,
+        Item: { pk: `USER#${userId}`, sk: 'PASSWORD', entity: 'credential',
+          salt: credential.salt, passwordHash: credential.hash, updatedAt: now },
+        ConditionExpression: 'attribute_not_exists(pk)' } }
+    ]
+  }));
+  return issueCode('PUBLIC_SIGNUP', userId, email);
+}
+
+export async function verifyPublicReporter(email: string, code: string, cookies?: Cookies) {
+  const normalized = normalizeEmail(email);
+  if (!/^\\d{6}$/.test(code.trim())) throw new Error('Enter the six-digit verification code.');
+  const userId = await lookupUserIdByEmail(normalized);
+  if (!userId) throw new Error('Invalid or expired verification code.');
+  const current = await getUserById(userId);
+  if (!current || current.organisationId || !current.roles.includes('PUBLIC_REPORTER') ||
+      current.status !== 'INVITED') throw new Error('Invalid or expired verification code.');
+  const consumed = await consumeCode('PUBLIC_SIGNUP', normalized, code);
+  if (consumed.userId !== userId) throw new Error('Invalid verification code.');
+  await db.send(new UpdateCommand({
+    TableName: tableName,
+    Key: { pk: `USER#${userId}`, sk: 'PROFILE' },
+    UpdateExpression: 'SET #status = :active, emailVerified = :verified, updatedAt = :now',
+    ConditionExpression: 'attribute_exists(pk) AND #status = :invited',
+    ExpressionAttributeNames: { '#status': 'status' },
+    ExpressionAttributeValues: { ':active': 'ACTIVE', ':invited': 'INVITED',
+      ':verified': true, ':now': new Date().toISOString() }
+  }));
+  return { user: await getUserById(userId), sessionToken: await createSession(userId, cookies) };
+}
+
+/** Do not infer organisation roles from an OAuth email address. */
+export async function createOrLoginSocialReporter(input: {
+  provider: 'google' | 'apple' | 'facebook';
+  subject: string;
+  email: string;
+  name: string;
+}, cookies?: Cookies) {
+  const provider = input.provider;
+  const subject = input.subject.trim();
+  const email = normalizeEmail(input.email);
+  if (!subject || subject.length > 200 || !/^\\S+@\\S+\\.\\S+$/.test(email)) {
+    throw new Error('Provider did not supply a usable verified email address.');
+  }
+  const lookupKey = { pk: `AUTH#SOCIAL#${provider.toUpperCase()}#${hashToken(subject)}`, sk: 'USER' };
+  const found = await db.send(new GetCommand({ TableName: tableName, Key: lookupKey }));
+  if (found.Item?.userId) {
+    const user = await getUserById(String(found.Item.userId));
+    if (!user || !user.roles.includes('PUBLIC_REPORTER') || user.organisationId ||
+        !user.enabled || user.status !== 'ACTIVE') throw new Error('This account is not a public reporter.');
+    return { user, sessionToken: await createSession(user.id, cookies) };
+  }
+  // Never silently link provider identities by email to an existing account.
+  if (await lookupUserIdByEmail(email)) {
+    throw new Error('This email already has an account. Sign in with its original method.');
+  }
+  const userId = randomUUID();
+  const now = new Date().toISOString();
+  const name = input.name.trim().slice(0, 100) || 'Wildlife reporter';
+  await db.send(new TransactWriteCommand({
+    TransactItems: [
+      { Put: { TableName: tableName, Key: lookupKey,
+        Item: { ...lookupKey, entity: 'social_auth_lookup', provider, userId },
+        ConditionExpression: 'attribute_not_exists(pk)' } },
+      { Put: { TableName: tableName,
+        Item: { pk: `AUTH#EMAIL#${email}`, sk: 'USER', entity: 'auth_lookup', userId },
+        ConditionExpression: 'attribute_not_exists(pk)' } },
+      { Put: { TableName: tableName,
+        Item: { pk: `USER#${userId}`, sk: 'PROFILE', entity: 'user', id: userId,
+          email, name, enabled: true, status: 'ACTIVE', emailVerified: true,
+          authEpoch: 0, roles: ['PUBLIC_REPORTER'], teamIds: [],
+          availabilityStatus: 'OFFLINE', createdAt: now, updatedAt: now,
+          gsi2pk: 'USERS', gsi2sk: `${name.toLowerCase()}#${userId}` },
+        ConditionExpression: 'attribute_not_exists(pk)' } }
+    ]
+  }));
+  return { user: await getUserById(userId), sessionToken: await createSession(userId, cookies) };
 }
 
 export async function loginUser(email: string, password: string, cookies?: Cookies) {
