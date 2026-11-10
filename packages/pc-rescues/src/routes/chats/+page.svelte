@@ -19,7 +19,7 @@
   let busy = $state(false);
   let error = $state('');
   let loading = $state(true);
-  let messagePanel: HTMLElement;
+  let messagePanel = $state<HTMLElement | undefined>(undefined);
   const selected = $derived(channels.find(channel => channel.id === selectedId));
 
   async function api<T>(url: string, method = 'GET', body?: Record<string, unknown>): Promise<T> {
