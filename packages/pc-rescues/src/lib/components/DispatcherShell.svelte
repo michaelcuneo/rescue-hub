@@ -417,6 +417,9 @@
 					<small>{userRole}</small>
 				</div>
 			</div>
+			{#if demoMode || user.roles.some((role) => ['PLATFORM_ADMIN', 'AUTHORITY_ADMIN'].includes(role))}
+				<a class="session-link" href="/reports">Public reports</a>
+			{/if}
 			{#if demoMode}
 				<a class="session-link" href="/demo/exit">Exit demo</a>
 			{:else if userCanAdmin}
