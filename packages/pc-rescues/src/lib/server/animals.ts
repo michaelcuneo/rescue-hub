@@ -260,20 +260,22 @@ export async function changeAnimalState(animal: AnimalRecord, actorUserId: strin
         !['PENDING', 'ASSIGNED'].includes(pickup.status)) {
       throw new AnimalConflict('Linked transport request is no longer active. Refresh the record before accepting custody.');
     }
-    const isPickupResponder = pickup.status === 'ASSIGNED' && pickup.assignedUserId === actorUserId;
-    const endStatus = input.kind === 'ACCEPT_TRANSFER' && isPickupResponder ? 'COMPLETED' : 'CANCELLED';
+    // A carer, not the transporter, accepts custody. Complete the collected
+    // transport job upon actual receipt; an uncollected offer is cancelled.
+    const transportCollected = pickup.status === 'ASSIGNED' && !!pickup.pickedUpAt;
+    const endStatus = input.kind === 'ACCEPT_TRANSFER' && transportCollected ? 'COMPLETED' : 'CANCELLED';
     const jobEventId = crypto.randomUUID();
     writes.push({ Update: {
       TableName: table,
       Key: { pk: `RESCUE#${pickup.id}`, sk: 'META' },
       UpdateExpression: 'SET #status = :end, gsi1pk = :gsi, updatedAt = :now',
       ConditionExpression: '#status = :prior AND organisationId = :org AND transportAnimalId = :animal' +
-        (isPickupResponder ? ' AND assignedUserId = :actor' : ''),
+        (transportCollected ? ' AND attribute_exists(pickedUpAt) AND assignedUserId = :transporter' : ''),
       ExpressionAttributeNames: { '#status': 'status' },
       ExpressionAttributeValues: {
         ':end': endStatus, ':gsi': `STATUS#${endStatus}`, ':now': now,
         ':prior': pickup.status, ':org': animal.organisationId, ':animal': animal.id,
-        ...(isPickupResponder ? { ':actor': actorUserId } : {})
+        ...(transportCollected ? { ':transporter': pickup.assignedUserId } : {})
       }
     }}, { Put: {
       TableName: table,
