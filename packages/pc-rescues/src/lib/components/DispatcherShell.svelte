@@ -359,6 +359,9 @@
 					<small>{userRole}</small>
 				</div>
 			</div>
+			{#if user.roles.includes('CARER')}
+				<a class="session-link" href="/care-offers">Care offers</a>
+			{/if}
 			{#if demoMode || user.roles.some((role) => ['PLATFORM_ADMIN', 'AUTHORITY_ADMIN'].includes(role))}
 				<a class="session-link" href="/reports">Public reports</a>
 			{/if}
