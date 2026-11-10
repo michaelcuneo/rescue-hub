@@ -14,6 +14,7 @@ export type Rescue = {
   injury?: string | null;
   status: RescueStatus;
   assignedUserId?: string | null;
+  pickedUpAt?: string | null;
   transportAnimalId?: string | null;
   transportSourceRescueId?: string | null;
   createdAt: string;
@@ -26,7 +27,7 @@ type RescueConnection = {
 };
 
 const RESCUE_FIELDS =
-  "id organisationId type breed location latitude longitude injury status assignedUserId transportAnimalId transportSourceRescueId createdAt updatedAt";
+  "id organisationId type breed location latitude longitude injury status assignedUserId pickedUpAt transportAnimalId transportSourceRescueId createdAt updatedAt";
 
 async function request<T>(
   query: string,
