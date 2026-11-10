@@ -23,6 +23,7 @@ import {
   type User
 } from './src/api';
 import { registerForPushNotifications } from './src/notifications';
+import AnimalCare from './src/AnimalCare';
 
 type Session = { user: User; membership: MembershipConfig };
 
@@ -30,6 +31,7 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [session, setSession] = useState<Session | null>(null);
   const [rescues, setRescues] = useState<Rescue[]>([]);
+  const [activeRescue, setActiveRescue] = useState<Rescue | null>(null);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -113,6 +115,8 @@ export default function App() {
 
   const available = session.user.availabilityStatus === 'AVAILABLE';
 
+  if (activeRescue) return <SafeAreaView style={styles.root}><AnimalCare rescue={activeRescue} userId={session.user.id} onBack={() => setActiveRescue(null)} /></SafeAreaView>;
+
   return (
     <SafeAreaView style={styles.root}>
       <StatusBar barStyle="dark-content" />
@@ -160,7 +164,12 @@ export default function App() {
                 <Text style={styles.primaryButtonText}>{busy ? 'Please wait…' : 'Claim rescue'}</Text>
               </Pressable>
             ) : item.assignedUserId === session.user.id ? (
-              <Text style={styles.mine}>Claimed by you · response in progress</Text>
+              <>
+                <Text style={styles.mine}>Claimed by you · response in progress</Text>
+                <Pressable style={styles.claimButton} onPress={() => setActiveRescue(item)}>
+                  <Text style={styles.primaryButtonText}>Manage animals and care history</Text>
+                </Pressable>
+              </>
             ) : null}
           </View>
         )}
@@ -172,6 +181,7 @@ export default function App() {
           await logout();
           setSession(null);
           setRescues([]);
+          setActiveRescue(null);
         }}
       >
         <Text style={styles.signOutText}>Sign out</Text>
