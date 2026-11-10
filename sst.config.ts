@@ -36,6 +36,15 @@ export default $config({
       link: [graphql, realtimeLink, data, mailFrom],
       environment: {
         PUBLIC_MAPBOX_ACCESS_TOKEN: process.env.PUBLIC_MAPBOX_ACCESS_TOKEN ?? "",
+        // Server-side OAuth credentials; these are never PUBLIC_ variables.
+        GOOGLE_OAUTH_CLIENT_ID: process.env.GOOGLE_OAUTH_CLIENT_ID ?? "",
+        GOOGLE_OAUTH_CLIENT_SECRET: process.env.GOOGLE_OAUTH_CLIENT_SECRET ?? "",
+        FACEBOOK_APP_ID: process.env.FACEBOOK_APP_ID ?? "",
+        FACEBOOK_APP_SECRET: process.env.FACEBOOK_APP_SECRET ?? "",
+        APPLE_SERVICE_ID: process.env.APPLE_SERVICE_ID ?? "",
+        APPLE_TEAM_ID: process.env.APPLE_TEAM_ID ?? "",
+        APPLE_KEY_ID: process.env.APPLE_KEY_ID ?? "",
+        APPLE_PRIVATE_KEY: process.env.APPLE_PRIVATE_KEY ?? "",
       },
       permissions: [
         {
