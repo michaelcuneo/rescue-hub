@@ -9,6 +9,7 @@ export type AnimalStatus = 'IN_RESCUE' | 'IN_TRANSIT' | 'AT_VET' | 'IN_CARE' | '
 export type AnimalRecord = {
   id: string; rescueId: string; organisationId: string; species: string; description?: string;
   status: AnimalStatus; currentCustodianUserId?: string; currentLocation?: string;
+  vetStage?: 'AWAITING_ASSESSMENT' | 'ASSESSED_AWAITING_TRANSPORT';
   pendingTransferId?: string; version: number; createdAt: string; updatedAt: string;
 };
 export class AnimalConflict extends Error {}
@@ -151,8 +152,8 @@ export async function getPendingAnimalTransfer(animal: AnimalRecord) {
 }
 
 export async function changeAnimalState(animal: AnimalRecord, actorUserId: string, input: {
-  kind: 'TRANSFER' | 'ACCEPT_TRANSFER' | 'OUTCOME';
-  recipientUserId?: string; location?: string; status?: AnimalStatus; notes?: string;
+  kind: 'TRANSFER' | 'ACCEPT_TRANSFER' | 'OUTCOME' | 'VET_DROPOFF' | 'VET_ASSESSED';
+  recipientUserId?: string; location?: string; status?: AnimalStatus; notes?: string; purpose?: 'CARE' | 'TRANSPORT';
 }) {
   if (terminal.has(animal.status)) throw new AnimalConflict('Animal already has a final outcome.');
   const now = new Date().toISOString(), eventId = crypto.randomUUID();
@@ -168,7 +169,7 @@ export async function changeAnimalState(animal: AnimalRecord, actorUserId: strin
     type = 'TRANSFER_REQUESTED';
     update = 'SET pendingTransferId = :transfer, updatedAt = :now, version = :next';
     values[':transfer'] = eventId;
-    extra = { fromUserId: actorUserId, toUserId: input.recipientUserId, destination: input.location ?? '', notes: input.notes ?? '' };
+    extra = { fromUserId: actorUserId, toUserId: input.recipientUserId, destination: input.location ?? '', purpose: input.purpose === 'TRANSPORT' ? 'TRANSPORT' : 'CARE', notes: input.notes ?? '' };
   } else if (input.kind === 'ACCEPT_TRANSFER') {
     if (!animal.pendingTransferId) throw new AnimalConflict('No transfer is pending.');
     const transfer = await getPendingAnimalTransfer(animal);
@@ -176,9 +177,33 @@ export async function changeAnimalState(animal: AnimalRecord, actorUserId: strin
     condition += ' AND pendingTransferId = :transferId';
     values[':transferId'] = animal.pendingTransferId;
     type = 'TRANSFER_ACCEPTED';
-    update = 'SET currentCustodianUserId = :user, currentLocation = :location, #status = :care, gsi1pk = :custodianKey, updatedAt = :now, version = :next REMOVE pendingTransferId';
-    values = { ...values, ':user': actorUserId, ':location': String(transfer.destination ?? ''), ':care': 'IN_CARE', ':custodianKey': `CUSTODIAN#${animal.organisationId}#${actorUserId}` };
+    update = 'SET currentCustodianUserId = :user, currentLocation = :location, #status = :care, gsi1pk = :custodianKey, updatedAt = :now, version = :next REMOVE pendingTransferId, vetStage';
+    values = { ...values, ':user': actorUserId, ':location': String(transfer.destination ?? ''), ':care': transfer.purpose === 'TRANSPORT' ? 'IN_TRANSIT' : 'IN_CARE', ':custodianKey': `CUSTODIAN#${animal.organisationId}#${actorUserId}` };
     extra = { transferId: animal.pendingTransferId, fromUserId: transfer.fromUserId, toUserId: actorUserId };
+  } else if (input.kind === 'VET_DROPOFF' || input.kind === 'VET_ASSESSED') {
+    if (actorUserId !== animal.currentCustodianUserId) {
+      throw new AnimalConflict('Only the responsible rescuer or custodian can record a vet milestone.');
+    }
+    if (animal.pendingTransferId) throw new AnimalConflict('Complete the pending handover first.');
+    if (input.kind === 'VET_DROPOFF' && !input.location?.trim()) {
+      throw new AnimalConflict('Record the veterinary facility or location.');
+    }
+    if (input.kind === 'VET_ASSESSED' && animal.status !== 'AT_VET') {
+      throw new AnimalConflict('Record the veterinary drop-off before marking an assessment.');
+    }
+    condition += ' AND currentCustodianUserId = :actor AND attribute_not_exists(pendingTransferId)';
+    values[':actor'] = actorUserId;
+    if (input.kind === 'VET_DROPOFF') {
+      type = 'VET_DROPOFF';
+      update = 'SET #status = :vet, vetStage = :stage, currentLocation = :location, updatedAt = :now, version = :next';
+      values = { ...values, ':vet': 'AT_VET', ':stage': 'AWAITING_ASSESSMENT', ':location': input.location!.trim() };
+      extra = { location: input.location!.trim(), notes: input.notes ?? '' };
+    } else {
+      type = 'VET_ASSESSED';
+      update = 'SET vetStage = :stage, updatedAt = :now, version = :next';
+      values[':stage'] = 'ASSESSED_AWAITING_TRANSPORT';
+      extra = { notes: input.notes ?? '', location: animal.currentLocation ?? '' };
+    }
   } else {
     if (animal.pendingTransferId) throw new AnimalConflict('Resolve pending transfer before final outcome.');
     if (!input.status || !terminal.has(input.status)) throw new AnimalConflict('An explicit final outcome is required.');
