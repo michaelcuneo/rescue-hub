@@ -138,7 +138,6 @@
   .actions{display:flex;flex-wrap:wrap;align-items:center;gap:12px}
   button{padding:10px 13px;background:#173d2c;color:white;border:0;border-radius:9px;cursor:pointer;font-weight:800}
   .routing{font-size:12px;font-weight:800;color:#173d2c}
-  select{background:#fff;max-width:100%;padding:10px;border:1px solid #cbd9d0;border-radius:9px;font:inherit}
   button:disabled{opacity:.5}
   .error{color:#a23f35;font-weight:800}.success{background:#e4f2e8;padding:10px;border-radius:10px;color:#24583f}
 </style>
