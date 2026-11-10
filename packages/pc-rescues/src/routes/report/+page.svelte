@@ -1,5 +1,6 @@
 <script lang="ts">
   import { env } from '$env/dynamic/public';
+  import { onMount } from 'svelte';
   import { Map, Marker } from '@beyonk/svelte-mapbox';
 
   let center = $state<[number, number]>([151.7, -32.93]);
@@ -8,10 +9,23 @@
   let pin = $state<{ latitude: number; longitude: number } | null>(null);
   let animal = $state('');
   let condition = $state('');
+  let allowMessages = $state(false);
+  let allowPhoneContact = $state(false);
+  let contactPhone = $state('');
   let error = $state('');
   let busy = $state(false);
   let success = $state('');
   let locBusy = $state(false);
+  type MyReport = { id: string; animal: string; status: string; createdAt: string; allowMessages?: boolean; routingStatus?: string };
+  let myReports = $state<MyReport[]>([]);
+  async function refreshMine() {
+    const response = await fetch('/api/public/reports', { cache: 'no-store' });
+    if (response.ok) {
+      const payload = await response.json() as { items?: MyReport[] };
+      myReports = payload.items ?? [];
+    }
+  }
+  onMount(() => { void refreshMine(); });
   const mapToken = env.PUBLIC_MAPBOX_ACCESS_TOKEN ?? '';
 
   function handleReady() {
@@ -43,11 +57,13 @@
     try {
       const response = await fetch('/api/public/reports', {
         method: 'POST', headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ animal, condition, latitude: pin.latitude, longitude: pin.longitude })
+        body: JSON.stringify({ animal, condition, latitude: pin.latitude, longitude: pin.longitude,
+          allowMessages, allowPhoneContact, contactPhone: allowPhoneContact ? contactPhone : undefined })
       });
       const data = await response.json() as { report?: { id: string }; error?: string };
       if (!response.ok || !data.report) throw new Error(data.error ?? 'Unable to submit report.');
       success = data.report.id;
+      void refreshMine();
       animal = ''; condition = ''; pin = null;
     } catch (e) {
       error = e instanceof Error ? e.message : 'Unable to send report.';
@@ -70,7 +86,8 @@
       <p class="safety">Do not handle unfamiliar animals, snakes or bats. Keep your distance and contact emergency services if anyone is in immediate danger.</p>
       {#if success}
         <div class="success" role="status">
-          <strong>Report received.</strong> Your report is awaiting dispatch review. Reference: <code>{success}</code>
+          <strong>Report received.</strong> Your report has been submitted for geographic routing. Reference: <code>{success}</code>
+          {#if allowMessages}<a href="/report/messages/{success}">Open secure messages with your rescuer</a>{/if}
           <button class="secondary" onclick={() => success = ''}>Report another animal</button>
         </div>
       {:else}
@@ -83,6 +100,11 @@
           <div class="field">
             <label for="condition">What appears to be wrong?</label>
             <textarea id="condition" bind:value={condition} placeholder="e.g. Lying beside the road, dragging its back leg" required minlength="5" maxlength="2000" rows="4"></textarea>
+          </div>
+          <div class="field">
+            <label><input type="checkbox" bind:checked={allowMessages} /> Allow the responding rescuer to message me here</label>
+            <label><input type="checkbox" bind:checked={allowPhoneContact} /> Allow the responding rescuer to call me</label>
+            {#if allowPhoneContact}<label for="contact-phone">Phone number (only visible to the assigned rescuer)</label><input id="contact-phone" type="tel" required minlength="8" maxlength="20" bind:value={contactPhone} />{/if}
           </div>
           <div class="field">
             <span class="label">Where is the animal?</span>
@@ -98,6 +120,15 @@
           </button>
         </form>
       {/if}
+      <section class="previous-reports" aria-label="Your previous wildlife reports">
+        <h2>Your reports</h2>
+        {#each myReports as report (report.id)}
+          <article><strong>{report.animal}</strong><small>{new Date(report.createdAt).toLocaleString('en-AU')} · {report.status.replaceAll('_', ' ')}</small>
+            {#if report.allowMessages}<a href="/report/messages/{report.id}">Open messages</a>{/if}
+          </article>
+        {/each}
+        {#if myReports.length === 0}<p>No previous reports found.</p>{/if}
+      </section>
     </section>
     <section class="map-panel" aria-label="Choose wildlife report location">
       {#if mapToken}
@@ -134,11 +165,12 @@
   .field{display:grid;gap:7px}
   label,.label{font-size:13px;font-weight:800;color:#243c2e}
   input,textarea{box-sizing:border-box;width:100%;font:inherit;padding:12px;border-radius:10px;border:1px solid #cbd9d0}
-  small,.hint{color:#65776b;font-size:12px;margin:0}
+  input[type=checkbox]{width:auto;margin-right:8px}small,.hint{color:#65776b;font-size:12px;margin:0}
   button{border:0;cursor:pointer;min-height:44px;border-radius:10px;font:inherit;font-weight:800;padding:11px}
   button:disabled{opacity:.55;cursor:default}
   .submit{background:#173d2c;color:white}
   .secondary{border:1px solid #b9cbc0;background:#f2f6f3;color:#173d2c}
+  .previous-reports{margin-top:24px;border-top:1px solid #dce5df;padding-top:16px;display:grid;gap:10px}.previous-reports h2{font-size:18px}.previous-reports article{padding:12px;border:1px solid #dce5df;border-radius:9px;display:grid;gap:5px}.previous-reports a{color:#24583f;font-weight:800}
   .map-panel{position:relative;min-height:400px}
   .report-pin{width:22px;height:22px;background:#bf4429;border-radius:100%;border:4px solid white;box-shadow:0 0 0 5px #bf442955}
   .map-tip{position:absolute;top:10px;left:10px;background:#ffffffed;padding:9px 12px;border-radius:10px;color:#173d2c;font-size:12px;font-weight:800}

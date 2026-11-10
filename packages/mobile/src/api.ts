@@ -108,7 +108,21 @@ export type PublicWildlifeReport = {
   longitude: number;
   status: 'SUBMITTED' | 'UNDER_REVIEW' | 'CONVERTED';
   createdAt: string;
+  rescueId?: string;
+  allowMessages?: boolean;
+  allowPhoneContact?: boolean;
 };
+
+export type ReporterMessage = { id: string; reportId: string; senderUserId: string; senderRole: 'REPORTER' | 'RESCUER'; text: string; createdAt: string };
+export async function getRescuerReporterContact(rescueId: string) {
+  return request<{ contact: { reportId: string; allowMessages: boolean; allowPhoneContact: boolean; contactPhone: string | null } | null }>(`/api/mobile/rescues/${encodeURIComponent(rescueId)}/reporter-contact`);
+}
+export async function getReporterConversation(reportId: string) {
+  return request<{ items: ReporterMessage[]; role: 'REPORTER' | 'RESCUER'; rescueId: string | null; contactPhone: string | null }>(`/api/public/reports/${encodeURIComponent(reportId)}/messages`);
+}
+export async function sendReporterMessage(reportId: string, text: string) {
+  return request<{ message: ReporterMessage }>(`/api/public/reports/${encodeURIComponent(reportId)}/messages`, { method: 'POST', body: JSON.stringify({ text }) });
+}
 
 export async function signupReporter(name: string, email: string, password: string) {
   return request<{ ok: true; message: string }>('/api/public/signup', {
@@ -125,10 +139,11 @@ export async function verifyReporter(email: string, code: string) {
 }
 
 export async function submitPublicReport(
-  animal: string, condition: string, latitude: number, longitude: number
+  animal: string, condition: string, latitude: number, longitude: number,
+  options: { allowMessages?: boolean; allowPhoneContact?: boolean; contactPhone?: string } = {}
 ) {
   return request<{ report: PublicWildlifeReport }>('/api/public/reports', {
-    method: 'POST', body: JSON.stringify({ animal, condition, latitude, longitude })
+    method: 'POST', body: JSON.stringify({ animal, condition, latitude, longitude, ...options })
   });
 }
 
@@ -253,6 +268,9 @@ export async function getRescues() {
   return request<{ items: Rescue[]; feed?: RescueFeedDiagnostics; truncated?: boolean }>('/api/mobile/rescues');
 }
 
+export async function correctReportedRescue(id: string, type: string, injury: string) {
+  return request<{ rescue: Rescue }>(`/api/mobile/rescues/${encodeURIComponent(id)}/correction`, { method: 'PATCH', body: JSON.stringify({ type, injury }) });
+}
 export async function claimRescue(id: string) {
   return request<{ rescue: Rescue }>(`/api/mobile/rescues/${encodeURIComponent(id)}/claim`, {
     method: 'POST'
@@ -269,8 +287,13 @@ export type Animal = {
   status: 'IN_RESCUE' | 'IN_TRANSIT' | 'AT_VET' | 'IN_CARE' | 'RELEASED' | 'EUTHANISED' | 'DECEASED';
   currentCustodianUserId?: string; currentLocation?: string; pendingTransferId?: string;
   vetStage?: 'AWAITING_ASSESSMENT' | 'ASSESSED_AWAITING_TRANSPORT';
-  createdAt: string; updatedAt: string;
+  version?: number; createdAt: string; updatedAt: string;
 };
+export async function correctAnimalIdentification(id: string, species: string, description: string) {
+  return request<{ animal: Animal }>(`/api/mobile/animals/${encodeURIComponent(id)}`, {
+    method: 'PATCH', body: JSON.stringify({ species, description })
+  });
+}
 export type AnimalEvent = {
   id: string; type: string; actorUserId: string; notes?: string;
   createdAt: string; occurredAt?: string; outcome?: string;

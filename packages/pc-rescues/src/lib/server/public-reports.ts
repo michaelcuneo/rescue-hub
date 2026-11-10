@@ -22,6 +22,12 @@ export type PublicWildlifeReport = {
   updatedAt: string;
   organisationId?: string;
   rescueId?: string;
+  routingStatus?: 'MATCHED' | 'UNROUTED' | 'ROUTING_UNAVAILABLE';
+  routingReason?: string;
+  areaLabel?: string;
+  allowMessages?: boolean;
+  allowPhoneContact?: boolean;
+  contactPhone?: string;
 };
 
 export function canReport(user: RescueHubUser | null | undefined): user is RescueHubUser {
@@ -36,12 +42,17 @@ export function canTriage(user: RescueHubUser | null | undefined): user is Rescu
 }
 
 export async function submitWildlifeReport(
-  user: RescueHubUser, input: { animal: string; condition: string; latitude: number; longitude: number }
+  user: RescueHubUser, input: { animal: string; condition: string; latitude: number; longitude: number; allowMessages?: boolean; allowPhoneContact?: boolean; contactPhone?: string },
+  routing: { status: 'MATCHED'; organisationId: string; areaLabel: string } | { status: 'UNROUTED' | 'ROUTING_UNAVAILABLE'; reason: string }
 ): Promise<PublicWildlifeReport> {
   if (!canReport(user)) throw new Error('A verified public reporter account is required.');
   const animal = input.animal.trim(), condition = input.condition.trim();
   if (animal.length < 2 || animal.length > 120) throw new Error('Describe the animal (2–120 characters).');
   if (condition.length < 5 || condition.length > 2000) throw new Error('Describe what appears wrong (5–2000 characters).');
+  const phone = (input.contactPhone ?? '').trim();
+  if (input.allowPhoneContact && !/^\\+?[0-9][0-9 ()-]{7,19}$/.test(phone)) {
+    throw new Error('Provide a valid contact number if you allow phone calls.');
+  }
   const { latitude, longitude } = input;
   if (!Number.isFinite(latitude) || !Number.isFinite(longitude) ||
       latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) {
@@ -53,7 +64,14 @@ export async function submitWildlifeReport(
   const id = crypto.randomUUID();
   const report: PublicWildlifeReport = {
     id, reporterUserId: user.id, animal, condition,
-    latitude, longitude, status: 'SUBMITTED', createdAt: iso, updatedAt: iso
+    latitude, longitude, status: 'SUBMITTED', createdAt: iso, updatedAt: iso,
+    allowMessages: input.allowMessages === true,
+    allowPhoneContact: input.allowPhoneContact === true,
+    ...(input.allowPhoneContact === true ? { contactPhone: phone } : {}),
+    routingStatus: routing.status,
+    ...(routing.status === 'MATCHED'
+      ? { organisationId: routing.organisationId, areaLabel: routing.areaLabel }
+      : { routingReason: routing.reason })
   };
   try {
     // Submit the report and move its rate-limit watermark atomically, so a

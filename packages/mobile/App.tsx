@@ -49,7 +49,7 @@ export default function App() {
   const [password, setPassword] = useState('');
   const [reporterName, setReporterName] = useState('');
   const [verificationCode, setVerificationCode] = useState('');
-  const [authMode, setAuthMode] = useState<'login' | 'signup' | 'verify'>('login');
+  const [authMode, setAuthMode] = useState<'login' | 'signup' | 'verify' | 'rescuer'>('signup');
   const [socialProviders, setSocialProviders] = useState<SocialProvider[]>([]);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -230,7 +230,7 @@ export default function App() {
     try {
       const result = await verifyReporter(email.trim(), verificationCode.trim());
       setSession(result);
-      setAuthMode('login');
+      setAuthMode('signup');
       setVerificationCode('');
     } catch (e) { setError(e instanceof Error ? e.message : 'Could not verify your email.'); }
     finally { setBusy(false); }
@@ -273,6 +273,8 @@ export default function App() {
     setPushStatus(null);
     setFeed(null);
     setView('map');
+    setAuthMode('signup');
+    setError('');
   }
 
   async function refresh() {
@@ -297,14 +299,17 @@ export default function App() {
           <Text style={styles.kicker}>RESCUE HUB</Text>
           <Text style={styles.title}>
             {authMode === 'signup' ? 'Report injured wildlife' :
-              authMode === 'verify' ? 'Verify your email' : 'Sign in'}
+              authMode === 'verify' ? 'Verify your email' :
+              authMode === 'rescuer' ? 'Rescuer sign in' : 'Welcome back'}
           </Text>
           <Text style={styles.copy}>
             {authMode === 'signup'
-              ? 'Anyone can report an injured animal. No wildlife organisation membership is needed.'
+              ? 'Create a free account to report injured wildlife. You do not need to belong to a rescue organisation.'
               : authMode === 'verify'
                 ? 'Enter the six-digit verification code sent to your email address.'
-                : 'Sign in to rescue wildlife, or create a public reporter account.'}
+                : authMode === 'rescuer'
+                  ? 'For registered rescue organisation volunteers and coordinators.'
+                  : 'Sign in to your public wildlife reporting account.'}
           </Text>
           {authMode === 'signup' ? (
             <>
@@ -337,23 +342,44 @@ export default function App() {
             onPress={() => void (authMode === 'signup' ? handleSignup() : authMode === 'verify' ? handleVerify() : handleLogin())}
             accessibilityRole="button">
             <Text style={styles.primaryButtonText}>
-              {busy ? 'Please wait…' : authMode === 'signup' ? 'Create reporter account' :
-                authMode === 'verify' ? 'Verify and continue' : 'Sign in'}
-            </Text>
-          </Pressable>
-          <Pressable accessibilityRole="button" onPress={() => { setError(''); setAuthMode(authMode === 'login' ? 'signup' : 'login'); }}>
-            <Text style={styles.modeLink}>
-              {authMode === 'login' ? 'Not a rescuer? Create a public reporter account' : 'Already have an account? Sign in'}
+              {busy ? 'Please wait…' : authMode === 'signup' ? 'Create my free account' :
+                authMode === 'verify' ? 'Verify and continue' :
+                authMode === 'rescuer' ? 'Sign in as rescuer' : 'Sign in to report wildlife'}
             </Text>
           </Pressable>
           {authMode === 'verify' ? (
-            <Pressable accessibilityRole="button" onPress={() => void handleSignup()}>
-              <Text style={styles.modeLink}>Resend verification code</Text>
-            </Pressable>
-          ) : null}
-          {socialProviders.length && authMode !== 'verify' ? (
+            <>
+              <Pressable accessibilityRole="button" onPress={() => void handleSignup()}>
+                <Text style={styles.modeLink}>Resend verification code</Text>
+              </Pressable>
+              <Pressable accessibilityRole="button" onPress={() => { setError(''); setAuthMode('signup'); }}>
+                <Text style={styles.modeLink}>Back to account creation</Text>
+              </Pressable>
+            </>
+          ) : (
+            <>
+              <Pressable accessibilityRole="button" onPress={() => {
+                setError('');
+                setAuthMode(authMode === 'signup' ? 'login' : 'signup');
+              }}>
+                <Text style={styles.modeLink}>
+                  {authMode === 'signup' ? 'Already reported wildlife? Sign in' : 'New here? Create a free public account'}
+                </Text>
+              </Pressable>
+              {authMode === 'rescuer' ? (
+                <Pressable accessibilityRole="button" onPress={() => { setError(''); setAuthMode('login'); }}>
+                  <Text style={styles.modeLink}>Sign in as a member of the public</Text>
+                </Pressable>
+              ) : (
+                <Pressable accessibilityRole="button" onPress={() => { setError(''); setAuthMode('rescuer'); }}>
+                  <Text style={styles.staffLink}>Rescuer or organisation member? Sign in</Text>
+                </Pressable>
+              )}
+            </>
+          )}
+          {socialProviders.length > 0 && authMode !== 'verify' && authMode !== 'rescuer' ? (
             <View style={styles.socialOptions}>
-              <Text style={styles.copy}>Or sign in as a public wildlife reporter with:</Text>
+              <Text style={styles.copy}>Or continue with:</Text>
               <View style={styles.socialRow}>
                 {socialProviders.map(provider => (
                   <Pressable key={provider} accessibilityRole="button" disabled={busy}
@@ -521,6 +547,7 @@ const styles = StyleSheet.create({
   input: { backgroundColor: '#fff', borderWidth: 1, borderColor: '#d9e1dc', borderRadius: 12, padding: 14 },
   fieldTitle: { color: '#173d2c', fontSize: 13, fontWeight: '800' },
   modeLink: { color: '#24583f', fontWeight: '800', fontSize: 13, textAlign: 'center', paddingVertical: 9 },
+  staffLink: { color: '#5d7064', fontWeight: '600', fontSize: 12, textAlign: 'center', paddingVertical: 10 },
   socialOptions: { marginTop: 14, gap: 8 },
   socialRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   socialButton: { backgroundColor: '#fff', borderColor: '#d9e1dc', borderWidth: 1,

@@ -9,6 +9,10 @@
   let events = $state<Event[]>([]);
   let species = $state('');
   let description = $state('');
+  let incidentSpecies = $state('');
+  let incidentCondition = $state('');
+  let correctedSpecies = $state('');
+  let correctedDescription = $state('');
   let note = $state('');
   let sourceName = $state('');
   let eventType = $state('OBSERVATION');
@@ -32,12 +36,20 @@
     if (selected) {
       const detail = await api(`/api/mobile/animals/${selected.id}`);
       selected = detail.animal;
+      correctedSpecies = detail.animal.species;
+      correctedDescription = detail.animal.description ?? '';
       events = detail.events;
     }
   }
-  onMount(() => { void refresh().catch((error) => errorMessage = String(error)); });
+  onMount(() => {
+    incidentSpecies = data.rescue.type;
+    incidentCondition = data.rescue.injury ?? '';
+    void refresh().catch((error) => errorMessage = String(error));
+  });
   async function openAnimal(animal: Animal) {
     selected = animal;
+    correctedSpecies = animal.species;
+    correctedDescription = '';
     try { await refresh(); } catch (error) { errorMessage = String(error); }
   }
   async function submit(action: () => Promise<unknown>) {
@@ -55,10 +67,32 @@
     <div><p class="eyebrow">RESCUE HUB · ANIMAL CARE</p><h1>{data.rescue.type}</h1><p>{data.rescue.location || 'Location not recorded'} · Response: {data.rescue.status}</p></div>
     <span class="tag">{animals.length} animal{animals.length === 1 ? '' : 's'}</span>
   </header>
+  {#if data.reporterContact?.allowMessages}
+    <p><a href="/report/messages/{data.reporterContact.reportId}">Message the person who reported this rescue</a></p>
+  {/if}
+  {#if data.reporterContact?.contactPhone}
+    <p><a href="tel:{data.reporterContact.contactPhone}">Call consenting reporter: {data.reporterContact.contactPhone}</a></p>
+  {/if}
   {#if errorMessage}<p class="error" role="alert">{errorMessage}</p>{/if}
   <div class="layout">
     <aside class="panel">
       <h2>Animal records</h2>
+      {#if data.rescue.assignedUserId === data.userId && data.rescue.status === 'ASSIGNED'}
+        <form onsubmit={(event) => { event.preventDefault(); void submit(async () => {
+          const response = await fetch(`/api/mobile/rescues/${data.rescue.id}/correction`, {
+            method: 'PATCH', headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ type: incidentSpecies, injury: incidentCondition })
+          });
+          const result = await response.json();
+          if (!response.ok) throw new Error(result.error || 'Correction failed');
+        }); }}>
+          <h3>Correct public observations</h3>
+          <p>The person's original report is preserved. Record what you actually found.</p>
+          <label>Verified animal<input required maxlength="120" bind:value={incidentSpecies}/></label>
+          <label>Verified condition<textarea maxlength="2000" bind:value={incidentCondition}></textarea></label>
+          <button class="primary" disabled={busy || incidentSpecies.trim().length < 2}>Save verified observation</button>
+        </form>
+      {/if}
       {#each animals as animal (animal.id)}
         <button class:active={selected?.id === animal.id} class="animal-row" onclick={() => openAnimal(animal)}>
           <strong>{animal.species}</strong><small>{animal.status.replaceAll('_', ' ')}</small>
@@ -79,6 +113,22 @@
         <div class="record-head"><div><p class="eyebrow">PERMANENT ANIMAL RECORD</p><h2>{selected.species}</h2></div><span class="tag">{selected.status.replaceAll('_', ' ')}</span></div>
         <dl><div><dt>Custodian</dt><dd>{isCustodian ? 'You' : selected.currentCustodianUserId || 'Not recorded'}</dd></div><div><dt>Location</dt><dd>{selected.currentLocation || 'Not recorded'}</dd></div></dl>
         {#if selected.pendingTransferId}<p class="notice">Custody handover awaiting acknowledgement.</p>{/if}
+        {#if !final && (isCustodian || canCoordinate)}
+          <form onsubmit={(e) => { e.preventDefault(); void submit(async () => {
+            const response = await fetch(`/api/mobile/animals/${selected!.id}`, {
+              method: 'PATCH', headers: { 'content-type': 'application/json' },
+              body: JSON.stringify({ species: correctedSpecies, description: correctedDescription })
+            });
+            const payload = await response.json();
+            if (!response.ok) throw new Error(payload.error || 'Correction failed');
+          }); }}>
+            <h3>Correct animal identification</h3>
+            <p>Public observations are preserved. Corrections are added to the animal audit trail.</p>
+            <label>Confirmed animal/species<input required maxlength="120" bind:value={correctedSpecies}/></label>
+            <label>Identifying details<textarea maxlength="2000" bind:value={correctedDescription}></textarea></label>
+            <button class="primary" disabled={busy || !correctedSpecies.trim()}>Save corrected details</button>
+          </form>
+        {/if}
         <h3>Care timeline</h3>
         <ol class="timeline">
           {#each events as event (event.id)}

@@ -236,3 +236,49 @@ export async function changeAnimalState(animal: AnimalRecord, actorUserId: strin
   await publishRescueChange();
   return getAnimal(animal.id);
 }
+
+/** Correct an animal identification without modifying the original caller report.
+ * An atomic version check and append-only event preserve the audit trail.
+ */
+export async function correctAnimalIdentification(
+  animal: AnimalRecord, actorUserId: string, input: { species: string; description: string }
+): Promise<AnimalRecord> {
+  if (terminal.has(animal.status)) throw new AnimalConflict('A finalised animal cannot be edited.');
+  const species = input.species.trim(), description = input.description.trim();
+  if (!species || species.length > 120 || description.length > 2000)
+    throw new AnimalConflict('Species (1–120) and description (up to 2000) are required.');
+  if (animal.species === species && (animal.description ?? '') === description) return animal;
+  const now = new Date().toISOString(), eventId = crypto.randomUUID();
+  await db.send(new TransactWriteCommand({ TransactItems: [
+    { Update: {
+      TableName: table, Key: key(animal.id),
+      UpdateExpression: 'SET species = :species, description = :description, updatedAt = :now, version = :next',
+      ConditionExpression: 'version = :version AND organisationId = :org AND NOT (#status IN (:released, :euthanised, :deceased))',
+      ExpressionAttributeNames: { '#status': 'status' },
+      ExpressionAttributeValues: {
+        ':species': species, ':description': description, ':now': now, ':next': animal.version + 1,
+        ':version': animal.version, ':org': animal.organisationId,
+        ':released': 'RELEASED', ':euthanised': 'EUTHANISED', ':deceased': 'DECEASED'
+      }
+    }},
+    { Put: {
+      TableName: table, Item: {
+        pk: `ANIMAL#${animal.id}`, sk: `EVENT#${now}#${eventId}`,
+        entity: 'animal_event', id: eventId, animalId: animal.id,
+        organisationId: animal.organisationId, type: 'IDENTIFICATION_CORRECTED',
+        actorUserId, createdAt: now,
+        previousSpecies: animal.species, species,
+        previousDescription: animal.description ?? '', description
+      },
+      ConditionExpression: 'attribute_not_exists(pk)'
+    }}
+  ] })).catch(error => {
+    if (error instanceof Error && error.name === 'TransactionCanceledException')
+      throw new AnimalConflict('Animal changed since it was loaded. Refresh before correcting its identification.');
+    throw error;
+  });
+  await publishRescueChange();
+  const updated = await getAnimal(animal.id);
+  if (!updated) throw new AnimalConflict('Animal record unavailable after correction.');
+  return updated;
+}

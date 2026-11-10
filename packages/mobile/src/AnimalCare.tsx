@@ -1,9 +1,10 @@
+import ReporterConversation from './ReporterConversation';
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import {
   acceptAnimalTransfer, addAnimalNote, getAnimalHistory, getRescueAnimals,
   recordAnimalOutcome, registerAnimal, requestAnimalTransfer, recordVetDropoff, recordVetAssessment, unclaimRescue,
-  type Animal, type AnimalEvent, type Rescue
+  correctAnimalIdentification, correctReportedRescue, getRescuerReporterContact, type Animal, type AnimalEvent, type Rescue
 } from './api';
 
 type Props = { rescue: Rescue; userId: string; onBack: () => void; onUnclaim: () => void };
@@ -12,11 +13,17 @@ const outcomes = ['RELEASED', 'EUTHANISED', 'DECEASED'] as const;
 const terminal = new Set<string>(outcomes);
 
 export default function AnimalCare({ rescue, userId, onBack, onUnclaim }: Props) {
+  const [conversationOpen, setConversationOpen] = useState(false);
+  const [reporterContact, setReporterContact] = useState<{ reportId: string; allowMessages: boolean; contactPhone: string | null } | null>(null);
   const [animals, setAnimals] = useState<Animal[]>([]);
   const [selected, setSelected] = useState<Animal | null>(null);
   const [events, setEvents] = useState<AnimalEvent[]>([]);
   const [species, setSpecies] = useState(rescue.type ?? '');
   const [description, setDescription] = useState('');
+  const [incidentSpecies, setIncidentSpecies] = useState(rescue.type);
+  const [incidentCondition, setIncidentCondition] = useState(rescue.injury ?? '');
+  const [correctedSpecies, setCorrectedSpecies] = useState('');
+  const [correctedDescription, setCorrectedDescription] = useState('');
   const [notes, setNotes] = useState('');
   const [eventType, setEventType] = useState<(typeof eventTypes)[number]>('OBSERVATION');
   const [recipientId, setRecipientId] = useState('');
@@ -29,12 +36,19 @@ export default function AnimalCare({ rescue, userId, onBack, onUnclaim }: Props)
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
 
+  useEffect(() => {
+    if (!rescue.id.startsWith('public-report-') || rescue.assignedUserId !== userId) return;
+    void getRescuerReporterContact(rescue.id).then(result => setReporterContact(result.contact)).catch(() => {});
+  }, [rescue.id, rescue.assignedUserId, userId]);
+
   const refresh = useCallback(async (id?: string) => {
     const result = await getRescueAnimals(rescue.id);
     setAnimals(result.items);
     if (id) {
       const history = await getAnimalHistory(id);
       setSelected(history.animal);
+      setCorrectedSpecies(history.animal.species);
+      setCorrectedDescription(history.animal.description ?? '');
       setEvents(history.events);
     }
   }, [rescue.id]);
@@ -92,6 +106,10 @@ export default function AnimalCare({ rescue, userId, onBack, onUnclaim }: Props)
     }
   }
 
+  if (conversationOpen && rescue.id.startsWith('public-report-')) {
+    return <ReporterConversation reportId={rescue.id.slice('public-report-'.length)} onBack={() => setConversationOpen(false)} />;
+  }
+
   const isCustodian = selected?.currentCustodianUserId === userId;
   const isFinal = selected ? terminal.has(selected.status) : false;
 
@@ -102,11 +120,31 @@ export default function AnimalCare({ rescue, userId, onBack, onUnclaim }: Props)
       </Pressable>
       <Text style={styles.heading}>{selected ? selected.species : rescue.type}</Text>
       <Text style={styles.muted}>{selected ? `Status: ${selected.status.replace(/_/g, ' ')}` : rescue.location || 'Location not recorded'}</Text>
+      {reporterContact?.allowMessages ? (
+        <Pressable accessibilityRole="button" style={styles.button} onPress={() => setConversationOpen(true)}>
+          <Text style={styles.buttonText}>Message the person who reported this rescue</Text>
+        </Pressable>
+      ) : null}
+      {reporterContact?.contactPhone ? (
+        <Pressable accessibilityRole="button" onPress={() => void Linking.openURL('tel:' + reporterContact.contactPhone)}>
+          <Text style={styles.link}>Call consenting reporter: {reporterContact.contactPhone}</Text>
+        </Pressable>
+      ) : null}
       {error ? <Text style={styles.error}>{error}</Text> : null}
       {loading ? <ActivityIndicator /> : null}
 
       {!selected ? (
         <>
+          {rescue.assignedUserId === userId && rescue.status === 'ASSIGNED' ? <View style={styles.card}>
+            <Text style={styles.section}>Correct the public observation</Text>
+            <Text style={styles.muted}>The reporter's original information is retained. Correct what you found at the scene.</Text>
+            <TextInput style={styles.input} value={incidentSpecies} onChangeText={setIncidentSpecies} maxLength={120} accessibilityLabel="Verified animal identification" placeholder="Confirmed animal" />
+            <TextInput style={[styles.input,styles.multilineInput]} value={incidentCondition} onChangeText={setIncidentCondition} maxLength={2000} multiline accessibilityLabel="Verified condition" placeholder="Observed injury or condition" />
+            <Pressable style={styles.button} disabled={busy || incidentSpecies.trim().length < 2}
+              onPress={() => void run(() => correctReportedRescue(rescue.id, incidentSpecies, incidentCondition))}>
+              <Text style={styles.buttonText}>{busy ? 'Saving…' : 'Save verified observation'}</Text>
+            </Pressable>
+          </View> : null}
           <Text style={styles.section}>Animals in this rescue ({animals.length})</Text>
           {animals.map((animal) => (
             <Pressable key={animal.id} style={styles.card} onPress={() => void openAnimal(animal.id)}>
@@ -172,6 +210,16 @@ export default function AnimalCare({ rescue, userId, onBack, onUnclaim }: Props)
         </>
       ) : (
         <>
+          <View style={styles.card}>
+            <Text style={styles.section}>Correct the animal identification</Text>
+            <Text style={styles.muted}>The public report remains unchanged; all corrections are recorded in the animal history.</Text>
+            <TextInput style={styles.input} value={correctedSpecies} onChangeText={setCorrectedSpecies} maxLength={120} accessibilityLabel="Corrected animal species" placeholder="Confirmed species" />
+            <TextInput style={[styles.input,styles.multilineInput]} value={correctedDescription} onChangeText={setCorrectedDescription} maxLength={2000} multiline accessibilityLabel="Corrected identifying details" placeholder="Identifying details or corrected condition" />
+            <Pressable style={styles.button} disabled={busy || !correctedSpecies.trim() || !isCustodian || isFinal}
+              onPress={() => void run(() => correctAnimalIdentification(selected!.id, correctedSpecies, correctedDescription), selected!.id)}>
+              <Text style={styles.buttonText}>{busy ? 'Saving…' : 'Save verified identification'}</Text>
+            </Pressable>
+          </View>
           <View style={styles.card}>
             <Text style={styles.section}>Current custody</Text>
             <Text style={styles.muted}>Custodian: {isCustodian ? 'You' : selected.currentCustodianUserId || 'Unassigned'}</Text>
