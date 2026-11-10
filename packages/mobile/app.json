@@ -11,7 +11,8 @@
       "bundleIdentifier": "au.com.michaelcuneo.rescuehub"
     },
     "android": {
-      "package": "au.com.michaelcuneo.rescuehub"
+      "package": "au.com.michaelcuneo.rescuehub",
+      "softwareKeyboardLayoutMode": "resize"
     },
     "plugins": [
       "expo-notifications",
