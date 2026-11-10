@@ -20,7 +20,7 @@ export const POST: RequestHandler = async ({ locals, params, request }) => {
   const payload = await request.json().catch(() => null) as Record<string, unknown> | null;
   if (!payload || Array.isArray(payload)) return json({ error: 'Message is required.' }, { status: 400 });
   try {
-    return json({ message: await postChatMessage(locals.user, params.channelId, payload) },
+    return json({ message: await postChatMessage(locals.user, params.channelId, { text: payload.text, animalId: payload.animalId }) },
       { status: 201, headers: { 'cache-control': 'private, no-store' } });
   } catch (error) {
     if (error instanceof ChatAccessError) return json({ error: error.message }, { status: 403 });
