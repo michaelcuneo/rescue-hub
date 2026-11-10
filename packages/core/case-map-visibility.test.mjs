@@ -21,3 +21,8 @@ test('fresh transport pickup has its own visible pin; collection hides it', () =
   assert.equal(shouldShowRescuePin({ status: 'ASSIGNED' }), true);
   assert.equal(shouldShowRescuePin({ status: 'ASSIGNED', pickedUpAt: '2026-11-11T08:12:00Z' }), false);
 });
+
+test('vet transport job stays off the rescue map until a carer claims the animal', () => {
+  assert.equal(shouldShowRescuePin({status:'PENDING',awaitingCarer:true}), false);
+  assert.equal(shouldShowRescuePin({status:'PENDING',awaitingCarer:false}), true);
+});
