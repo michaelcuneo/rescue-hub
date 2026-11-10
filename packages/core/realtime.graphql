@@ -1,0 +1,24 @@
+# A deliberately data-free realtime signal. The API key authorises only
+# subscriptions; publishing requires the server's AWS IAM identity.
+# Never add rescue IDs, organisation IDs, locations, or case details here.
+type FeedSignal @aws_api_key @aws_iam {
+  revision: ID!
+}
+
+type Query {
+  health: String @aws_iam
+}
+
+type Mutation {
+  publishChange(revision: ID!): FeedSignal! @aws_iam
+}
+
+type Subscription {
+  onChange: FeedSignal @aws_subscribe(mutations: ["publishChange"]) @aws_api_key
+}
+
+schema {
+  query: Query
+  mutation: Mutation
+  subscription: Subscription
+}
