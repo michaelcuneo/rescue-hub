@@ -317,6 +317,13 @@ export async function getCareDelivery(animalId: string) {
     `/api/mobile/animals/${encodeURIComponent(animalId)}/delivery`
   );
 }
+export async function changeCareDelivery(animalId: string, destination: CareDeliveryDestination) {
+  return request<{ updated: { animalId: string; updatedAt: string } }>(
+    `/api/mobile/animals/${encodeURIComponent(animalId)}/delivery`, {
+      method: 'PATCH', body: JSON.stringify(destination)
+    }
+  );
+}
 export type Animal = {
   id: string; rescueId: string; species: string; description?: string;
   status: 'IN_RESCUE' | 'IN_TRANSIT' | 'AT_VET' | 'IN_CARE' | 'RELEASED' | 'EUTHANISED' | 'DECEASED';
