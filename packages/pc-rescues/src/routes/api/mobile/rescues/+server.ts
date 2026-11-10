@@ -110,7 +110,7 @@ export const GET: RequestHandler = async ({ locals }) => {
   ).map(rescue => ({
     ...rescue,
     custodyRole: custodianRescueIds.has(rescue.id) ? 'CUSTODIAN' : undefined,
-    stageLabel: stages.get(rescue.id)
+    stageLabel: rescue.transportAnimalId ? 'Transport pickup job' : stages.get(rescue.id)
   }));
 
   return json({
