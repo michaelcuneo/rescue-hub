@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - deploy/rescue-demo-domain
+      - feature/organisation-group-chats
       - feature/carer-self-claim-transport-to-me
       - feature/animal-care-map-lifecycle
       - fix/dispatch-self-claim-and-phone-updates
@@ -28,6 +29,8 @@ jobs:
         run: npm install --no-audit --no-fund
       - name: Public reporter signup and email verification validation tests
         run: node --experimental-strip-types --test packages/core/public-reporter-validation.test.mjs
+      - name: Organisation chat membership and validation tests
+        run: node --experimental-strip-types --test packages/core/chat-channels.test.mjs
       - name: Operational map lifecycle validation tests
         run: node --experimental-strip-types --test packages/core/case-map-visibility.test.mjs
       - name: Independent care claim and delivery tests
