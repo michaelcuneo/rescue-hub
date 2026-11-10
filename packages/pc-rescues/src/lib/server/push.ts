@@ -118,7 +118,7 @@ export async function notifyEligibleRescuers(input: {
 		body: JSON.stringify(tokens.map((to) => ({
 			to,
 			sound: 'default',
-			title: `${input.type} rescue available`,
+			title: input.breed === 'Transport' ? `${input.type} transport pickup available` : `${input.type} rescue available`,
 			body: [input.location, input.injury].filter(Boolean).join(' · ').slice(0, 180),
 			data: { rescueId: input.id, organisationId: input.organisationId, capability }
 		})))
