@@ -335,6 +335,11 @@ export async function acceptAnimalTransfer(id: string) {
     method: 'POST', body: JSON.stringify({ kind: 'ACCEPT_TRANSFER' })
   });
 }
+export async function startVetTransport(id: string, location: string, notes = '') {
+  return request<{ animal: Animal }>(`/api/mobile/animals/${encodeURIComponent(id)}/events`, {
+    method: 'POST', body: JSON.stringify({ kind: 'VET_TRANSPORT_STARTED', location, notes })
+  });
+}
 export async function recordVetDropoff(id: string, location: string, notes = '') {
   return request<{ animal: Animal }>(`/api/mobile/animals/${encodeURIComponent(id)}/events`, {
     method: 'POST', body: JSON.stringify({ kind: 'VET_DROPOFF', location, notes })
