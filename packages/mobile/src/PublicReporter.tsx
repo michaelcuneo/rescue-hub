@@ -123,7 +123,7 @@ export default function PublicReporter({ onSignOut }: Props) {
     <ScrollView style={styles.form} contentContainerStyle={styles.formContent} keyboardShouldPersistTaps="handled">
       {receipt ? <View style={styles.success}>
         <Text style={styles.bold}>Report received. Thank you.</Text>
-        <Text style={styles.small}>Dispatch will review your report. Reference: {receipt}</Text>
+        <Text style={styles.small}>Your report has been submitted for automatic geographic routing. Reference: {receipt}</Text>
         {allowMessages ? <Pressable accessibilityRole="button" onPress={() => setConversationId(receipt)}>
           <Text style={styles.link}>Message your rescuer</Text>
         </Pressable> : null}
