@@ -301,6 +301,7 @@ export type AnimalEvent = {
   createdAt: string; occurredAt?: string; outcome?: string;
   toUserId?: string; fromUserId?: string;
   callerName?: string; callerRole?: string; source?: string; transportRescueId?: string;
+  callbackPermitted?: boolean; callbackPhone?: string;
 };
 export async function getRescueAnimals(rescueId: string) {
   return request<{ items: Animal[] }>(`/api/mobile/rescues/${encodeURIComponent(rescueId)}/animals`);
