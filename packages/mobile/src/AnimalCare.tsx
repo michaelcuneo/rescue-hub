@@ -1,10 +1,10 @@
 import ReporterConversation from './ReporterConversation';
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import {
   acceptAnimalTransfer, addAnimalNote, getAnimalHistory, getRescueAnimals,
   recordAnimalOutcome, registerAnimal, requestAnimalTransfer, recordVetDropoff, recordVetAssessment, unclaimRescue,
-  correctAnimalIdentification, type Animal, type AnimalEvent, type Rescue
+  correctAnimalIdentification, getRescuerReporterContact, type Animal, type AnimalEvent, type Rescue
 } from './api';
 
 type Props = { rescue: Rescue; userId: string; onBack: () => void; onUnclaim: () => void };
@@ -14,6 +14,7 @@ const terminal = new Set<string>(outcomes);
 
 export default function AnimalCare({ rescue, userId, onBack, onUnclaim }: Props) {
   const [conversationOpen, setConversationOpen] = useState(false);
+  const [reporterContact, setReporterContact] = useState<{ reportId: string; allowMessages: boolean; contactPhone: string | null } | null>(null);
   const [animals, setAnimals] = useState<Animal[]>([]);
   const [selected, setSelected] = useState<Animal | null>(null);
   const [events, setEvents] = useState<AnimalEvent[]>([]);
@@ -32,6 +33,11 @@ export default function AnimalCare({ rescue, userId, onBack, onUnclaim }: Props)
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!rescue.id.startsWith('public-report-') || rescue.assignedUserId !== userId) return;
+    void getRescuerReporterContact(rescue.id).then(result => setReporterContact(result.contact)).catch(() => {});
+  }, [rescue.id, rescue.assignedUserId, userId]);
 
   const refresh = useCallback(async (id?: string) => {
     const result = await getRescueAnimals(rescue.id);
@@ -112,9 +118,14 @@ export default function AnimalCare({ rescue, userId, onBack, onUnclaim }: Props)
       </Pressable>
       <Text style={styles.heading}>{selected ? selected.species : rescue.type}</Text>
       <Text style={styles.muted}>{selected ? `Status: ${selected.status.replace(/_/g, ' ')}` : rescue.location || 'Location not recorded'}</Text>
-      {rescue.id.startsWith('public-report-') && rescue.assignedUserId === userId ? (
+      {reporterContact?.allowMessages ? (
         <Pressable accessibilityRole="button" style={styles.button} onPress={() => setConversationOpen(true)}>
-          <Text style={styles.buttonText}>Contact the person who reported this rescue</Text>
+          <Text style={styles.buttonText}>Message the person who reported this rescue</Text>
+        </Pressable>
+      ) : null}
+      {reporterContact?.contactPhone ? (
+        <Pressable accessibilityRole="button" onPress={() => void Linking.openURL('tel:' + reporterContact.contactPhone)}>
+          <Text style={styles.link}>Call consenting reporter: {reporterContact.contactPhone}</Text>
         </Pressable>
       ) : null}
       {error ? <Text style={styles.error}>{error}</Text> : null}
