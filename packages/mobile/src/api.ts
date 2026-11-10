@@ -152,7 +152,7 @@ function base64Url(bytes: Uint8Array) {
       (i + 1 < bytes.length ? alphabet.charAt((value >>> 6) & 63) : '=') +
       (i + 2 < bytes.length ? alphabet.charAt(value & 63) : '=');
   }
-  return output.replace(/\\+/g, '-').replace(/\\//g, '_').replace(/=+$/, '');
+  return output.split('+').join('-').split('/').join('_').replace(/=+$/, '');
 }
 
 export async function loginSocialReporter(provider: SocialProvider) {
@@ -164,7 +164,7 @@ export async function loginSocialReporter(provider: SocialProvider) {
   const digest = await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, verifier, {
     encoding: Crypto.CryptoEncoding.BASE64
   });
-  const challenge = digest.replace(/\\+/g, '-').replace(/\\//g, '_').replace(/=+$/, '');
+  const challenge = digest.split('+').join('-').split('/').join('_').replace(/=+$/, '');
   const start = `${API_URL}/auth/social/${provider}?mobile=1&code_challenge=${encodeURIComponent(challenge)}`;
   const callback = 'rescuehub://auth';
   const result = await WebBrowser.openAuthSessionAsync(start, callback);
