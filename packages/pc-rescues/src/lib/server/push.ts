@@ -66,6 +66,17 @@ async function listOrganisationUsers(organisationId: string): Promise<RescueHubU
 	}));
 }
 
+export async function getPushDeviceRegistrationCount(userId: string) {
+  const result = await db.send(new QueryCommand({
+    TableName: tableName,
+    KeyConditionExpression: 'pk = :pk AND begins_with(sk, :device)',
+    ExpressionAttributeValues: { ':pk': `USER#${userId}`, ':device': 'DEVICE#' }
+  }));
+  return (result.Items ?? []).filter(item =>
+    item.enabled !== false && typeof item.pushToken === 'string'
+  ).length;
+}
+
 async function pushTokensForUser(userId: string) {
 	const result = await db.send(new QueryCommand({
 		TableName: tableName,
