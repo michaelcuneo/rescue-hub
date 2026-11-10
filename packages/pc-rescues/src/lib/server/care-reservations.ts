@@ -46,6 +46,25 @@ export async function listAvailableCareOffers(organisationId: string): Promise<A
   return found;
 }
 
+export async function listMyCareReservations(organisationId: string, userId: string) {
+  const items: Array<{ animalId: string; species: string; transportRescueId: string; claimedAt: string }> = [];
+  let cursor: Record<string, unknown> | undefined;
+  do {
+    const page = await db.send(new QueryCommand({
+      TableName: table,
+      KeyConditionExpression: 'pk = :pk AND begins_with(sk, :prefix)',
+      ExpressionAttributeValues: { ':pk': `USER#${userId}`, ':prefix': 'CARE_RESERVATION#' },
+      ExclusiveStartKey: cursor
+    }));
+    for (const row of page.Items ?? []) if (row.organisationId === organisationId) items.push({
+      animalId: String(row.animalId), species: String(row.species),
+      transportRescueId: String(row.transportRescueId), claimedAt: String(row.claimedAt)
+    });
+    cursor = page.LastEvaluatedKey;
+  } while (cursor);
+  return items;
+}
+
 export async function claimAnimalCare(
   animalId: string,
   organisationId: string,
@@ -96,6 +115,15 @@ export async function claimAnimalCare(
           carerUserId, ...destination, createdAt: now, updatedAt: now
         },
         ConditionExpression: 'attribute_not_exists(pk)'
+      }},
+      { Put: {
+        TableName: table,
+        Item: {
+          pk: `USER#${carerUserId}`, sk: `CARE_RESERVATION#${animal.id}`,
+          entity: 'care_reservation', organisationId, animalId: animal.id,
+          species: animal.species, transportRescueId: job.id,
+          claimedAt: now
+        }, ConditionExpression: 'attribute_not_exists(pk)'
       }},
       { Delete: {
         TableName: table,
