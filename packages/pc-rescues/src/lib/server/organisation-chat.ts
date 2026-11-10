@@ -97,7 +97,7 @@ export async function readChatPage(
       ? 'pk = :pk AND sk < :before'
       : 'pk = :pk AND begins_with(sk, :prefix)',
     ExpressionAttributeValues: {
-      ':pk': pk, ':prefix': CHAT_PREFIX, ...(before ? { ':before': before } : {})
+      ':pk': pk, ...(before ? { ':before': before } : { ':prefix': CHAT_PREFIX })
     },
     ScanIndexForward: false,
     Limit: PAGE_SIZE
