@@ -1,4 +1,7 @@
 import * as SecureStore from 'expo-secure-store';
+import * as Crypto from 'expo-crypto';
+import * as WebBrowser from 'expo-web-browser';
+import Constants from 'expo-constants';
 
 const API_URL = (process.env.EXPO_PUBLIC_RESCUE_HUB_API_URL ?? '').replace(/\/$/, '');
 const TOKEN_KEY = 'rescuehub_session';
@@ -131,6 +134,48 @@ export async function submitPublicReport(
 
 export async function myPublicReports() {
   return request<{ items: PublicWildlifeReport[] }>('/api/public/reports');
+}
+
+export type SocialProvider = 'google' | 'apple' | 'facebook';
+
+export async function availableSocialProviders() {
+  return request<{ providers: SocialProvider[] }>('/api/public/providers', {}, false);
+}
+
+function base64Url(bytes: Uint8Array) {
+  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+  let output = '';
+  for (let i = 0; i < bytes.length; i += 3) {
+    const value = ((bytes[i] ?? 0) << 16) | ((bytes[i + 1] ?? 0) << 8) | (bytes[i + 2] ?? 0);
+    output += alphabet.charAt((value >>> 18) & 63) +
+      alphabet.charAt((value >>> 12) & 63) +
+      (i + 1 < bytes.length ? alphabet.charAt((value >>> 6) & 63) : '=') +
+      (i + 2 < bytes.length ? alphabet.charAt(value & 63) : '=');
+  }
+  return output.replace(/\\+/g, '-').replace(/\\//g, '_').replace(/=+$/, '');
+}
+
+export async function loginSocialReporter(provider: SocialProvider) {
+  if (Constants.appOwnership === 'expo') {
+    throw new Error('Apple, Google and Facebook sign-in require the installed Rescue Hub development build, not Expo Go.');
+  }
+  if (!API_URL.startsWith('https://')) throw new Error('Configure the Rescue Hub HTTPS API URL first.');
+  const verifier = base64Url(Crypto.getRandomBytes(32));
+  const digest = await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, verifier, {
+    encoding: Crypto.CryptoEncoding.BASE64
+  });
+  const challenge = digest.replace(/\\+/g, '-').replace(/\\//g, '_').replace(/=+$/, '');
+  const start = `${API_URL}/auth/social/${provider}?mobile=1&code_challenge=${encodeURIComponent(challenge)}`;
+  const callback = 'rescuehub://auth';
+  const result = await WebBrowser.openAuthSessionAsync(start, callback);
+  if (result.type !== 'success') return null;
+  const code = new URL(result.url).searchParams.get('code');
+  if (!code) throw new Error('The sign-in provider did not return a mobile handoff code.');
+  const session = await request<{ token: string; user: User; membership: null }>(
+    '/api/public/mobile-session', { method: 'POST', body: JSON.stringify({ code, verifier }) }, false
+  );
+  await SecureStore.setItemAsync(TOKEN_KEY, session.token);
+  return { user: session.user, membership: null };
 }
 
 export async function login(email: string, password: string) {
