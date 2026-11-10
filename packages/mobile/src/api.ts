@@ -140,6 +140,10 @@ export async function getMapConfiguration() {
   return request<{ token: string; style: string; operatingAreasUrl: string }>('/api/mobile/map-config');
 }
 
+export async function getPushDeviceStatus() {
+  return request<{ registeredDevices: number }>('/api/mobile/device');
+}
+
 export async function registerDevice(pushToken: string, platform: 'ios' | 'android', deviceName?: string) {
   return request<{ ok: true }>('/api/mobile/device', {
     method: 'POST',
@@ -147,8 +151,18 @@ export async function registerDevice(pushToken: string, platform: 'ios' | 'andro
   });
 }
 
+export type RescueFeedDiagnostics = {
+  source: 'appsync' | 'dynamodb-fallback';
+  organisationRescues: number;
+  pendingRescues: number;
+  qualifiedPending: number;
+  visibleRescues: number;
+  canBrowse: boolean;
+  organisationId: string;
+  teamIds: string[];
+};
 export async function getRescues() {
-  return request<{ items: Rescue[] }>('/api/mobile/rescues');
+  return request<{ items: Rescue[]; feed?: RescueFeedDiagnostics; truncated?: boolean }>('/api/mobile/rescues');
 }
 
 export async function claimRescue(id: string) {
