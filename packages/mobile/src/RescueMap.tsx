@@ -1,10 +1,20 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import WebView, { type WebViewMessageEvent } from 'react-native-webview';
-import { getMapConfiguration, type Rescue } from './api';
+import { type Rescue } from './api';
 
 type Props = { rescues: Rescue[]; onSelect: (rescue: Rescue) => void };
-type MapConfiguration = Awaited<ReturnType<typeof getMapConfiguration>>;
+type MapConfiguration = { token: string; style: string; operatingAreasUrl: string };
+
+// These are public client-side values, injected by Expo/Metro at bundle time.
+// Mapbox never needs an authenticated Rescue Hub API route to obtain its public token.
+const API_ORIGIN = (process.env.EXPO_PUBLIC_RESCUE_HUB_API_URL ?? '').replace(/\\/$/, '');
+const MAPBOX_TOKEN = (process.env.EXPO_PUBLIC_MAPBOX_ACCESS_TOKEN ?? '').trim();
+const MAP_CONFIGURATION: MapConfiguration = {
+  token: MAPBOX_TOKEN,
+  style: 'mapbox://styles/michaelcuneo/ckzzecgy7005j14qvpzd53fgn',
+  operatingAreasUrl: `${API_ORIGIN}/data/operating-areas.geojson`
+};
 
 function html(config: MapConfiguration) {
   // Rescue data never interpolates into executable JavaScript: it travels as JSON messages.
@@ -60,7 +70,6 @@ map.on('error',e=>send({type:'error',message:e.error?.message||'Map error'}));
 }
 
 export default function RescueMap({ rescues, onSelect }: Props) {
-  const [config, setConfig] = useState<MapConfiguration | null>(null);
   const [ready, setReady] = useState(false);
   const [error, setError] = useState('');
   // WebView 14.0.1 defaults its props generic to undefined, making JSX props 'never'.
@@ -69,13 +78,6 @@ export default function RescueMap({ rescues, onSelect }: Props) {
   const payload = useMemo(() => JSON.stringify(rescues.map(r => ({
     id:r.id, type:r.type, status:r.status, latitude:r.latitude, longitude:r.longitude
   }))), [rescues]);
-
-  useEffect(() => {
-    let alive = true;
-    getMapConfiguration().then(result => { if(alive) setConfig(result); })
-      .catch(e => { if(alive) setError(e instanceof Error ? e.message : 'Unable to load map'); });
-    return () => { alive = false; };
-  }, []);
 
   useEffect(() => {
     if(ready) map.current?.injectJavaScript(`window.receiveRescues(${payload});true;`);
@@ -93,12 +95,14 @@ export default function RescueMap({ rescues, onSelect }: Props) {
     } catch { /* Ignore malformed WebView messages. */ }
   };
 
-  if(error && !config) return <View style={styles.feedback}><Text style={styles.error}>{error}</Text></View>;
+  if (!MAPBOX_TOKEN.startsWith('pk.')) {
+    return <View style={styles.feedback}><Text style={styles.error}>Set EXPO_PUBLIC_MAPBOX_ACCESS_TOKEN in packages/mobile/.env and restart Expo.</Text></View>;
+  }
   return <View style={styles.container}>
-    {config ? <WebView<{}> ref={map} source={{html:html(config),baseUrl:'https://api.mapbox.com'}}
+    <WebView<{}> ref={map} source={{html:html(MAP_CONFIGURATION),baseUrl:API_ORIGIN || 'https://api.mapbox.com'}}
       style={styles.webview} onMessage={handleMessage} javaScriptEnabled domStorageEnabled
       originWhitelist={['https://*']} onError={e=>setError(e.nativeEvent.description)}
-      accessibilityLabel="Map of eligible and assigned rescue locations" /> : null}
+      accessibilityLabel="Map of eligible and assigned rescue locations" />
     {!ready && !error ? <View style={styles.loading}><ActivityIndicator /><Text style={styles.hint}>Loading rescue map…</Text></View> : null}
     {error ? <View style={styles.warning}><Text style={styles.error}>{error}</Text></View> : null}
     <View style={styles.legend}><Text style={styles.legendText}>● Pending     ● Assigned / yours</Text></View>
