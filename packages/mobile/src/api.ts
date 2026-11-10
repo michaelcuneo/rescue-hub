@@ -11,6 +11,16 @@ export type User = {
   membershipTypeId?: string;
   teamIds: string[];
   availabilityStatus: 'AVAILABLE' | 'BUSY' | 'OFFLINE';
+  availabilityPolicy?: AvailabilityPolicy;
+};
+
+export type AvailabilityMode = 'ON' | 'OFF' | 'SCHEDULE';
+export type Weekday = 'MON' | 'TUE' | 'WED' | 'THU' | 'FRI' | 'SAT' | 'SUN';
+export type AvailabilityWindow = { start: string; end: string };
+export type AvailabilityPolicy = {
+  mode: AvailabilityMode;
+  timezone: string;
+  week: Record<Weekday, { enabled: boolean; windows: AvailabilityWindow[] }>;
 };
 
 export type MembershipConfig = {
@@ -88,6 +98,20 @@ export async function setAvailability(status: User['availabilityStatus']) {
     method: 'POST',
     body: JSON.stringify({ status })
   });
+}
+
+export async function getAvailability() {
+  return request<{ policy: AvailabilityPolicy; status: User['availabilityStatus'] }>('/api/mobile/availability');
+}
+
+export async function saveAvailability(policy: AvailabilityPolicy) {
+  return request<{ ok: true; policy: AvailabilityPolicy; status: User['availabilityStatus'] }>('/api/mobile/availability', {
+    method: 'PUT', body: JSON.stringify(policy)
+  });
+}
+
+export async function getMapConfiguration() {
+  return request<{ token: string; style: string; operatingAreasUrl: string }>('/api/mobile/map-config');
 }
 
 export async function registerDevice(pushToken: string, platform: 'ios' | 'android', deviceName?: string) {
