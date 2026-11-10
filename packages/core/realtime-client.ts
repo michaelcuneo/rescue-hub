@@ -17,7 +17,7 @@ function base64Ascii(input: string): string {
   if (bytes.some(byte => byte > 127)) throw new Error('Unexpected non-ASCII realtime authentication header.');
   let output = '';
   for (let i = 0; i < bytes.length; i += 3) {
-    const n = (bytes[i] << 16) | ((bytes[i + 1] ?? 0) << 8) | (bytes[i + 2] ?? 0);
+    const n = (bytes[i]! << 16) | ((bytes[i + 1] ?? 0) << 8) | (bytes[i + 2] ?? 0);
     output += BASE64[(n >>> 18) & 63] + BASE64[(n >>> 12) & 63] +
       (i + 1 < bytes.length ? BASE64[(n >>> 6) & 63] : '=') +
       (i + 2 < bytes.length ? BASE64[n & 63] : '=');
