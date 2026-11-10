@@ -109,13 +109,13 @@ export default function RescueMap({ rescues, onSelect }: Props) {
   </View>;
 }
 const styles = StyleSheet.create({
- container:{height:320,borderRadius:16,overflow:'hidden',backgroundColor:'#dce6df',marginHorizontal:16,marginTop:14},
+ container:{flex:1,overflow:'hidden',backgroundColor:'#dce6df'},
  webview:{flex:1,backgroundColor:'#dce6df'},
  loading:{...StyleSheet.absoluteFill,alignItems:'center',justifyContent:'center',gap:8},
  feedback:{margin:16,padding:15,backgroundColor:'#fff',borderRadius:12},
  hint:{color:'#53695d',fontSize:13},
  warning:{position:'absolute',top:8,left:8,right:8,padding:8,backgroundColor:'#fff8ee',borderRadius:8},
  error:{color:'#9a3b2e',fontSize:12},
- legend:{position:'absolute',bottom:8,left:8,backgroundColor:'#ffffffed',borderRadius:9,padding:8},
+ legend:{position:'absolute',top:10,left:10,backgroundColor:'#ffffffed',borderRadius:9,padding:8},
  legendText:{color:'#173d2c',fontSize:11,fontWeight:'700'}
 });
