@@ -1,4 +1,5 @@
 import { Resource } from "sst";
+import { publishRescueChange } from "./realtime";
 
 export type RescueStatus = "PENDING" | "ASSIGNED" | "COMPLETED" | "CANCELLED";
 
@@ -101,6 +102,7 @@ export async function createRescue(input: {
     createRescue(input: $input) { ${RESCUE_FIELDS} }
   }`;
   const data = await request<{ createRescue: Rescue }>(mutation, { input });
+  await publishRescueChange();
   return data.createRescue;
 }
 
@@ -114,6 +116,7 @@ export async function updateRescueStatus(
   const data = await request<{ updateRescueStatus: Rescue }>(mutation, {
     input: { id, status },
   });
+  await publishRescueChange();
   return data.updateRescueStatus;
 }
 
@@ -124,6 +127,7 @@ export async function assignRescue(id: string, userId: string): Promise<Rescue> 
   const data = await request<{ assignRescue: Rescue }>(mutation, {
     input: { id, userId },
   });
+  await publishRescueChange();
   return data.assignRescue;
 }
 
