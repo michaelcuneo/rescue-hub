@@ -122,18 +122,6 @@ export async function updateRescueStatus(
   return data.updateRescueStatus;
 }
 
-export async function assignRescue(id: string, userId: string): Promise<Rescue> {
-  const mutation = `mutation AssignRescue($input: AssignRescueInput!) {
-    assignRescue(input: $input) { ${RESCUE_FIELDS} }
-  }`;
-  const data = await request<{ assignRescue: Rescue }>(mutation, {
-    input: { id, userId },
-  });
-  await publishRescueChange();
-  return data.assignRescue;
-}
-
-
 export type OrganisationDirectoryEntry = {
   id: string;
   authorityId: string;
