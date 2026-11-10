@@ -285,7 +285,7 @@
         </ol>
         <h3>Care timeline</h3>
         <ol class="timeline">
-          {#each events as event (event.id)}
+          {#each events.filter(event => event.type !== 'PHONE_UPDATE') as event (event.id)}
             <li><strong>{event.type.replaceAll('_', ' ')}</strong><small>{new Date(event.occurredAt || event.createdAt).toLocaleString()}</small>{#if event.notes}<p>{event.notes}</p>{/if}{#if event.source}<small>Source: {event.source} · {event.reportedByName || 'Not specified'}</small>{/if}</li>
           {/each}
         </ol>
