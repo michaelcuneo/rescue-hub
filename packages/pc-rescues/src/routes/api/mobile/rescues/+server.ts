@@ -1,3 +1,4 @@
+import { effectiveAvailability } from '$lib/server/availability';
 import { json } from '@sveltejs/kit';
 import { getRescues } from '$lib/server/graphql';
 import {
@@ -19,7 +20,7 @@ export const GET: RequestHandler = async ({ locals }) => {
 	const items = result.items.filter((rescue) => {
 		if (rescue.organisationId !== user.organisationId) return false;
         if (rescue.assignedUserId === user.id) return true;
-        if (rescue.status !== 'PENDING' || !user.enabled || user.availabilityStatus !== 'AVAILABLE') return false;
+        if (rescue.status !== 'PENDING' || !user.enabled || effectiveAvailability(user) !== 'AVAILABLE') return false;
 		const capability = classifyDispatchCapability(rescue.type, rescue.breed ?? '');
 		return memberCanReceiveCapability(user.teamIds, membership, capability);
 	});
