@@ -3,7 +3,7 @@ import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, Text
 import {
   acceptAnimalTransfer, addAnimalNote, getAnimalHistory, getRescueAnimals,
   recordAnimalOutcome, registerAnimal, requestAnimalTransfer, recordVetDropoff, recordVetAssessment, unclaimRescue,
-  type Animal, type AnimalEvent, type Rescue
+  correctAnimalIdentification, type Animal, type AnimalEvent, type Rescue
 } from './api';
 
 type Props = { rescue: Rescue; userId: string; onBack: () => void; onUnclaim: () => void };
@@ -17,6 +17,8 @@ export default function AnimalCare({ rescue, userId, onBack, onUnclaim }: Props)
   const [events, setEvents] = useState<AnimalEvent[]>([]);
   const [species, setSpecies] = useState(rescue.type ?? '');
   const [description, setDescription] = useState('');
+  const [correctedSpecies, setCorrectedSpecies] = useState('');
+  const [correctedDescription, setCorrectedDescription] = useState('');
   const [notes, setNotes] = useState('');
   const [eventType, setEventType] = useState<(typeof eventTypes)[number]>('OBSERVATION');
   const [recipientId, setRecipientId] = useState('');
@@ -35,6 +37,8 @@ export default function AnimalCare({ rescue, userId, onBack, onUnclaim }: Props)
     if (id) {
       const history = await getAnimalHistory(id);
       setSelected(history.animal);
+      setCorrectedSpecies(history.animal.species);
+      setCorrectedDescription(history.animal.description ?? '');
       setEvents(history.events);
     }
   }, [rescue.id]);
@@ -172,6 +176,16 @@ export default function AnimalCare({ rescue, userId, onBack, onUnclaim }: Props)
         </>
       ) : (
         <>
+          <View style={styles.card}>
+            <Text style={styles.section}>Correct the animal identification</Text>
+            <Text style={styles.muted}>The public report remains unchanged; all corrections are recorded in the animal history.</Text>
+            <TextInput style={styles.input} value={correctedSpecies} onChangeText={setCorrectedSpecies} maxLength={120} accessibilityLabel="Corrected animal species" placeholder="Confirmed species" />
+            <TextInput style={[styles.input,styles.multilineInput]} value={correctedDescription} onChangeText={setCorrectedDescription} maxLength={2000} multiline accessibilityLabel="Corrected identifying details" placeholder="Identifying details or corrected condition" />
+            <Pressable style={styles.button} disabled={busy || !correctedSpecies.trim() || !isCustodian || isFinal}
+              onPress={() => void run(() => correctAnimalIdentification(selected!.id, correctedSpecies, correctedDescription), selected!.id)}>
+              <Text style={styles.buttonText}>{busy ? 'Saving…' : 'Save verified identification'}</Text>
+            </Pressable>
+          </View>
           <View style={styles.card}>
             <Text style={styles.section}>Current custody</Text>
             <Text style={styles.muted}>Custodian: {isCustodian ? 'You' : selected.currentCustodianUserId || 'Unassigned'}</Text>
