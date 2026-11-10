@@ -10,6 +10,8 @@
     let stop: (() => void) | undefined;
     let connected = false;
     let inflight = false;
+    let delayedRefresh: ReturnType<typeof setTimeout> | null = null;
+    let retry: ReturnType<typeof setTimeout> | null = null;
 
     const refresh = async () => {
       if (closed || inflight) return;
@@ -31,12 +33,19 @@
         const config = await response.json() as RealtimeConfig;
         if (closed) return;
         stop = subscribeRescueChanges(config, {
-          onChange: () => { void refresh(); },
+          onChange: () => {
+            void refresh();
+            if (delayedRefresh) clearTimeout(delayedRefresh);
+            delayedRefresh = setTimeout(() => void refresh(), 1500);
+          },
           onConnected: () => { void refresh(); },
           onStatus: online => { connected = online; }
         });
       } catch {
-        if (!closed) console.warn('Public dispatch live feed unavailable; fallback refresh active.');
+        if (!closed) {
+          console.warn('Public dispatch live feed unavailable; fallback refresh active.');
+          retry = setTimeout(() => void connect(), 10_000);
+        }
       }
     };
     void connect();
@@ -46,6 +55,8 @@
     return () => {
       closed = true;
       clearInterval(fallback);
+      if (delayedRefresh) clearTimeout(delayedRefresh);
+      if (retry) clearTimeout(retry);
       document.removeEventListener('visibilitychange', visibility);
       stop?.();
     };
