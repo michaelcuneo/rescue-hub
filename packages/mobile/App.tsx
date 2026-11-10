@@ -36,6 +36,7 @@ import AvailabilitySettings from './src/AvailabilitySettings';
 import RescueMap from './src/RescueMap';
 import PublicReporter from './src/PublicReporter';
 import { subscribeRescueChanges } from '../core/realtime-client';
+import { shouldShowRescuePin } from '../core/case-map-visibility';
 
 type Session = { user: User; membership: MembershipConfig | null };
 
@@ -469,8 +470,8 @@ export default function App() {
       ) : null}
       {view === 'map' ? (
         <View style={styles.mapBody}>
-          <RescueMap rescues={rescues} onSelect={setSelectedMapRescue} />
-          {selectedMapRescue ? (
+          <RescueMap rescues={rescues.filter(shouldShowRescuePin)} onSelect={setSelectedMapRescue} />
+          {selectedMapRescue && shouldShowRescuePin(selectedMapRescue) ? (
             <View style={styles.selectedRescue}>
               <View style={styles.selectedHeading}>
                 <Text style={styles.animal} numberOfLines={1}>{selectedMapRescue.type}</Text>
