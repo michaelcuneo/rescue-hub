@@ -1,6 +1,7 @@
 import { redirect } from '@sveltejs/kit';
 import { createOrLoginSocialReporter } from '$lib/server/auth';
 import { finishSocialOAuth, isSocialProvider } from '$lib/server/social-oauth';
+import { createMobileAuthHandoff } from '$lib/server/mobile-oauth';
 import type { RequestHandler } from './$types';
 
 async function finish(input: {
@@ -13,7 +14,12 @@ async function finish(input: {
       provider: input.provider, origin: input.origin,
       state: input.state, code: input.code, appleUser: input.appleUser
     });
-    await createOrLoginSocialReporter(identity, input.cookies);
+    const mobile = Boolean(identity.mobileChallenge);
+    const result = await createOrLoginSocialReporter(identity, mobile ? undefined : input.cookies);
+    if (identity.mobileChallenge) {
+      const target = await createMobileAuthHandoff(result.user!.id, identity.mobileChallenge);
+      throw redirect(303, target);
+    }
     throw redirect(303, '/report');
   } catch (e) {
     if (e && typeof e === 'object' && 'status' in e && 'location' in e) throw e;
