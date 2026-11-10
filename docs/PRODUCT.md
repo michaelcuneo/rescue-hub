@@ -1,12 +1,14 @@
 # Rescue Hub Product Vision
 
+> **Authoritative clarification (10 November 2026):** Read [ANIMAL-LIFECYCLE.md](ANIMAL-LIFECYCLE.md) first. Eligible rescuers self-claim jobs; routine manual dispatch is not the operating model. An animal remains tracked through veterinary care, custody transfers and long-term rehabilitation until an explicit final outcome. Rescue response completion does not close the animal record. Older wording below is historical and must not override these requirements.
+
 ## Purpose
 
 Rescue Hub is a software-as-a-service platform for wildlife rescue operations.
 
 Its purpose is to give independent wildlife rescue organisations a common operational system without removing the geographic and organisational boundaries under which those organisations work.
 
-A rescue should be able to move from a phone call to a mapped, assigned and fully recorded case in seconds.
+A rescue should move from a phone call to a mapped, self-claimed response in seconds, then preserve a permanent animal record through custody, care and final outcome.
 
 At the same time, the appropriate government wildlife authority should be able to see an auditable record of wildlife rescue activity across all participating organisations within its jurisdiction.
 
