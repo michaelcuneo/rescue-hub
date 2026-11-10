@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { validateCareDestination, canClaimAnimalCare, canTransportForOrganisation } from './care-delivery.ts';
+import { validateCareDestination, canClaimAnimalCare, canTransportForOrganisation, transportCloseStatus } from './care-delivery.ts';
 
 test('carer may request pickup to workplace or opt-in live GPS position', () => {
   assert.deepEqual(validateCareDestination({
@@ -32,4 +32,11 @@ test('transport can be claimed by eligible organisation members regardless of sp
   assert.equal(canTransportForOrganisation({...base,roles:['PUBLIC_REPORTER']}),false);
   assert.equal(canTransportForOrganisation({...base,enabled:false}),false);
   assert.equal(canTransportForOrganisation({...base,roles:['DATA_STEWARD']}),false);
+});
+
+test('transport closes as completed only after collected animal is accepted by carer', () => {
+  assert.equal(transportCloseStatus('ACCEPT_TRANSFER','ASSIGNED','2026-11-11T01:00:00Z'),'COMPLETED');
+  assert.equal(transportCloseStatus('ACCEPT_TRANSFER','ASSIGNED'),'CANCELLED');
+  assert.equal(transportCloseStatus('ACCEPT_TRANSFER','PENDING'),'CANCELLED');
+  assert.equal(transportCloseStatus('OUTCOME','ASSIGNED','2026-11-11T01:00:00Z'),'CANCELLED');
 });
