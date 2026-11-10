@@ -17,7 +17,7 @@ export const GET: RequestHandler = async ({ locals, params }) => {
 };
 export const POST: RequestHandler = async ({ locals, params, request }) => {
   const user = locals.user;
-  if (!user?.organisationId || !user.enabled || user.status !== 'ACTIVE' || !user.roles.includes('RESCUER')) return json({ error: 'Access denied.' }, { status: 403 });
+  if (!user?.organisationId || !user.enabled || user.status !== 'ACTIVE' || !user.roles.some(role => ['RESCUER', 'CARER', 'ORG_ADMIN'].includes(role))) return json({ error: 'Access denied.' }, { status: 403 });
   const rescue = await getRescue(params.id);
   if (!rescue || rescue.organisationId !== user.organisationId || rescue.assignedUserId !== user.id) return json({ error: 'Only the claiming rescuer can register animals.' }, { status: 403 });
   const body = await request.json().catch(() => null) as { species?: unknown; description?: unknown; location?: unknown } | null;
