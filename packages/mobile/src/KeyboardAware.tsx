@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type ComponentRef, type ReactNode } from 'react';
 import {
   findNodeHandle, Keyboard, KeyboardAvoidingView, Platform, ScrollView,
   TextInput, type ScrollViewProps, type StyleProp, type TextInputProps, type ViewStyle
@@ -16,7 +16,15 @@ export function KeyboardAwareView({ children, style }: {
   </KeyboardAvoidingView>;
 }
 
-const ScrollFocusedInput = createContext<(input: TextInput | null) => void>(() => {});
+type NativeTextInput = ComponentRef<typeof TextInput>;
+type NativeScrollView = ComponentRef<typeof ScrollView>;
+type KeyboardScrollResponder = {
+  scrollResponderScrollNativeHandleToKeyboard?: (
+    node: number, additionalOffset: number, preventNegativeScrollOffset: boolean
+  ) => void;
+  getScrollResponder?: () => KeyboardScrollResponder | null;
+};
+const ScrollFocusedInput = createContext<(input: NativeTextInput | null) => void>(() => {});
 
 /**
  * Scroll the focused field into the visible region once the keyboard finishes
@@ -25,16 +33,20 @@ const ScrollFocusedInput = createContext<(input: TextInput | null) => void>(() =
  * inputs in long rescue/care forms are scrolled into view.
  */
 export function KeyboardAwareScrollView({ children, style, ...props }: ScrollViewProps) {
-  const scroll = useRef<ScrollView>(null);
-  const focused = useRef<TextInput | null>(null);
-  const reveal = useCallback((input: TextInput | null) => {
+  const scroll = useRef<NativeScrollView>(null);
+  const focused = useRef<NativeTextInput | null>(null);
+  const reveal = useCallback((input: NativeTextInput | null) => {
     if (input) focused.current = input;
     const current = focused.current;
     if (!current) return;
     // Two frames lets native keyboard insets and the scroll viewport settle.
     requestAnimationFrame(() => requestAnimationFrame(() => {
       const handle = findNodeHandle(current);
-      if (handle) scroll.current?.scrollResponderScrollNativeHandleToKeyboard(handle, 28, true);
+      if (handle) {
+        const responder = scroll.current as unknown as KeyboardScrollResponder | null;
+        const implementation = responder?.getScrollResponder?.() ?? responder;
+        implementation?.scrollResponderScrollNativeHandleToKeyboard?.(handle, 28, true);
+      }
     }));
   }, []);
   useEffect(() => {
@@ -55,7 +67,7 @@ export function KeyboardAwareScrollView({ children, style, ...props }: ScrollVie
 
 /** Drop-in TextInput: parent keyboard-aware scroll view knows which field to reveal. */
 export function KeyboardAwareTextInput({ onFocus, ...props }: TextInputProps) {
-  const input = useRef<TextInput>(null);
+  const input = useRef<NativeTextInput>(null);
   const reveal = useContext(ScrollFocusedInput);
   return <TextInput {...props} ref={input} onFocus={event => {
     onFocus?.(event);
