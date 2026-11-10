@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { KeyboardAwareScrollView, KeyboardAwareTextInput, useKeyboardVisible } from './src/KeyboardAware';
 import {
   ActivityIndicator,
   AppState,
@@ -45,6 +46,7 @@ type Session = { user: User; membership: MembershipConfig | null };
 
 export default function App() {
   const [loading, setLoading] = useState(true);
+  const keyboardVisible = useKeyboardVisible();
   const [session, setSession] = useState<Session | null>(null);
   const [rescues, setRescues] = useState<Rescue[]>([]);
   const [activeRescue, setActiveRescue] = useState<Rescue | null>(null);
@@ -299,7 +301,7 @@ export default function App() {
     return (
       <SafeAreaView style={styles.root}>
         <StatusBar barStyle="dark-content" />
-        <View style={styles.login}>
+        <KeyboardAwareScrollView contentContainerStyle={styles.login} keyboardShouldPersistTaps="handled">
           <Text style={styles.kicker}>RESCUE HUB</Text>
           <Text style={styles.title}>
             {authMode === 'signup' ? 'Report injured wildlife' :
@@ -318,25 +320,25 @@ export default function App() {
           {authMode === 'signup' ? (
             <>
               <Text style={styles.fieldTitle}>Your name</Text>
-              <TextInput style={styles.input} accessibilityLabel="Full name"
+              <KeyboardAwareTextInput style={styles.input} accessibilityLabel="Full name"
                 autoCapitalize="words" value={reporterName} onChangeText={setReporterName} maxLength={100} />
             </>
           ) : null}
           <Text style={styles.fieldTitle}>Email address</Text>
-          <TextInput style={styles.input} accessibilityLabel="Email address"
+          <KeyboardAwareTextInput style={styles.input} accessibilityLabel="Email address"
             autoCapitalize="none" keyboardType="email-address" value={email}
             onChangeText={setEmail} autoComplete="email" />
           {authMode === 'verify' ? (
             <>
               <Text style={styles.fieldTitle}>Six-digit verification code</Text>
-              <TextInput style={styles.input} accessibilityLabel="Email verification code"
+              <KeyboardAwareTextInput style={styles.input} accessibilityLabel="Email verification code"
                 value={verificationCode} onChangeText={setVerificationCode}
                 keyboardType="number-pad" maxLength={6} autoComplete="one-time-code" />
             </>
           ) : (
             <>
               <Text style={styles.fieldTitle}>Password</Text>
-              <TextInput style={styles.input} accessibilityLabel="Password" secureTextEntry
+              <KeyboardAwareTextInput style={styles.input} accessibilityLabel="Password" secureTextEntry
                 value={password} onChangeText={setPassword}
                 autoComplete={authMode === 'signup' ? 'new-password' : 'current-password'} />
             </>
@@ -396,7 +398,7 @@ export default function App() {
               </View>
             </View>
           ) : null}
-        </View>
+        </KeyboardAwareScrollView>
       </SafeAreaView>
     );
   }
@@ -413,7 +415,7 @@ export default function App() {
     else setView(tab === 'account' ? 'settings' : 'chats');
   };
   const bottom = (active: 'rescues' | 'chats' | 'account') =>
-    <BottomTabs active={active} onSelect={activateTab} />;
+    keyboardVisible ? null : <BottomTabs active={active} onSelect={activateTab} />;
 
     const available = session.user.availabilityStatus === 'AVAILABLE';
   if (view === 'chats') return <SafeAreaView style={styles.root}>
@@ -569,7 +571,7 @@ export default function App() {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#edf1ee' },
   loading: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  login: { flex: 1, justifyContent: 'center', padding: 28, gap: 12 },
+  login: { flexGrow: 1, justifyContent: 'center', padding: 28, gap: 12, paddingBottom: 56 },
   kicker: { color: '#648074', fontSize: 11, fontWeight: '800', letterSpacing: 1.4 },
   title: { color: '#17211d', fontSize: 28, fontWeight: '800', letterSpacing: -0.8 },
   copy: { color: '#66736c', fontSize: 13, lineHeight: 19 },
