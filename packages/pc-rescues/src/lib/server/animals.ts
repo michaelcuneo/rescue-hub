@@ -3,6 +3,7 @@ import { DynamoDBDocumentClient, GetCommand, QueryCommand, TransactWriteCommand,
 import { Resource } from 'sst';
 import { publishRescueChange } from './realtime';
 import { getRescue } from './graphql';
+import { transportCloseStatus } from '../../../../core/care-delivery';
 
 const db = DynamoDBDocumentClient.from(new DynamoDBClient({}), { marshallOptions: { removeUndefinedValues: true } });
 const table = Resource.RescueHubData.name;
@@ -263,7 +264,7 @@ export async function changeAnimalState(animal: AnimalRecord, actorUserId: strin
     // A carer, not the transporter, accepts custody. Complete the collected
     // transport job upon actual receipt; an uncollected offer is cancelled.
     const transportCollected = pickup.status === 'ASSIGNED' && !!pickup.pickedUpAt;
-    const endStatus = input.kind === 'ACCEPT_TRANSFER' && transportCollected ? 'COMPLETED' : 'CANCELLED';
+    const endStatus = transportCloseStatus(input.kind, pickup.status, pickup.pickedUpAt);
     const jobEventId = crypto.randomUUID();
     writes.push({ Update: {
       TableName: table,
