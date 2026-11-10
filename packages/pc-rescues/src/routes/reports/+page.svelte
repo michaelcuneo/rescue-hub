@@ -1,9 +1,55 @@
 <script lang="ts">
   import type { PageData } from './$types';
   import { onMount } from 'svelte';
+  import { subscribeRescueChanges, type RealtimeConfig } from '../../../../core/realtime-client';
   let { data }: { data: PageData } = $props();
   let reports = $state<PageData['reports']>([]);
-  onMount(() => { reports = data.reports; });
+  onMount(() => {
+    reports = data.reports;
+    let closed = false;
+    let stop: (() => void) | undefined;
+    let connected = false;
+    let inflight = false;
+
+    const refresh = async () => {
+      if (closed || inflight) return;
+      inflight = true;
+      try {
+        const response = await fetch('/api/dispatch/reports', { cache: 'no-store' });
+        if (!response.ok) throw new Error(`Public report feed HTTP ${response.status}`);
+        const payload = await response.json() as { items: PageData['reports'] };
+        if (!closed) reports = payload.items;
+      } catch (e) {
+        if (!closed) console.error('Public report refresh failed:', e);
+      } finally { inflight = false; }
+    };
+
+    const connect = async () => {
+      try {
+        const response = await fetch('/api/realtime', { cache: 'no-store' });
+        if (!response.ok) throw new Error('Realtime feed unavailable.');
+        const config = await response.json() as RealtimeConfig;
+        if (closed) return;
+        stop = subscribeRescueChanges(config, {
+          onChange: () => { void refresh(); },
+          onConnected: () => { void refresh(); },
+          onStatus: online => { connected = online; }
+        });
+      } catch {
+        if (!closed) console.warn('Public dispatch live feed unavailable; fallback refresh active.');
+      }
+    };
+    void connect();
+    const fallback = setInterval(() => { if (!connected) void refresh(); }, 30_000);
+    const visibility = () => { if (document.visibilityState === 'visible') void refresh(); };
+    document.addEventListener('visibilitychange', visibility);
+    return () => {
+      closed = true;
+      clearInterval(fallback);
+      document.removeEventListener('visibilitychange', visibility);
+      stop?.();
+    };
+  });
   let busy = $state('');
   let error = $state('');
   let notice = $state('');
