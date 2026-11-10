@@ -276,6 +276,7 @@ export default function App() {
               </View>
               <Text style={styles.location}>{selectedMapRescue.location || 'Location not recorded'}</Text>
               <Text style={styles.injury} numberOfLines={2}>{selectedMapRescue.injury || 'Condition not recorded'}</Text>
+              {selectedMapRescue.stageLabel ? <Text style={styles.stage}>{selectedMapRescue.stageLabel}</Text> : null}
               {selectedMapRescue.status === 'PENDING' ? available ? (
                 <Pressable style={styles.claimButton} disabled={busy} onPress={() => handleClaim(selectedMapRescue.id)}
                   accessibilityRole="button">
@@ -309,6 +310,7 @@ export default function App() {
               </View>
               <Text style={styles.location}>{item.location || 'Location not recorded'}</Text>
               <Text style={styles.injury}>{item.injury || 'Condition not recorded'}</Text>
+              {item.stageLabel ? <Text style={styles.stage}>{item.stageLabel}</Text> : null}
               {item.status === 'PENDING' ? (
                 <Pressable style={styles.claimButton} disabled={busy || !available} onPress={() => handleClaim(item.id)}>
                   <Text style={styles.primaryButtonText}>{busy ? 'Please wait…' : available ? 'Claim rescue' : 'Available in Settings to claim'}</Text>
@@ -365,6 +367,7 @@ const styles = StyleSheet.create({
   status: { color: '#7b5b0d', backgroundColor: '#fff1cd', borderRadius: 99, paddingHorizontal: 8, paddingVertical: 4, fontSize: 10, fontWeight: '800' },
   location: { marginTop: 7, color: '#435249', fontWeight: '700' },
   injury: { marginTop: 4, color: '#76837b', lineHeight: 18 },
+  stage: { color: '#24583f', fontSize: 12, marginTop: 6, fontWeight: '800' },
   empty: { textAlign: 'center', color: '#76837b', paddingVertical: 40 },
   claimButton: { backgroundColor: '#173d2c', borderRadius: 10, padding: 12, alignItems: 'center', marginTop: 12 },
   mine: { color: '#24583f', fontWeight: '700', marginTop: 12 },
