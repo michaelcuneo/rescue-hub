@@ -52,6 +52,7 @@ export type Rescue = {
   assignedUserId?: string | null;
   pickedUpAt?: string | null;
   transportAnimalId?: string | null;
+  awaitingCarer?: boolean | null;
   transportSourceRescueId?: string | null;
   custodyRole?: 'CUSTODIAN';
   stageLabel?: string;
