@@ -49,6 +49,7 @@ window.showUserLocation = function(longitude, latitude) {
   dot.className='user-location';
   dot.setAttribute('aria-label', 'Your location');
   locationMarker = new mapboxgl.Marker({element: dot}).setLngLat([longitude, latitude]).addTo(map);
+  hasFitted = true; // Do not let a delayed rescue-feed fit override device centring.
   map.flyTo({center:[longitude,latitude],zoom:Math.max(map.getZoom(),12)});
 };
 function display(items){
