@@ -273,6 +273,13 @@ export async function changeAnimalState(animal: AnimalRecord, actorUserId: strin
     throw error;
   });
   await publishRescueChange();
+  if (input.kind === 'OUTCOME') {
+    // The final animal record is already committed. A failed projection must
+    // never make the caller resubmit an irreversible outcome.
+    const { completeRescueIfAllAnimalsFinal } = await import('./rescue-completion');
+    await completeRescueIfAllAnimalsFinal(animal.rescueId, animal.organisationId, actorUserId)
+      .catch(error => console.error('Original rescue completion reconciliation failed:', error));
+  }
   return getAnimal(animal.id);
 }
 
