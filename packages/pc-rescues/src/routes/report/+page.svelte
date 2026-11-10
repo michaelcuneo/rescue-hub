@@ -1,6 +1,4 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
-  import { goto } from '$app/navigation';
   import { env } from '$env/dynamic/public';
   import { Map, Marker } from '@beyonk/svelte-mapbox';
 
