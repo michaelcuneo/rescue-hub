@@ -114,6 +114,9 @@ export type PublicWildlifeReport = {
 };
 
 export type ReporterMessage = { id: string; reportId: string; senderUserId: string; senderRole: 'REPORTER' | 'RESCUER'; text: string; createdAt: string };
+export async function getRescuerReporterContact(rescueId: string) {
+  return request<{ contact: { reportId: string; allowMessages: boolean; allowPhoneContact: boolean; contactPhone: string | null } | null }>(`/api/mobile/rescues/${encodeURIComponent(rescueId)}/reporter-contact`);
+}
 export async function getReporterConversation(reportId: string) {
   return request<{ items: ReporterMessage[]; role: 'REPORTER' | 'RESCUER'; rescueId: string | null; contactPhone: string | null }>(`/api/public/reports/${encodeURIComponent(reportId)}/messages`);
 }
