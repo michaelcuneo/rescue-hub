@@ -27,6 +27,7 @@
     "packages/*"
   ],
   "devDependencies": {
+    "@pulumi/aws": "^6.66.2",
     "sst": "^4.17.1",
     "typescript": "^6.0.3"
   }
