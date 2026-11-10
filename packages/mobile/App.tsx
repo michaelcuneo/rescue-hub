@@ -423,7 +423,7 @@ export default function App() {
   /></SafeAreaView>;
 
   if (view === 'care' && session.user.roles?.includes('CARER')) return <SafeAreaView style={styles.root}>
-    <CarerOffers onBack={() => { setView('map'); void refresh(); }}
+    <CarerOffers userId={session.user.id} onBack={() => { setView('map'); void refresh(); }}
       onChanged={() => void refresh()} />
   </SafeAreaView>;
 
