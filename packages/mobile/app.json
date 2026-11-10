@@ -19,7 +19,7 @@
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "Rescue Hub uses your location only while the app is open to show where you are relative to available rescues.",
+          "locationWhenInUsePermission": "Rescue Hub uses your location while the app is open to centre the map and help you mark injured wildlife accurately.",
           "isIosBackgroundLocationEnabled": false,
           "isAndroidBackgroundLocationEnabled": false
         }
