@@ -28,7 +28,7 @@ export async function listAvailableCareOffers(organisationId: string): Promise<A
       TableName: table,
       KeyConditionExpression: 'pk = :pk AND begins_with(sk, :prefix)',
       ExpressionAttributeValues: { ':pk': `ORG#${organisationId}#CARE_OFFERS`, ':prefix': 'ANIMAL#' },
-      ExclusiveStartKey: cursor
+      ExclusiveStartKey: cursor, ConsistentRead: true
     }));
     for (const row of page.Items ?? []) {
       if (row.organisationId !== organisationId || typeof row.animalId !== 'string') continue;
