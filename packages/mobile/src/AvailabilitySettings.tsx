@@ -6,7 +6,11 @@ const DAYS: Weekday[] = ['MON','TUE','WED','THU','FRI','SAT','SUN'];
 const NAMES = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
 const VALID_TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
 
-export default function AvailabilitySettings({ onBack, onSave }: { onBack: () => void; onSave: (policy: AvailabilityPolicy, status: 'AVAILABLE' | 'OFFLINE' | 'BUSY') => void }) {
+export default function AvailabilitySettings({ onBack, onSave, onSignOut }: {
+  onBack: () => void;
+  onSave: (policy: AvailabilityPolicy, status: 'AVAILABLE' | 'OFFLINE' | 'BUSY') => void;
+  onSignOut: () => void | Promise<void>;
+}) {
   const [policy,setPolicy] = useState<AvailabilityPolicy | null>(null);
   const [busy,setBusy] = useState(false);
   const [error,setError] = useState('');
@@ -41,13 +45,19 @@ export default function AvailabilitySettings({ onBack, onSave }: { onBack: () =>
     }catch(e){setError(e instanceof Error?e.message:'Could not save availability.');}
     finally{setBusy(false);}
   }
-  if(!policy)return <View style={styles.center}>{error?<Text style={styles.error}>{error}</Text>:<ActivityIndicator />}</View>;
-  return <ScrollView style={styles.root} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-    <View style={styles.heading}>
-      <Pressable onPress={onBack} accessibilityRole="button"><Text style={styles.link}>‹ Dashboard</Text></Pressable>
-      <Text style={styles.title}>Availability settings</Text>
-      <Text style={styles.subtitle}>Choose your regular rescue hours. ON and OFF override the weekly timetable immediately.</Text>
+  const header = <View style={styles.heading}>
+    <View style={styles.navigation}>
+      <Pressable onPress={onBack} accessibilityRole="button"><Text style={styles.link}>‹ Map</Text></Pressable>
+      <Pressable onPress={() => void onSignOut()} accessibilityRole="button" accessibilityLabel="Sign out of Rescue Hub">
+        <Text style={styles.signOutText}>Sign out</Text>
+      </Pressable>
     </View>
+    <Text style={styles.title}>Availability settings</Text>
+    <Text style={styles.subtitle}>Choose your regular rescue hours. ON and OFF override the weekly timetable immediately.</Text>
+  </View>;
+  if(!policy) return <View style={styles.root}>{header}<View style={styles.center}>{error?<Text style={styles.error}>{error}</Text>:<ActivityIndicator />}</View></View>;
+  return <ScrollView style={styles.root} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+    {header}
     <Text style={styles.label}>OVERRIDE</Text>
     <View style={styles.modes}>
       {(['ON','OFF','SCHEDULE'] as AvailabilityMode[]).map(mode=><Pressable key={mode}
@@ -99,7 +109,7 @@ export default function AvailabilitySettings({ onBack, onSave }: { onBack: () =>
 const styles=StyleSheet.create({
  root:{flex:1,backgroundColor:'#edf1ee'},content:{paddingBottom:36},
  center:{flex:1,alignItems:'center',justifyContent:'center',padding:24},
- heading:{padding:20,gap:8},link:{color:'#24583f',fontSize:14,fontWeight:'800'},
+ heading:{padding:20,gap:8},navigation:{flexDirection:'row',alignItems:'center',justifyContent:'space-between'},link:{color:'#24583f',fontSize:14,fontWeight:'800'},signOutText:{color:'#6c7972',fontSize:12,fontWeight:'700'},
  title:{fontSize:27,fontWeight:'800',color:'#17211d'},subtitle:{color:'#58695f',lineHeight:20},
  label:{marginHorizontal:18,marginTop:18,marginBottom:8,color:'#536b5d',fontWeight:'800',fontSize:11,letterSpacing:1.2},
  modes:{marginHorizontal:16,flexDirection:'row',gap:6},mode:{flex:1,paddingVertical:14,paddingHorizontal:6,backgroundColor:'#fff',borderRadius:11,alignItems:'center',borderWidth:1,borderColor:'#d9e1dc'},
