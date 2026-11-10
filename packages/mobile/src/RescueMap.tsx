@@ -196,7 +196,7 @@ const styles = StyleSheet.create({
  locate:{position:'absolute',top:52,right:10,backgroundColor:'#fff',borderRadius:10,paddingHorizontal:12,paddingVertical:12,shadowColor:'#000',shadowOpacity:0.13,shadowRadius:5,elevation:3},
  locateText:{color:'#173d2c',fontSize:13,fontWeight:'800'},
  locationWarning:{position:'absolute',top:104,right:10,left:10,backgroundColor:'#fff',padding:8,borderRadius:9},
- legend:{position:'absolute',bottom:12,left:10,backgroundColor:'#fffffff0',borderRadius:10,padding:9,gap:5,maxWidth:168},
+ legend:{position:'absolute',top:10,left:10,backgroundColor:'#fffffff0',borderRadius:10,padding:9,gap:5,maxWidth:168},
  legendItem:{flexDirection:'row',gap:7,alignItems:'center'},
  legendDot:{height:10,width:10,borderRadius:5,borderWidth:1,borderColor:'#fff'},
  legendText:{color:'#173d2c',fontSize:11,fontWeight:'700'}
