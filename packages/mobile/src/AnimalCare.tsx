@@ -1,3 +1,4 @@
+import ReporterConversation from './ReporterConversation';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import {
@@ -12,6 +13,7 @@ const outcomes = ['RELEASED', 'EUTHANISED', 'DECEASED'] as const;
 const terminal = new Set<string>(outcomes);
 
 export default function AnimalCare({ rescue, userId, onBack, onUnclaim }: Props) {
+  const [conversationOpen, setConversationOpen] = useState(false);
   const [animals, setAnimals] = useState<Animal[]>([]);
   const [selected, setSelected] = useState<Animal | null>(null);
   const [events, setEvents] = useState<AnimalEvent[]>([]);
@@ -96,6 +98,10 @@ export default function AnimalCare({ rescue, userId, onBack, onUnclaim }: Props)
     }
   }
 
+  if (conversationOpen && rescue.id.startsWith('public-report-')) {
+    return <ReporterConversation reportId={rescue.id.slice('public-report-'.length)} onBack={() => setConversationOpen(false)} />;
+  }
+
   const isCustodian = selected?.currentCustodianUserId === userId;
   const isFinal = selected ? terminal.has(selected.status) : false;
 
@@ -106,6 +112,11 @@ export default function AnimalCare({ rescue, userId, onBack, onUnclaim }: Props)
       </Pressable>
       <Text style={styles.heading}>{selected ? selected.species : rescue.type}</Text>
       <Text style={styles.muted}>{selected ? `Status: ${selected.status.replace(/_/g, ' ')}` : rescue.location || 'Location not recorded'}</Text>
+      {rescue.id.startsWith('public-report-') && rescue.assignedUserId === userId ? (
+        <Pressable accessibilityRole="button" style={styles.button} onPress={() => setConversationOpen(true)}>
+          <Text style={styles.buttonText}>Contact the person who reported this rescue</Text>
+        </Pressable>
+      ) : null}
       {error ? <Text style={styles.error}>{error}</Text> : null}
       {loading ? <ActivityIndicator /> : null}
 
