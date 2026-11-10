@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import {
   getRescues,
+  claimRescue,
   login,
   logout,
   restoreSession,
@@ -63,6 +64,20 @@ export default function App() {
       setRescues((await getRescues()).items);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Unable to sign in.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleClaim(id: string) {
+    setBusy(true);
+    setError('');
+    try {
+      await claimRescue(id);
+      setRescues((await getRescues()).items);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Unable to claim rescue.');
+      await getRescues().then((result) => setRescues(result.items)).catch(console.warn);
     } finally {
       setBusy(false);
     }
@@ -126,6 +141,7 @@ export default function App() {
         </Pressable>
       </View>
 
+      {error ? <Text style={styles.errorBanner}>{error}</Text> : null}
       <FlatList
         data={rescues}
         keyExtractor={(item) => item.id}
@@ -139,6 +155,13 @@ export default function App() {
             </View>
             <Text style={styles.location}>{item.location || 'Location not recorded'}</Text>
             <Text style={styles.injury}>{item.injury || 'Condition not recorded'}</Text>
+            {item.status === 'PENDING' ? (
+              <Pressable style={styles.claimButton} disabled={busy || !available} onPress={() => handleClaim(item.id)}>
+                <Text style={styles.primaryButtonText}>{busy ? 'Please wait…' : 'Claim rescue'}</Text>
+              </Pressable>
+            ) : item.assignedUserId === session.user.id ? (
+              <Text style={styles.mine}>Claimed by you · response in progress</Text>
+            ) : null}
           </View>
         )}
       />
@@ -183,6 +206,9 @@ const styles = StyleSheet.create({
   location: { marginTop: 7, color: '#435249', fontWeight: '700' },
   injury: { marginTop: 4, color: '#76837b', lineHeight: 18 },
   empty: { textAlign: 'center', color: '#76837b', paddingVertical: 40 },
+  claimButton: { backgroundColor: '#173d2c', borderRadius: 10, padding: 12, alignItems: 'center', marginTop: 12 },
+  mine: { color: '#24583f', fontWeight: '700', marginTop: 12 },
+  errorBanner: { color: '#a23f35', paddingHorizontal: 20, paddingTop: 10 },
   signOut: { margin: 16, padding: 12, alignItems: 'center' },
   signOutText: { color: '#6c7972', fontWeight: '700' }
 });
