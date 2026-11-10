@@ -31,14 +31,31 @@ The new job does not move the animal or change its custodian when claimed. After
 
 Pre-registration telephone updates still need their own provisional intake/animal model: this implementation records permanent **animal-level** telephone updates only after animal registration. Do not claim that callbacks for unclaimed, unregistered sightings are supported by this form.
 
+## Confirmed physical collection, AREC updates and historical outcomes (11 November 2026)
+
+This is the canonical demonstration lifecycle:
+
+1. A person reports an injured animal. The responsible organisation receives a `PENDING` incident and a visible map pin.
+2. An eligible rescuer **self-claims**. It becomes `ASSIGNED` but remains on the map until collection. Claiming never means that the animal was collected.
+3. On physically collecting the animal, the rescuer presses **Animal picked up**. An atomic event records the collector and collection time and removes the job pin from both operational maps. The case and any registered animal record remain available internally.
+4. The rescuer registers the animal if not yet registered, logs transportation and veterinary drop-off (e.g. AREC) in its permanent care timeline. The animal is `AT_VET` but has **no active location pin** because nobody needs an initial pickup response.
+5. If AREC calls later to report euthanasia or death, dispatch logs the vet's identity, actual words and source as a permanent `PHONE_UPDATE` and `FINAL_OUTCOME`. The animal becomes `EUTHANISED` or `DECEASED`, any pending pickup job is cancelled, and the incident is completed when every linked animal has a terminal outcome. No record is deleted.
+6. Alternatively, if AREC reports the animal is ready for care, dispatch records the phone call and offers a **new transport pickup job** with the *vet's GPS coordinates*. That job has a new visible map pin linked to the existing animal, never a new animal identity.
+7. A qualified transport volunteer self-claims that pickup. The pin stays visible until the volunteer **physically collects the animal**; collection atomically assigns the linked animal's custody to the volunteer, logs transport and removes the pickup pin.
+8. The volunteer transports the animal to its carer. The receiving carer acknowledges custody, putting the animal in `IN_CARE` and completing the linked transport job. Subsequent treatment and notes continue under the same animal ID. Eventually the carer records `RELEASED`, `EUTHANISED` or `DECEASED` as appropriate; that care is complete.
+
+**Separation of concerns:** map visibility belongs to a particular job; current care status, custodian, outcome and chronological history belong to the permanent animal. Historical records, including phone-source attribution and custody transitions, remain stored in DynamoDB for organisation oversight and future NPWS reporting. A department-specific report template, data retention agreement and official submission format must be confirmed with NPWS before describing the export as compliant.
+
+**Multiple animals:** one incident may have many registered animals. One terminal outcome never closes a sibling still in care; the parent job closes only when every registered animal has a final disposition.
+
 ## Claim release and active-worklist rules (10 November 2026)
 
 - A rescuer can **release an uncollected claim** from Manage Animals & Care History. This puts the incident back in the eligible volunteer queue. Release is conditional and audited, and cannot orphan an already registered animal.
 - After animal registration, changing plans requires **acknowledged custody handover**, not an unclaim. Until the recipient accepts, the current custodian remains responsible and the case stays in their active list.
 - A **carer handover** changes the animal's current custodian to the accepting carer and moves it into care. Once none of the incident's animals remains in the original rescuer's custody, it leaves the original rescuer's active worklist. The receiving carer sees their active care regardless of who claimed the original rescue.
-- Dropping an animal at a **veterinary clinic** does **not** end the rescue. The animal remains attached to the current responsible person as **At vet · being assessed**; once the assessment is recorded it becomes **Assessed · awaiting transport**. The case remains visible until custody is properly transferred or a final outcome is recorded.
+- Dropping an animal at a **veterinary clinic** does **not** end its permanent record. The animal remains attached to a responsible custodian as **At vet · being assessed**. It is **off the public/volunteer operational map** after physical collection, although authorised carers and coordinators can still retrieve its history. Any later veterinary collection request creates a new map job.
 - **Transport** is a separate handover purpose from permanent care. An accepted transport handover sets the animal to IN_TRANSIT, not IN_CARE. Eligible transport volunteers include those with an active transport team or rescuer/carer capacity; the sender is not released until acceptance.
-- The mobile map and list are **active operational worklists**, not complete historical records. Historical custody and care events persist even when an animal leaves a former volunteer's active queue. An organisation-level history interface is required for retrospective access.
+- The desktop and mobile **maps show only uncollected, actionable jobs**, not all animals in care. Pending jobs and claimed-but-not-yet-collected jobs have pins; once the assigned rescuer explicitly confirms physical pickup the job disappears from both maps. The mobile worklist and permanent animal records remain accessible to authorised custodians and coordinators. Completed and cancelled jobs never have operational pins.
 
 ## Separate domain objects
 
