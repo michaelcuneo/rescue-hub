@@ -11,6 +11,8 @@ export type PhoneUpdateInput = {
   notes?: unknown;
   callbackPermitted?: unknown;
   callbackPhone?: unknown;
+  animalId?: unknown;
+  requestTransport?: unknown;
 };
 
 export type ValidPhoneUpdate = {
@@ -19,6 +21,8 @@ export type ValidPhoneUpdate = {
   notes: string;
   callbackPermitted: boolean;
   callbackPhone?: string;
+  animalId?: string;
+  requestTransport: boolean;
 };
 
 export function validatePhoneUpdate(input: PhoneUpdateInput): ValidPhoneUpdate {
@@ -30,6 +34,10 @@ export function validatePhoneUpdate(input: PhoneUpdateInput): ValidPhoneUpdate {
   const callerRole = input.callerRole === undefined ? 'REPORTER' : input.callerRole;
   const callbackPermitted = input.callbackPermitted === true;
   const phone = typeof input.callbackPhone === 'string' ? input.callbackPhone.trim() : '';
+  const animalId = typeof input.animalId === 'string' ? input.animalId.trim() : '';
+  const requestTransport = input.requestTransport === true;
+  if (requestTransport && !animalId) throw new Error('Select the animal before requesting a transport volunteer.');
+  if (animalId && !/^[a-f0-9-]{36}$/i.test(animalId)) throw new Error('Invalid animal ID.');
   if (!callerName || callerName.length > 120) {
     throw new Error('Record who called (maximum 120 characters).');
   }
@@ -43,7 +51,8 @@ export function validatePhoneUpdate(input: PhoneUpdateInput): ValidPhoneUpdate {
     throw new Error('Enter a valid callback number when the caller permits contact.');
   }
   return {
-    callerName, callerRole: callerRole as CallerRole, notes, callbackPermitted,
+    callerName, callerRole: callerRole as CallerRole, notes, callbackPermitted, requestTransport,
+    ...(animalId ? { animalId } : {}),
     ...(callbackPermitted ? { callbackPhone: phone } : {})
   };
 }
