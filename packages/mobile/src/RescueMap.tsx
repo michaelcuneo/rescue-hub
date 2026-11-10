@@ -35,7 +35,12 @@ const map = new mapboxgl.Map({container:'map',style:${style},center:[151.7,-32.9
 map.addControl(new mapboxgl.NavigationControl({showCompass:false}), 'top-right');
 const markers = new window.Map();
 let records = [];
+let lastPayload = '';
+let hasFitted = false;
 function display(items){
+  const nextPayload = JSON.stringify(items);
+  if (nextPayload === lastPayload) return;
+  lastPayload = nextPayload;
   records = items.filter(x => Number.isFinite(x.latitude) && Number.isFinite(x.longitude) && Math.abs(x.latitude)<=90 && Math.abs(x.longitude)<=180);
   markers.forEach(marker => marker.remove()); markers.clear();
   const bounds = new mapboxgl.LngLatBounds();
@@ -48,7 +53,8 @@ function display(items){
     element.addEventListener('click',()=>{map.flyTo({center:[rescue.longitude,rescue.latitude],zoom:Math.max(map.getZoom(),12)});send({type:'select',id:rescue.id});});
     markers.set(rescue.id,marker);bounds.extend([rescue.longitude,rescue.latitude]);
   }
-  if(records.length)map.fitBounds(bounds,{padding:55,maxZoom:12,duration:450});
+  // Only fit once. Live polling must not reset the rescuer's current zoom/pan.
+  if(records.length && !hasFitted){map.fitBounds(bounds,{padding:55,maxZoom:12,duration:450});hasFitted=true;}
 }
 window.receiveRescues = display;
 function installAreas(){
@@ -75,6 +81,7 @@ export default function RescueMap({ rescues, onSelect }: Props) {
   // WebView 14.0.1 defaults its props generic to undefined, making JSX props 'never'.
   // Explicitly instantiate with an empty extension until the library type fix ships.
   const map = useRef<WebView<{}>>(null);
+  const source = useMemo(() => ({ html: html(MAP_CONFIGURATION), baseUrl: API_ORIGIN || 'https://api.mapbox.com' }), []);
   const payload = useMemo(() => JSON.stringify(rescues.map(r => ({
     id:r.id, type:r.type, status:r.status, latitude:r.latitude, longitude:r.longitude
   }))), [rescues]);
@@ -99,7 +106,7 @@ export default function RescueMap({ rescues, onSelect }: Props) {
     return <View style={styles.feedback}><Text style={styles.error}>Set EXPO_PUBLIC_MAPBOX_ACCESS_TOKEN in packages/mobile/.env and restart Expo.</Text></View>;
   }
   return <View style={styles.container}>
-    <WebView<{}> ref={map} source={{html:html(MAP_CONFIGURATION),baseUrl:API_ORIGIN || 'https://api.mapbox.com'}}
+    <WebView<{}> ref={map} source={source}
       style={styles.webview} onMessage={handleMessage} javaScriptEnabled domStorageEnabled
       originWhitelist={['https://*']} onError={e=>setError(e.nativeEvent.description)}
       accessibilityLabel="Map of eligible and assigned rescue locations" />
