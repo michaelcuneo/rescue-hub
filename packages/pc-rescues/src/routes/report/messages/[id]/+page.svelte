@@ -11,7 +11,7 @@
   const reportId = $derived(page.params.id);
 
   async function refresh() {
-    const response = await fetch(`/api/public/reports/${encodeURIComponent(reportId)}/messages`, { cache: 'no-store' });
+    const response = await fetch(`/api/public/reports/${encodeURIComponent(reportId ?? '')}/messages`, { cache: 'no-store' });
     const data = await response.json() as { items?: Message[]; role?: 'REPORTER' | 'RESCUER'; contactPhone?: string | null; error?: string };
     if (!response.ok) throw new Error(data.error || 'Conversation unavailable');
     items = data.items ?? [];
@@ -29,7 +29,7 @@
     if (busy || !text.trim()) return;
     busy = true;
     try {
-      const response = await fetch(`/api/public/reports/${encodeURIComponent(reportId)}/messages`, {
+      const response = await fetch(`/api/public/reports/${encodeURIComponent(reportId ?? '')}/messages`, {
         method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ text })
       });
       const result = await response.json() as { error?: string };
