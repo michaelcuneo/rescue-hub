@@ -8,7 +8,7 @@ export const GET: RequestHandler = async ({ locals, params }) => {
   const animal = await getAnimal(params.id);
   if (!animal || animal.organisationId !== user.organisationId) return json({ error: 'Animal not found.' }, { status: 404 });
   const pending = await getPendingAnimalTransfer(animal);
-  if (animal.currentCustodianUserId !== user.id && pending?.toUserId !== user.id && !user.roles.some((r) => ['ORG_ADMIN', 'DISPATCHER'].includes(r))) {
+  if (animal.currentCustodianUserId !== user.id && pending?.toUserId !== user.id && !user.roles.some((r) => ['ORG_ADMIN', 'DISPATCHER', 'PLATFORM_ADMIN', 'AUTHORITY_ADMIN'].includes(r))) {
     return json({ error: 'Access denied.' }, { status: 403 });
   }
   const events = await listAnimalEvents(animal.id);
