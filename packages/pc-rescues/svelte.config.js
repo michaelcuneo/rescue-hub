@@ -6,7 +6,10 @@ import { vitePreprocess } from '@sveltejs/vite-plugin-svelte';
 const config = {
   preprocess: sequence([vitePreprocess(), preprocessMeltUI()]),
   kit: {
-    adapter: adapter()
+    adapter: adapter(),
+    // Apple returns a signed OAuth code using cross-origin form_post.
+    // Trust Apple only; the callback independently validates one-time state.
+    csrf: { trustedOrigins: ['https://appleid.apple.com'] }
   }
 };
 
