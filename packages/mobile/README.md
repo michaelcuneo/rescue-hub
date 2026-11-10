@@ -54,3 +54,9 @@ If the map remains empty, the mobile feed now displays whether there are no open
 Modes: `ON` always available, `OFF` unavailable, `SCHEDULE` follow weekday and time windows in configured IANA timezone. Server evaluates effective availability at request/notification/claim time; no background timer is necessary. Mobile app can save up to eight non-overlapping windows per day including overnight windows. Previously configured legacy manual status is preserved until a policy is saved.
 
 Push notifications need physical iOS/Android device and Expo/EAS project ID. The admin portal's user records show the effective availability as loaded; they do not currently auto-update in real time when a schedule boundary passes.
+
+## Public-first onboarding and foreground location
+
+On a fresh install or after sign-out, the Expo application opens **Create my free account** for members of the public. Existing public reporters can sign in using the secondary link. Organisational rescuers sign in through the smaller **Rescuer or organisation member? Sign in** link; their existing roles and permissions are unchanged. A saved session still restores its own relevant interface.
+
+Both map screens reuse foreground location permission and automatically centre on the current device position after the Mapbox view is ready. A familiar crosshair in the Mapbox top-right navigation group provides optional manual recentering without covering zoom controls. The public map shows a blue device-location indicator but **does not automatically use GPS as the reported animal pin**: the reporter must tap the animal's actual location, which may differ. Permission denial leaves map browsing and manual pin placement functional. No background tracking is enabled. Changes to Expo's iOS location permission explanation require a new native build.
