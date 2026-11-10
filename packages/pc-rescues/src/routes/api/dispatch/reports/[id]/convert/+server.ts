@@ -8,7 +8,10 @@ import type { RequestHandler } from './$types';
 /** Dispatch explicitly reviews and accepts a public sighting before dispatch. */
 export const POST: RequestHandler = async ({ locals, cookies, params }) => {
   const user = locals.user;
-  if (!canTriage(user)) return json({ error: 'Dispatcher access required.' }, { status: 403 });
+  if (!canTriage(user) || !(
+    user.roles.some(role => ['PLATFORM_ADMIN', 'AUTHORITY_ADMIN'].includes(role)) ||
+    getHunterDemo(cookies, user)
+  )) return json({ error: 'Central public-report triage access required.' }, { status: 403 });
   const organisationId = getHunterDemo(cookies, user)
     ? HUNTER_DEMO_ORGANISATION : user.organisationId;
   if (!organisationId) return json({ error: 'Select an organisation before converting a report.' }, { status: 403 });
