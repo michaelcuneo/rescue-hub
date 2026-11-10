@@ -587,7 +587,7 @@ export async function createOrLoginSocialReporter(input: {
   const name = input.name.trim().slice(0, 100) || 'Wildlife reporter';
   await db.send(new TransactWriteCommand({
     TransactItems: [
-      { Put: { TableName: tableName, Key: lookupKey,
+      { Put: { TableName: tableName,
         Item: { ...lookupKey, entity: 'social_auth_lookup', provider, userId },
         ConditionExpression: 'attribute_not_exists(pk)' } },
       { Put: { TableName: tableName,
