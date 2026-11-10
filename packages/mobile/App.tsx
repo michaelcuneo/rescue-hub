@@ -13,14 +13,11 @@ import {
 import {
   getRescues,
   getAvailability,
-  saveAvailability,
   claimRescue,
   login,
   logout,
   restoreSession,
-  setAvailability,
   type AvailabilityPolicy,
-  type AvailabilityMode,
   type MembershipConfig,
   type Rescue,
   type User
@@ -94,26 +91,6 @@ export default function App() {
     }
   }
 
-  async function selectMode(mode: AvailabilityMode) {
-    if (!session || busy) return;
-    setBusy(true);
-    setError('');
-    try {
-      if (mode === 'SCHEDULE') {
-        const current = policy ?? (await getAvailability()).policy;
-        const result = await saveAvailability({ ...current, mode });
-        setPolicy(result.policy);
-        setSession({ ...session, user: { ...session.user, availabilityStatus: result.status, availabilityPolicy: result.policy } });
-      } else {
-        const result = await setAvailability(mode === 'ON' ? 'AVAILABLE' : 'OFFLINE');
-        setSession({ ...session, user: { ...session.user, availabilityStatus: result.status } });
-        setPolicy(result.policy);
-      }
-      setRescues((await getRescues()).items);
-    } catch (e) { setError(e instanceof Error ? e.message : 'Unable to change availability.'); }
-    finally { setBusy(false); }
-  }
-
   async function refresh() {
     setError('');
     try {
@@ -146,7 +123,7 @@ export default function App() {
   }
 
   const available = session.user.availabilityStatus === 'AVAILABLE';
-  const currentMode: AvailabilityMode = policy?.mode ?? (available ? 'ON' : 'OFF');
+  const currentMode = policy?.mode ?? (available ? 'ON' : 'OFF');
 
   if (view === 'settings') return <SafeAreaView style={styles.root}><AvailabilitySettings
     onBack={() => { setView('map'); void refresh(); }}
@@ -172,22 +149,14 @@ export default function App() {
       </View>
 
       <View style={styles.availability}>
-        <Text style={styles.availabilityTitle}>{available ? 'Receiving rescues' : 'Not receiving rescues'}</Text>
+        <Text style={styles.availabilityTitle}>{available ? 'Rescue alerts enabled' : 'Rescue alerts paused'}</Text>
         <Text style={styles.copy}>
-          {currentMode === 'SCHEDULE' ? 'Weekly schedule active. Switch ON or OFF to override.'
-            : currentMode === 'ON' ? 'Manual override: available now.' : 'Manual override: unavailable now.'}
+          {currentMode === 'SCHEDULE'
+            ? 'Following your weekly availability schedule. Manage it in Settings.'
+            : currentMode === 'ON'
+              ? 'You are available for rescue notifications. Change this in Settings.'
+              : 'Notifications are paused. You can still browse eligible rescues. Change this in Settings.'}
         </Text>
-        <View style={styles.modeRow}>
-          {(['ON','OFF','SCHEDULE'] as AvailabilityMode[]).map(mode => (
-            <Pressable key={mode} disabled={busy} onPress={() => selectMode(mode)}
-              accessibilityRole="button" accessibilityState={{selected:currentMode === mode}}
-              style={[styles.modeButton,currentMode === mode && styles.modeSelected]}>
-              <Text style={[styles.modeText,currentMode === mode && styles.modeTextSelected]}>
-                {mode === 'SCHEDULE' ? 'Follow schedule' : mode}
-              </Text>
-            </Pressable>
-          ))}
-        </View>
       </View>
 
       <View style={styles.sectionHeader}>
@@ -290,10 +259,6 @@ const styles = StyleSheet.create({
   signOutText: { color: '#6c7972', fontWeight: '700' },
   settingsButton:{padding:10,backgroundColor:'#fff',borderRadius:10},
   settingsText:{fontSize:13,color:'#173d2c',fontWeight:'800'},
-  modeRow:{flexDirection:'row',gap:8,marginTop:14},
-  modeButton:{flex:1,backgroundColor:'#f2f5f2',borderRadius:10,alignItems:'center',justifyContent:'center',paddingVertical:13,paddingHorizontal:5,borderWidth:1,borderColor:'#dde5df'},
-  modeSelected:{backgroundColor:'#173d2c',borderColor:'#173d2c'},
-  modeText:{fontWeight:'800',fontSize:12,color:'#345442'},modeTextSelected:{color:'#fff'},
   modeRowWide:{flexDirection:'row',marginHorizontal:16,marginTop:10,gap:8},
   viewButton:{flex:1,alignItems:'center',padding:9,backgroundColor:'#fff',borderRadius:9},
   viewSelected:{backgroundColor:'#173d2c'},viewText:{fontWeight:'700',color:'#173d2c'},viewTextSelected:{color:'#fff'},
