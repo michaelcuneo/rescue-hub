@@ -8,6 +8,7 @@ export type User = {
   name: string;
   email: string;
   organisationId?: string;
+  roles?: string[];
   membershipTypeId?: string;
   teamIds: string[];
   availabilityStatus: 'AVAILABLE' | 'BUSY' | 'OFFLINE';
@@ -96,8 +97,44 @@ async function request<T>(path: string, init: RequestInit = {}, authenticated = 
   return data as T;
 }
 
+export type PublicWildlifeReport = {
+  id: string;
+  animal: string;
+  condition: string;
+  latitude: number;
+  longitude: number;
+  status: 'SUBMITTED' | 'UNDER_REVIEW' | 'CONVERTED';
+  createdAt: string;
+};
+
+export async function signupReporter(name: string, email: string, password: string) {
+  return request<{ ok: true; message: string }>('/api/public/signup', {
+    method: 'POST', body: JSON.stringify({ name, email, password })
+  }, false);
+}
+
+export async function verifyReporter(email: string, code: string) {
+  const result = await request<{ ok: true; token: string; user: User }>('/api/public/verify', {
+    method: 'POST', body: JSON.stringify({ email, code })
+  }, false);
+  await SecureStore.setItemAsync(TOKEN_KEY, result.token);
+  return { user: result.user, membership: null };
+}
+
+export async function submitPublicReport(
+  animal: string, condition: string, latitude: number, longitude: number
+) {
+  return request<{ report: PublicWildlifeReport }>('/api/public/reports', {
+    method: 'POST', body: JSON.stringify({ animal, condition, latitude, longitude })
+  });
+}
+
+export async function myPublicReports() {
+  return request<{ items: PublicWildlifeReport[] }>('/api/public/reports');
+}
+
 export async function login(email: string, password: string) {
-  const result = await request<{ token: string; user: User; membership: MembershipConfig }>(
+  const result = await request<{ token: string; user: User; membership: MembershipConfig | null }>(
     '/api/mobile/session',
     { method: 'POST', body: JSON.stringify({ email, password }) },
     false
@@ -110,7 +147,7 @@ export async function restoreSession() {
   const token = await SecureStore.getItemAsync(TOKEN_KEY);
   if (!token) return null;
   try {
-    return await request<{ user: User; membership: MembershipConfig }>('/api/mobile/me');
+    return await request<{ user: User; membership: MembershipConfig | null }>('/api/mobile/me');
   } catch {
     await SecureStore.deleteItemAsync(TOKEN_KEY);
     return null;
