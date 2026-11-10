@@ -1,5 +1,5 @@
 import { json } from '@sveltejs/kit';
-import { Resource } from 'sst';
+import { getRealtimeResource } from '$lib/server/realtime-resource';
 import { getHunterDemo } from '$lib/server/demo';
 import type { RequestHandler } from './$types';
 
@@ -11,7 +11,7 @@ export const GET: RequestHandler = async ({ locals, cookies }) => {
     return json({ error: 'An active Rescue Hub session is required.' }, { status: 401 });
   }
   return json({
-    url: Resource.RescueHubRealtime.url,
-    apiKey: Resource.RescueHubRealtime.apiKey
+    url: getRealtimeResource().url,
+    apiKey: getRealtimeResource().apiKey
   }, { headers: { 'cache-control': 'private, no-store' } });
 };
