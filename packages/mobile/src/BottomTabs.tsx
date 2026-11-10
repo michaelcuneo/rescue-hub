@@ -22,6 +22,6 @@ const styles = StyleSheet.create({
     paddingTop:8,paddingBottom:7,minHeight:66 },
   tab:{flex:1,alignItems:'center',justifyContent:'center',gap:3,minHeight:48},
   icon:{fontSize:24,color:'#7c8d82',fontWeight:'600'},
-  label:{fontSize:12,fontWeight:'650',color:'#7c8d82'},
+  label:{fontSize:12,fontWeight:'600',color:'#7c8d82'},
   active:{color:'#173d2c',fontWeight:'800'}
 });
