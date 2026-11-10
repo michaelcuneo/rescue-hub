@@ -15,10 +15,11 @@
   let correctedSpecies = $state('');
   let correctedDescription = $state('');
   let note = $state('');
-  type PhoneEvent = { id: string; callerName: string; callerRole: string; notes: string; callbackPermitted?: boolean; callbackPhone?: string; createdAt: string; actorUserId: string; transportRescueId?: string };
+  type PhoneEvent = { id: string; callerName: string; callerRole: string; notes: string; finalOutcome?: string; callbackPermitted?: boolean; callbackPhone?: string; createdAt: string; actorUserId: string; transportRescueId?: string };
   let phoneEvents = $state<PhoneEvent[]>([]);
   let phoneCaller = $state('');
   let phoneRole = $state('VET');
+  let phoneOutcome = $state('');
   let phoneNotes = $state('');
   let callbackAllowed = $state(false);
   let callbackNumber = $state('');
@@ -103,6 +104,7 @@
     phoneEvents = [];
     phoneSaved = '';
     requestTransport = false;
+    phoneOutcome = '';
     pickupAddress = animal.currentLocation ?? '';
     pickupLatitude = null;
     pickupLongitude = null;
@@ -120,6 +122,7 @@
       const result = await api(`/api/mobile/animals/${selected.id}/phone-updates`, {
         callerName: phoneCaller, callerRole: phoneRole, notes: phoneNotes,
         animalId: selected.id, requestTransport,
+        ...(phoneRole === 'VET' && phoneOutcome ? { finalOutcome: phoneOutcome } : {}),
         ...(requestTransport ? { pickupLocation: pickupAddress, pickupLatitude, pickupLongitude } : {}),
         callbackPermitted: callbackAllowed,
         ...(callbackAllowed ? { callbackPhone: callbackNumber } : {})
@@ -129,9 +132,12 @@
       pickupOptions = [];
       callbackAllowed = false;
       requestTransport = false;
-      phoneSaved = result.update.transportRescueId
-        ? 'Telephone update saved. A new transport job is awaiting a qualified volunteer to claim.'
-        : 'Telephone update saved to this animal’s permanent history.';
+      phoneOutcome = '';
+      phoneSaved = result.update.finalOutcome
+        ? `Veterinary outcome ${result.update.finalOutcome.toLowerCase()} recorded. Animal care is complete and remains in historical records.`
+        : result.update.transportRescueId
+          ? 'Telephone update saved. A new transport job is awaiting a qualified volunteer to claim.'
+          : 'Telephone update saved to this animal’s permanent history.';
       await refresh();
     } catch (error) {
       errorMessage = error instanceof Error ? error.message : 'Unable to save telephone update.';
@@ -234,10 +240,20 @@
               <option value="CARER">Wildlife carer</option>
               <option value="OTHER">Other</option>
             </select></label>
-            <label>Information provided<textarea required maxlength="4000" bind:value={phoneNotes} placeholder="e.g. The vet says this animal is ready for collection; assessed and stable."></textarea></label>
+            <label>Information provided<textarea required maxlength="4000" bind:value={phoneNotes} placeholder="Document the exact details reported by the caller."></textarea></label>
+            {#if phoneRole === 'VET' && selected.status === 'AT_VET'}
+              <label for="vet-call-outcome">Veterinarian reported outcome
+                <select id="vet-call-outcome" bind:value={phoneOutcome} onchange={() => { if (phoneOutcome) requestTransport = false; }}>
+                  <option value="">No final outcome (animal remains in care)</option>
+                  <option value="EUTHANISED">Euthanised — close this animal's care record</option>
+                  <option value="DECEASED">Died — close this animal's care record</option>
+                </select>
+              </label>
+              {#if phoneOutcome}<p class="notice">This is a permanent final outcome. Confirm the veterinarian and details before saving. Any outstanding transport pickup request will be cancelled.</p>{/if}
+            {/if}
             <label class="inline-check"><input type="checkbox" bind:checked={callbackAllowed} /> Caller permits a callback</label>
             {#if callbackAllowed}<label>Callback number<input required type="tel" maxlength="25" bind:value={callbackNumber} /></label>{/if}
-            {#if selected.status === 'AT_VET'}
+            {#if selected.status === 'AT_VET' && !phoneOutcome}
               <label class="inline-check"><input type="checkbox" bind:checked={requestTransport} disabled={!!selected.activeTransportRescueId} />
                 Also place this animal into the available transport queue for a volunteer to claim
               </label>
@@ -279,6 +295,7 @@
             <li><strong>Phone call: {call.callerName} ({call.callerRole.toLowerCase()})</strong>
               <small>{new Date(call.createdAt).toLocaleString('en-AU')} · Recorded by {call.actorUserId}</small>
               <p>{call.notes}</p>
+              {#if call.finalOutcome}<p><strong>Veterinary-reported final outcome: {call.finalOutcome.replaceAll('_',' ')}</strong></p>{/if}
               {#if call.transportRescueId}<p><strong>Transport offered to volunteers</strong> · <a href="/rescues/{call.transportRescueId}/care">View transport job</a></p>{/if}
               {#if call.callbackPermitted && call.callbackPhone}<small>Callback permitted: <a href="tel:{call.callbackPhone}">{call.callbackPhone}</a></small>{/if}
             </li>
