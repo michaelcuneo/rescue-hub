@@ -9,6 +9,8 @@
   let events = $state<Event[]>([]);
   let species = $state('');
   let description = $state('');
+  let incidentSpecies = $state(data.rescue.type);
+  let incidentCondition = $state(data.rescue.injury ?? '');
   let correctedSpecies = $state('');
   let correctedDescription = $state('');
   let note = $state('');
@@ -71,6 +73,22 @@
   <div class="layout">
     <aside class="panel">
       <h2>Animal records</h2>
+      {#if data.rescue.assignedUserId === data.userId && data.rescue.status === 'ASSIGNED'}
+        <form onsubmit={(event) => { event.preventDefault(); void submit(async () => {
+          const response = await fetch(`/api/mobile/rescues/${data.rescue.id}/correction`, {
+            method: 'PATCH', headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ type: incidentSpecies, injury: incidentCondition })
+          });
+          const result = await response.json();
+          if (!response.ok) throw new Error(result.error || 'Correction failed');
+        }); }}>
+          <h3>Correct public observations</h3>
+          <p>The person's original report is preserved. Record what you actually found.</p>
+          <label>Verified animal<input required maxlength="120" bind:value={incidentSpecies}/></label>
+          <label>Verified condition<textarea maxlength="2000" bind:value={incidentCondition}></textarea></label>
+          <button class="primary" disabled={busy || incidentSpecies.trim().length < 2}>Save verified observation</button>
+        </form>
+      {/if}
       {#each animals as animal (animal.id)}
         <button class:active={selected?.id === animal.id} class="animal-row" onclick={() => openAnimal(animal)}>
           <strong>{animal.species}</strong><small>{animal.status.replaceAll('_', ' ')}</small>
