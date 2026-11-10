@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
-import { KeyboardAwareScrollView, KeyboardAwareTextInput } from './KeyboardAware';
+import { KeyboardAwareScrollView, KeyboardAwareTextInput, useKeyboardVisible } from './KeyboardAware';
 import WebView, { type WebViewMessageEvent } from 'react-native-webview';
 import { getDeviceMapPosition } from './map-location';
 import { myPublicReports, submitPublicReport, type PublicWildlifeReport } from './api';
@@ -57,6 +57,7 @@ export default function PublicReporter({ onSignOut }: Props) {
   const ref = useRef<WebView<{}>>(null);
   const source = useMemo(() => ({ html: mapHTML(), baseUrl: 'https://api.mapbox.com' }), []);
   const [pin, setPin] = useState<Pin | null>(null);
+  const keyboardVisible = useKeyboardVisible();
   const [animal, setAnimal] = useState('');
   const [condition, setCondition] = useState('');
   const [allowMessages, setAllowMessages] = useState(false);
@@ -132,7 +133,7 @@ export default function PublicReporter({ onSignOut }: Props) {
         <Text style={styles.small}>Sign out</Text>
       </Pressable>
     </View>
-    <View style={styles.map}>
+    <View style={[styles.map, keyboardVisible && styles.mapWhileTyping]}>
       {token.startsWith('pk.') ? <WebView<{}> ref={ref} source={source} geolocationEnabled onMessage={onMessage}
         originWhitelist={['https://*']} javaScriptEnabled domStorageEnabled
         onError={e => setError(e.nativeEvent.description)} /> :
@@ -196,6 +197,7 @@ const styles = StyleSheet.create({
   heading:{fontSize:18,fontWeight:'800',color:'#173d2c'},
   signout:{padding:8},small:{color:'#5e7063',fontSize:12,lineHeight:18},
   map:{height:'45%',minHeight:230,backgroundColor:'#dce7df',position:'relative'},
+  mapWhileTyping:{height:0,minHeight:0,overflow:'hidden'},
   loading:{...StyleSheet.absoluteFill,alignItems:'center',justifyContent:'center'},
   form:{flex:1},formContent:{padding:18,gap:10,paddingBottom:36},
   label:{fontSize:14,color:'#173d2c',fontWeight:'800',marginTop:6},
