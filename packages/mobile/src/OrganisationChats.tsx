@@ -99,7 +99,7 @@ export default function OrganisationChats({ userId, initialChannelId, onOpenAnim
       {error ? <Text style={styles.error} accessibilityRole="alert">{error}</Text> : null}
       <FlatList data={channels} keyExtractor={item => item.id}
         contentContainerStyle={styles.channelList}
-        ListEmptyComponent={!loading ? <Text style={styles.subtitle}>No channels available for your membership.</Text> : null}
+        ListEmptyComponent={!loading ? <Text style={styles.subtitle}>No channels available for your membership.</Text> : undefined}
         renderItem={({ item }) => <Pressable accessibilityRole="button"
           accessibilityLabel={item.name + (item.unread ? ', new messages' : '')}
           style={styles.channel} onPress={() => setSelected(item.id)}>
@@ -166,7 +166,7 @@ const styles=StyleSheet.create({
   avatar:{width:45,height:45,backgroundColor:'#dbe9df',borderRadius:23,alignItems:'center',justifyContent:'center'},
   avatarText:{fontSize:19,fontWeight:'800',color:'#24583f'},
   channelBody:{flex:1,minWidth:0},
-  channelName:{fontSize:16,fontWeight:'750',color:'#172c20'},
+  channelName:{fontSize:16,fontWeight:'700',color:'#172c20'},
   preview:{color:'#69776f',fontSize:13,marginTop:4},
   unread:{height:10,width:10,borderRadius:5,backgroundColor:'#236b4b'},
   toolbar:{flexDirection:'row',alignItems:'center',gap:13,padding:12,backgroundColor:'#fff',borderBottomWidth:1,borderBottomColor:'#e0e8e2'},
