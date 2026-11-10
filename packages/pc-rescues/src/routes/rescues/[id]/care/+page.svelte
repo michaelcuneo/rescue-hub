@@ -17,7 +17,7 @@
   let outcome = $state('RELEASED');
   let errorMessage = $state('');
   let busy = $state(false);
-  const canCoordinate = data.roles.some((role) => ['ORG_ADMIN', 'DISPATCHER', 'PLATFORM_ADMIN', 'AUTHORITY_ADMIN'].includes(role));
+  const canCoordinate = $derived(data.roles.some((role) => ['ORG_ADMIN', 'DISPATCHER', 'PLATFORM_ADMIN', 'AUTHORITY_ADMIN'].includes(role)));
   const isCustodian = $derived(selected?.currentCustodianUserId === data.userId);
   const final = $derived(selected ? ['RELEASED', 'EUTHANISED', 'DECEASED'].includes(selected.status) : false);
   async function api(path: string, body?: Record<string, unknown>) {
