@@ -11,7 +11,7 @@ export type AnimalRecord = {
   id: string; rescueId: string; organisationId: string; species: string; description?: string;
   status: AnimalStatus; currentCustodianUserId?: string; currentLocation?: string;
   vetStage?: 'AWAITING_ASSESSMENT' | 'ASSESSED_AWAITING_TRANSPORT';
-  pendingTransferId?: string; version: number; createdAt: string; updatedAt: string;
+  pendingTransferId?: string; activeTransportRescueId?: string; version: number; createdAt: string; updatedAt: string;
 };
 export class AnimalConflict extends Error {}
 const key = (id: string) => ({ pk: `ANIMAL#${id}`, sk: 'META' });
@@ -180,7 +180,7 @@ export async function changeAnimalState(animal: AnimalRecord, actorUserId: strin
     condition += ' AND pendingTransferId = :transferId';
     values[':transferId'] = animal.pendingTransferId;
     type = 'TRANSFER_ACCEPTED';
-    update = 'SET currentCustodianUserId = :user, currentLocation = :location, #status = :care, gsi1pk = :custodianKey, updatedAt = :now, version = :next REMOVE pendingTransferId, vetStage';
+    update = 'SET currentCustodianUserId = :user, currentLocation = :location, #status = :care, gsi1pk = :custodianKey, updatedAt = :now, version = :next REMOVE pendingTransferId, vetStage, activeTransportRescueId';
     values = { ...values, ':user': actorUserId, ':location': String(transfer.destination ?? ''), ':care': transfer.purpose === 'TRANSPORT' ? 'IN_TRANSIT' : 'IN_CARE', ':custodianKey': `CUSTODIAN#${animal.organisationId}#${actorUserId}` };
     extra = { transferId: animal.pendingTransferId, fromUserId: transfer.fromUserId, toUserId: actorUserId };
   } else if (input.kind === 'VET_DROPOFF' || input.kind === 'VET_ASSESSED') {
