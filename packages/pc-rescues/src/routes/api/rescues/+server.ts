@@ -1,3 +1,4 @@
+import { effectiveAvailability } from '$lib/server/availability';
 import { json } from '@sveltejs/kit';
 import { createRescue } from '$lib/server/graphql';
 import { getHunterDemo, HUNTER_DEMO_ORGANISATION } from '$lib/server/demo';
