@@ -29,7 +29,10 @@ export const POST: RequestHandler = async ({ locals, request, fetch: eventFetch 
       });
     const report = await submitWildlifeReport(locals.user, {
       animal: body.animal, condition: body.condition,
-      latitude: body.latitude, longitude: body.longitude
+      latitude: body.latitude, longitude: body.longitude,
+      allowMessages: body.allowMessages === true,
+      allowPhoneContact: body.allowPhoneContact === true,
+      contactPhone: typeof body.contactPhone === 'string' ? body.contactPhone : undefined
     }, routing);
     if (routing.status === 'MATCHED') {
       try {
