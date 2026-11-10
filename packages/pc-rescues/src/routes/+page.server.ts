@@ -8,6 +8,7 @@ import type { PageServerLoad } from './$types';
 export const load: PageServerLoad = async ({ locals, cookies }) => {
 	if (!await hasCompletedBootstrap()) throw redirect(303, '/setup');
 	if (!locals.user) throw redirect(303, '/login');
+	if (locals.user.roles.includes('PUBLIC_REPORTER')) throw redirect(303, '/report');
 
 	const demoMode = getHunterDemo(cookies, locals.user);
 	const organisationId = demoMode
