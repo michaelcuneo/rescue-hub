@@ -1,7 +1,9 @@
 <script lang="ts">
   import type { PageData } from './$types';
+  import { onMount } from 'svelte';
   let { data }: { data: PageData } = $props();
-  let reports = $state(data.reports);
+  let reports = $state<PageData['reports']>([]);
+  onMount(() => { reports = data.reports; });
   let busy = $state('');
   let error = $state('');
   let notice = $state('');
