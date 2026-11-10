@@ -32,6 +32,26 @@ export async function listRescueAnimals(rescueId: string, organisationId: string
   } while (nextKey);
   return items;
 }
+/** Indexed active animal custody for the signed-in user, including cases they did not originally claim. */
+export async function listCustodianAnimals(organisationId: string, userId: string): Promise<AnimalRecord[]> {
+  const items: AnimalRecord[] = [];
+  let nextKey: Record<string, unknown> | undefined;
+  do {
+    const result = await db.send(new QueryCommand({
+      TableName: table,
+      IndexName: 'gsi1',
+      KeyConditionExpression: 'gsi1pk = :pk',
+      ExpressionAttributeValues: { ':pk': `CUSTODIAN#${organisationId}#${userId}` },
+      ExclusiveStartKey: nextKey
+    }));
+    items.push(...(result.Items ?? []).filter(item =>
+      item.organisationId === organisationId && item.currentCustodianUserId === userId
+    ).map(item => item as AnimalRecord));
+    nextKey = result.LastEvaluatedKey;
+  } while (nextKey);
+  return items;
+}
+
 export async function listAnimalEvents(id: string) {
   const items: Record<string, unknown>[] = [];
   let nextKey: Record<string, unknown> | undefined;
@@ -69,7 +89,9 @@ export async function createAnimal(input: {
       }
     }},
     { Put: { TableName: table, Item: { ...key(id), ...animal, entity: 'animal',
-      gsi2pk: `RESCUE_ANIMALS#${input.rescueId}`, gsi2sk: `${now}#${id}` },
+      gsi2pk: `RESCUE_ANIMALS#${input.rescueId}`, gsi2sk: `${now}#${id}`,
+      gsi1pk: `CUSTODIAN#${input.organisationId}#${input.custodianUserId}`,
+      gsi1sk: `${now}#${id}` },
       ConditionExpression: 'attribute_not_exists(pk)' }},
     { Put: { TableName: table, Item: {
       pk: `ANIMAL#${id}`, sk: `EVENT#${now}#${eventId}`, entity: 'animal_event',
@@ -154,8 +176,8 @@ export async function changeAnimalState(animal: AnimalRecord, actorUserId: strin
     condition += ' AND pendingTransferId = :transferId';
     values[':transferId'] = animal.pendingTransferId;
     type = 'TRANSFER_ACCEPTED';
-    update = 'SET currentCustodianUserId = :user, currentLocation = :location, #status = :care, updatedAt = :now, version = :next REMOVE pendingTransferId';
-    values = { ...values, ':user': actorUserId, ':location': String(transfer.destination ?? ''), ':care': 'IN_CARE' };
+    update = 'SET currentCustodianUserId = :user, currentLocation = :location, #status = :care, gsi1pk = :custodianKey, updatedAt = :now, version = :next REMOVE pendingTransferId';
+    values = { ...values, ':user': actorUserId, ':location': String(transfer.destination ?? ''), ':care': 'IN_CARE', ':custodianKey': `CUSTODIAN#${animal.organisationId}#${actorUserId}` };
     extra = { transferId: animal.pendingTransferId, fromUserId: transfer.fromUserId, toUserId: actorUserId };
   } else {
     if (animal.pendingTransferId) throw new AnimalConflict('Resolve pending transfer before final outcome.');
