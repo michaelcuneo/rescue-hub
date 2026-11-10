@@ -68,7 +68,8 @@ export const GET: RequestHandler = async ({ locals }) => {
   const currentCustody = (await listCustodianAnimals(user.organisationId, user.id))
     .filter(animal => !finalOutcomes.has(animal.status));
   const custodianRescueIds = new Set(currentCustody.map(animal => animal.rescueId));
-  const owned = inOrganisation.filter(rescue => rescue.assignedUserId === user.id);
+  const owned = inOrganisation.filter(rescue => rescue.assignedUserId === user.id &&
+    !['COMPLETED', 'CANCELLED'].includes(rescue.status));
   const ownedAnimalGroups = await Promise.all(owned.map(async rescue => ({
     id: rescue.id,
     animals: await listRescueAnimals(rescue.id, user.organisationId!)
