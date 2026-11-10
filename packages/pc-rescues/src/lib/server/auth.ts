@@ -14,6 +14,7 @@ import {
 } from '@aws-sdk/lib-dynamodb';
 import { Resource } from 'sst';
 import type { Cookies } from '@sveltejs/kit';
+import { isValidReporterEmail, isValidReporterVerificationCode, normalizeReporterName } from '../../../../core/public-reporter-validation';
 
 const scrypt = promisify(scryptCallback);
 const db = DynamoDBDocumentClient.from(new DynamoDBClient({}), {
@@ -497,9 +498,9 @@ export async function registerPublicReporter(input: {
   name: string; email: string; password: string;
 }) {
   const email = normalizeEmail(input.email);
-  const name = input.name.trim().replace(/\\s+/g, ' ');
+  const name = normalizeReporterName(input.name);
   const passwordError = validatePassword(input.password);
-  if (!/^\\S+@\\S+\\.\\S+$/.test(email) || email.length > 254) throw new Error('Enter a valid email address.');
+  if (!isValidReporterEmail(email)) throw new Error('Enter a valid email address.');
   if (!name || name.length > 100) throw new Error('Enter a name (100 characters maximum).');
   if (passwordError) throw new Error(passwordError);
 
@@ -537,7 +538,7 @@ export async function registerPublicReporter(input: {
 
 export async function verifyPublicReporter(email: string, code: string, cookies?: Cookies) {
   const normalized = normalizeEmail(email);
-  if (!/^\\d{6}$/.test(code.trim())) throw new Error('Enter the six-digit verification code.');
+  if (!isValidReporterVerificationCode(code.trim())) throw new Error('Enter the six-digit verification code.');
   const userId = await lookupUserIdByEmail(normalized);
   if (!userId) throw new Error('Invalid or expired verification code.');
   const current = await getUserById(userId);
@@ -567,7 +568,7 @@ export async function createOrLoginSocialReporter(input: {
   const provider = input.provider;
   const subject = input.subject.trim();
   const email = normalizeEmail(input.email);
-  if (!subject || subject.length > 200 || !/^\\S+@\\S+\\.\\S+$/.test(email)) {
+  if (!subject || subject.length > 200 || !isValidReporterEmail(email)) {
     throw new Error('Provider did not supply a usable verified email address.');
   }
   const lookupKey = { pk: `AUTH#SOCIAL#${provider.toUpperCase()}#${hashToken(subject)}`, sk: 'USER' };
