@@ -522,6 +522,7 @@
 			</div>
 
 			<div class="detail-actions">
+				<a class="primary" href="/rescues/{selected.id}/care">Animal records &amp; phone updates</a>
 				{#if selected.assignedUserId}
 					<span class="assignment-label"><UserRound size={14} /> Assigned to {assignedName}</span>
 				{/if}
