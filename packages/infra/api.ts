@@ -73,9 +73,4 @@ api.addResolver("Mutation updateRescueStatus", {
   responseTemplate: `$util.toJson($ctx.result)`,
 });
 
-api.addResolver("Mutation assignRescue", {
-  dataSource: dynamo.name,
-  requestTemplate: `#set($input=$ctx.args.input)#set($now=$util.time.nowISO8601())
-{"version":"2018-05-29","operation":"UpdateItem","key":{"pk":$util.dynamodb.toDynamoDBJson("RESCUE#$input.id"),"sk":$util.dynamodb.toDynamoDBJson("META")},"update":{"expression":"SET #status = :status, #assignedUserId = :assignedUserId, #gsi1pk = :gsi1pk, #updatedAt = :updatedAt","expressionNames":{"#status":"status","#assignedUserId":"assignedUserId","#gsi1pk":"gsi1pk","#updatedAt":"updatedAt"},"expressionValues":{":status":$util.dynamodb.toDynamoDBJson("ASSIGNED"),":assignedUserId":$util.dynamodb.toDynamoDBJson($input.userId),":gsi1pk":$util.dynamodb.toDynamoDBJson("STATUS#ASSIGNED"),":updatedAt":$util.dynamodb.toDynamoDBJson($now)}},"condition":{"expression":"attribute_exists(pk)"}}`,
-  responseTemplate: `$util.toJson($ctx.result)`,
-});
+
