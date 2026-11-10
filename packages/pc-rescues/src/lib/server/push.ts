@@ -1,3 +1,4 @@
+import { effectiveAvailability, readAvailabilityPolicy } from './availability';
 import { createHash } from 'node:crypto';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, PutCommand, QueryCommand } from '@aws-sdk/lib-dynamodb';
@@ -58,9 +59,8 @@ async function listOrganisationUsers(organisationId: string): Promise<RescueHubU
 		roles: Array.isArray(item.roles) ? item.roles.map(String) as RescueHubUser['roles'] : [],
 		membershipTypeId: item.membershipTypeId ? String(item.membershipTypeId) : undefined,
 		teamIds: Array.isArray(item.teamIds) ? item.teamIds.map(String) : [],
-		availabilityStatus: ['AVAILABLE', 'BUSY', 'OFFLINE'].includes(String(item.availabilityStatus))
-			? String(item.availabilityStatus) as RescueHubUser['availabilityStatus']
-			: 'OFFLINE',
+		availabilityStatus: effectiveAvailability({ availabilityStatus: ['AVAILABLE', 'BUSY', 'OFFLINE'].includes(String(item.availabilityStatus)) ? String(item.availabilityStatus) as RescueHubUser['availabilityStatus'] : 'OFFLINE', availabilityPolicy: item.availabilityPolicy }),
+		availabilityPolicy: readAvailabilityPolicy(item.availabilityPolicy) ?? undefined,
 		createdAt: String(item.createdAt),
 		updatedAt: String(item.updatedAt ?? item.createdAt)
 	}));
