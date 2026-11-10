@@ -77,6 +77,7 @@ export default function App() {
     let foreground = AppState.currentState === 'active';
     let connected = false;
     let subscription: (() => void) | null = null;
+    let retryConfig: ReturnType<typeof setTimeout> | null = null;
     let generation = 0;
     let inFlight = false;
     let pending = false;
@@ -126,7 +127,10 @@ export default function App() {
           onStatus: online => { connected = online; }
         });
       } catch (e) {
-        console.warn('Realtime socket unavailable; fallback refresh enabled:', e);
+        if (!closed && foreground && currentGeneration === generation) {
+          console.warn('Realtime socket unavailable; fallback refresh enabled:', e);
+          retryConfig = setTimeout(() => void connect(), 10_000);
+        }
       }
     };
 
@@ -144,6 +148,7 @@ export default function App() {
         void connect();
       } else {
         ++generation;
+        if (retryConfig) { clearTimeout(retryConfig); retryConfig = null; }
         connected = false;
         subscription?.();
         subscription = null;
@@ -153,6 +158,7 @@ export default function App() {
       closed = true;
       ++generation;
       clearInterval(fallback);
+      if (retryConfig) clearTimeout(retryConfig);
       appStateSubscription.remove();
       subscription?.();
     };
