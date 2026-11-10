@@ -3,6 +3,7 @@ import { DynamoDBDocumentClient, GetCommand, TransactWriteCommand, type Transact
 import { Resource } from 'sst';
 import { publishRescueChange } from './realtime';
 import { getAnimal } from './animals';
+import { getCareDestination } from './care-reservations';
 import type { Rescue } from './graphql';
 
 const db = DynamoDBDocumentClient.from(new DynamoDBClient({}), { marshallOptions: { removeUndefinedValues: true } });
@@ -49,9 +50,17 @@ export async function confirmRescuePickup(rescue: Rescue, rescuerUserId: string,
     const animal = await getAnimal(rescue.transportAnimalId);
     if (!animal || animal.organisationId !== rescue.organisationId ||
         animal.status !== 'AT_VET' || animal.activeTransportRescueId !== rescue.id ||
-        animal.pendingTransferId) {
+        animal.pendingTransferId || !animal.reservedCarerUserId) {
       throw new RescuePickupConflict('Linked animal is not ready for pickup from the veterinary facility.');
     }
+    // The carer destination is kept in a private animal record, never the map job.
+    const destination = await getCareDestination(animal, {
+      id: rescuerUserId, organisationId: animal.organisationId, roles: []
+    });
+    // Before claiming physical pickup the server may not yet identify this
+    // person as current custodian; the assigned transport claim grants access.
+    if (!destination || destination.carerUserId !== animal.reservedCarerUserId)
+      throw new RescuePickupConflict('The receiving carer has not confirmed delivery instructions.');
     const animalEventId = crypto.randomUUID();
     changes.push({ Update: {
       TableName: table,
