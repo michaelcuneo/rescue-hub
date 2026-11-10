@@ -240,7 +240,9 @@ export default function AnimalCare({ rescue, userId, onBack, onUnclaim }: Props)
             <View style={styles.card} key={event.id}>
               <Text style={styles.bold}>{event.type.replace(/_/g, ' ')}</Text>
               <Text style={styles.muted}>{new Date(event.occurredAt || event.createdAt).toLocaleString()}</Text>
+              {event.type === 'PHONE_UPDATE' && event.callerName ? <Text style={styles.muted}>Caller: {event.callerName} · {event.callerRole ?? 'Phone'}</Text> : null}
               {event.notes ? <Text style={styles.body}>{event.notes}</Text> : null}
+              {event.transportRescueId ? <Text style={styles.muted}>A transport job was offered to volunteers for this animal.</Text> : null}
               {event.outcome ? <Text style={styles.body}>Outcome: {event.outcome}</Text> : null}
             </View>
           ))}
