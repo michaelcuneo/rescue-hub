@@ -26,7 +26,7 @@ export async function claimRescue(rescueId: string, organisationId: string, user
             TableName: table,
             Key: { pk: `RESCUE#${rescueId}`, sk: 'META' },
             UpdateExpression: 'SET #status = :assigned, assignedUserId = :user, updatedAt = :now, gsi1pk = :statusKey',
-            ConditionExpression: 'organisationId = :org AND #status = :pending AND attribute_not_exists(assignedUserId)',
+            ConditionExpression: 'organisationId = :org AND #status = :pending AND attribute_not_exists(assignedUserId) AND attribute_not_exists(pickedUpAt)',
             ExpressionAttributeNames: { '#status': 'status' },
             ExpressionAttributeValues: {
               ':org': organisationId, ':pending': 'PENDING', ':assigned': 'ASSIGNED',
@@ -88,7 +88,7 @@ export async function unclaimRescue(
         TableName: table,
         Key: { pk: `RESCUE#${rescueId}`, sk: 'META' },
         UpdateExpression: 'SET #status = :pending, gsi1pk = :statusKey, updatedAt = :now REMOVE assignedUserId',
-        ConditionExpression: 'organisationId = :org AND #status = :assigned AND assignedUserId = :user AND (attribute_not_exists(animalCount) OR animalCount = :zero)',
+        ConditionExpression: 'organisationId = :org AND #status = :assigned AND assignedUserId = :user AND (attribute_not_exists(animalCount) OR animalCount = :zero) AND attribute_not_exists(pickedUpAt)',
         ExpressionAttributeNames: { '#status': 'status' },
         ExpressionAttributeValues: {
           ':org': organisationId, ':assigned': 'ASSIGNED', ':pending': 'PENDING',
@@ -110,7 +110,7 @@ export async function unclaimRescue(
     if (error instanceof Error &&
         ['TransactionCanceledException', 'ConditionalCheckFailedException'].includes(error.name)) {
       throw new RescueCannotUnclaimError(
-        'This rescue was changed or an animal was registered. Reopen it to check the current assignment.'
+        'This rescue was already collected, changed, or had an animal registered. Once physically collected it cannot return to the public rescue map.'
       );
     }
     throw error;

@@ -50,6 +50,7 @@ export type Rescue = {
   longitude: number;
   status: string;
   assignedUserId?: string | null;
+  pickedUpAt?: string | null;
   transportAnimalId?: string | null;
   transportSourceRescueId?: string | null;
   custodyRole?: 'CUSTODIAN';
@@ -273,6 +274,11 @@ export async function getRescues() {
 export async function correctReportedRescue(id: string, type: string, injury: string) {
   return request<{ rescue: Rescue }>(`/api/mobile/rescues/${encodeURIComponent(id)}/correction`, { method: 'PATCH', body: JSON.stringify({ type, injury }) });
 }
+export async function confirmRescuePickup(id: string, notes = '') {
+  return request<{ rescue: Rescue }>(`/api/mobile/rescues/${encodeURIComponent(id)}/pickup`, {
+    method: 'POST', body: JSON.stringify({ notes })
+  });
+}
 export async function claimRescue(id: string) {
   return request<{ rescue: Rescue }>(`/api/mobile/rescues/${encodeURIComponent(id)}/claim`, {
     method: 'POST'
@@ -327,6 +333,11 @@ export async function requestAnimalTransfer(id: string, recipientUserId: string,
 export async function acceptAnimalTransfer(id: string) {
   return request<{ animal: Animal }>(`/api/mobile/animals/${encodeURIComponent(id)}/events`, {
     method: 'POST', body: JSON.stringify({ kind: 'ACCEPT_TRANSFER' })
+  });
+}
+export async function startVetTransport(id: string, location: string, notes = '') {
+  return request<{ animal: Animal }>(`/api/mobile/animals/${encodeURIComponent(id)}/events`, {
+    method: 'POST', body: JSON.stringify({ kind: 'VET_TRANSPORT_STARTED', location, notes })
   });
 }
 export async function recordVetDropoff(id: string, location: string, notes = '') {

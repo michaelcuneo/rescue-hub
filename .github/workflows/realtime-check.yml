@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - deploy/rescue-demo-domain
+      - feature/animal-care-map-lifecycle
       - fix/dispatch-self-claim-and-phone-updates
       - fix/public-reporter-email-validation
       - fix/use-mapbox-geolocate-control
@@ -26,6 +27,8 @@ jobs:
         run: npm install --no-audit --no-fund
       - name: Public reporter signup and email verification validation tests
         run: node --experimental-strip-types --test packages/core/public-reporter-validation.test.mjs
+      - name: Operational map lifecycle validation tests
+        run: node --experimental-strip-types --test packages/core/case-map-visibility.test.mjs
       - name: Animal telephone update validation tests
         run: node --experimental-strip-types --test packages/core/rescue-phone-update.test.mjs
       - name: GIS routing unit tests

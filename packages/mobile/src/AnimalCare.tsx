@@ -2,8 +2,8 @@ import ReporterConversation from './ReporterConversation';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import {
-  acceptAnimalTransfer, addAnimalNote, getAnimalHistory, getRescueAnimals,
-  recordAnimalOutcome, registerAnimal, requestAnimalTransfer, recordVetDropoff, recordVetAssessment, unclaimRescue,
+  acceptAnimalTransfer, addAnimalNote, getAnimalHistory, getRescueAnimals, confirmRescuePickup,
+  recordAnimalOutcome, registerAnimal, requestAnimalTransfer, startVetTransport, recordVetDropoff, recordVetAssessment, unclaimRescue,
   correctAnimalIdentification, correctReportedRescue, getRescuerReporterContact, type Animal, type AnimalEvent, type Rescue
 } from './api';
 
@@ -14,6 +14,8 @@ const terminal = new Set<string>(outcomes);
 
 export default function AnimalCare({ rescue, userId, onBack, onUnclaim }: Props) {
   const [conversationOpen, setConversationOpen] = useState(false);
+  const [collected, setCollected] = useState(Boolean(rescue.pickedUpAt));
+  const [collectionNotes, setCollectionNotes] = useState('');
   const [reporterContact, setReporterContact] = useState<{ reportId: string; allowMessages: boolean; contactPhone: string | null } | null>(null);
   const [animals, setAnimals] = useState<Animal[]>([]);
   const [selected, setSelected] = useState<Animal | null>(null);
@@ -132,8 +134,32 @@ export default function AnimalCare({ rescue, userId, onBack, onUnclaim }: Props)
       ) : null}
       {rescue.transportAnimalId ? <View style={styles.card}>
         <Text style={styles.section}>Transport pickup job</Text>
-        <Text style={styles.muted}>This animal already has a permanent record. Claiming transport does not transfer custody. Confirm the physical pickup and arrange an acknowledged handover with the current custodian.</Text>
+        <Text style={styles.muted}>This animal already has a permanent record. Claiming transport reserves the pickup, but does not transfer custody. Once you physically collect the animal at the veterinary facility, tap Animal picked up to accept custody, then arrange an acknowledged handover to the carer.</Text>
       </View> : null}
+      {rescue.status === 'ASSIGNED' && rescue.assignedUserId === userId ? (
+        <View style={styles.card}>
+          <Text style={styles.section}>Physical collection</Text>
+          {collected ? (
+            <Text style={styles.muted}>Animal collected. The job pin is now removed from the operational map; the animal's permanent record stays accessible.</Text>
+          ) : (
+            <>
+              <Text style={styles.muted}>Claiming the job did not collect the animal. Confirm only after physically picking up the animal. This removes its pin from the map, not its care record.</Text>
+              <TextInput style={[styles.input,styles.multilineInput]} value={collectionNotes} onChangeText={setCollectionNotes}
+                multiline maxLength={1000} placeholder="Collection notes (optional)" accessibilityLabel="Animal collection notes" />
+              <Pressable style={styles.button} disabled={busy} accessibilityRole="button"
+                onPress={() => Alert.alert('Confirm physical collection?', 'The animal will disappear from the operational map but remain in your care records.', [
+                  { text: 'Not yet', style: 'cancel' },
+                  { text: 'Confirm collected', onPress: () => void run(async () => {
+                    await confirmRescuePickup(rescue.id, collectionNotes);
+                    setCollected(true);
+                  }) }
+                ])}>
+                <Text style={styles.buttonText}>Animal picked up</Text>
+              </Pressable>
+            </>
+          )}
+        </View>
+      ) : null}
       {error ? <Text style={styles.error}>{error}</Text> : null}
       {loading ? <ActivityIndicator /> : null}
 
@@ -269,16 +295,24 @@ export default function AnimalCare({ rescue, userId, onBack, onUnclaim }: Props)
               </View>
               <View style={styles.card}>
                 <Text style={styles.section}>Veterinary milestones</Text>
-                <Text style={styles.muted}>The animal remains in your active list while it is at the vet and awaiting assessment or transport. Record each milestone without closing the animal.</Text>
+                <Text style={styles.muted}>Record transport and drop-off separately. After confirmed collection, the animal stays in its permanent care record but is off the operational map.</Text>
                 {selected.status !== 'AT_VET' ? (
                   <>
                     <TextInput style={styles.input} placeholder="Veterinary facility / location *"
                       value={vetLocation} onChangeText={setVetLocation} maxLength={250} />
+                    {selected.status !== 'IN_TRANSIT' && collected ? (
+                      <Pressable style={styles.button} disabled={busy || !vetLocation.trim()}
+                        accessibilityRole="button" onPress={() => void run(
+                          () => startVetTransport(selected.id, vetLocation.trim()), selected.id
+                        )}>
+                        <Text style={styles.buttonText}>Transporting to veterinary clinic</Text>
+                      </Pressable>
+                    ) : null}
                     <Pressable style={styles.button} disabled={busy || !vetLocation.trim()}
                       accessibilityRole="button" onPress={() => void run(
                         () => recordVetDropoff(selected.id, vetLocation.trim()), selected.id
                       )}>
-                      <Text style={styles.buttonText}>Record vet drop-off</Text>
+                      <Text style={styles.buttonText}>Dropped off at veterinary clinic</Text>
                     </Pressable>
                   </>
                 ) : selected.vetStage !== 'ASSESSED_AWAITING_TRANSPORT' ? (

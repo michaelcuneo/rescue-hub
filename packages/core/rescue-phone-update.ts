@@ -13,6 +13,7 @@ export type PhoneUpdateInput = {
   callbackPhone?: unknown;
   animalId?: unknown;
   requestTransport?: unknown;
+  finalOutcome?: unknown;
   pickupLocation?: unknown;
   pickupLatitude?: unknown;
   pickupLongitude?: unknown;
@@ -26,6 +27,7 @@ export type ValidPhoneUpdate = {
   callbackPhone?: string;
   animalId?: string;
   requestTransport: boolean;
+  finalOutcome?: 'EUTHANISED' | 'DECEASED';
   pickupLocation?: string;
   pickupLatitude?: number;
   pickupLongitude?: number;
@@ -42,9 +44,16 @@ export function validatePhoneUpdate(input: PhoneUpdateInput): ValidPhoneUpdate {
   const phone = typeof input.callbackPhone === 'string' ? input.callbackPhone.trim() : '';
   const animalId = typeof input.animalId === 'string' ? input.animalId.trim() : '';
   const requestTransport = input.requestTransport === true;
+  const finalOutcome = input.finalOutcome;
   const pickupLocation = typeof input.pickupLocation === 'string' ? input.pickupLocation.trim() : '';
   const pickupLatitude = input.pickupLatitude;
   const pickupLongitude = input.pickupLongitude;
+  if (finalOutcome !== undefined && finalOutcome !== 'EUTHANISED' && finalOutcome !== 'DECEASED') {
+    throw new Error('Only a confirmed euthanasia or death can be recorded as a veterinary telephone outcome.');
+  }
+  if (finalOutcome && (callerRole !== 'VET' || requestTransport || !animalId)) {
+    throw new Error('A veterinary final outcome requires a linked animal, a veterinarian caller and no transport request.');
+  }
   if (requestTransport && !animalId) throw new Error('Select the animal before requesting a transport volunteer.');
   if (requestTransport && (pickupLocation.length < 5 || pickupLocation.length > 250 ||
       typeof pickupLatitude !== 'number' || !Number.isFinite(pickupLatitude) || pickupLatitude < -90 || pickupLatitude > 90 ||
@@ -67,6 +76,7 @@ export function validatePhoneUpdate(input: PhoneUpdateInput): ValidPhoneUpdate {
   return {
     callerName, callerRole: callerRole as CallerRole, notes, callbackPermitted, requestTransport,
     ...(animalId ? { animalId } : {}),
+    ...(finalOutcome ? { finalOutcome } : {}),
     ...(requestTransport ? { pickupLocation, pickupLatitude: pickupLatitude as number, pickupLongitude: pickupLongitude as number } : {}),
     ...(callbackPermitted ? { callbackPhone: phone } : {})
   };

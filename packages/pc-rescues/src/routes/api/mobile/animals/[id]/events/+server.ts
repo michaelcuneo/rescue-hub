@@ -50,6 +50,13 @@ export const POST: RequestHandler = async ({ locals, params, request }) => {
       // nominated recipient can accept, enforced by the atomic custody update.
       return json({ animal: await changeAnimalState(animal, user.id, { kind: 'ACCEPT_TRANSFER' }) });
     }
+    if (body.kind === 'VET_TRANSPORT_STARTED') {
+      if (typeof body.location !== 'string' || !body.location.trim() || body.location.length > 250)
+        return json({ error: 'Veterinary destination is required.' }, { status: 400 });
+      return json({ animal: await changeAnimalState(animal, user.id, {
+        kind: 'VET_TRANSPORT_STARTED', location: body.location, notes
+      }) });
+    }
     if (body.kind === 'VET_DROPOFF' || body.kind === 'VET_ASSESSED') {
       const location = typeof body.location === 'string' ? body.location.trim() : '';
       if (location.length > 250) return json({ error: 'Location is too long.' }, { status: 400 });

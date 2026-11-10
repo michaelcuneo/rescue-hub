@@ -34,3 +34,28 @@ test('rejects missing attribution, empty observation and unknown role',()=>{
  assert.throws(()=>validatePhoneUpdate({callerName:'Vet',notes:' '}),/telephone update/i);
  assert.throws(()=>validatePhoneUpdate({callerName:'Vet',notes:'Information',callerRole:'UNKNOWN'}),/caller role/i);
 });
+
+test('vet may report euthanasia without needing an app account', () => {
+  const value = validatePhoneUpdate({
+    animalId, callerName: 'AREC night veterinarian', callerRole: 'VET',
+    notes: 'Veterinarian confirmed euthanasia following clinical assessment.',
+    finalOutcome: 'EUTHANISED'
+  });
+  assert.equal(value.finalOutcome, 'EUTHANISED');
+  assert.equal(value.callerRole, 'VET');
+  assert.equal(value.requestTransport, false);
+});
+test('reported euthanasia cannot create a pickup job', () => {
+  assert.throws(() => validatePhoneUpdate({
+    animalId, callerName: 'AREC', callerRole: 'VET', notes: 'Animal was euthanised.',
+    finalOutcome: 'EUTHANISED', requestTransport: true
+  }), /veterinary final outcome/i);
+});
+test('only a vet report may close care through the phone pathway', () => {
+  for (const role of ['REPORTER', 'RESCUER', 'OTHER']) {
+    assert.throws(() => validatePhoneUpdate({
+      animalId, callerName: 'Caller', callerRole: role, notes: 'Animal died at clinic.',
+      finalOutcome: 'DECEASED'
+    }), /veterinary final outcome/i);
+  }
+});

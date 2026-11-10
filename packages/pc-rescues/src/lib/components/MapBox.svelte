@@ -6,6 +6,7 @@
 	import Type from '$lib/components/Type.svelte';
 	import Avatar from './Avatar.svelte';
 	import Michael from '$lib/images/michael.jpg';
+	import { shouldShowRescuePin } from '../../../../core/case-map-visibility';
 
 	type AreaSelection = {
 		name: string;
@@ -246,7 +247,7 @@
 			<Avatar src={Michael} initials="MC" />
 		</Marker>
 
-		{#each $data.pending as item}
+		{#each $data.pending.filter(shouldShowRescuePin) as item}
 			<Marker lat={item.latitude} lng={item.longitude} label={item.type}>
 				<Type
 				color={item.color}
@@ -257,7 +258,7 @@
 			</Marker>
 		{/each}
 
-		{#each $data.assigned as item}
+		{#each $data.assigned.filter(shouldShowRescuePin) as item}
 			<Marker lat={item.latitude} lng={item.longitude} label={item.type}>
 				<Type
 				color={item.color}
@@ -268,16 +269,6 @@
 			</Marker>
 		{/each}
 
-		{#each $data.completed as item}
-			<Marker lat={item.latitude} lng={item.longitude} label={item.type}>
-				<Type
-				color={item.color}
-				type={item.type}
-				selected={$selectedRescue?.id === item.id}
-				onclick={() => ($selectedRescue = item)}
-			/>
-			</Marker>
-		{/each}
 
 		<NavigationControl />
 		{#if secureContext}
