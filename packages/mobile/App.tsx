@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
+  ScrollView,
   Pressable,
   SafeAreaView,
   StatusBar,
@@ -13,17 +14,23 @@ import {
 } from 'react-native';
 import {
   getRescues,
+  getAvailability,
+  saveAvailability,
   claimRescue,
   login,
   logout,
   restoreSession,
   setAvailability,
+  type AvailabilityPolicy,
+  type AvailabilityMode,
   type MembershipConfig,
   type Rescue,
   type User
 } from './src/api';
 import { registerForPushNotifications } from './src/notifications';
 import AnimalCare from './src/AnimalCare';
+import AvailabilitySettings from './src/AvailabilitySettings';
+import RescueMap from './src/RescueMap';
 
 type Session = { user: User; membership: MembershipConfig };
 
@@ -36,6 +43,8 @@ export default function App() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [view, setView] = useState<'map' | 'list' | 'settings'>('map');
+  const [policy, setPolicy] = useState<AvailabilityPolicy | null>(null);
 
   useEffect(() => {
     void (async () => {
@@ -45,6 +54,7 @@ export default function App() {
         await registerForPushNotifications().catch(console.warn);
         const result = await getRescues().catch(() => ({ items: [] }));
         setRescues(result.items);
+        await getAvailability().then(({ policy }) => setPolicy(policy)).catch(console.warn);
       }
       setLoading(false);
     })();
@@ -64,6 +74,7 @@ export default function App() {
       setSession({ user: result.user, membership: result.membership });
       await registerForPushNotifications().catch(console.warn);
       setRescues((await getRescues()).items);
+      await getAvailability().then(({ policy }) => setPolicy(policy)).catch(console.warn);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Unable to sign in.');
     } finally {
@@ -85,11 +96,34 @@ export default function App() {
     }
   }
 
-  async function toggleAvailable(value: boolean) {
-    if (!session) return;
-    const status = value ? 'AVAILABLE' : 'OFFLINE';
-    await setAvailability(status);
-    setSession({ ...session, user: { ...session.user, availabilityStatus: status } });
+  async function selectMode(mode: AvailabilityMode) {
+    if (!session || busy) return;
+    setBusy(true);
+    setError('');
+    try {
+      if (mode === 'SCHEDULE') {
+        const current = policy ?? (await getAvailability()).policy;
+        const result = await saveAvailability({ ...current, mode });
+        setPolicy(result.policy);
+        setSession({ ...session, user: { ...session.user, availabilityStatus: result.status, availabilityPolicy: result.policy } });
+      } else {
+        const result = await setAvailability(mode === 'ON' ? 'AVAILABLE' : 'OFFLINE');
+        setSession({ ...session, user: { ...session.user, availabilityStatus: result.status } });
+        setPolicy(result.policy);
+      }
+      setRescues((await getRescues()).items);
+    } catch (e) { setError(e instanceof Error ? e.message : 'Unable to change availability.'); }
+    finally { setBusy(false); }
+  }
+
+  async function refresh() {
+    setError('');
+    try {
+      const [rescuesResult, availabilityResult] = await Promise.all([getRescues(), getAvailability()]);
+      setRescues(rescuesResult.items);
+      setPolicy(availabilityResult.policy);
+      if (session) setSession({ ...session, user: { ...session.user, availabilityStatus: availabilityResult.status } });
+    } catch (e) { setError(e instanceof Error ? e.message : 'Could not refresh rescues.'); }
   }
 
   if (loading) return <View style={styles.loading}><ActivityIndicator /></View>;
@@ -114,6 +148,15 @@ export default function App() {
   }
 
   const available = session.user.availabilityStatus === 'AVAILABLE';
+  const currentMode: AvailabilityMode = policy?.mode ?? (available ? 'ON' : 'OFF');
+
+  if (view === 'settings') return <SafeAreaView style={styles.root}><AvailabilitySettings
+    onBack={() => { setView('map'); void refresh(); }}
+    onSave={(savedPolicy, status) => {
+      setPolicy(savedPolicy);
+      setSession({ ...session, user: { ...session.user, availabilityStatus: status, availabilityPolicy: savedPolicy } });
+    }}
+  /></SafeAreaView>;
 
   if (activeRescue) return <SafeAreaView style={styles.root}><AnimalCare rescue={activeRescue} userId={session.user.id} onBack={() => setActiveRescue(null)} /></SafeAreaView>;
 
@@ -122,34 +165,58 @@ export default function App() {
       <StatusBar barStyle="dark-content" />
       <View style={styles.header}>
         <View style={styles.headerCopy}>
-          <Text style={styles.kicker}>RESCUE HUB</Text>
+          <Text style={styles.kicker}>RESCUE HUB · NATF</Text>
           <Text style={styles.title}>{session.user.name}</Text>
-          <Text style={styles.copy}>{teamNames.join(' · ') || 'No dispatch teams assigned'}</Text>
+          <Text style={styles.copy}>{teamNames.join(' · ') || 'No rescue teams assigned'}</Text>
         </View>
-        <Switch value={available} onValueChange={toggleAvailable} />
+        <Pressable style={styles.settingsButton} onPress={() => setView('settings')} accessibilityRole="button"
+          accessibilityLabel="Open availability settings"><Text style={styles.settingsText}>Settings ⚙</Text></Pressable>
       </View>
 
       <View style={styles.availability}>
-        <Text style={styles.availabilityTitle}>{available ? 'Available for rescue' : 'Not receiving rescues'}</Text>
+        <Text style={styles.availabilityTitle}>{available ? 'Receiving rescues' : 'Not receiving rescues'}</Text>
         <Text style={styles.copy}>
-          {available
-            ? 'You will be notified when a rescue matches one of your teams.'
-            : 'Turn availability on when you are ready to receive dispatches.'}
+          {currentMode === 'SCHEDULE' ? 'Weekly schedule active. Switch ON or OFF to override.'
+            : currentMode === 'ON' ? 'Manual override: available now.' : 'Manual override: unavailable now.'}
         </Text>
+        <View style={styles.modeRow}>
+          {(['ON','OFF','SCHEDULE'] as AvailabilityMode[]).map(mode => (
+            <Pressable key={mode} disabled={busy} onPress={() => selectMode(mode)}
+              accessibilityRole="button" accessibilityState={{selected:currentMode === mode}}
+              style={[styles.modeButton,currentMode === mode && styles.modeSelected]}>
+              <Text style={[styles.modeText,currentMode === mode && styles.modeTextSelected]}>
+                {mode === 'SCHEDULE' ? 'Follow schedule' : mode}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
       </View>
 
       <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>Available rescues</Text>
-        <Pressable onPress={async () => setRescues((await getRescues()).items)}>
-          <Text style={styles.refresh}>Refresh</Text>
+        <Text style={styles.sectionTitle}>Rescues</Text>
+        <Pressable onPress={refresh} accessibilityRole="button"><Text style={styles.refresh}>Refresh</Text></Pressable>
+      </View>
+      <View style={styles.modeRowWide}>
+        <Pressable style={[styles.viewButton,view==='map'&&styles.viewSelected]} onPress={()=>setView('map')} accessibilityRole="button">
+          <Text style={[styles.viewText,view==='map'&&styles.viewTextSelected]}>Map</Text>
+        </Pressable>
+        <Pressable style={[styles.viewButton,view==='list'&&styles.viewSelected]} onPress={()=>setView('list')} accessibilityRole="button">
+          <Text style={[styles.viewText,view==='list'&&styles.viewTextSelected]}>List</Text>
         </Pressable>
       </View>
+
+      {view === 'map' ? <RescueMap rescues={rescues} onSelect={(item) => {
+        if (item.assignedUserId === session.user.id) setActiveRescue(item);
+        else setView('list');
+      }} /> : null}
 
       {error ? <Text style={styles.errorBanner}>{error}</Text> : null}
       <FlatList
         data={rescues}
+        style={styles.rescueList}
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.list}
+        ListHeaderComponent={view==='map' ? <Text style={styles.listNote}>Rescue details · tap a pin to locate a rescue</Text> : null}
         ListEmptyComponent={<Text style={styles.empty}>No matching rescues are waiting right now.</Text>}
         renderItem={({ item }) => (
           <View style={styles.card}>
@@ -182,6 +249,8 @@ export default function App() {
           setSession(null);
           setRescues([]);
           setActiveRescue(null);
+          setPolicy(null);
+          setView('map');
         }}
       >
         <Text style={styles.signOutText}>Sign out</Text>
@@ -220,5 +289,15 @@ const styles = StyleSheet.create({
   mine: { color: '#24583f', fontWeight: '700', marginTop: 12 },
   errorBanner: { color: '#a23f35', paddingHorizontal: 20, paddingTop: 10 },
   signOut: { margin: 16, padding: 12, alignItems: 'center' },
-  signOutText: { color: '#6c7972', fontWeight: '700' }
+  signOutText: { color: '#6c7972', fontWeight: '700' },
+  settingsButton:{padding:10,backgroundColor:'#fff',borderRadius:10},
+  settingsText:{fontSize:13,color:'#173d2c',fontWeight:'800'},
+  modeRow:{flexDirection:'row',gap:8,marginTop:14},
+  modeButton:{flex:1,backgroundColor:'#f2f5f2',borderRadius:10,alignItems:'center',justifyContent:'center',paddingVertical:13,paddingHorizontal:5,borderWidth:1,borderColor:'#dde5df'},
+  modeSelected:{backgroundColor:'#173d2c',borderColor:'#173d2c'},
+  modeText:{fontWeight:'800',fontSize:12,color:'#345442'},modeTextSelected:{color:'#fff'},
+  modeRowWide:{flexDirection:'row',marginHorizontal:16,marginTop:10,gap:8},
+  viewButton:{flex:1,alignItems:'center',padding:9,backgroundColor:'#fff',borderRadius:9},
+  viewSelected:{backgroundColor:'#173d2c'},viewText:{fontWeight:'700',color:'#173d2c'},viewTextSelected:{color:'#fff'},
+  rescueList:{flex:1},listNote:{fontSize:12,color:'#58695f',paddingBottom:5}
 });
