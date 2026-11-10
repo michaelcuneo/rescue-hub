@@ -94,7 +94,7 @@ export async function logout() {
 }
 
 export async function setAvailability(status: User['availabilityStatus']) {
-  return request<{ ok: true; status: User['availabilityStatus'] }>('/api/mobile/availability', {
+  return request<{ ok: true; status: User['availabilityStatus']; policy: AvailabilityPolicy }>('/api/mobile/availability', {
     method: 'POST',
     body: JSON.stringify({ status })
   });
