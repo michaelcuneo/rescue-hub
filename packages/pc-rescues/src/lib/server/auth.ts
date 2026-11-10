@@ -1,3 +1,4 @@
+import { defaultAvailabilityPolicy, effectiveAvailability, readAvailabilityPolicy, type AvailabilityPolicy } from './availability';
 import { createHash, randomBytes, randomInt, randomUUID, scrypt as scryptCallback, timingSafeEqual } from 'node:crypto';
 import { promisify } from 'node:util';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
@@ -49,6 +50,7 @@ export type RescueHubUser = {
 	membershipTypeId?: string;
 	teamIds: string[];
 	availabilityStatus: 'AVAILABLE' | 'BUSY' | 'OFFLINE';
+	availabilityPolicy?: AvailabilityPolicy;
 	createdAt: string;
 	updatedAt: string;
 };
@@ -107,9 +109,8 @@ function toUser(item: Record<string, unknown>): RescueHubUser {
 		roles: Array.isArray(item.roles) ? item.roles.map(String) as RescueHubRole[] : [],
 		membershipTypeId: item.membershipTypeId ? String(item.membershipTypeId) : undefined,
 		teamIds: Array.isArray(item.teamIds) ? item.teamIds.map(String) : [],
-		availabilityStatus: ['AVAILABLE', 'BUSY', 'OFFLINE'].includes(String(item.availabilityStatus))
-			? String(item.availabilityStatus) as RescueHubUser['availabilityStatus']
-			: 'OFFLINE',
+		availabilityStatus: effectiveAvailability({ availabilityStatus: ['AVAILABLE', 'BUSY', 'OFFLINE'].includes(String(item.availabilityStatus)) ? String(item.availabilityStatus) as RescueHubUser['availabilityStatus'] : 'OFFLINE', availabilityPolicy: item.availabilityPolicy }),
+		availabilityPolicy: readAvailabilityPolicy(item.availabilityPolicy) ?? undefined,
 		createdAt: String(item.createdAt),
 		updatedAt: String(item.updatedAt ?? item.createdAt)
 	};
@@ -632,28 +633,32 @@ export async function updateUserDispatchMembership(input: {
 	}));
 }
 
-export async function setUserAvailability(userId: string, availabilityStatus: RescueHubUser['availabilityStatus']) {
+export async function saveUserAvailabilityPolicy(userId: string, policy: AvailabilityPolicy) {
 	const now = new Date().toISOString();
+	const current = await getUserRecord(userId);
+	if (!current || !current.enabled || current.status !== 'ACTIVE') throw new Error('Active account required.');
+	const status = effectiveAvailability({ availabilityPolicy: policy });
 	await db.send(new TransactWriteCommand({
 		TransactItems: [
-			{
-				Update: {
-					TableName: tableName,
-					Key: { pk: `USER#${userId}`, sk: 'PROFILE' },
-					UpdateExpression: 'SET availabilityStatus = :status, updatedAt = :at',
-					ExpressionAttributeValues: { ':status': availabilityStatus, ':at': now }
-				}
-			},
-			{
-				Update: {
-					TableName: tableName,
-					Key: { pk: `USER#${userId}`, sk: 'MEMBERSHIP' },
-					UpdateExpression: 'SET availabilityStatus = :status, updatedAt = :at',
-					ExpressionAttributeValues: { ':status': availabilityStatus, ':at': now }
-				}
-			}
+			{ Update: { TableName: tableName, Key: { pk: `USER#${userId}`, sk: 'PROFILE' },
+				UpdateExpression: 'SET availabilityPolicy = :policy, availabilityStatus = :status, updatedAt = :now',
+				ConditionExpression: 'attribute_exists(pk) AND enabled = :enabled',
+				ExpressionAttributeValues: { ':policy': policy, ':status': status, ':now': now, ':enabled': true } } },
+			{ Update: { TableName: tableName, Key: { pk: `USER#${userId}`, sk: 'MEMBERSHIP' },
+				UpdateExpression: 'SET availabilityPolicy = :policy, availabilityStatus = :status, updatedAt = :now',
+				ConditionExpression: 'attribute_exists(pk)',
+				ExpressionAttributeValues: { ':policy': policy, ':status': status, ':now': now } } }
 		]
 	}));
+	return status;
+}
+
+export async function setUserAvailability(userId: string, availabilityStatus: RescueHubUser['availabilityStatus']) {
+	const current = await getUserRecord(userId);
+	if (!current) throw new Error('Account not found.');
+	const old = readAvailabilityPolicy(current.availabilityPolicy) ?? defaultAvailabilityPolicy(availabilityStatus);
+	const policy = { ...old, mode: availabilityStatus === 'AVAILABLE' ? 'ON' as const : 'OFF' as const };
+	await saveUserAvailabilityPolicy(userId, policy);
 }
 
 export async function setUserEnabled(userId: string, enabled: boolean) {
