@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import WebView, { type WebViewMessageEvent } from 'react-native-webview';
-import { getDeviceMapPosition, MAPBOX_LOCATION_CONTROL, MAPBOX_LOCATION_CONTROL_CSS } from './map-location';
+import { getDeviceMapPosition } from './map-location';
 import { myPublicReports, submitPublicReport, type PublicWildlifeReport } from './api';
 import ReporterConversation from './ReporterConversation';
 
@@ -13,14 +13,19 @@ function mapHTML() {
   const publicToken = JSON.stringify(token);
   return `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <link href="https://api.mapbox.com/mapbox-gl-js/v3.16.0/mapbox-gl.css" rel="stylesheet">
-<style>html,body,#map{margin:0;width:100%;height:100%;overflow:hidden;background:#dfeae2}.mapboxgl-ctrl-bottom-right{display:none}.pin{width:22px;height:22px;background:#b84629;border:4px solid white;border-radius:100%;box-sizing:border-box;box-shadow:0 0 0 6px #b8462944}.user-location{width:18px;height:18px;border-radius:50%;background:#2679eb;border:3px solid white;box-shadow:0 0 0 9px #2679eb33}${MAPBOX_LOCATION_CONTROL_CSS}</style>
+<style>html,body,#map{margin:0;width:100%;height:100%;overflow:hidden;background:#dfeae2}.mapboxgl-ctrl-bottom-right{display:none}.pin{width:22px;height:22px;background:#b84629;border:4px solid white;border-radius:100%;box-sizing:border-box;box-shadow:0 0 0 6px #b8462944}.user-location{width:18px;height:18px;border-radius:50%;background:#2679eb;border:3px solid white;box-shadow:0 0 0 9px #2679eb33}</style>
 </head><body><div id="map"></div><script src="https://api.mapbox.com/mapbox-gl-js/v3.16.0/mapbox-gl.js"></script><script>
 (function(){
 if(!window.mapboxgl){window.ReactNativeWebView.postMessage(JSON.stringify({type:'error',message:'Mapbox is unavailable.'}));return;}
 mapboxgl.accessToken=${publicToken};
 var map=new mapboxgl.Map({container:'map',style:'mapbox://styles/michaelcuneo/ckzzecgy7005j14qvpzd53fgn',center:[151.70,-32.93],zoom:10,attributionControl:false});
 map.addControl(new mapboxgl.NavigationControl({showCompass:false}),'top-right');
-${MAPBOX_LOCATION_CONTROL}
+map.addControl(new mapboxgl.GeolocateControl({
+  positionOptions: { enableHighAccuracy: true, timeout: 15000 },
+  trackUserLocation: false,
+  showUserLocation: false,
+  showAccuracyCircle: false
+}), 'top-right');
 var marker=null;
 function place(lon,lat){
  if(!Number.isFinite(lon)||!Number.isFinite(lat))return;
@@ -127,7 +132,7 @@ export default function PublicReporter({ onSignOut }: Props) {
       </Pressable>
     </View>
     <View style={styles.map}>
-      {token.startsWith('pk.') ? <WebView<{}> ref={ref} source={source} onMessage={onMessage}
+      {token.startsWith('pk.') ? <WebView<{}> ref={ref} source={source} geolocationEnabled onMessage={onMessage}
         originWhitelist={['https://*']} javaScriptEnabled domStorageEnabled
         onError={e => setError(e.nativeEvent.description)} /> :
         <Text style={styles.error}>Mapbox token not configured in the Expo environment.</Text>}
