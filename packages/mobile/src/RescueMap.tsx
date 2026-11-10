@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import WebView, { type WebViewMessageEvent } from 'react-native-webview';
 import { type Rescue } from './api';
+import { pinForRescue, RESCUE_PIN_GROUPS, type RescuePinGroup } from './rescue-pins';
 
 type Props = { rescues: Rescue[]; onSelect: (rescue: Rescue) => void };
 type MapConfiguration = { token: string; style: string; operatingAreasUrl: string };
@@ -23,7 +24,7 @@ function html(config: MapConfiguration) {
   const areas = JSON.stringify(config.operatingAreasUrl);
   return `<!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <link href="https://api.mapbox.com/mapbox-gl-js/v3.16.0/mapbox-gl.css" rel="stylesheet">
-<style>html,body,#map{padding:0;margin:0;width:100%;height:100%;overflow:hidden;background:#e2ebe5}.mapboxgl-ctrl-bottom-left,.mapboxgl-ctrl-bottom-right{display:none}.pin{width:31px;height:31px;border-radius:50% 50% 50% 8px;transform:rotate(-45deg);border:3px solid white;box-shadow:0 2px 8px #0004;display:flex;align-items:center;justify-content:center;cursor:pointer}.pin span{transform:rotate(45deg);color:white;font:bold 13px system-ui}.mapboxgl-popup-content{font:13px system-ui;color:#173d2c;padding:11px 13px;border-radius:10px}</style>
+<style>html,body,#map{padding:0;margin:0;width:100%;height:100%;overflow:hidden;background:#e2ebe5}.mapboxgl-ctrl-bottom-left,.mapboxgl-ctrl-bottom-right{display:none}.pin{position:relative;width:42px;height:42px;box-sizing:border-box;border-radius:50%;border:3px solid #fff;box-shadow:0 2px 8px #0004,0 0 0 1px #0002;display:grid;place-items:center;cursor:pointer;transition:transform 120ms,box-shadow 120ms}.pin span{color:#fff;font:900 11px system-ui;letter-spacing:-.03em}.pin.selected{transform:scale(1.12);box-shadow:0 3px 11px #0005,0 0 0 3px #ffffffa6}.pin .status-dot{position:absolute;right:-3px;bottom:-3px;width:12px;height:12px;box-sizing:border-box;border-radius:50%;border:2px solid #fff;background:#e9af34}.pin .status-dot.assigned{background:#276cd0}.mapboxgl-popup-content{font:13px system-ui;color:#173d2c;padding:11px 13px;border-radius:10px}</style>
 </head><body><div id="map"></div>
 <script src="https://api.mapbox.com/mapbox-gl-js/v3.16.0/mapbox-gl.js"></script>
 <script>
@@ -37,6 +38,7 @@ const markers = new window.Map();
 let records = [];
 let lastPayload = '';
 let hasFitted = false;
+let selectedId = null;
 function display(items){
   const nextPayload = JSON.stringify(items);
   if (nextPayload === lastPayload) return;
@@ -46,11 +48,27 @@ function display(items){
   const bounds = new mapboxgl.LngLatBounds();
   for(const rescue of records){
     const element=document.createElement('div');element.className='pin';
-    element.style.backgroundColor=rescue.status==='PENDING'?'#d65c44':'#1b6b53';
-    const symbol=document.createElement('span');symbol.textContent=rescue.status==='PENDING'?'!':'✓';element.appendChild(symbol);
-    element.setAttribute('aria-label',rescue.type+' rescue');
+    element.style.backgroundColor=rescue.color;
+    const symbol=document.createElement('span');
+    symbol.textContent=rescue.initials;
+    element.appendChild(symbol);
+    const dot=document.createElement('span');
+    dot.className='status-dot'+(rescue.status==='PENDING'?'':' assigned');
+    dot.setAttribute('aria-hidden','true');
+    element.appendChild(dot);
+    if(rescue.id===selectedId)element.classList.add('selected');
+    element.setAttribute('role','button');
+    element.setAttribute('tabindex','0');
+    element.setAttribute('aria-label',rescue.type+' rescue, '+rescue.status.toLowerCase());
     const marker=new mapboxgl.Marker({element}).setLngLat([rescue.longitude,rescue.latitude]).addTo(map);
-    element.addEventListener('click',()=>{map.flyTo({center:[rescue.longitude,rescue.latitude],zoom:Math.max(map.getZoom(),12)});send({type:'select',id:rescue.id});});
+    const select=()=>{
+      selectedId=rescue.id;
+      for(const entry of markers.values())entry.getElement().classList.toggle('selected',entry.getElement()===element);
+      map.flyTo({center:[rescue.longitude,rescue.latitude],zoom:Math.max(map.getZoom(),12)});
+      send({type:'select',id:rescue.id});
+    };
+    element.addEventListener('click',select);
+    element.addEventListener('keydown',event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();select();}});
     markers.set(rescue.id,marker);bounds.extend([rescue.longitude,rescue.latitude]);
   }
   // Only fit once. Live polling must not reset the rescuer's current zoom/pan.
@@ -83,12 +101,18 @@ export default function RescueMap({ rescues, onSelect }: Props) {
   const map = useRef<WebView<{}>>(null);
   const source = useMemo(() => ({ html: html(MAP_CONFIGURATION), baseUrl: API_ORIGIN || 'https://api.mapbox.com' }), []);
   const payload = useMemo(() => JSON.stringify(rescues.map(r => ({
-    id:r.id, type:r.type, status:r.status, latitude:r.latitude, longitude:r.longitude
+    id:r.id, type:r.type, status:r.status, latitude:r.latitude, longitude:r.longitude,
+    ...pinForRescue(r)
   }))), [rescues]);
 
   useEffect(() => {
     if(ready) map.current?.injectJavaScript(`window.receiveRescues(${payload});true;`);
   }, [ready, payload]);
+
+  const activeGroups = useMemo(() => {
+    const keys = new Set<RescuePinGroup>(rescues.map(rescue => pinForRescue(rescue).group));
+    return (Object.keys(RESCUE_PIN_GROUPS) as RescuePinGroup[]).filter(key => keys.has(key));
+  }, [rescues]);
 
   const handleMessage = (event: WebViewMessageEvent) => {
     try {
@@ -112,7 +136,12 @@ export default function RescueMap({ rescues, onSelect }: Props) {
       accessibilityLabel="Map of eligible and assigned rescue locations" />
     {!ready && !error ? <View style={styles.loading}><ActivityIndicator /><Text style={styles.hint}>Loading rescue map…</Text></View> : null}
     {error ? <View style={styles.warning}><Text style={styles.error}>{error}</Text></View> : null}
-    <View style={styles.legend}><Text style={styles.legendText}>● Pending     ● Assigned / yours</Text></View>
+    <View style={styles.legend} accessibilityLabel="Animal group map legend">
+      {activeGroups.map(key => <View style={styles.legendItem} key={key}>
+        <View style={[styles.legendDot, { backgroundColor: RESCUE_PIN_GROUPS[key].color }]} />
+        <Text style={styles.legendText}>{RESCUE_PIN_GROUPS[key].label}</Text>
+      </View>)}
+    </View>
   </View>;
 }
 const styles = StyleSheet.create({
@@ -123,6 +152,8 @@ const styles = StyleSheet.create({
  hint:{color:'#53695d',fontSize:13},
  warning:{position:'absolute',top:8,left:8,right:8,padding:8,backgroundColor:'#fff8ee',borderRadius:8},
  error:{color:'#9a3b2e',fontSize:12},
- legend:{position:'absolute',top:10,left:10,backgroundColor:'#ffffffed',borderRadius:9,padding:8},
+ legend:{position:'absolute',bottom:12,left:10,backgroundColor:'#fffffff0',borderRadius:10,padding:9,gap:5,maxWidth:168},
+ legendItem:{flexDirection:'row',gap:7,alignItems:'center'},
+ legendDot:{height:10,width:10,borderRadius:5,borderWidth:1,borderColor:'#fff'},
  legendText:{color:'#173d2c',fontSize:11,fontWeight:'700'}
 });
