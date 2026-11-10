@@ -142,6 +142,10 @@ export async function getMapConfiguration() {
   return request<{ token: string; style: string; operatingAreasUrl: string }>('/api/mobile/map-config');
 }
 
+export async function getRealtimeConfig() {
+  return request<{ url: string; apiKey: string }>('/api/realtime');
+}
+
 export async function getPushDeviceStatus() {
   return request<{ registeredDevices: number }>('/api/mobile/device');
 }
