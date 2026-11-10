@@ -163,8 +163,9 @@ export async function getCareDestination(animal: AnimalRecord, user: {
   const transport = animal.activeTransportRescueId
     ? await getRescue(animal.activeTransportRescueId) : null;
   const assigned = transport?.organisationId === animal.organisationId &&
-    transport.assignedUserId === user.id;
-  if (!coordinator && animal.reservedCarerUserId !== user.id && !assigned) return null;
+    transport.status === 'ASSIGNED' && transport.assignedUserId === user.id;
+  if (!coordinator && animal.reservedCarerUserId !== user.id &&
+      animal.currentCustodianUserId !== user.id && !assigned) return null;
   const record = await db.send(new GetCommand({
     TableName: table,
     Key: { pk: `ANIMAL#${animal.id}`, sk: 'CARE_DELIVERY' },
@@ -172,6 +173,7 @@ export async function getCareDestination(animal: AnimalRecord, user: {
   }));
   const item = record.Item;
   if (!item || item.animalId !== animal.id || item.organisationId !== animal.organisationId) return null;
+  if (!coordinator && !assigned && item.carerUserId !== user.id) return null;
   return {
     carerUserId: String(item.carerUserId),
     mode: String(item.mode),
