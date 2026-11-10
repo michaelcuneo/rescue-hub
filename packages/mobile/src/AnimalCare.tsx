@@ -134,7 +134,7 @@ export default function AnimalCare({ rescue, userId, onBack, onUnclaim }: Props)
       ) : null}
       {rescue.transportAnimalId ? <View style={styles.card}>
         <Text style={styles.section}>Transport pickup job</Text>
-        <Text style={styles.muted}>This animal already has a permanent record. Claiming transport does not transfer custody. Confirm the physical pickup and arrange an acknowledged handover with the current custodian.</Text>
+        <Text style={styles.muted}>This animal already has a permanent record. Claiming transport reserves the pickup, but does not transfer custody. Once you physically collect the animal at the veterinary facility, tap Animal picked up to accept custody, then arrange an acknowledged handover to the carer.</Text>
       </View> : null}
       {rescue.status === 'ASSIGNED' && rescue.assignedUserId === userId ? (
         <View style={styles.card}>
