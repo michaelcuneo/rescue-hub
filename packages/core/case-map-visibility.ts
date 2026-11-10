@@ -5,7 +5,7 @@
  *
  * Permanent animal/care records must never be filtered or deleted by this helper.
  */
-export type MapCase = { status: string; pickedUpAt?: string | null };
+export type MapCase = { status?: string; pickedUpAt?: string | null };
 export function shouldShowRescuePin(rescue: MapCase): boolean {
   return (rescue.status === 'PENDING' || rescue.status === 'ASSIGNED') &&
     !rescue.pickedUpAt;
