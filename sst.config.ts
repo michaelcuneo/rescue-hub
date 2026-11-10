@@ -27,7 +27,9 @@ export default $config({
       ...( $app.stage === "demo" ? {
         domain: {
           name: "rescue.michaelcuneo.com.au",
-          dns: sst.aws.dns({ zone: "michaelcuneo.com.au" }),
+          // Let SST find the Route 53 hosted zone for the domain.
+          // dns({ zone }) requires a hosted-zone ID (Z...), not the domain name.
+          dns: sst.aws.dns(),
         },
       } : {}),
       link: [graphql, data, mailFrom],
