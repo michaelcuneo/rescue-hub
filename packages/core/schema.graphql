@@ -67,11 +67,6 @@ input UpdateRescueStatusInput {
   status: RescueStatus!
 }
 
-input AssignRescueInput {
-  id: ID!
-  userId: ID!
-}
-
 type Query {
   organisation(id: ID!): OrganisationDirectoryEntry
   organisations(limit: Int = 100, nextToken: String): OrganisationConnection!
@@ -82,7 +77,6 @@ type Query {
 type Mutation {
   createRescue(input: CreateRescueInput!): Rescue!
   updateRescueStatus(input: UpdateRescueStatusInput!): Rescue!
-  assignRescue(input: AssignRescueInput!): Rescue!
 }
 
 schema {
