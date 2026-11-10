@@ -70,7 +70,7 @@ async function request<T>(path: string, init: RequestInit = {}, authenticated = 
   const contentType = response.headers.get('content-type') ?? '';
   const body = await response.text();
   let payload: unknown = null;
-  if (contentType.toLowerCase().includes('json') || /^[\\s]*[\\{\\[]/.test(body)) {
+  if (contentType.toLowerCase().includes('json') || body.trimStart().startsWith('{') || body.trimStart().startsWith('[')) {
     try { payload = JSON.parse(body); }
     catch { /* A malformed response is handled below. */ }
   }
