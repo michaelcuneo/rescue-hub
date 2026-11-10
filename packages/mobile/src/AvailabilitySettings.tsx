@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
+import { KeyboardAwareScrollView, KeyboardAwareTextInput } from './KeyboardAware';
 import { getAvailability, getPushDeviceStatus, saveAvailability, type AvailabilityPolicy, type Weekday, type AvailabilityMode } from './api';
 import type { PushRegistration } from './notifications';
 
@@ -84,7 +85,7 @@ export default function AvailabilitySettings({ onBack, onSave, onSignOut, pushSt
     <Text style={styles.subtitle}>Set your weekly rescue hours, or temporarily override them.</Text>
   </View>;
   if(!policy) return <View style={styles.root}>{header}<View style={styles.center}>{error?<Text style={styles.error}>{error}</Text>:<ActivityIndicator />}</View></View>;
-  return <ScrollView style={styles.root} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+  return <KeyboardAwareScrollView style={styles.root} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
     {header}
     <View style={styles.pushStatus}>
       <Text style={styles.overrideTitle}>Push notification readiness</Text>
@@ -130,7 +131,7 @@ export default function AvailabilitySettings({ onBack, onSave, onSignOut, pushSt
         onValueChange={enabled=>void changeMode(enabled?'ON':'OFF')}/>
     </View> : null}
     <Text style={styles.label}>TIME ZONE</Text>
-    <TextInput autoCapitalize="none" autoCorrect={false} style={styles.field} value={policy.timezone}
+    <KeyboardAwareTextInput autoCapitalize="none" autoCorrect={false} style={styles.field} value={policy.timezone}
       onChangeText={timezone=>setPolicy(p=>p?{...p,timezone}:p)}
       accessibilityLabel="IANA time zone" placeholder="Australia/Sydney"/>
     <Text style={styles.help}>Examples: Australia/Sydney, Australia/Brisbane, Australia/Perth.</Text>
@@ -143,11 +144,11 @@ export default function AvailabilitySettings({ onBack, onSave, onSignOut, pushSt
             accessibilityLabel={`Enable ${NAMES[index]}`}/></View>
         {entry.enabled && <View style={styles.windows}>
           {entry.windows.map((w,i)=><View key={i} style={styles.window}>
-            <TextInput style={styles.time} value={w.start} onChangeText={v=>updateWindow(day,i,'start',v)}
+            <KeyboardAwareTextInput style={styles.time} value={w.start} onChangeText={v=>updateWindow(day,i,'start',v)}
               autoCapitalize="none" keyboardType="numbers-and-punctuation" placeholder="09:00"
               accessibilityLabel={`${NAMES[index]} window ${i+1} start`}/>
             <Text style={styles.to}>to</Text>
-            <TextInput style={styles.time} value={w.end} onChangeText={v=>updateWindow(day,i,'end',v)}
+            <KeyboardAwareTextInput style={styles.time} value={w.end} onChangeText={v=>updateWindow(day,i,'end',v)}
               keyboardType="numbers-and-punctuation" placeholder="17:00"
               accessibilityLabel={`${NAMES[index]} window ${i+1} end`}/>
             <Pressable style={styles.remove} onPress={()=>updateDay(day,{windows:entry.windows.filter((_,j)=>j!==i)})}
@@ -166,7 +167,7 @@ export default function AvailabilitySettings({ onBack, onSave, onSignOut, pushSt
     <Pressable style={styles.save} disabled={busy} onPress={save} accessibilityRole="button">
       <Text style={styles.saveText}>{busy?'Saving…':'Save availability settings'}</Text>
     </Pressable>
-  </ScrollView>;
+  </KeyboardAwareScrollView>;
 }
 const styles=StyleSheet.create({
  root:{flex:1,backgroundColor:'#edf1ee'},content:{paddingBottom:36},
