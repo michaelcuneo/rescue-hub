@@ -1,5 +1,5 @@
 import { AwsClient } from 'aws4fetch';
-import { Resource } from 'sst';
+import { getRealtimeResource } from './realtime-resource';
 
 // Rescue Hub's normal GraphQL API key remains SERVER ONLY. The dedicated
 // realtime API accepts AWS_IAM for publishing but API_KEY for subscriptions.
@@ -11,7 +11,7 @@ export async function publishRescueChange(): Promise<void> {
     console.warn('Realtime publish unavailable: runtime AWS credentials missing');
     return;
   }
-  const url = Resource.RescueHubRealtime.url;
+  const url = getRealtimeResource().url;
   const client = new AwsClient({
     accessKeyId,
     secretAccessKey,
