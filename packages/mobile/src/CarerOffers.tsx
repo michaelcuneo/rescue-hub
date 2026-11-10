@@ -2,16 +2,16 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { getDeviceMapPosition } from './map-location';
 import {
-  acceptAnimalTransfer, claimAvailableCare, getAnimalHistory, getCareOffers,
+  acceptAnimalTransfer, claimAvailableCare, changeCareDelivery, getAnimalHistory, getCareOffers,
   type Animal, type CareOffer, type CareReservation
 } from './api';
 
-type Props = { onBack: () => void; onChanged: () => void };
+type Props = { userId: string; onBack: () => void; onChanged: () => void };
 type Mode = 'CURRENT_LOCATION' | 'WORKPLACE' | 'OTHER';
 type Place = { label: string; latitude: number; longitude: number };
 const MAPBOX_TOKEN = (process.env.EXPO_PUBLIC_MAPBOX_ACCESS_TOKEN ?? '').trim();
 
-export default function CarerOffers({ onBack, onChanged }: Props) {
+export default function CarerOffers({ userId, onBack, onChanged }: Props) {
   const [offers, setOffers] = useState<CareOffer[]>([]);
   const [mine, setMine] = useState<CareReservation[]>([]);
   const [animals, setAnimals] = useState<Record<string, Animal>>({});
@@ -95,7 +95,23 @@ export default function CarerOffers({ onBack, onChanged }: Props) {
     finally { setBusy(false); }
   };
 
-  const accept = async (animalId: string) => {
+  const refreshCurrentLocation = async (animalId: string) => {
+    if (busy) return;
+    setBusy(true); setError(''); setNotice('');
+    try {
+      const position = await getDeviceMapPosition();
+      if (!position) throw new Error('Foreground GPS permission is required to update the delivery position.');
+      await changeCareDelivery(animalId, {
+        mode: 'CURRENT_LOCATION', address: 'My current GPS location',
+        latitude: position.latitude, longitude: position.longitude
+      });
+      setNotice('Your delivery GPS location was updated. The assigned transporter can refresh the new destination.');
+      onChanged();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Unable to update GPS destination.');
+    } finally { setBusy(false); }
+  };
+    const accept = async (animalId: string) => {
     setBusy(true); setError(''); setNotice('');
     try {
       await acceptAnimalTransfer(animalId);
@@ -161,14 +177,20 @@ export default function CarerOffers({ onBack, onChanged }: Props) {
       <Text style={styles.heading}>{item.species}</Text>
       <Text style={styles.copy}>Status: {animals[item.animalId]?.status.replace(/_/g,' ') ?? 'Updating'}</Text>
       <Text style={styles.copy}>Transport arranged separately · Animal ID: {item.animalId}</Text>
-      {animals[item.animalId]?.pendingTransferToUserId ? (
+      {animals[item.animalId]?.status === 'AT_VET' ? (
+        <Pressable style={styles.button} disabled={busy} accessibilityRole="button"
+          onPress={() => void refreshCurrentLocation(item.animalId)}>
+          <Text style={styles.buttonText}>Update transport-to-me GPS position</Text>
+        </Pressable>
+      ) : null}
+      {animals[item.animalId]?.pendingTransferToUserId === userId ? (
         <Pressable style={styles.button} disabled={busy} accessibilityRole="button"
           onPress={() => void accept(item.animalId)}>
           <Text style={styles.buttonText}>Accept animal custody after delivery</Text>
         </Pressable>
-      ) : animals[item.animalId]?.currentCustodianUserId ? (
+      ) : animals[item.animalId]?.currentCustodianUserId === userId ? (
         <Text style={styles.copy}>Care record remains available under your existing animal care worklist after handover.</Text>
-      ) : null}
+      ) : <Text style={styles.copy}>Awaiting collection or transport handover.</Text>}
     </View>)}
     <Pressable accessibilityRole="button" onPress={() => void refresh().catch(e=>setError(String(e)))}>
       <Text style={styles.link}>Refresh care offers</Text>
