@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - deploy/rescue-demo-domain
+      - fix/use-mapbox-geolocate-control
       - feature/public-gps-routing-and-contact
   workflow_dispatch:
 
