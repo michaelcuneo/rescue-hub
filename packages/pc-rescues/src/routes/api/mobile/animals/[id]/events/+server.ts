@@ -16,9 +16,12 @@ export const POST: RequestHandler = async ({ locals, params, request }) => {
   if (notes.length > 4000) return json({ error: 'Notes exceed 4000 characters.' }, { status: 400 });
   try {
     if (body.kind === 'NOTE') {
-      if (animal.currentCustodianUserId !== user.id) return json({ error: 'Only the current custodian can add care notes.' }, { status: 403 });
+      const coordinator = user.roles.some((r) => ['ORG_ADMIN', 'DISPATCHER', 'PLATFORM_ADMIN', 'AUTHORITY_ADMIN'].includes(r));
+      if (animal.currentCustodianUserId !== user.id && !coordinator) return json({ error: 'Only the custodian or an authorised coordinator can record care updates.' }, { status: 403 });
+      if (coordinator && animal.currentCustodianUserId !== user.id && (body.source !== 'PHONE' || typeof body.reportedByName !== 'string' || !body.reportedByName.trim())) return json({ error: 'Telephone updates on behalf of others require the information source.' }, { status: 400 });
+      if (body.reportedByName !== undefined && (typeof body.reportedByName !== 'string' || body.reportedByName.length > 120)) return json({ error: 'Invalid source name.' }, { status: 400 });
       if (!notes || !notesTypes.has(String(body.type))) return json({ error: 'Valid care event type and notes required.' }, { status: 400 });
-      await recordAnimalEvent(animal, user.id, { type: body.type as 'OBSERVATION', notes });
+      await recordAnimalEvent(animal, user.id, { type: body.type as 'OBSERVATION', notes, source: body.source === 'PHONE' ? 'PHONE' : 'DIRECT', reportedByName: typeof body.reportedByName === 'string' ? body.reportedByName.trim() : undefined, coordinatorOverride: coordinator });
       return json({ ok: true });
     }
     if (body.kind === 'TRANSFER') {
