@@ -46,6 +46,7 @@ export type Rescue = {
   longitude: number;
   status: string;
   assignedUserId?: string | null;
+  custodyRole?: 'CUSTODIAN';
 };
 
 function endpoint(path: string) {
@@ -170,11 +171,17 @@ export async function claimRescue(id: string) {
     method: 'POST'
   });
 }
+export async function unclaimRescue(id: string, reason = '') {
+  return request<{ rescue: Rescue }>(`/api/mobile/rescues/${encodeURIComponent(id)}/unclaim`, {
+    method: 'POST', body: JSON.stringify({ reason })
+  });
+}
 
 export type Animal = {
   id: string; rescueId: string; species: string; description?: string;
   status: 'IN_RESCUE' | 'IN_TRANSIT' | 'AT_VET' | 'IN_CARE' | 'RELEASED' | 'EUTHANISED' | 'DECEASED';
   currentCustodianUserId?: string; currentLocation?: string; pendingTransferId?: string;
+  vetStage?: 'AWAITING_ASSESSMENT' | 'ASSESSED_AWAITING_TRANSPORT';
   createdAt: string; updatedAt: string;
 };
 export type AnimalEvent = {
@@ -198,9 +205,9 @@ export async function addAnimalNote(id: string, type: string, notes: string) {
     method: 'POST', body: JSON.stringify({ kind: 'NOTE', type, notes })
   });
 }
-export async function requestAnimalTransfer(id: string, recipientUserId: string, location: string, notes: string) {
+export async function requestAnimalTransfer(id: string, recipientUserId: string, location: string, notes: string, purpose: 'CARE' | 'TRANSPORT' = 'CARE') {
   return request<{ animal: Animal }>(`/api/mobile/animals/${encodeURIComponent(id)}/events`, {
-    method: 'POST', body: JSON.stringify({ kind: 'TRANSFER', recipientUserId, location, notes })
+    method: 'POST', body: JSON.stringify({ kind: 'TRANSFER', recipientUserId, location, notes, purpose })
   });
 }
 export async function acceptAnimalTransfer(id: string) {
@@ -208,6 +215,18 @@ export async function acceptAnimalTransfer(id: string) {
     method: 'POST', body: JSON.stringify({ kind: 'ACCEPT_TRANSFER' })
   });
 }
+export async function recordVetDropoff(id: string, location: string, notes = '') {
+  return request<{ animal: Animal }>(`/api/mobile/animals/${encodeURIComponent(id)}/events`, {
+    method: 'POST', body: JSON.stringify({ kind: 'VET_DROPOFF', location, notes })
+  });
+}
+
+export async function recordVetAssessment(id: string, notes = '') {
+  return request<{ animal: Animal }>(`/api/mobile/animals/${encodeURIComponent(id)}/events`, {
+    method: 'POST', body: JSON.stringify({ kind: 'VET_ASSESSED', notes })
+  });
+}
+
 export async function recordAnimalOutcome(id: string, status: 'RELEASED' | 'EUTHANISED' | 'DECEASED', notes: string) {
   return request<{ animal: Animal }>(`/api/mobile/animals/${encodeURIComponent(id)}/events`, {
     method: 'POST', body: JSON.stringify({ kind: 'OUTCOME', status, notes })
