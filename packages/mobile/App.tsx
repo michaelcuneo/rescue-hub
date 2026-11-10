@@ -21,9 +21,10 @@ import {
   type AvailabilityPolicy,
   type MembershipConfig,
   type Rescue,
+  type RescueFeedDiagnostics,
   type User
 } from './src/api';
-import { registerForPushNotifications } from './src/notifications';
+import { registerForPushNotifications, type PushRegistration } from './src/notifications';
 import AnimalCare from './src/AnimalCare';
 import AvailabilitySettings from './src/AvailabilitySettings';
 import RescueMap from './src/RescueMap';
@@ -42,15 +43,22 @@ export default function App() {
   const [busy, setBusy] = useState(false);
   const [view, setView] = useState<'map' | 'list' | 'settings'>('map');
   const [policy, setPolicy] = useState<AvailabilityPolicy | null>(null);
+  const [pushStatus, setPushStatus] = useState<PushRegistration | null>(null);
+  const [feed, setFeed] = useState<RescueFeedDiagnostics | null>(null);
 
   useEffect(() => {
     void (async () => {
       const restored = await restoreSession();
       if (restored) {
         setSession(restored);
-        await registerForPushNotifications().catch(console.warn);
-        const result = await getRescues().catch(() => ({ items: [] }));
-        setRescues(result.items);
+        setPushStatus(await registerForPushNotifications());
+        try {
+          const result = await getRescues();
+          setRescues(result.items);
+          setFeed(result.feed ?? null);
+        } catch (e) {
+          setError(e instanceof Error ? e.message : 'Unable to load rescues.');
+        }
         await getAvailability().then(({ policy }) => setPolicy(policy)).catch(console.warn);
       }
       setLoading(false);
@@ -75,6 +83,7 @@ export default function App() {
         ]);
         if (closed) return;
         setRescues(rescueResult.items);
+        setFeed(rescueResult.feed ?? null);
         setSelectedMapRescue(current =>
           current ? rescueResult.items.find(rescue => rescue.id === current.id) ?? null : null);
         setPolicy(availabilityResult.policy);
@@ -115,8 +124,10 @@ export default function App() {
     try {
       const result = await login(email.trim(), password);
       setSession({ user: result.user, membership: result.membership });
-      await registerForPushNotifications().catch(console.warn);
-      setRescues((await getRescues()).items);
+      setPushStatus(await registerForPushNotifications());
+      const initial = await getRescues();
+      setRescues(initial.items);
+      setFeed(initial.feed ?? null);
       await getAvailability().then(({ policy }) => setPolicy(policy)).catch(console.warn);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Unable to sign in.');
@@ -132,6 +143,7 @@ export default function App() {
       await claimRescue(id);
       const result = await getRescues();
       setRescues(result.items);
+      setFeed(result.feed ?? null);
       setSelectedMapRescue(result.items.find((item) => item.id === id) ?? null);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Unable to claim rescue.');
@@ -148,6 +160,8 @@ export default function App() {
     setActiveRescue(null);
     setSelectedMapRescue(null);
     setPolicy(null);
+    setPushStatus(null);
+    setFeed(null);
     setView('map');
   }
 
@@ -156,6 +170,7 @@ export default function App() {
     try {
       const [rescuesResult, availabilityResult] = await Promise.all([getRescues(), getAvailability()]);
       setRescues(rescuesResult.items);
+      setFeed(rescuesResult.feed ?? null);
       setSelectedMapRescue((current) => current ? rescuesResult.items.find((item) => item.id === current.id) ?? null : null);
       setPolicy(availabilityResult.policy);
       if (session) setSession({ ...session, user: { ...session.user, availabilityStatus: availabilityResult.status } });
@@ -188,6 +203,12 @@ export default function App() {
   if (view === 'settings') return <SafeAreaView style={styles.root}><AvailabilitySettings
     onBack={() => { setView('map'); void refresh(); }}
     onSignOut={signOut}
+    pushStatus={pushStatus}
+    onRetryPush={async () => {
+      const result = await registerForPushNotifications();
+      setPushStatus(result);
+      return result;
+    }}
     onSave={(savedPolicy, status) => {
       setPolicy(savedPolicy);
       setSession({ ...session, user: { ...session.user, availabilityStatus: status, availabilityPolicy: savedPolicy } });
@@ -220,6 +241,18 @@ export default function App() {
       </View>
 
       {error ? <Text style={styles.errorBanner}>{error}</Text> : null}
+      {!error && feed && rescues.length === 0 ? (
+        <Text style={styles.feedNotice}>
+          {feed.pendingRescues === 0
+            ? 'There are no pending rescues in your organisation.'
+            : feed.qualifiedPending === 0
+              ? 'There are pending rescues, but none match your assigned dispatch teams.'
+              : !feed.canBrowse
+                ? 'Your account needs an active rescue or care role to browse these cases.'
+                : 'No visible rescues. Check membership and organisation settings.'}
+          {'  '}Feed: {feed.source}.
+        </Text>
+      ) : null}
       {view === 'map' ? (
         <View style={styles.mapBody}>
           <RescueMap rescues={rescues} onSelect={setSelectedMapRescue} />
@@ -327,5 +360,6 @@ const styles = StyleSheet.create({
   claimButton: { backgroundColor: '#173d2c', borderRadius: 10, padding: 12, alignItems: 'center', marginTop: 12 },
   mine: { color: '#24583f', fontWeight: '700', marginTop: 12 },
   errorBanner: { color: '#a23f35', paddingHorizontal: 20, paddingTop: 10 },
+  feedNotice: { color: '#4b6555', backgroundColor: '#fff', fontSize: 12, padding: 10 },
   rescueList: { flex: 1 }
 });
