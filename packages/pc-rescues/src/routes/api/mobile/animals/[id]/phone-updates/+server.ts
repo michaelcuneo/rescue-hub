@@ -3,7 +3,7 @@ import { getAnimal } from '$lib/server/animals';
 import { getRescue } from '$lib/server/graphql';
 import { getHunterDemo, HUNTER_DEMO_ORGANISATION } from '$lib/server/demo';
 import { recordAnimalPhoneUpdate, listAnimalPhoneUpdates, AnimalPhoneConflict } from '$lib/server/animal-phone-updates';
-import { validatePhoneUpdate } from '../../../../../../../core/rescue-phone-update';
+import { validatePhoneUpdate } from '../../../../../../../../core/rescue-phone-update';
 import { notifyEligibleRescuers } from '$lib/server/push';
 import type { RequestHandler } from './$types';
 
