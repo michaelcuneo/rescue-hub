@@ -35,6 +35,7 @@ export type Rescue = {
   latitude: number;
   longitude: number;
   status: string;
+  assignedUserId?: string | null;
 };
 
 function endpoint(path: string) {
@@ -98,4 +99,10 @@ export async function registerDevice(pushToken: string, platform: 'ios' | 'andro
 
 export async function getRescues() {
   return request<{ items: Rescue[] }>('/api/mobile/rescues');
+}
+
+export async function claimRescue(id: string) {
+  return request<{ rescue: Rescue }>(`/api/mobile/rescues/${encodeURIComponent(id)}/claim`, {
+    method: 'POST'
+  });
 }
