@@ -9,7 +9,7 @@ export const POST: RequestHandler = async ({ locals, params }) => {
   const user = locals.user;
   if (!user?.organisationId) return json({ error: 'Authentication required.' }, { status: 401 });
   if (!user.enabled || user.status !== 'ACTIVE' || effectiveAvailability(user) !== 'AVAILABLE' ||
-      !user.roles.some((role) => role === 'RESCUER')) {
+      !user.roles.some((role) => role === 'RESCUER' || role === 'ORG_ADMIN')) {
     return json({ error: 'An active, available rescuer account is required.' }, { status: 403 });
   }
 
