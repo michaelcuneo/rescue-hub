@@ -216,7 +216,7 @@ export async function changeAnimalState(animal: AnimalRecord, actorUserId: strin
     condition += ' AND currentCustodianUserId = :actor AND attribute_not_exists(pendingTransferId)';
     values[':actor'] = actorUserId;
     type = 'FINAL_OUTCOME';
-    update = 'SET #status = :care, updatedAt = :now, version = :next';
+    update = 'SET #status = :care, updatedAt = :now, version = :next REMOVE activeTransportRescueId';
     values[':care'] = input.status;
     extra = { outcome: input.status, location: input.location ?? '', notes: input.notes };
   }
@@ -233,7 +233,7 @@ export async function changeAnimalState(animal: AnimalRecord, actorUserId: strin
   ];
   // Completing a real custody handover also closes the outstanding pickup
   // offer. We never treat a mere phone call or job claim as a handover.
-  if (input.kind === 'ACCEPT_TRANSFER' && animal.activeTransportRescueId) {
+  if ((input.kind === 'ACCEPT_TRANSFER' || input.kind === 'OUTCOME') && animal.activeTransportRescueId) {
     const pickup = await getRescue(animal.activeTransportRescueId);
     if (!pickup || pickup.organisationId !== animal.organisationId ||
         pickup.transportAnimalId !== animal.id ||
@@ -241,7 +241,7 @@ export async function changeAnimalState(animal: AnimalRecord, actorUserId: strin
       throw new AnimalConflict('Linked transport request is no longer active. Refresh the record before accepting custody.');
     }
     const isPickupResponder = pickup.status === 'ASSIGNED' && pickup.assignedUserId === actorUserId;
-    const endStatus = isPickupResponder ? 'COMPLETED' : 'CANCELLED';
+    const endStatus = input.kind === 'ACCEPT_TRANSFER' && isPickupResponder ? 'COMPLETED' : 'CANCELLED';
     const jobEventId = crypto.randomUUID();
     writes.push({ Update: {
       TableName: table,
@@ -261,7 +261,8 @@ export async function changeAnimalState(animal: AnimalRecord, actorUserId: strin
         pk: `RESCUE#${pickup.id}`, sk: `EVENT#${now}#${jobEventId}`,
         entity: 'rescue_event', id: jobEventId,
         rescueId: pickup.id, organisationId: animal.organisationId, animalId: animal.id,
-        actorUserId, type: isPickupResponder ? 'TRANSPORT_HANDOVER_ACCEPTED' : 'TRANSPORT_REQUEST_CANCELLED_ON_HANDOVER',
+        actorUserId, type: endStatus === 'COMPLETED' ? 'TRANSPORT_HANDOVER_ACCEPTED' :
+          input.kind === 'OUTCOME' ? 'TRANSPORT_REQUEST_CANCELLED_ON_FINAL_OUTCOME' : 'TRANSPORT_REQUEST_CANCELLED_ON_HANDOVER',
         createdAt: now
       },
       ConditionExpression: 'attribute_not_exists(pk)'
