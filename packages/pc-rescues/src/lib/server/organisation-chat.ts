@@ -94,7 +94,7 @@ export async function readChatPage(
   const page = await db.send(new QueryCommand({
     TableName: table,
     KeyConditionExpression: before
-      ? 'pk = :pk AND sk < :before AND begins_with(sk, :prefix)'
+      ? 'pk = :pk AND sk < :before'
       : 'pk = :pk AND begins_with(sk, :prefix)',
     ExpressionAttributeValues: {
       ':pk': pk, ':prefix': CHAT_PREFIX, ...(before ? { ':before': before } : {})
