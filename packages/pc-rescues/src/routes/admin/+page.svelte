@@ -507,7 +507,7 @@
 
       {#if showInvite}
         <div class="people-overlay" role="presentation">
-          <section class="people-dialog" role="dialog" aria-modal="true" aria-labelledby="invite-title">
+          <div class="people-dialog" role="dialog" aria-modal="true" aria-labelledby="invite-title">
             <div class="dialog-heading"><div><p class="eyebrow">New team member</p><h2 id="invite-title">Invite a person</h2></div><button class="dialog-close" type="button" aria-label="Close invitation" onclick={() => (showInvite = false)}>×</button></div>
             <form method="POST" action="?/inviteUser" class="person-form">
               {#if canChooseOrganisation}
@@ -519,13 +519,13 @@
               <fieldset class="capability-picker"><legend>Dispatch teams <small>Choose the rescue notifications this person should receive.</small></legend><div class="capability-grid">{#each inviteMembershipConfig.teams as team}<label class="capability-option"><input type="checkbox" name="teamIds" value={team.id} /><span><strong>{team.name}</strong><small>{team.receivesAllRescues ? 'Receives every rescue' : team.description}</small></span></label>{/each}</div></fieldset>
               <div class="dialog-actions"><button type="button" onclick={() => (showInvite = false)}>Cancel</button><button class="primary-action" type="submit">Send invitation</button></div>
             </form>
-          </section>
+          </div>
         </div>
       {/if}
 
       {#if selectedPerson}
         <div class="people-overlay" role="presentation">
-          <section class="people-dialog person-detail" role="dialog" aria-modal="true" aria-labelledby="person-detail-title">
+          <div class="people-dialog person-detail" role="dialog" aria-modal="true" aria-labelledby="person-detail-title">
             <div class="dialog-heading"><div><p class="eyebrow">Person details</p><h2 id="person-detail-title">{selectedPerson.name || selectedPerson.email}</h2><p class="intro">{selectedPerson.email} · {organisationName(selectedPerson.organisationId)}</p></div><button class="dialog-close" type="button" aria-label="Close person details" onclick={() => (selectedPersonId = null)}>×</button></div>
             <div class="person-detail-summary"><span class:available={selectedPerson.enabled && selectedPerson.availabilityStatus === 'AVAILABLE'} class="availability-state">{selectedPerson.enabled ? selectedPerson.availabilityStatus ?? 'Offline' : 'Disabled'}</span><span>{selectedPerson.roles.join(' · ')}</span><span>{selectedPerson.status}</span></div>
             <form method="POST" action="?/updateDispatchMembership" class="person-form">
@@ -535,7 +535,7 @@
               <div class="dialog-actions"><button class="primary-action" type="submit">Save membership & teams</button></div>
             </form>
             <div class="account-management"><h3>Account access</h3><p>These actions affect sign-in access, not dispatch availability.</p><div class="account-actions"><form method="POST" action={selectedPerson.enabled ? '?/disableUser' : '?/enableUser'}><input type="hidden" name="userId" value={selectedPerson.id} /><button type="submit">{selectedPerson.enabled ? 'Disable access' : 'Enable access'}</button></form><form method="POST" action="?/resetPassword"><input type="hidden" name="userId" value={selectedPerson.id} /><button type="submit">Reset password</button></form><form method="POST" action="?/removeUser" onsubmit={(event) => { if (!confirm('Remove this person from Rescue Hub? This cannot be undone.')) event.preventDefault(); }}><input type="hidden" name="userId" value={selectedPerson.id} /><button class="danger" type="submit">Remove person</button></form></div></div>
-          </section>
+          </div>
         </div>
       {/if}
     {:else}
@@ -570,7 +570,7 @@
 
 <style>
   .adam-invite { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 20px; border: 1px solid #a7c6b1; background: #f2f8f3; border-radius: 12px; }
-  .adam-invite p { margin: 5px 0 0; font-size: 12px; }
+  
   @media (max-width: 700px) { .adam-invite { flex-direction: column; align-items: stretch; } }
 
   .reviewer-note { padding: 13px 16px; border: 1px solid #dfc995; border-radius: 9px; background: #fff8e7; font-size: 12px; }
@@ -791,8 +791,7 @@
   }
 
   .topbar h1,
-  .panel h2,
-  .empty-feature h2 {
+  .panel h2 {
     margin: 0;
     color: var(--ink);
     letter-spacing: -0.035em;
@@ -1295,8 +1294,7 @@
     gap: 14px;
   }
 
-  .feature-copy > p:not(.eyebrow),
-  .empty-feature > p:not(.eyebrow) {
+  .feature-copy > p:not(.eyebrow) {
     color: var(--muted);
     font-size: 15px;
     line-height: 1.65;
@@ -1334,20 +1332,11 @@
     text-align: center;
   }
 
-  .map-placeholder > span {
-    font-size: 64px;
-    font-weight: 900;
-    letter-spacing: -0.08em;
-    opacity: 0.12;
-  }
+  
 
-  .map-placeholder strong {
-    font-size: 20px;
-  }
+  
 
-  .map-placeholder small {
-    color: #a8c5b2;
-  }
+  
 
   .invite-user {
     display: grid;
@@ -1360,33 +1349,13 @@
     background: var(--surface-soft);
   }
 
-  .invite-user label {
-    display: grid;
-    gap: 5px;
-  }
+  
 
-  .invite-user label > span {
-    color: var(--muted);
-    font-size: 12px;
-    font-weight: 800;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-  }
+  
 
-  .invite-user input,
-  .invite-user select {
-    width: 100%;
-    min-height: 36px;
-    padding: 8px 10px;
-    border: 1px solid #d4ddd7;
-    border-radius: 8px;
-    background: white;
-    font-size: 13px;
-  }
+  
 
-  .invite-user select:disabled {
-    opacity: 0.65;
-  }
+  
 
   .invite-button {
     width: auto;
@@ -1409,26 +1378,11 @@
     border-radius: 9px;
   }
 
-  .team-picker legend {
-    padding: 0 5px;
-    color: var(--muted);
-    font-size: 12px;
-    font-weight: 800;
-    text-transform: uppercase;
-  }
+  
 
-  .team-picker label {
-    display: flex;
-    align-items: flex-start;
-    gap: 6px;
-    min-width: 150px;
-  }
+  
 
-  .team-picker label > span,
-  .team-picker label strong,
-  .team-picker label small {
-    display: block;
-  }
+  
 
   .team-picker label strong {
     color: var(--ink);
@@ -1449,10 +1403,7 @@
     margin: 8px 0;
   }
 
-  .team-picker.compact label {
-    min-width: 0;
-    font-size: 12px;
-  }
+  
 
   .team-tags {
     display: flex;
@@ -1460,22 +1411,9 @@
     gap: 4px;
   }
 
-  .team-tags span {
-    width: max-content;
-    margin: 0;
-    padding: 3px 6px;
-    border-radius: 999px;
-    background: #edf4ef;
-    color: #315e43;
-    font-size: 12px;
-    font-weight: 700;
-  }
+  
 
-  .team-tags em {
-    color: var(--muted);
-    font-size: 12px;
-    font-style: normal;
-  }
+  
 
   .availability-state {
     display: inline-flex;
@@ -1497,43 +1435,13 @@
     position: relative;
   }
 
-  .dispatch-editor summary {
-    padding: 6px 8px;
-    border: 1px solid #d4ddd7;
-    border-radius: 7px;
-    background: white;
-    color: #435249;
-    font-size: 12px;
-    font-weight: 800;
-    cursor: pointer;
-    list-style: none;
-  }
+  
 
-  .dispatch-editor form {
-    position: absolute;
-    z-index: 8;
-    right: 0;
-    width: 290px;
-    padding: 12px;
-    border: 1px solid var(--line);
-    border-radius: 10px;
-    background: white;
-    box-shadow: 0 12px 30px rgb(23 61 44 / 0.16);
-  }
+  
 
-  .dispatch-editor form > label {
-    display: grid;
-    gap: 4px;
-  }
+  
 
-  .dispatch-editor select {
-    width: 100%;
-    min-height: 34px;
-    border: 1px solid #d4ddd7;
-    border-radius: 7px;
-    background: white;
-    font-size: 12px;
-  }
+  
 
   .people-feedback {
     display: flex;
@@ -1589,26 +1497,11 @@
     gap: 5px;
   }
 
-  .user-actions form {
-    margin: 0;
-  }
+  
 
-  .user-actions button,
-  .broadcast-grid button {
-    padding: 6px 8px;
-    border: 1px solid #d4ddd7;
-    border-radius: 7px;
-    background: white;
-    color: #435249;
-    font-size: 12px;
-    font-weight: 800;
-    cursor: pointer;
-  }
+  
 
-  .user-actions button.danger {
-    border-color: #ecd0cd;
-    color: #9d3c34;
-  }
+  
 
   .broadcast-grid {
     display: grid;
@@ -1617,28 +1510,13 @@
     margin-top: 18px;
   }
 
-  .broadcast-grid article {
-    padding: 17px;
-    border: 1px solid var(--line);
-    border-radius: 12px;
-    background: var(--surface-soft);
-  }
+  
 
-  .broadcast-grid h2 {
-    font-size: 18px;
-  }
+  
 
-  .broadcast-grid p:not(.eyebrow) {
-    min-height: 42px;
-    color: var(--muted);
-    font-size: 13px;
-    line-height: 1.5;
-  }
+  
 
-  .broadcast-grid button:disabled {
-    opacity: 0.45;
-    cursor: not-allowed;
-  }
+  
 
   .audit-list {
     display: grid;
@@ -1708,11 +1586,7 @@
     text-align: center;
   }
 
-  .empty-feature p {
-    max-width: 600px;
-    margin-left: auto;
-    margin-right: auto;
-  }
+  
 
   @media (max-width: 1050px) {
     .metrics {
@@ -1817,7 +1691,7 @@
   }
 
   .reviewer-invite { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; }
-  .reviewer-invite label { font-size: 14px; font-weight: 700; }
-  .reviewer-invite input { min-height: 34px; padding: 6px 9px; border: 1px solid #cbd7ce; border-radius: 7px; }
-  .reviewer-invite button { min-height: 34px; padding: 6px 10px; border: 0; border-radius: 7px; background: #173d2c; color: white; cursor: pointer; }
+  
+  
+  
 </style>
