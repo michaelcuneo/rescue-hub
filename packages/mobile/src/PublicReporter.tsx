@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import WebView, { type WebViewMessageEvent } from 'react-native-webview';
-import * as Location from 'expo-location';
+import { getDeviceMapPosition, MAPBOX_LOCATION_CONTROL, MAPBOX_LOCATION_CONTROL_CSS } from './map-location';
 import { myPublicReports, submitPublicReport, type PublicWildlifeReport } from './api';
 import ReporterConversation from './ReporterConversation';
 
@@ -13,13 +13,14 @@ function mapHTML() {
   const publicToken = JSON.stringify(token);
   return `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <link href="https://api.mapbox.com/mapbox-gl-js/v3.16.0/mapbox-gl.css" rel="stylesheet">
-<style>html,body,#map{margin:0;width:100%;height:100%;overflow:hidden;background:#dfeae2}.mapboxgl-ctrl-bottom-right{display:none}.pin{width:22px;height:22px;background:#b84629;border:4px solid white;border-radius:100%;box-sizing:border-box;box-shadow:0 0 0 6px #b8462944}</style>
+<style>html,body,#map{margin:0;width:100%;height:100%;overflow:hidden;background:#dfeae2}.mapboxgl-ctrl-bottom-right{display:none}.pin{width:22px;height:22px;background:#b84629;border:4px solid white;border-radius:100%;box-sizing:border-box;box-shadow:0 0 0 6px #b8462944}.user-location{width:18px;height:18px;border-radius:50%;background:#2679eb;border:3px solid white;box-shadow:0 0 0 9px #2679eb33}${MAPBOX_LOCATION_CONTROL_CSS}</style>
 </head><body><div id="map"></div><script src="https://api.mapbox.com/mapbox-gl-js/v3.16.0/mapbox-gl.js"></script><script>
 (function(){
 if(!window.mapboxgl){window.ReactNativeWebView.postMessage(JSON.stringify({type:'error',message:'Mapbox is unavailable.'}));return;}
 mapboxgl.accessToken=${publicToken};
 var map=new mapboxgl.Map({container:'map',style:'mapbox://styles/michaelcuneo/ckzzecgy7005j14qvpzd53fgn',center:[151.70,-32.93],zoom:10,attributionControl:false});
 map.addControl(new mapboxgl.NavigationControl({showCompass:false}),'top-right');
+${MAPBOX_LOCATION_CONTROL}
 var marker=null;
 function place(lon,lat){
  if(!Number.isFinite(lon)||!Number.isFinite(lat))return;
@@ -29,7 +30,19 @@ function place(lon,lat){
  window.ReactNativeWebView.postMessage(JSON.stringify({type:'pin',latitude:lat,longitude:lon}));
 }
 map.on('click',function(e){place(e.lngLat.lng,e.lngLat.lat)});
-window.locate=function(lon,lat){place(lon,lat);map.flyTo({center:[lon,lat],zoom:15});};
+var userLocationMarker=null;
+// The animal may not be at the reporter's current GPS location: centre the
+// map and display the blue location dot, but do not silently submit a pin.
+window.showUserLocation=function(lon,lat){
+ if(!Number.isFinite(lon)||!Number.isFinite(lat))return;
+ if(userLocationMarker)userLocationMarker.remove();
+ var dot=document.createElement('div');dot.className='user-location';
+ dot.setAttribute('aria-label','Your current location');
+ userLocationMarker=new mapboxgl.Marker({element:dot}).setLngLat([lon,lat]).addTo(map);
+ map.flyTo({center:[lon,lat],zoom:15});
+};
+window.clearReportPin=function(){if(marker){marker.remove();marker=null;}};
+
 map.on('load',function(){window.ReactNativeWebView.postMessage(JSON.stringify({type:'ready'}))});
 })();</script></body></html>`;
 }
@@ -46,7 +59,7 @@ export default function PublicReporter({ onSignOut }: Props) {
   const [conversationId, setConversationId] = useState('');
   const [error, setError] = useState('');
   const [ready, setReady] = useState(false);
-  const [locating, setLocating] = useState(false);
+  const locatingRef = useRef(false);
   const [sending, setSending] = useState(false);
   const [receipt, setReceipt] = useState('');
   const [history, setHistory] = useState<PublicWildlifeReport[]>([]);
@@ -57,7 +70,8 @@ export default function PublicReporter({ onSignOut }: Props) {
     try {
       const data = JSON.parse(event.nativeEvent.data) as
         { type: string; latitude?: number; longitude?: number; message?: string };
-      if (data.type === 'ready') setReady(true);
+      if (data.type === 'ready') { setReady(true); void locate(true); }
+      if (data.type === 'locate') void locate();
       if (data.type === 'error') setError(data.message ?? 'Map unavailable.');
       if (data.type === 'pin' && typeof data.latitude === 'number' &&
           typeof data.longitude === 'number') {
@@ -66,22 +80,20 @@ export default function PublicReporter({ onSignOut }: Props) {
     } catch { /* Only accept known map messages. */ }
   };
 
-  async function locate() {
-    if (locating) return;
-    setLocating(true);
-    setError('');
+  async function locate(quiet = false) {
+    if (locatingRef.current) return;
+    locatingRef.current = true;
+    if (!quiet) setError('');
     try {
-      const permission = await Location.requestForegroundPermissionsAsync();
-      if (permission.status !== 'granted') {
-        setError('Location permission denied. Tap the map to place the animal pin manually.');
+      const position = await getDeviceMapPosition();
+      if (!position) {
+        if (!quiet) setError('Location access is off. Tap the map to place the animal pin.');
         return;
       }
-      const result = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-      const { latitude, longitude } = result.coords;
-      ref.current?.injectJavaScript(`window.locate(${longitude},${latitude});true;`);
+      ref.current?.injectJavaScript(`window.showUserLocation(${position.longitude},${position.latitude});true;`);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Location unavailable. Tap the map instead.');
-    } finally { setLocating(false); }
+      if (!quiet) setError(e instanceof Error ? e.message : 'Location unavailable. Tap the map instead.');
+    } finally { locatingRef.current = false; }
   }
 
   if (conversationId) return <ReporterConversation reportId={conversationId} onBack={() => setConversationId('')} />;
@@ -98,6 +110,7 @@ export default function PublicReporter({ onSignOut }: Props) {
       setAnimal('');
       setCondition('');
       setPin(null);
+      ref.current?.injectJavaScript('window.clearReportPin();true;');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Unable to send wildlife report.');
     } finally { setSending(false); }
@@ -119,10 +132,6 @@ export default function PublicReporter({ onSignOut }: Props) {
         onError={e => setError(e.nativeEvent.description)} /> :
         <Text style={styles.error}>Mapbox token not configured in the Expo environment.</Text>}
       {token.startsWith('pk.') && !ready && <View pointerEvents="none" style={styles.loading}><ActivityIndicator /></View>}
-      <Pressable accessibilityRole="button" disabled={!ready || locating} style={styles.locate}
-        onPress={() => void locate()}>
-        <Text style={styles.locateText}>{locating ? 'Locating…' : 'Use my location'}</Text>
-      </Pressable>
     </View>
     <ScrollView style={styles.form} contentContainerStyle={styles.formContent} keyboardShouldPersistTaps="handled">
       {receipt ? <View style={styles.success}>
@@ -135,7 +144,7 @@ export default function PublicReporter({ onSignOut }: Props) {
           <Text style={styles.link}>Report another animal</Text>
         </Pressable>
       </View> : <>
-        <Text style={styles.small}>Tap the map to drop a pin, or use your current location. Do not handle unfamiliar animals, snakes or bats.</Text>
+        <Text style={styles.small}>The map centres on your current location when permitted. Tap to mark where the animal actually is. Do not handle unfamiliar animals, snakes or bats.</Text>
         {pin ? <Text style={styles.pinText}>Pin: {pin.latitude.toFixed(5)}, {pin.longitude.toFixed(5)}</Text> :
           <Text style={styles.pinText}>No location chosen yet</Text>}
         <Text style={styles.label}>What animal do you think it is?</Text>
@@ -181,8 +190,6 @@ const styles = StyleSheet.create({
   heading:{fontSize:18,fontWeight:'800',color:'#173d2c'},
   signout:{padding:8},small:{color:'#5e7063',fontSize:12,lineHeight:18},
   map:{height:'45%',minHeight:230,backgroundColor:'#dce7df',position:'relative'},
-  locate:{position:'absolute',top:12,left:12,backgroundColor:'#fff',borderRadius:10,padding:12},
-  locateText:{color:'#173d2c',fontWeight:'800'},
   loading:{...StyleSheet.absoluteFill,alignItems:'center',justifyContent:'center'},
   form:{flex:1},formContent:{padding:18,gap:10,paddingBottom:36},
   label:{fontSize:14,color:'#173d2c',fontWeight:'800',marginTop:6},
