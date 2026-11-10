@@ -2,6 +2,7 @@ import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, GetCommand, PutCommand, QueryCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
 import { Resource } from 'sst';
 import type { RescueHubUser } from './auth';
+import { publishRescueChange } from './realtime';
 
 const db = DynamoDBDocumentClient.from(new DynamoDBClient({}), {
   marshallOptions: { removeUndefinedValues: true }
@@ -81,6 +82,7 @@ export async function submitWildlifeReport(
     },
     ConditionExpression: 'attribute_not_exists(pk)'
   }));
+  await publishRescueChange();
   return report;
 }
 
@@ -123,4 +125,5 @@ export async function markPublicReportConverted(id: string, rescueId: string, or
       ':rescue': rescueId, ':org': organisationId, ':now': new Date().toISOString()
     }
   }));
+  await publishRescueChange();
 }
