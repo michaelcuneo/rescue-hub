@@ -48,6 +48,10 @@ export async function recordAnimalPhoneUpdate(
     throw new AnimalPhoneConflict('The animal has a final outcome. Its history is read-only.');
   if (input.animalId && input.animalId !== animal.id)
     throw new AnimalPhoneConflict('Select the correct animal record.');
+  if (input.finalOutcome && animal.status !== 'AT_VET')
+    throw new AnimalPhoneConflict('A veterinary telephone outcome requires the animal to be recorded at the veterinary facility.');
+  if (input.finalOutcome && !input.notes.trim())
+    throw new AnimalPhoneConflict('Record the veterinary confirmation and the person who called.');
   if (input.requestTransport && animal.status !== 'AT_VET')
     throw new AnimalPhoneConflict('Vet pickup jobs require an animal currently recorded at a veterinary facility.');
   if (input.requestTransport && animal.activeTransportRescueId)
@@ -65,17 +69,21 @@ export async function recordAnimalPhoneUpdate(
     { Update: {
       TableName: table,
       Key: { pk: `ANIMAL#${animal.id}`, sk: 'META' },
-      UpdateExpression: input.requestTransport
-        ? 'SET activeTransportRescueId = :transport, vetStage = :ready, version = :next, updatedAt = :now'
-        : 'SET version = :next, updatedAt = :now',
+      UpdateExpression: input.finalOutcome
+        ? 'SET #status = :outcome, version = :next, updatedAt = :now REMOVE activeTransportRescueId, vetStage'
+        : input.requestTransport
+          ? 'SET activeTransportRescueId = :transport, vetStage = :ready, version = :next, updatedAt = :now'
+          : 'SET version = :next, updatedAt = :now',
       ConditionExpression:
         'attribute_exists(pk) AND organisationId = :org AND version = :v AND NOT (#status IN (:released, :euthanised, :deceased))' +
-        (input.requestTransport ? ' AND #status = :vet AND attribute_not_exists(activeTransportRescueId) AND attribute_not_exists(pendingTransferId)' : ''),
+        (input.requestTransport ? ' AND #status = :vet AND attribute_not_exists(activeTransportRescueId) AND attribute_not_exists(pendingTransferId)' : '') +
+        (input.finalOutcome ? ' AND #status = :vet AND attribute_not_exists(pendingTransferId)' : ''),
       ExpressionAttributeNames: { '#status': 'status' },
       ExpressionAttributeValues: {
         ':org': animal.organisationId, ':v': animal.version,
         ':next': animal.version + 1, ':now': now,
         ':released': 'RELEASED', ':euthanised': 'EUTHANISED', ':deceased': 'DECEASED',
+        ...(input.finalOutcome ? { ':vet': 'AT_VET', ':outcome': input.finalOutcome } : {}),
         ...(input.requestTransport ? {
           ':vet': 'AT_VET', ':ready': 'ASSESSED_AWAITING_TRANSPORT',
           ':transport': transportRescueId
@@ -92,6 +100,49 @@ export async function recordAnimalPhoneUpdate(
       ConditionExpression: 'attribute_not_exists(pk)'
     }}
   ];
+
+  if (input.finalOutcome) {
+    const finalEventId = crypto.randomUUID();
+    writes.push({ Put: {
+      TableName: table,
+      Item: {
+        pk: `ANIMAL#${animal.id}`, sk: `EVENT#${now}#${finalEventId}`,
+        entity: 'animal_event', id: finalEventId, animalId: animal.id,
+        organisationId: animal.organisationId, actorUserId, createdAt: now,
+        type: 'FINAL_OUTCOME', outcome: input.finalOutcome,
+        source: 'PHONE', reportedByName: input.callerName, notes: input.notes,
+        phoneUpdateId: id
+      },
+      ConditionExpression: 'attribute_not_exists(pk)'
+    }});
+    if (animal.activeTransportRescueId) {
+      const transport = await getRescue(animal.activeTransportRescueId);
+      if (!transport || transport.organisationId !== animal.organisationId ||
+          transport.transportAnimalId !== animal.id ||
+          !['PENDING','ASSIGNED'].includes(transport.status))
+        throw new AnimalPhoneConflict('The transport request changed. Refresh before recording the final outcome.');
+      const closeId = crypto.randomUUID();
+      writes.push({ Update: {
+        TableName: table,
+        Key: { pk: `RESCUE#${transport.id}`, sk: 'META' },
+        UpdateExpression: 'SET #status = :closed, gsi1pk = :index, updatedAt = :now',
+        ConditionExpression: '#status = :previous AND organisationId = :org AND transportAnimalId = :animal',
+        ExpressionAttributeNames: { '#status': 'status' },
+        ExpressionAttributeValues: {
+          ':closed': 'CANCELLED', ':index': 'STATUS#CANCELLED', ':now': now,
+          ':previous': transport.status, ':org': animal.organisationId, ':animal': animal.id
+        }
+      }}, { Put: {
+        TableName: table,
+        Item: {
+          pk: `RESCUE#${transport.id}`, sk: `EVENT#${now}#${closeId}`,
+          entity: 'rescue_event', id: closeId, rescueId: transport.id,
+          organisationId: animal.organisationId, animalId: animal.id,
+          type: 'TRANSPORT_CANCELLED_VET_FINAL_OUTCOME', actorUserId, createdAt: now
+        }, ConditionExpression: 'attribute_not_exists(pk)'
+      }});
+    }
+  }
 
   if (transportRescueId) {
     const original = await getRescue(animal.rescueId);
