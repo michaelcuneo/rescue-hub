@@ -1,3 +1,4 @@
+import { effectiveAvailability } from '$lib/server/availability';
 import { json } from '@sveltejs/kit';
 import { getOrganisationMembershipConfig } from '$lib/server/membership';
 import type { RequestHandler } from './$types';
@@ -7,5 +8,5 @@ export const GET: RequestHandler = async ({ locals }) => {
 	const membership = locals.user.organisationId
 		? await getOrganisationMembershipConfig(locals.user.organisationId)
 		: null;
-	return json({ user: locals.user, membership });
+	return json({ user: { ...locals.user, availabilityStatus: effectiveAvailability(locals.user) }, membership }, { headers: { 'cache-control': 'no-store' } });
 };
