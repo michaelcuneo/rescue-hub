@@ -1,5 +1,6 @@
 import { json } from '@sveltejs/kit';
 import { getUserById } from '$lib/server/auth';
+import { getOrganisationMembershipConfig, memberCanReceiveCapability } from '$lib/server/membership';
 import { getAnimal, recordAnimalEvent, changeAnimalState, AnimalConflict } from '$lib/server/animals';
 import type { RequestHandler } from './$types';
 
@@ -29,13 +30,32 @@ export const POST: RequestHandler = async ({ locals, params, request }) => {
       if (typeof body.recipientUserId !== 'string' || !body.recipientUserId.trim()) return json({ error: 'Recipient is required.' }, { status: 400 });
       if (body.location !== undefined && (typeof body.location !== 'string' || body.location.length > 250)) return json({ error: 'Invalid location.' }, { status: 400 });
       const recipient = await getUserById(body.recipientUserId);
-      if (!recipient || !recipient.enabled || recipient.status !== 'ACTIVE' || recipient.organisationId !== user.organisationId || !recipient.roles.some((r) => ['RESCUER', 'CARER'].includes(r))) return json({ error: 'Recipient must be an active rescuer or carer in this organisation.' }, { status: 400 });
-      const updated = await changeAnimalState(animal, user.id, { kind: 'TRANSFER', recipientUserId: body.recipientUserId, location: body.location as string | undefined, notes });
+      if (!recipient || !recipient.enabled || recipient.status !== 'ACTIVE' || recipient.organisationId !== user.organisationId) {
+        return json({ error: 'Recipient must be active in this organisation.' }, { status: 400 });
+      }
+      const purpose = body.purpose === 'TRANSPORT' ? 'TRANSPORT' : 'CARE';
+      const teamConfig = await getOrganisationMembershipConfig(user.organisationId);
+      const canTransport = memberCanReceiveCapability(recipient.teamIds, teamConfig, 'OTHER') ||
+        recipient.roles.some(r => ['RESCUER', 'CARER'].includes(r));
+      if (purpose === 'TRANSPORT' ? !canTransport : !recipient.roles.includes('CARER')) {
+        return json({ error: purpose === 'TRANSPORT'
+          ? 'Recipient must have transport eligibility or be an active rescuer/carer.'
+          : 'Care handover requires an active carer.' }, { status: 400 });
+      }
+      const updated = await changeAnimalState(animal, user.id, { kind: 'TRANSFER', recipientUserId: body.recipientUserId, location: body.location as string | undefined, notes, purpose });
       return json({ animal: updated });
     }
     if (body.kind === 'ACCEPT_TRANSFER') {
-      if (!user.roles.some((r) => ['RESCUER', 'CARER'].includes(r))) return json({ error: 'Recipient must be a rescuer or carer.' }, { status: 403 });
+      // The transfer request already verified recipient eligibility. Only the
+      // nominated recipient can accept, enforced by the atomic custody update.
       return json({ animal: await changeAnimalState(animal, user.id, { kind: 'ACCEPT_TRANSFER' }) });
+    }
+    if (body.kind === 'VET_DROPOFF' || body.kind === 'VET_ASSESSED') {
+      const location = typeof body.location === 'string' ? body.location.trim() : '';
+      if (location.length > 250) return json({ error: 'Location is too long.' }, { status: 400 });
+      return json({ animal: await changeAnimalState(animal, user.id, {
+        kind: body.kind, location, notes
+      }) });
     }
     if (body.kind === 'OUTCOME') {
       if (!finalStatuses.has(String(body.status))) return json({ error: 'Invalid final outcome.' }, { status: 400 });
