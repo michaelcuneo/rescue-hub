@@ -30,6 +30,19 @@ Uses the **existing public Mapbox token** provided to Expo as `EXPO_PUBLIC_MAPBO
 
 Map rendering needs network access to `api.mapbox.com`. Rescue pins and qualification filtering are based on the authenticated `GET /api/mobile/rescues` endpoint. GeoJSON boundaries are optional; if unavailable, rescue pins still render.
 
+## End-to-end dispatch and push test (physical iPhone)
+
+The Mapbox WebView works in Expo Go, but **remote push notifications do not**. Use a development build with a configured EAS project and APNs credentials. Expo Go is not a valid test for receiving remote push.
+
+1. Configure EAS once in `packages/mobile` using `npx eas-cli init` (sign into your Expo account when requested). This supplies `extra.eas.projectId` in the Expo app configuration.
+2. Install an iOS development build (`npx expo run:ios --device` for local native builds, or an EAS development build). Ensure notification entitlements/APNs credentials are configured for the installed app.
+3. On the phone, open **Settings → Push notification readiness** and tap **Check push registration**. It must say the device is registered, and the registered device count must be at least one. A successful permission prompt alone is not enough.
+4. In the Rescue Hub app Settings, select **Override** and switch availability **ON** (or follow a schedule whose current period is active).
+5. In a browser, log into the same NATF organisation at `https://rescue.michaelcuneo.com.au`, click **New rescue**, set a location, and create a **Blue-tongue lizard** rescue (a non-venomous reptile). Use a clearly fictional test description.
+6. The dispatcher now shows the number of qualified users, registered devices, and accepted/rejected Expo push tickets. **Accepted by Expo is not proof of delivery**; observe the notification arriving on the device to complete the test. The app polls the GraphQL-backed rescue feed while foregrounded, independently of push.
+
+If the map remains empty, the mobile feed now displays whether there are no open cases, no cases matching assigned teams, or no browser access under the current role. A backend redeployment is required for the feed diagnostics, registration count and dispatcher push-result panel.
+
 ## Availability
 
 Modes: `ON` always available, `OFF` unavailable, `SCHEDULE` follow weekday and time windows in configured IANA timezone. Server evaluates effective availability at request/notification/claim time; no background timer is necessary. Mobile app can save up to eight non-overlapping windows per day including overnight windows. Previously configured legacy manual status is preserved until a policy is saved.
