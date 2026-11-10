@@ -5,7 +5,9 @@ import type { RequestHandler } from './$types';
 export const GET: RequestHandler = async ({ params, url }) => {
   if (!isSocialProvider(params.provider)) error(404, 'Unknown sign-in provider.');
   try {
-    const destination = await startSocialOAuth(params.provider, url.origin);
+    const mobileChallenge = url.searchParams.get('mobile') === '1'
+      ? url.searchParams.get('code_challenge') ?? '' : undefined;
+    const destination = await startSocialOAuth(params.provider, url.origin, mobileChallenge);
     redirect(303, destination);
   } catch (e) {
     // SvelteKit redirects throw Response-like objects and must not be swallowed.
