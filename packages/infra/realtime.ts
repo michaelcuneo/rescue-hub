@@ -37,7 +37,7 @@ new appsync.Resolver("RescueHubRealtimePublishResolver", {
 // Publish permissions are granted only to the trusted SvelteKit Lambda via IAM.
 export const realtimeLink = new sst.Linkable("RescueHubRealtime", {
   properties: {
-    url: realtime.uris.apply(u => u.GRAPHQL),
+    url: realtime.uris.apply(uris => uris?.GRAPHQL ?? ''),
     apiKey: realtimeKey.key,
   },
 });
