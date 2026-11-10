@@ -2,8 +2,14 @@ import { json } from '@sveltejs/kit';
 import { getPushDeviceRegistrationCount, registerPushDevice } from '$lib/server/push';
 import type { RequestHandler } from './$types';
 
+function canManageRescuerFeatures(user: { organisationId?: string; enabled: boolean; status: string; roles: string[] } | null | undefined) {
+  return Boolean(user?.organisationId && user.enabled && user.status === 'ACTIVE' &&
+    user.roles.some(role => ['RESCUER', 'CARER', 'ORG_ADMIN', 'DISPATCHER'].includes(role)));
+}
+
+
 export const POST: RequestHandler = async ({ locals, request }) => {
-	if (!locals.user) return json({ error: 'Authentication required.' }, { status: 401 });
+	if (!canManageRescuerFeatures(locals.user)) return json({ error: 'Rescue organisation membership required.' }, { status: 403 });
 	const body = (await request.json()) as {
 		pushToken?: string;
 		platform?: 'ios' | 'android';
@@ -26,7 +32,7 @@ export const POST: RequestHandler = async ({ locals, request }) => {
 };
 
 export const GET: RequestHandler = async ({ locals }) => {
-  if (!locals.user) return json({ error: 'Authentication required.' }, { status: 401 });
+  if (!canManageRescuerFeatures(locals.user)) return json({ error: 'Rescue organisation membership required.' }, { status: 403 });
   const registeredDevices = await getPushDeviceRegistrationCount(locals.user.id);
   return json({ registeredDevices }, { headers: { 'cache-control': 'private, no-store' } });
 };
