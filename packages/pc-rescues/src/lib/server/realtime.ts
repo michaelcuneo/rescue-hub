@@ -11,16 +11,16 @@ export async function publishRescueChange(): Promise<void> {
     console.warn('Realtime publish unavailable: runtime AWS credentials missing');
     return;
   }
-  const url = getRealtimeResource().url;
-  const client = new AwsClient({
-    accessKeyId,
-    secretAccessKey,
-    sessionToken: process.env.AWS_SESSION_TOKEN,
-    region: process.env.AWS_REGION || 'ap-southeast-2',
-    service: 'appsync',
-    retries: 1,
-  });
   try {
+    const url = getRealtimeResource().url;
+    const client = new AwsClient({
+      accessKeyId,
+      secretAccessKey,
+      sessionToken: process.env.AWS_SESSION_TOKEN,
+      region: process.env.AWS_REGION || 'ap-southeast-2',
+      service: 'appsync',
+      retries: 1,
+    });
     const result = await client.fetch(url, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
