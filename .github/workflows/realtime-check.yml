@@ -20,5 +20,7 @@ jobs:
           node-version: '22'
       - name: Install workspaces
         run: npm install --no-audit --no-fund
+      - name: AppSync websocket protocol test
+        run: node --experimental-strip-types --test packages/core/realtime-client.test.mjs
       - name: TypeScript and warning-free Svelte checks
         run: npm run check
