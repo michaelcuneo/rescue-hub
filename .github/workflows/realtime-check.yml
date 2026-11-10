@@ -24,3 +24,5 @@ jobs:
         run: node --experimental-strip-types --test packages/core/realtime-client.test.mjs
       - name: TypeScript and warning-free Svelte checks
         run: npm run check
+      - name: Production SvelteKit bundle
+        run: npm run build --workspace=website
