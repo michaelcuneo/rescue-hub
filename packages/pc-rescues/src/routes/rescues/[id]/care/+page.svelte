@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import type { PageData } from './$types';
   let { data }: { data: PageData } = $props();
-  type Animal = { id: string; species: string; status: string; currentCustodianUserId?: string; currentLocation?: string; pendingTransferId?: string };
+  type Animal = { id: string; species: string; status: string; currentCustodianUserId?: string; currentLocation?: string; pendingTransferId?: string; activeTransportRescueId?: string };
   type Event = { id: string; type: string; notes?: string; actorUserId?: string; createdAt: string; occurredAt?: string; reportedByName?: string; source?: string };
   let animals = $state<Animal[]>([]);
   let selected = $state<Animal | null>(null);
@@ -14,7 +14,15 @@
   let correctedSpecies = $state('');
   let correctedDescription = $state('');
   let note = $state('');
-  let sourceName = $state('');
+  type PhoneEvent = { id: string; callerName: string; callerRole: string; notes: string; callbackPermitted?: boolean; callbackPhone?: string; createdAt: string; actorUserId: string; transportRescueId?: string };
+  let phoneEvents = $state<PhoneEvent[]>([]);
+  let phoneCaller = $state('');
+  let phoneRole = $state('VET');
+  let phoneNotes = $state('');
+  let callbackAllowed = $state(false);
+  let callbackNumber = $state('');
+  let requestTransport = $state(false);
+  let phoneSaved = $state('');
   let eventType = $state('OBSERVATION');
   let recipientId = $state('');
   let location = $state('');
@@ -39,6 +47,8 @@
       correctedSpecies = detail.animal.species;
       correctedDescription = detail.animal.description ?? '';
       events = detail.events;
+      const calls = await api(`/api/mobile/animals/${selected.id}/phone-updates`);
+      phoneEvents = calls.items;
     }
   }
   onMount(() => {
@@ -48,9 +58,35 @@
   });
   async function openAnimal(animal: Animal) {
     selected = animal;
+    phoneEvents = [];
+    phoneSaved = '';
+    requestTransport = false;
     correctedSpecies = animal.species;
     correctedDescription = '';
     try { await refresh(); } catch (error) { errorMessage = String(error); }
+  }
+  async function savePhoneUpdate(event: SubmitEvent) {
+    event.preventDefault();
+    if (!selected || busy || !canCoordinate) return;
+    busy = true; errorMessage = ''; phoneSaved = '';
+    try {
+      const result = await api(`/api/mobile/animals/${selected.id}/phone-updates`, {
+        callerName: phoneCaller, callerRole: phoneRole, notes: phoneNotes,
+        animalId: selected.id, requestTransport,
+        callbackPermitted: callbackAllowed,
+        ...(callbackAllowed ? { callbackPhone: callbackNumber } : {})
+      });
+      phoneNotes = '';
+      callbackNumber = '';
+      callbackAllowed = false;
+      requestTransport = false;
+      phoneSaved = result.update.transportRescueId
+        ? 'Telephone update saved. A new transport job is awaiting a qualified volunteer to claim.'
+        : 'Telephone update saved to this animal’s permanent history.';
+      await refresh();
+    } catch (error) {
+      errorMessage = error instanceof Error ? error.message : 'Unable to save telephone update.';
+    } finally { busy = false; }
   }
   async function submit(action: () => Promise<unknown>) {
     busy = true; errorMessage = '';
@@ -60,11 +96,11 @@
   }
 </script>
 
-<svelte:head><title>Animal care · Rescue Hub</title></svelte:head>
+<svelte:head><title>Animal Records &amp; Phone Updates · Rescue Hub</title></svelte:head>
 <main class="care">
   <a href="/">← Rescue queue</a>
   <header>
-    <div><p class="eyebrow">RESCUE HUB · ANIMAL CARE</p><h1>{data.rescue.type}</h1><p>{data.rescue.location || 'Location not recorded'} · Response: {data.rescue.status}</p></div>
+    <div><p class="eyebrow">RESCUE HUB · ANIMAL RECORDS &amp; PHONE UPDATES</p><h1>{data.rescue.type}</h1><p>{data.rescue.location || 'Location not recorded'} · Response: {data.rescue.status}</p></div>
     <span class="tag">{animals.length} animal{animals.length === 1 ? '' : 's'}</span>
   </header>
   {#if data.reporterContact?.allowMessages}
@@ -98,7 +134,9 @@
           <strong>{animal.species}</strong><small>{animal.status.replaceAll('_', ' ')}</small>
         </button>
       {/each}
-      {#if !animals.length}<p>No animals registered yet.</p>{/if}
+      {#if !animals.length}
+        <p>No individual animals registered yet. The rescuer registers each collected animal. Phone notes about its veterinary care become available here once the animal has an individual record.</p>
+      {/if}
       {#if data.rescue.assignedUserId === data.userId}
         <form onsubmit={(event) => { event.preventDefault(); void submit(async () => { await api(`/api/mobile/rescues/${data.rescue.id}/animals`, { species, description }); species = ''; description = ''; }); }}>
           <h3>Register animal</h3>
@@ -129,6 +167,41 @@
             <button class="primary" disabled={busy || !correctedSpecies.trim()}>Save corrected details</button>
           </form>
         {/if}
+        <h3>Phone updates</h3>
+        <p>Telephone records are part of this animal's permanent history. They record the caller's account, not a confirmed finding. Dispatch can enter updates from veterinarians, rescuers or carers even when those people cannot use Rescue Hub.</p>
+        {#if canCoordinate && !final}
+          <form onsubmit={savePhoneUpdate}>
+            <label>Who called?<input required maxlength="120" bind:value={phoneCaller} placeholder="Name or identifying role" /></label>
+            <label>Caller type<select bind:value={phoneRole}>
+              <option value="VET">Veterinarian or clinic</option>
+              <option value="REPORTER">Person who reported the animal</option>
+              <option value="RESCUER">Rescuer</option>
+              <option value="CARER">Wildlife carer</option>
+              <option value="OTHER">Other</option>
+            </select></label>
+            <label>Information provided<textarea required maxlength="4000" bind:value={phoneNotes} placeholder="e.g. The vet says this animal is ready for collection; assessed and stable." /></label>
+            <label class="inline-check"><input type="checkbox" bind:checked={callbackAllowed} /> Caller permits a callback</label>
+            {#if callbackAllowed}<label>Callback number<input required type="tel" maxlength="25" bind:value={callbackNumber} /></label>{/if}
+            {#if selected.status === 'AT_VET'}
+              <label class="inline-check"><input type="checkbox" bind:checked={requestTransport} disabled={!!selected.activeTransportRescueId} />
+                Also place this animal into the available transport queue for a volunteer to claim
+              </label>
+              {#if selected.activeTransportRescueId}<p class="notice">Transport already requested for this animal. A new job cannot be created until its custody handover is completed.</p>{/if}
+            {/if}
+            <button class="primary" disabled={busy || !phoneCaller.trim() || !phoneNotes.trim() || (callbackAllowed && !callbackNumber.trim())}>Record phone update</button>
+          </form>
+          {#if phoneSaved}<p role="status">{phoneSaved}</p>{/if}
+        {/if}
+        <ol class="timeline" aria-label="Animal phone update history">
+          {#each phoneEvents as call (call.id)}
+            <li><strong>Phone call: {call.callerName} ({call.callerRole.toLowerCase()})</strong>
+              <small>{new Date(call.createdAt).toLocaleString('en-AU')} · Recorded by {call.actorUserId}</small>
+              <p>{call.notes}</p>
+              {#if call.transportRescueId}<p><strong>Transport offered to volunteers</strong> · <a href="/rescues/{call.transportRescueId}/care">View transport job</a></p>{/if}
+              {#if call.callbackPermitted && call.callbackPhone}<small>Callback permitted: <a href="tel:{call.callbackPhone}">{call.callbackPhone}</a></small>{/if}
+            </li>
+          {:else}<li>No phone updates recorded for this animal.</li>{/each}
+        </ol>
         <h3>Care timeline</h3>
         <ol class="timeline">
           {#each events as event (event.id)}
@@ -136,10 +209,9 @@
           {/each}
         </ol>
         {#if !final}
-          <form onsubmit={(e) => { e.preventDefault(); void submit(() => api(`/api/mobile/animals/${selected!.id}/events`, { kind: 'NOTE', type: eventType, notes: note, ...(canCoordinate && sourceName.trim() ? { reportedByName: sourceName.trim(), source: 'PHONE' } : {}) })); }}>
+          <form onsubmit={(e) => { e.preventDefault(); void submit(() => api(`/api/mobile/animals/${selected!.id}/events`, { kind: 'NOTE', type: eventType, notes: note })); }}>
             <h3>Record care update</h3>
             <label>Update type<select bind:value={eventType}>{#each ['OBSERVATION', 'VET_ASSESSMENT', 'TREATMENT', 'FEEDING', 'WEIGHT', 'REVIEW'] as type}<option value={type}>{type.replaceAll('_', ' ')}</option>{/each}</select></label>
-            {#if canCoordinate}<label>Information provided by (telephone)<input placeholder="Caller name or role" bind:value={sourceName}/></label>{/if}
             <label>Notes<textarea required maxlength="4000" bind:value={note}></textarea></label>
             <button class="primary" disabled={busy || !note.trim() || (!isCustodian && !canCoordinate)}>Save update</button>
           </form>
@@ -160,5 +232,5 @@
 </main>
 <style>
   :global(body){margin:0;background:#f1f4f1;color:#1b2d24;font-family:system-ui,sans-serif}
-  .care{max-width:1250px;margin:auto;padding:32px 22px 80px}.care>a{color:#24583f;font-weight:700}header,.record-head{display:flex;justify-content:space-between;align-items:center;gap:16px}header{margin:22px 0}.eyebrow{font-size:11px;font-weight:800;letter-spacing:1.3px;color:#648074}h1{font-size:32px;margin:4px 0}h2{margin:0 0 14px}h3{margin:22px 0 12px}p{line-height:1.5;color:#52655a}.layout{display:grid;grid-template-columns:minmax(260px,1fr) minmax(0,2fr);gap:18px}.panel{background:white;border:1px solid #dce5df;border-radius:16px;padding:22px;min-width:0}.tag{background:#e1eee6;border-radius:20px;padding:8px 12px;font-size:12px;font-weight:800}.animal-row{display:flex;flex-direction:column;align-items:flex-start;width:100%;background:white;border:1px solid #dce5df;border-radius:10px;padding:12px;margin:8px 0;cursor:pointer}.animal-row.active{background:#e1eee6;border-color:#24583f}small{display:block;color:#6a7c70;margin-top:5px}form{border-top:1px solid #e3e9e5;margin-top:22px;padding-top:4px}label{display:block;font-size:13px;font-weight:700;margin:12px 0}input,textarea,select{box-sizing:border-box;display:block;width:100%;margin-top:7px;padding:11px;border:1px solid #cbd9d0;border-radius:9px;font:inherit}textarea{min-height:90px}.primary{background:#173d2c;color:white;border:0;border-radius:9px;padding:12px 16px;font-weight:700;cursor:pointer}.primary:disabled{opacity:.5;cursor:not-allowed}dl{display:flex;gap:24px;flex-wrap:wrap}dt{font-size:12px;color:#6a7c70}dd{margin:5px 0;font-weight:700}.timeline{padding-left:24px}.timeline li{border-left:2px solid #bdd2c4;padding:0 0 18px 16px;margin-left:-4px}.timeline p{margin:6px 0}.notice{color:#805a12;background:#fff6dc;padding:12px;border-radius:9px}.error{color:#a23f35;font-weight:700}@media(max-width:750px){.layout{grid-template-columns:1fr}.care{padding:18px 12px}header{align-items:flex-start}}
+  .inline-check{display:flex;align-items:center;gap:10px}.inline-check input{width:auto;margin:0} .care{max-width:1250px;margin:auto;padding:32px 22px 80px}.care>a{color:#24583f;font-weight:700}header,.record-head{display:flex;justify-content:space-between;align-items:center;gap:16px}header{margin:22px 0}.eyebrow{font-size:11px;font-weight:800;letter-spacing:1.3px;color:#648074}h1{font-size:32px;margin:4px 0}h2{margin:0 0 14px}h3{margin:22px 0 12px}p{line-height:1.5;color:#52655a}.layout{display:grid;grid-template-columns:minmax(260px,1fr) minmax(0,2fr);gap:18px}.panel{background:white;border:1px solid #dce5df;border-radius:16px;padding:22px;min-width:0}.tag{background:#e1eee6;border-radius:20px;padding:8px 12px;font-size:12px;font-weight:800}.animal-row{display:flex;flex-direction:column;align-items:flex-start;width:100%;background:white;border:1px solid #dce5df;border-radius:10px;padding:12px;margin:8px 0;cursor:pointer}.animal-row.active{background:#e1eee6;border-color:#24583f}small{display:block;color:#6a7c70;margin-top:5px}form{border-top:1px solid #e3e9e5;margin-top:22px;padding-top:4px}label{display:block;font-size:13px;font-weight:700;margin:12px 0}input,textarea,select{box-sizing:border-box;display:block;width:100%;margin-top:7px;padding:11px;border:1px solid #cbd9d0;border-radius:9px;font:inherit}textarea{min-height:90px}.primary{background:#173d2c;color:white;border:0;border-radius:9px;padding:12px 16px;font-weight:700;cursor:pointer}.primary:disabled{opacity:.5;cursor:not-allowed}dl{display:flex;gap:24px;flex-wrap:wrap}dt{font-size:12px;color:#6a7c70}dd{margin:5px 0;font-weight:700}.timeline{padding-left:24px}.timeline li{border-left:2px solid #bdd2c4;padding:0 0 18px 16px;margin-left:-4px}.timeline p{margin:6px 0}.notice{color:#805a12;background:#fff6dc;padding:12px;border-radius:9px}.error{color:#a23f35;font-weight:700}@media(max-width:750px){.layout{grid-template-columns:1fr}.care{padding:18px 12px}header{align-items:flex-start}}
 </style>
