@@ -3,6 +3,7 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, 
 import WebView, { type WebViewMessageEvent } from 'react-native-webview';
 import * as Location from 'expo-location';
 import { submitPublicReport } from './api';
+import ReporterConversation from './ReporterConversation';
 
 type Pin = { latitude: number; longitude: number };
 type Props = { onSignOut: () => void | Promise<void> };
@@ -39,6 +40,10 @@ export default function PublicReporter({ onSignOut }: Props) {
   const [pin, setPin] = useState<Pin | null>(null);
   const [animal, setAnimal] = useState('');
   const [condition, setCondition] = useState('');
+  const [allowMessages, setAllowMessages] = useState(false);
+  const [allowPhoneContact, setAllowPhoneContact] = useState(false);
+  const [contactPhone, setContactPhone] = useState('');
+  const [conversationId, setConversationId] = useState('');
   const [error, setError] = useState('');
   const [ready, setReady] = useState(false);
   const [locating, setLocating] = useState(false);
@@ -76,12 +81,15 @@ export default function PublicReporter({ onSignOut }: Props) {
     } finally { setLocating(false); }
   }
 
+  if (conversationId) return <ReporterConversation reportId={conversationId} onBack={() => setConversationId('')} />;
+
   async function submit() {
     if (!pin || sending) return;
     setSending(true);
     setError('');
     try {
-      const result = await submitPublicReport(animal.trim(), condition.trim(), pin.latitude, pin.longitude);
+      const result = await submitPublicReport(animal.trim(), condition.trim(), pin.latitude, pin.longitude,
+        { allowMessages, allowPhoneContact, contactPhone: allowPhoneContact ? contactPhone : undefined });
       setReceipt(result.report.id);
       setAnimal('');
       setCondition('');
@@ -116,6 +124,9 @@ export default function PublicReporter({ onSignOut }: Props) {
       {receipt ? <View style={styles.success}>
         <Text style={styles.bold}>Report received. Thank you.</Text>
         <Text style={styles.small}>Dispatch will review your report. Reference: {receipt}</Text>
+        {allowMessages ? <Pressable accessibilityRole="button" onPress={() => setConversationId(receipt)}>
+          <Text style={styles.link}>Message your rescuer</Text>
+        </Pressable> : null}
         <Pressable accessibilityRole="button" onPress={() => setReceipt('')}>
           <Text style={styles.link}>Report another animal</Text>
         </Pressable>
@@ -130,6 +141,16 @@ export default function PublicReporter({ onSignOut }: Props) {
         <TextInput style={[styles.input,styles.notes]} value={condition} onChangeText={setCondition}
           maxLength={2000} multiline textAlignVertical="top"
           placeholder="e.g. Injured leg beside the road" accessibilityLabel="Suspected injury or animal condition" />
+        <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: allowMessages }}
+          onPress={() => setAllowMessages(v => !v)}>
+          <Text style={styles.label}>{allowMessages ? '☑' : '☐'} Allow the rescuer to message me in the app</Text>
+        </Pressable>
+        <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: allowPhoneContact }}
+          onPress={() => setAllowPhoneContact(v => !v)}>
+          <Text style={styles.label}>{allowPhoneContact ? '☑' : '☐'} Allow the rescuer to phone me</Text>
+        </Pressable>
+        {allowPhoneContact ? <TextInput style={styles.input} keyboardType="phone-pad" value={contactPhone}
+          onChangeText={setContactPhone} maxLength={20} placeholder="Your contact phone number" accessibilityLabel="Contact phone number" /> : null}
         {error ? <Text style={styles.error}>{error}</Text> : null}
         <Pressable accessibilityRole="button" style={styles.submit}
           disabled={sending || !pin || animal.trim().length < 2 || condition.trim().length < 5}
