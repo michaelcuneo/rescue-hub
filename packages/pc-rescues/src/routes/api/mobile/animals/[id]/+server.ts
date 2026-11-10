@@ -1,6 +1,7 @@
 import { json } from '@sveltejs/kit';
 import { getAnimal, getPendingAnimalTransfer, listAnimalEvents, correctAnimalIdentification, AnimalConflict } from '$lib/server/animals';
 import type { RequestHandler } from './$types';
+import { getRescue } from '$lib/server/graphql';
 
 export const GET: RequestHandler = async ({ locals, params }) => {
   const user = locals.user;
@@ -8,11 +9,13 @@ export const GET: RequestHandler = async ({ locals, params }) => {
   const animal = await getAnimal(params.id);
   if (!animal || animal.organisationId !== user.organisationId) return json({ error: 'Animal not found.' }, { status: 404 });
   const pending = await getPendingAnimalTransfer(animal);
-  if (animal.currentCustodianUserId !== user.id && pending?.toUserId !== user.id && !user.roles.some((r) => ['ORG_ADMIN', 'DISPATCHER', 'PLATFORM_ADMIN', 'AUTHORITY_ADMIN'].includes(r))) {
+  const transport = animal.activeTransportRescueId ? await getRescue(animal.activeTransportRescueId) : null;
+  const claimedTransport = transport?.organisationId === user.organisationId && transport.assignedUserId === user.id;
+  if (animal.currentCustodianUserId !== user.id && pending?.toUserId !== user.id && !claimedTransport && !user.roles.some((r) => ['ORG_ADMIN', 'DISPATCHER', 'PLATFORM_ADMIN', 'AUTHORITY_ADMIN'].includes(r))) {
     return json({ error: 'Access denied.' }, { status: 403 });
   }
   const events = await listAnimalEvents(animal.id);
-  return json({ animal, events: user.roles.some((r) => ['ORG_ADMIN', 'DISPATCHER'].includes(r)) || animal.currentCustodianUserId === user.id ? events : events.filter((event) => event.id === animal.pendingTransferId) });
+  return json({ animal, events: user.roles.some((r) => ['ORG_ADMIN', 'DISPATCHER'].includes(r)) || (animal.currentCustodianUserId === user.id || claimedTransport) ? events : events.filter((event) => event.id === animal.pendingTransferId) });
 };
 
 export const PATCH: RequestHandler = async ({ locals, params, request }) => {
