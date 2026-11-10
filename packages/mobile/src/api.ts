@@ -268,6 +268,9 @@ export async function getRescues() {
   return request<{ items: Rescue[]; feed?: RescueFeedDiagnostics; truncated?: boolean }>('/api/mobile/rescues');
 }
 
+export async function correctReportedRescue(id: string, type: string, injury: string) {
+  return request<{ rescue: Rescue }>(`/api/mobile/rescues/${encodeURIComponent(id)}/correction`, { method: 'PATCH', body: JSON.stringify({ type, injury }) });
+}
 export async function claimRescue(id: string) {
   return request<{ rescue: Rescue }>(`/api/mobile/rescues/${encodeURIComponent(id)}/claim`, {
     method: 'POST'
