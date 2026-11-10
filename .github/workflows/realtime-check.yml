@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - deploy/rescue-demo-domain
+      - fix/expo-keyboard-focus-visibility
       - feature/organisation-group-chats
       - feature/carer-self-claim-transport-to-me
       - feature/animal-care-map-lifecycle
