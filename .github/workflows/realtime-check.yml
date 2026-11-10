@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - deploy/rescue-demo-domain
+      - fix/public-reporter-email-validation
       - fix/use-mapbox-geolocate-control
       - feature/public-gps-routing-and-contact
   workflow_dispatch:
@@ -22,6 +23,8 @@ jobs:
           node-version: '22'
       - name: Install workspaces
         run: npm install --no-audit --no-fund
+      - name: Public reporter signup and email verification validation tests
+        run: node --experimental-strip-types --test packages/core/public-reporter-validation.test.mjs
       - name: GIS routing unit tests
         run: node --experimental-strip-types --test packages/core/operating-area-routing.test.mjs
       - name: AppSync websocket protocol test
