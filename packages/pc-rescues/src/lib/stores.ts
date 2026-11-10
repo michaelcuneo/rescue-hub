@@ -11,6 +11,8 @@ export type RescueItem = {
 	color: string;
 	injury?: string | null;
 	assignedUserId?: string | null;
+	transportAnimalId?: string | null;
+	transportSourceRescueId?: string | null;
 	createdAt?: string;
 	updatedAt?: string;
 	status?: string;
