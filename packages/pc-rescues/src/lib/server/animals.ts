@@ -156,7 +156,7 @@ export async function getPendingAnimalTransfer(animal: AnimalRecord) {
 }
 
 export async function changeAnimalState(animal: AnimalRecord, actorUserId: string, input: {
-  kind: 'TRANSFER' | 'ACCEPT_TRANSFER' | 'OUTCOME' | 'VET_DROPOFF' | 'VET_ASSESSED';
+  kind: 'TRANSFER' | 'ACCEPT_TRANSFER' | 'OUTCOME' | 'VET_TRANSPORT_STARTED' | 'VET_DROPOFF' | 'VET_ASSESSED';
   recipientUserId?: string; location?: string; status?: AnimalStatus; notes?: string; purpose?: 'CARE' | 'TRANSPORT';
 }) {
   if (terminal.has(animal.status)) throw new AnimalConflict('Animal already has a final outcome.');
@@ -184,6 +184,22 @@ export async function changeAnimalState(animal: AnimalRecord, actorUserId: strin
     update = 'SET currentCustodianUserId = :user, currentLocation = :location, #status = :care, gsi1pk = :custodianKey, updatedAt = :now, version = :next REMOVE pendingTransferId, vetStage, activeTransportRescueId';
     values = { ...values, ':user': actorUserId, ':location': String(transfer.destination ?? ''), ':care': transfer.purpose === 'TRANSPORT' ? 'IN_TRANSIT' : 'IN_CARE', ':custodianKey': `CUSTODIAN#${animal.organisationId}#${actorUserId}` };
     extra = { transferId: animal.pendingTransferId, fromUserId: transfer.fromUserId, toUserId: actorUserId };
+  } else if (input.kind === 'VET_TRANSPORT_STARTED') {
+    if (actorUserId !== animal.currentCustodianUserId || animal.pendingTransferId)
+      throw new AnimalConflict('Only the current custodian can record veterinary transport.');
+    const clinic = input.location?.trim();
+    if (!clinic || clinic.length > 250)
+      throw new AnimalConflict('Provide the destination veterinary facility.');
+    const parent = await getRescue(animal.rescueId);
+    if (!parent || !parent.pickedUpAt || parent.organisationId !== animal.organisationId)
+      throw new AnimalConflict('Confirm physical collection before starting transport to the veterinary facility.');
+    condition += ' AND currentCustodianUserId = :actor AND attribute_not_exists(pendingTransferId)';
+    values[':actor'] = actorUserId;
+    values[':transit'] = 'IN_TRANSIT';
+    values[':location'] = `En route to ${clinic}`;
+    type = 'VET_TRANSPORT_STARTED';
+    update = 'SET #status = :transit, currentLocation = :location, updatedAt = :now, version = :next';
+    extra = { destination: clinic, notes: input.notes ?? '' };
   } else if (input.kind === 'VET_DROPOFF' || input.kind === 'VET_ASSESSED') {
     if (actorUserId !== animal.currentCustodianUserId) {
       throw new AnimalConflict('Only the responsible rescuer or custodian can record a vet milestone.');
