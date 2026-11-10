@@ -17,8 +17,18 @@ const terminal = new Set(['RELEASED', 'EUTHANISED', 'DECEASED']);
 export async function completeRescueIfAllAnimalsFinal(
   rescueId: string, organisationId: string, actorUserId: string
 ): Promise<boolean> {
-  const animals = await listRescueAnimals(rescueId, organisationId);
-  if (!animals.length || animals.some(animal => !terminal.has(animal.status))) return false;
+  const indexed = await listRescueAnimals(rescueId, organisationId);
+  if (!indexed.length) return false;
+  // GSI queries are eventually consistent. Resolve each permanent animal
+  // directly with consistent reads before deciding whether the case can close.
+  const animals = await Promise.all(indexed.map(async animal => {
+    const current = await db.send(new GetCommand({
+      TableName: table, Key: { pk: `ANIMAL#${animal.id}`, sk: 'META' }, ConsistentRead: true
+    }));
+    return current.Item;
+  }));
+  if (animals.some(animal => !animal || animal.organisationId !== organisationId ||
+      !terminal.has(String(animal.status)))) return false;
   const meta = await db.send(new GetCommand({
     TableName: table, Key: { pk: `RESCUE#${rescueId}`, sk: 'META' }, ConsistentRead: true
   }));
