@@ -242,6 +242,11 @@ export default function AnimalCare({ rescue, userId, onBack, onUnclaim }: Props)
               <Text style={styles.muted}>{new Date(event.occurredAt || event.createdAt).toLocaleString()}</Text>
               {event.type === 'PHONE_UPDATE' && event.callerName ? <Text style={styles.muted}>Caller: {event.callerName} · {event.callerRole ?? 'Phone'}</Text> : null}
               {event.notes ? <Text style={styles.body}>{event.notes}</Text> : null}
+              {event.type === 'PHONE_UPDATE' && event.callbackPermitted && event.callbackPhone ? (
+                <Pressable accessibilityRole="button" onPress={() => void Linking.openURL('tel:' + event.callbackPhone)}>
+                  <Text style={styles.link}>Call consenting caller: {event.callbackPhone}</Text>
+                </Pressable>
+              ) : null}
               {event.transportRescueId ? <Text style={styles.muted}>A transport job was offered to volunteers for this animal.</Text> : null}
               {event.outcome ? <Text style={styles.body}>Outcome: {event.outcome}</Text> : null}
             </View>
