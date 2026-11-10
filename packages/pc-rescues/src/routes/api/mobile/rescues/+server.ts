@@ -29,7 +29,9 @@ export const GET: RequestHandler = async ({ locals }) => {
         if (rescue.assignedUserId === user.id) return true;
         // Visibility is qualification-based, not availability-based. OFF-duty members may browse the map.
         if (rescue.status !== 'PENDING' || !user.enabled || user.status !== 'ACTIVE') return false;
-        if (!user.roles.includes('RESCUER')) return false;
+        // Org admins can also rescue when explicitly assigned a qualified dispatch team.
+        // No admin role alone bypasses the capability and organisation filters.
+        if (!user.roles.some((role) => role === 'RESCUER' || role === 'ORG_ADMIN')) return false;
 		const capability = classifyDispatchCapability(rescue.type, rescue.breed ?? '');
 		return memberCanReceiveCapability(user.teamIds, membership, capability);
 	});
