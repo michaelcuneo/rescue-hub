@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import WebView, { type WebViewMessageEvent } from 'react-native-webview';
 import { getMapConfiguration, type Rescue } from './api';
 
@@ -23,7 +23,7 @@ if (!window.mapboxgl) { send({type:'error', message:'Mapbox could not load.'}); 
 mapboxgl.accessToken = ${token};
 const map = new mapboxgl.Map({container:'map',style:${style},center:[151.7,-32.93],zoom:9,attributionControl:false});
 map.addControl(new mapboxgl.NavigationControl({showCompass:false}), 'top-right');
-const markers = new Map();
+const markers = new window.Map();
 let records = [];
 function display(items){
   records = items.filter(x => Number.isFinite(x.latitude) && Number.isFinite(x.longitude) && Math.abs(x.latitude)<=90 && Math.abs(x.longitude)<=180);
