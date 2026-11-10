@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  AppState,
   FlatList,
   Pressable,
   SafeAreaView,
@@ -55,6 +56,52 @@ export default function App() {
       setLoading(false);
     })();
   }, []);
+
+  // Poll the authenticated GraphQL-backed rescue feed while the app is foregrounded.
+  // Do not wait for a user to tap Refresh; avoid overlapping requests on slow networks.
+  useEffect(() => {
+    if (!session?.user.id) return;
+    const userId = session.user.id;
+    let closed = false;
+    let inFlight = false;
+    let foreground = AppState.currentState === 'active';
+
+    const sync = async () => {
+      if (closed || !foreground || inFlight) return;
+      inFlight = true;
+      try {
+        const [rescueResult, availabilityResult] = await Promise.all([
+          getRescues(), getAvailability()
+        ]);
+        if (closed) return;
+        setRescues(rescueResult.items);
+        setSelectedMapRescue(current =>
+          current ? rescueResult.items.find(rescue => rescue.id === current.id) ?? null : null);
+        setPolicy(availabilityResult.policy);
+        setSession(current => current?.user.id === userId
+          ? { ...current, user: { ...current.user, availabilityStatus: availabilityResult.status,
+              availabilityPolicy: availabilityResult.policy } }
+          : current);
+        setError('');
+      } catch (e) {
+        if (!closed) setError(e instanceof Error ? e.message : 'Live rescue updates unavailable.');
+      } finally {
+        inFlight = false;
+      }
+    };
+
+    void sync();
+    const interval = setInterval(() => { void sync(); }, 10000);
+    const subscription = AppState.addEventListener('change', state => {
+      foreground = state === 'active';
+      if (foreground) void sync();
+    });
+    return () => {
+      closed = true;
+      clearInterval(interval);
+      subscription.remove();
+    };
+  }, [session?.user.id]);
 
   const teamNames = useMemo(() => {
     if (!session) return [];
@@ -157,9 +204,6 @@ export default function App() {
           <Text style={styles.kicker}>RESCUE HUB</Text>
           <Text style={styles.context} numberOfLines={1}>{teamNames.join(' · ') || session.user.name}</Text>
         </View>
-        <Pressable style={styles.headerAction} onPress={refresh} accessibilityRole="button" accessibilityLabel="Refresh rescues">
-          <Text style={styles.headerActionText}>Refresh</Text>
-        </Pressable>
         <Pressable style={styles.headerAction} onPress={() => setView('settings')} accessibilityRole="button"
           accessibilityLabel="Open settings"><Text style={styles.headerActionText}>Settings</Text></Pressable>
       </View>
