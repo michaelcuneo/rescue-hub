@@ -12,7 +12,7 @@ export type AnimalRecord = {
   id: string; rescueId: string; organisationId: string; species: string; description?: string;
   status: AnimalStatus; currentCustodianUserId?: string; currentLocation?: string;
   vetStage?: 'AWAITING_ASSESSMENT' | 'ASSESSED_AWAITING_TRANSPORT';
-  pendingTransferId?: string; activeTransportRescueId?: string; version: number; createdAt: string; updatedAt: string;
+  pendingTransferId?: string; activeTransportRescueId?: string; reservedCarerUserId?: string; version: number; createdAt: string; updatedAt: string;
 };
 export class AnimalConflict extends Error {}
 const key = (id: string) => ({ pk: `ANIMAL#${id}`, sk: 'META' });
