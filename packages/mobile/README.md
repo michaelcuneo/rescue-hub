@@ -24,6 +24,12 @@ EXPO_PUBLIC_MAPBOX_ACCESS_TOKEN=pk.your_existing_mapbox_token
 
 Use the same public Mapbox token as the web portal (from the root `.env`, if configured there). Expo substitutes `EXPO_PUBLIC_*` values when Metro bundles the app. Restart Expo with `npx expo start --clear` after changing this file. This HTTPS origin must be the **deployed backend containing the new mobile API routes**. Changes to server code also require `npx sst deploy --stage demo` from the repository root before the deployed iPhone app can use them.
 
+## Map pins and your location
+
+The map now uses desktop-style circular animal initials, coloured by rescue capability group (e.g. reptiles green, macropods terracotta, birds blue, possums/gliders purple). A small status dot indicates pending versus assigned, without overriding animal colours. The legend lists only animal groups currently visible on the map. Rescue pins are still supplied by the authenticated server, filtered to your organisation and eligible rescue teams.
+
+Tap **Locate me** to request foreground location permission and display a blue device-position dot. No background location permission or location uploading is needed. On SDK 58, `expo-location` is installed at the Expo-compatible version. After pulling these changes run `npm install` at the repository root so the new dependency is present before starting Expo.
+
 ## Mapbox
 
 Uses the **existing public Mapbox token** provided to Expo as `EXPO_PUBLIC_MAPBOX_ACCESS_TOKEN`, and the custom Mapbox style from the SvelteKit dashboard. The app does not request its token from a backend API. The mobile map renders with Mapbox GL JS in an Expo Go-compatible `react-native-webview` (SDK 58 recommends version 14.0.1), so a custom development build is **not needed for this map**.
