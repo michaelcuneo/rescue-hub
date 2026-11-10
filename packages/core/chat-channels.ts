@@ -91,8 +91,9 @@ export function relatedAnimalChannel(species: string, teams: ChatTeam[]) {
     /possum|glider/.test(lower) ? 'POSSUM_GLIDER' :
     /wombat/.test(lower) ? 'WOMBAT' :
     /bat|flying fox/.test(lower) ? 'BAT' : '';
-  const wanted = { REPTILE: 'reptiles', RAPTOR: 'raptors', BIRD: 'birds',
+  const candidates: Record<string, string> = { REPTILE: 'reptiles', RAPTOR: 'raptors', BIRD: 'birds',
     MACROPOD: 'macropods', POSSUM_GLIDER: 'possums-gliders',
-    WOMBAT: 'wombats', BAT: 'bats-flying-foxes' }[capability] ?? 'qa';
+    WOMBAT: 'wombats', BAT: 'bats-flying-foxes' };
+  const wanted = candidates[capability] ?? 'qa';
   return buildChatChannels(teams).some(channel => channel.id === wanted) ? wanted : 'qa';
 }
