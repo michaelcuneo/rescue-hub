@@ -19,7 +19,19 @@ export const GET: RequestHandler = async ({ locals, params, cookies }) => {
   if (rescue.assignedUserId !== user.id && !ownsAnimal && !user.roles.some((r) =>
     ['ORG_ADMIN', 'DISPATCHER', 'CARER', 'PLATFORM_ADMIN', 'AUTHORITY_ADMIN'].includes(r)
   )) return json({ error: 'Access denied.' }, { status: 403 });
-  return json({ items });
+  // Retain historical species/status access for the original claimant, but
+  // never leak a carer's private residential/workplace destination after handover.
+  const coordinator = user.roles.some(role =>
+    ['ORG_ADMIN', 'DISPATCHER', 'PLATFORM_ADMIN', 'AUTHORITY_ADMIN'].includes(role));
+  const visible = items.map(animal => {
+    const currentCustodian = animal.currentCustodianUserId === user.id;
+    const activeTransporter = rescue.transportAnimalId === animal.id &&
+      rescue.status === 'ASSIGNED' && rescue.assignedUserId === user.id;
+    if (coordinator || currentCustodian || activeTransporter || animal.reservedCarerUserId === user.id)
+      return animal;
+    return { ...animal, currentLocation: undefined, reservedCarerUserId: undefined };
+  });
+  return json({ items: visible });
 };
 export const POST: RequestHandler = async ({ locals, params, request }) => {
   const user = locals.user;

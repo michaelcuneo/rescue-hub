@@ -26,7 +26,7 @@ export async function claimRescue(rescueId: string, organisationId: string, user
             TableName: table,
             Key: { pk: `RESCUE#${rescueId}`, sk: 'META' },
             UpdateExpression: 'SET #status = :assigned, assignedUserId = :user, updatedAt = :now, gsi1pk = :statusKey',
-            ConditionExpression: 'organisationId = :org AND #status = :pending AND attribute_not_exists(assignedUserId) AND attribute_not_exists(pickedUpAt)',
+            ConditionExpression: 'organisationId = :org AND #status = :pending AND attribute_not_exists(assignedUserId) AND attribute_not_exists(pickedUpAt) AND attribute_not_exists(awaitingCarer)',
             ExpressionAttributeNames: { '#status': 'status' },
             ExpressionAttributeValues: {
               ':org': organisationId, ':pending': 'PENDING', ':assigned': 'ASSIGNED',

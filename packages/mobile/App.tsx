@@ -35,6 +35,7 @@ import AnimalCare from './src/AnimalCare';
 import AvailabilitySettings from './src/AvailabilitySettings';
 import RescueMap from './src/RescueMap';
 import PublicReporter from './src/PublicReporter';
+import CarerOffers from './src/CarerOffers';
 import { subscribeRescueChanges } from '../core/realtime-client';
 import { shouldShowRescuePin } from '../core/case-map-visibility';
 
@@ -54,7 +55,7 @@ export default function App() {
   const [socialProviders, setSocialProviders] = useState<SocialProvider[]>([]);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
-  const [view, setView] = useState<'map' | 'list' | 'settings'>('map');
+  const [view, setView] = useState<'map' | 'list' | 'settings' | 'care'>('map');
   const [policy, setPolicy] = useState<AvailabilityPolicy | null>(null);
   const [pushStatus, setPushStatus] = useState<PushRegistration | null>(null);
   const [feed, setFeed] = useState<RescueFeedDiagnostics | null>(null);
@@ -421,7 +422,12 @@ export default function App() {
     }}
   /></SafeAreaView>;
 
-  if (activeRescue) return <SafeAreaView style={styles.root}><AnimalCare
+  if (view === 'care' && session.user.roles?.includes('CARER')) return <SafeAreaView style={styles.root}>
+    <CarerOffers userId={session.user.id} onBack={() => { setView('map'); void refresh(); }}
+      onChanged={() => void refresh()} />
+  </SafeAreaView>;
+
+    if (activeRescue) return <SafeAreaView style={styles.root}><AnimalCare
     rescue={activeRescue}
     userId={session.user.id}
     onBack={() => { setActiveRescue(null); void refresh(); }}
@@ -453,6 +459,13 @@ export default function App() {
           accessibilityState={{selected:view==='list'}}>
           <Text style={[styles.viewText,view==='list' && styles.viewTextSelected]}>List ({rescues.length})</Text>
         </Pressable>
+        {session.user.roles?.includes('CARER') ? (
+          <Pressable style={[styles.viewButton,view==='care' && styles.viewSelected]}
+            onPress={() => setView('care')} accessibilityRole="button"
+            accessibilityState={{selected:view==='care'}}>
+            <Text style={[styles.viewText,view==='care' && styles.viewTextSelected]}>Care offers</Text>
+          </Pressable>
+        ) : null}
       </View>
 
       {error ? <Text style={styles.errorBanner}>{error}</Text> : null}

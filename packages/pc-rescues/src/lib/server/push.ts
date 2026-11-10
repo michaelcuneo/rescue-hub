@@ -9,6 +9,7 @@ import {
 	memberCanReceiveCapability
 } from './membership';
 import type { RescueHubUser } from './auth';
+import { canTransportForOrganisation } from '../../../../core/care-delivery';
 
 const db = DynamoDBDocumentClient.from(new DynamoDBClient({}), {
 	marshallOptions: { removeUndefinedValues: true }
@@ -106,7 +107,7 @@ export async function notifyEligibleRescuers(input: {
 		user.enabled &&
 		user.status === 'ACTIVE' &&
 		user.availabilityStatus === 'AVAILABLE' &&
-		memberCanReceiveCapability(user.teamIds, config, capability)
+		(input.breed === 'Transport' ? canTransportForOrganisation(user) : memberCanReceiveCapability(user.teamIds, config, capability))
 	);
 
 	const tokens = [...new Set((await Promise.all(eligible.map((user) => pushTokensForUser(user.id)))).flat())];

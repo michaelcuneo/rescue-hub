@@ -8,6 +8,7 @@ import {
   memberCanReceiveCapability
 } from '$lib/server/membership';
 import type { RequestHandler } from './$types';
+import { canTransportForOrganisation } from '../../../../../../core/care-delivery';
 
 /**
  * An OFF-duty member can still browse the open rescues their assigned team
@@ -48,18 +49,18 @@ export const GET: RequestHandler = async ({ locals }) => {
   }
 
   const inOrganisation = rescues.filter((rescue) => rescue.organisationId === user.organisationId);
-  const pending = inOrganisation.filter((rescue) => rescue.status === 'PENDING' && !rescue.assignedUserId);
+  const pending = inOrganisation.filter((rescue) => rescue.status === 'PENDING' && !rescue.assignedUserId && !rescue.awaitingCarer);
   const permittedRole = user.roles.some((role) =>
     ['RESCUER', 'CARER', 'ORG_ADMIN', 'DISPATCHER'].includes(role)
   );
   const qualified = pending.filter((rescue) =>
-    memberCanReceiveCapability(
+    (rescue.transportAnimalId ? canTransportForOrganisation(user) : memberCanReceiveCapability(
       user.teamIds,
       membership,
       classifyDispatchCapability(rescue.type, rescue.breed ?? '')
-    )
+    ))
   );
-  const canBrowse = user.enabled && user.status === 'ACTIVE' && permittedRole;
+  const canBrowse = user.enabled && user.status === 'ACTIVE' && (permittedRole || user.membershipTypeId === 'transport-volunteer');
 
   // Current custody (not historical claimant) governs ongoing care visibility.
   // After every registered animal has been accepted by another custodian,
@@ -104,10 +105,10 @@ export const GET: RequestHandler = async ({ locals }) => {
   const items = inOrganisation.filter(rescue =>
     activeOwned.has(rescue.id) ||
     custodianRescueIds.has(rescue.id) ||
-    (canBrowse && rescue.status === 'PENDING' && !rescue.assignedUserId &&
-      memberCanReceiveCapability(
+    (canBrowse && rescue.status === 'PENDING' && !rescue.assignedUserId && !rescue.awaitingCarer &&
+      (rescue.transportAnimalId ? canTransportForOrganisation(user) : memberCanReceiveCapability(
         user.teamIds, membership, classifyDispatchCapability(rescue.type, rescue.breed ?? '')
-      ))
+      )))
   ).map(rescue => ({
     ...rescue,
     custodyRole: custodianRescueIds.has(rescue.id) ? 'CUSTODIAN' : undefined,

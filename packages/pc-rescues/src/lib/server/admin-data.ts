@@ -71,6 +71,7 @@ export async function listAdminRescues(): Promise<Rescue[]> {
 		status: String(item.status) as Rescue['status'],
 		assignedUserId: item.assignedUserId ? String(item.assignedUserId) : null,
     pickedUpAt: item.pickedUpAt ? String(item.pickedUpAt) : null,
+    awaitingCarer: Boolean(item.awaitingCarer),
     transportAnimalId: item.transportAnimalId ? String(item.transportAnimalId) : null,
     transportSourceRescueId: item.transportSourceRescueId ? String(item.transportSourceRescueId) : null,
 		createdAt: String(item.createdAt),

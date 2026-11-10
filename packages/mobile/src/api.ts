@@ -52,6 +52,7 @@ export type Rescue = {
   assignedUserId?: string | null;
   pickedUpAt?: string | null;
   transportAnimalId?: string | null;
+  awaitingCarer?: boolean | null;
   transportSourceRescueId?: string | null;
   custodyRole?: 'CUSTODIAN';
   stageLabel?: string;
@@ -290,10 +291,44 @@ export async function unclaimRescue(id: string, reason = '') {
   });
 }
 
+export type CareOffer = {
+  animalId: string; organisationId: string; species: string; clinic: string;
+  transportRescueId: string; createdAt: string;
+};
+export type CareReservation = {
+  animalId: string; species: string; transportRescueId: string; claimedAt: string;
+};
+export type CareDeliveryDestination = {
+  mode: 'CURRENT_LOCATION' | 'WORKPLACE' | 'OTHER'; address: string;
+  latitude: number; longitude: number;
+};
+export async function getCareOffers() {
+  return request<{ items: CareOffer[]; mine: CareReservation[] }>('/api/mobile/care-offers');
+}
+export async function claimAvailableCare(animalId: string, destination: CareDeliveryDestination) {
+  return request<{ claim: { animalId: string; transportRescueId: string; reservedCarerUserId: string } }>(
+    `/api/mobile/animals/${encodeURIComponent(animalId)}/claim-care`, {
+      method: 'POST', body: JSON.stringify(destination)
+    }
+  );
+}
+export async function getCareDelivery(animalId: string) {
+  return request<{ destination: CareDeliveryDestination & { carerUserId: string } }>(
+    `/api/mobile/animals/${encodeURIComponent(animalId)}/delivery`
+  );
+}
+export async function changeCareDelivery(animalId: string, destination: CareDeliveryDestination) {
+  return request<{ updated: { animalId: string; updatedAt: string } }>(
+    `/api/mobile/animals/${encodeURIComponent(animalId)}/delivery`, {
+      method: 'PATCH', body: JSON.stringify(destination)
+    }
+  );
+}
 export type Animal = {
   id: string; rescueId: string; species: string; description?: string;
   status: 'IN_RESCUE' | 'IN_TRANSIT' | 'AT_VET' | 'IN_CARE' | 'RELEASED' | 'EUTHANISED' | 'DECEASED';
-  currentCustodianUserId?: string; currentLocation?: string; pendingTransferId?: string; activeTransportRescueId?: string;
+  currentCustodianUserId?: string; currentLocation?: string; pendingTransferId?: string; activeTransportRescueId?: string; reservedCarerUserId?: string;
+  pendingTransferToUserId?: string;
   vetStage?: 'AWAITING_ASSESSMENT' | 'ASSESSED_AWAITING_TRANSPORT';
   version?: number; createdAt: string; updatedAt: string;
 };

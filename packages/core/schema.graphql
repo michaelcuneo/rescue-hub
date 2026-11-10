@@ -39,6 +39,7 @@ type Rescue {
   status: RescueStatus!
   assignedUserId: ID
   pickedUpAt: AWSDateTime
+  awaitingCarer: Boolean
   transportAnimalId: ID
   transportSourceRescueId: ID
   createdAt: AWSDateTime!

@@ -27,7 +27,7 @@ A rescue response ending is **not** the same as an animal record ending. Droppin
 
 When an animal is registered and marked **At Vet**, dispatch may record a call saying that the animal is ready for collection. By selecting **offer transport** and a verified veterinary pickup address/coordinates, dispatch creates a separate pending transport rescue linked to the existing permanent animal, source incident and phone event. Qualified available volunteers receive the new offer and **claim it themselves**. Dispatch never assigns the responder. The pickup pin must be at the veterinary facility, not the initial injury scene.
 
-The new job does not move the animal or change its custodian when claimed. After the volunteer physically collects the animal and confirms pickup, the animal custody changes to the collecting volunteer in the same conditional database transaction; the transport pickup pin disappears. The volunteer then arranges an acknowledged handover to a carer. On successful handover, the linked transport job closes in the same transaction; an otherwise completed handover cancels an obsolete transport offer. Only one outstanding transport offer per animal is allowed. Volunteers can read linked history after claiming, but cannot register a duplicate animal for the transport job.
+The carer reservation and new transport job do not move the animal or change its current physical custodian when claimed. After the volunteer physically collects the animal and confirms pickup, the animal custody changes to the collecting volunteer in the same conditional database transaction; the transport pickup pin disappears. The volunteer then arranges an acknowledged handover to a carer. On successful handover, the linked transport job closes in the same transaction; an otherwise completed handover cancels an obsolete transport offer. Only one outstanding transport offer per animal is allowed. Volunteers can read linked history after claiming, but cannot register a duplicate animal for the transport job.
 
 Pre-registration telephone updates still need their own provisional intake/animal model: this implementation records permanent **animal-level** telephone updates only after animal registration. Do not claim that callbacks for unclaimed, unregistered sightings are supported by this form.
 
@@ -47,6 +47,24 @@ This is the canonical demonstration lifecycle:
 **Separation of concerns:** map visibility belongs to a particular job; current care status, custodian, outcome and chronological history belong to the permanent animal. Historical records, including phone-source attribution and custody transitions, remain stored in DynamoDB for organisation oversight and future NPWS reporting. A department-specific report template, data retention agreement and official submission format must be confirmed with NPWS before describing the export as compliant.
 
 **Multiple animals:** one incident may have many registered animals. One terminal outcome never closes a sibling still in care; the parent job closes only when every registered animal has a final disposition.
+
+## Carer self-claims with independent volunteer transport (11 November 2026)
+
+The person who **accepts responsibility for long-term care** and the person who **transports** an animal are two separate volunteers. A carer does not have to drive to the clinic, and no dispatcher assigns either person.
+
+When a vet reports that a registered animal at the clinic is ready for care, dispatch enters the permanent animal telephone update with a verified clinic pickup location and marks the animal as available. The system creates a care offer for active carers in the organisation and a linked pickup job held in `awaitingCarer` state. The transport job is not yet visible or claimable on operational maps.
+
+A carer opens **Care offers** on the Expo app, selects the animal, and chooses **Transport to me** with one of: current foreground GPS location, searched workplace address, or another searched address. The server conditionally writes the care reservation, animal audit event, and **private** delivery coordinates, removes the open care offer, and unlocks the pickup job. Two carers cannot both win a claim. Care reservation does not change physical custody at the vet.
+
+An available, authorised organisation volunteer can now self-claim the **transport** job, regardless of species-specific rescue team. This includes membership type `transport-volunteer`, as well as active rescuers and carers. Public reporters and unaffiliated members of the public cannot claim transport. Only the actual assigned transporter, nominated carer, and authorised organisation coordinators may view the carer's private delivery details. Pickup map pins contain only the **veterinary clinic** location, never a carer's home or workplace.
+
+The transporter confirms **physical collection** at the clinic, which records the animal's new custodian and hides the transport pickup pin. The transporter delivers it to the reserved carer and records a custody-transfer request. The carer acknowledges custody on physical receipt, and the same animal record then becomes `IN_CARE`. Its later release or final outcome remains attached to the original animal ID and preserved for NPWS historical reporting.
+
+The carer may explicitly refresh their current GPS delivery position **before pickup**, but the app does not continuously track them. After the animal has been physically collected, address changes require coordination rather than silent rerouting. The assigned transporter can refresh delivery instructions before departure.
+
+### Validation and limitations
+
+Tests cover delivery mode and GPS validation, role-independent transport eligibility, one-carer reservation policy, and map hiding while waiting for a carer. CI also checks mobile TypeScript, strict Svelte diagnostics and the production web bundle. Transactional AWS integration, physical-device GPS/map search, delivery handover, Expo push delivery, and NPWS reporting exports require live testing. Existing users need appropriate `CARER` role or `transport-volunteer` membership to see these flows.
 
 ## Claim release and active-worklist rules (10 November 2026)
 

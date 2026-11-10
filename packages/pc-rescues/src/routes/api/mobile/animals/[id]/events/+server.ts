@@ -27,6 +27,8 @@ export const POST: RequestHandler = async ({ locals, params, request }) => {
     }
     if (body.kind === 'TRANSFER') {
       if (animal.currentCustodianUserId !== user.id) return json({ error: 'Only the current custodian can request transfer.' }, { status: 403 });
+      if (animal.reservedCarerUserId && body.purpose !== 'TRANSPORT' && body.recipientUserId !== animal.reservedCarerUserId)
+        return json({ error: 'Care has already been reserved by another carer.' }, { status: 409 });
       if (typeof body.recipientUserId !== 'string' || !body.recipientUserId.trim()) return json({ error: 'Recipient is required.' }, { status: 400 });
       if (body.location !== undefined && (typeof body.location !== 'string' || body.location.length > 250)) return json({ error: 'Invalid location.' }, { status: 400 });
       const recipient = await getUserById(body.recipientUserId);

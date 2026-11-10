@@ -3,6 +3,7 @@ import { DynamoDBDocumentClient, GetCommand, QueryCommand, TransactWriteCommand,
 import { Resource } from 'sst';
 import { publishRescueChange } from './realtime';
 import { getRescue } from './graphql';
+import { transportCloseStatus } from '../../../../core/care-delivery';
 
 const db = DynamoDBDocumentClient.from(new DynamoDBClient({}), { marshallOptions: { removeUndefinedValues: true } });
 const table = Resource.RescueHubData.name;
@@ -12,7 +13,7 @@ export type AnimalRecord = {
   id: string; rescueId: string; organisationId: string; species: string; description?: string;
   status: AnimalStatus; currentCustodianUserId?: string; currentLocation?: string;
   vetStage?: 'AWAITING_ASSESSMENT' | 'ASSESSED_AWAITING_TRANSPORT';
-  pendingTransferId?: string; activeTransportRescueId?: string; version: number; createdAt: string; updatedAt: string;
+  pendingTransferId?: string; activeTransportRescueId?: string; reservedCarerUserId?: string; version: number; createdAt: string; updatedAt: string;
 };
 export class AnimalConflict extends Error {}
 const key = (id: string) => ({ pk: `ANIMAL#${id}`, sk: 'META' });
@@ -168,6 +169,8 @@ export async function changeAnimalState(animal: AnimalRecord, actorUserId: strin
   if (input.kind === 'TRANSFER') {
     if (animal.pendingTransferId) throw new AnimalConflict('A transfer is already pending.');
     if (!input.recipientUserId || input.recipientUserId === actorUserId || actorUserId !== animal.currentCustodianUserId) throw new AnimalConflict('Current custodian must nominate a different recipient.');
+    if (animal.reservedCarerUserId && input.purpose !== 'TRANSPORT' && input.recipientUserId !== animal.reservedCarerUserId)
+      throw new AnimalConflict('The receiving carer has already been reserved. Transfer care to that carer.');
     condition += ' AND currentCustodianUserId = :actor AND attribute_not_exists(pendingTransferId)';
     values[':actor'] = actorUserId;
     type = 'TRANSFER_REQUESTED';
@@ -178,10 +181,12 @@ export async function changeAnimalState(animal: AnimalRecord, actorUserId: strin
     if (!animal.pendingTransferId) throw new AnimalConflict('No transfer is pending.');
     const transfer = await getPendingAnimalTransfer(animal);
     if (!transfer || transfer.toUserId !== actorUserId) throw new AnimalConflict('Only the nominated recipient can accept custody.');
+    if (animal.reservedCarerUserId && transfer.purpose === 'CARE' && animal.reservedCarerUserId !== actorUserId)
+      throw new AnimalConflict('This animal was already reserved by another carer.');
     condition += ' AND pendingTransferId = :transferId';
     values[':transferId'] = animal.pendingTransferId;
     type = 'TRANSFER_ACCEPTED';
-    update = 'SET currentCustodianUserId = :user, currentLocation = :location, #status = :care, gsi1pk = :custodianKey, updatedAt = :now, version = :next REMOVE pendingTransferId, vetStage, activeTransportRescueId';
+    update = 'SET currentCustodianUserId = :user, currentLocation = :location, #status = :care, gsi1pk = :custodianKey, updatedAt = :now, version = :next REMOVE pendingTransferId, vetStage, activeTransportRescueId, reservedCarerUserId';
     values = { ...values, ':user': actorUserId, ':location': String(transfer.destination ?? ''), ':care': transfer.purpose === 'TRANSPORT' ? 'IN_TRANSIT' : 'IN_CARE', ':custodianKey': `CUSTODIAN#${animal.organisationId}#${actorUserId}` };
     extra = { transferId: animal.pendingTransferId, fromUserId: transfer.fromUserId, toUserId: actorUserId };
   } else if (input.kind === 'VET_TRANSPORT_STARTED') {
@@ -256,20 +261,22 @@ export async function changeAnimalState(animal: AnimalRecord, actorUserId: strin
         !['PENDING', 'ASSIGNED'].includes(pickup.status)) {
       throw new AnimalConflict('Linked transport request is no longer active. Refresh the record before accepting custody.');
     }
-    const isPickupResponder = pickup.status === 'ASSIGNED' && pickup.assignedUserId === actorUserId;
-    const endStatus = input.kind === 'ACCEPT_TRANSFER' && isPickupResponder ? 'COMPLETED' : 'CANCELLED';
+    // A carer, not the transporter, accepts custody. Complete the collected
+    // transport job upon actual receipt; an uncollected offer is cancelled.
+    const transportCollected = pickup.status === 'ASSIGNED' && !!pickup.pickedUpAt;
+    const endStatus = transportCloseStatus(input.kind, pickup.status, pickup.pickedUpAt);
     const jobEventId = crypto.randomUUID();
     writes.push({ Update: {
       TableName: table,
       Key: { pk: `RESCUE#${pickup.id}`, sk: 'META' },
       UpdateExpression: 'SET #status = :end, gsi1pk = :gsi, updatedAt = :now',
       ConditionExpression: '#status = :prior AND organisationId = :org AND transportAnimalId = :animal' +
-        (isPickupResponder ? ' AND assignedUserId = :actor' : ''),
+        (transportCollected ? ' AND attribute_exists(pickedUpAt) AND assignedUserId = :transporter' : ''),
       ExpressionAttributeNames: { '#status': 'status' },
       ExpressionAttributeValues: {
         ':end': endStatus, ':gsi': `STATUS#${endStatus}`, ':now': now,
         ':prior': pickup.status, ':org': animal.organisationId, ':animal': animal.id,
-        ...(isPickupResponder ? { ':actor': actorUserId } : {})
+        ...(transportCollected ? { ':transporter': pickup.assignedUserId } : {})
       }
     }}, { Put: {
       TableName: table,
