@@ -215,7 +215,16 @@ export default function App() {
     }}
   /></SafeAreaView>;
 
-  if (activeRescue) return <SafeAreaView style={styles.root}><AnimalCare rescue={activeRescue} userId={session.user.id} onBack={() => setActiveRescue(null)} /></SafeAreaView>;
+  if (activeRescue) return <SafeAreaView style={styles.root}><AnimalCare
+    rescue={activeRescue}
+    userId={session.user.id}
+    onBack={() => { setActiveRescue(null); void refresh(); }}
+    onUnclaim={() => {
+      setActiveRescue(null);
+      setSelectedMapRescue(null);
+      void refresh();
+    }}
+  /></SafeAreaView>;
 
   return (
     <SafeAreaView style={styles.root}>
@@ -276,7 +285,7 @@ export default function App() {
                 <Pressable style={styles.claimButton} onPress={() => setView('settings')} accessibilityRole="button">
                   <Text style={styles.primaryButtonText}>Change availability in Settings to claim</Text>
                 </Pressable>
-              ) : selectedMapRescue.assignedUserId === session.user.id ? (
+              ) : (selectedMapRescue.assignedUserId === session.user.id || selectedMapRescue.custodyRole === 'CUSTODIAN') ? (
                 <Pressable style={styles.claimButton} onPress={() => setActiveRescue(selectedMapRescue)}
                   accessibilityRole="button">
                   <Text style={styles.primaryButtonText}>Manage animal care</Text>
@@ -304,9 +313,9 @@ export default function App() {
                 <Pressable style={styles.claimButton} disabled={busy || !available} onPress={() => handleClaim(item.id)}>
                   <Text style={styles.primaryButtonText}>{busy ? 'Please wait…' : available ? 'Claim rescue' : 'Available in Settings to claim'}</Text>
                 </Pressable>
-              ) : item.assignedUserId === session.user.id ? (
+              ) : (item.assignedUserId === session.user.id || item.custodyRole === 'CUSTODIAN') ? (
                 <>
-                  <Text style={styles.mine}>Claimed by you · response in progress</Text>
+                  <Text style={styles.mine}>Responsible for this case · response or care in progress</Text>
                   <Pressable style={styles.claimButton} onPress={() => setActiveRescue(item)}>
                     <Text style={styles.primaryButtonText}>Manage animals and care history</Text>
                   </Pressable>
