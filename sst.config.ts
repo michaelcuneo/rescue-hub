@@ -18,6 +18,7 @@ export default $config({
   async run() {
     const { data } = await import("./packages/infra/data");
     const { api, graphql } = await import("./packages/infra/api");
+    const { realtime, realtimeLink } = await import("./packages/infra/realtime");
     const { mailFrom } = await import("./packages/infra/config");
     await import("./packages/infra/directory");
     await import("./packages/infra/demo");
@@ -32,7 +33,7 @@ export default $config({
           dns: sst.aws.dns(),
         },
       } : {}),
-      link: [graphql, data, mailFrom],
+      link: [graphql, realtimeLink, data, mailFrom],
       environment: {
         PUBLIC_MAPBOX_ACCESS_TOKEN: process.env.PUBLIC_MAPBOX_ACCESS_TOKEN ?? "",
       },
@@ -40,6 +41,10 @@ export default $config({
         {
           actions: ["ses:SendEmail"],
           resources: ["*"],
+        },
+        {
+          actions: ["appsync:GraphQL"],
+          resources: [realtime.arn.apply((arn) => `${arn}/types/Mutation/fields/publishChange`)],
         },
       ],
       dev: {
