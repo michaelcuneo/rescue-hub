@@ -3,7 +3,7 @@ import { saveUserAvailabilityPolicy } from '$lib/server/auth';
 import { defaultAvailabilityPolicy, effectiveAvailability, validateAvailabilityPolicy } from '$lib/server/availability';
 import type { RequestHandler } from './$types';
 
-function canManageRescuerFeatures(user: { organisationId?: string; enabled: boolean; status: string; roles: string[] } | null | undefined) {
+function canManageRescuerFeatures(user: { organisationId?: string; enabled: boolean; status: string; roles: string[] } | null | undefined): user is NonNullable<typeof user> {
   return Boolean(user?.organisationId && user.enabled && user.status === 'ACTIVE' &&
     user.roles.some(role => ['RESCUER', 'CARER', 'ORG_ADMIN', 'DISPATCHER'].includes(role)));
 }
