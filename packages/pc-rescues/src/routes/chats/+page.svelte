@@ -130,7 +130,7 @@
           </span>
           {#if channel.unread}<span class="dot" aria-label="Unread messages"></span>{/if}
         </button>
-      {:else if !loading}<p class="muted">No chats assigned to your membership.</p>{/each}
+      {:else}<p class="muted">No chats assigned to your membership.</p>{/each}
     </aside>
     <section class:hide-mobile={!selectedId} class="conversation" aria-label="Messages">
       {#if selectedId}
