@@ -70,7 +70,7 @@ export async function recordAnimalPhoneUpdate(
       TableName: table,
       Key: { pk: `ANIMAL#${animal.id}`, sk: 'META' },
       UpdateExpression: input.finalOutcome
-        ? 'SET #status = :outcome, version = :next, updatedAt = :now REMOVE activeTransportRescueId, vetStage'
+        ? 'SET #status = :outcome, version = :next, updatedAt = :now REMOVE activeTransportRescueId, vetStage, reservedCarerUserId'
         : input.requestTransport
           ? 'SET activeTransportRescueId = :transport, vetStage = :ready, version = :next, updatedAt = :now'
           : 'SET version = :next, updatedAt = :now',
@@ -144,10 +144,29 @@ export async function recordAnimalPhoneUpdate(
     }
   }
 
-  if (transportRescueId) {
+  // Cancel any outstanding care offer if a veterinary final outcome arrives.
+  if (input.finalOutcome && animal.activeTransportRescueId && !animal.reservedCarerUserId) {
+    writes.push({ Delete: {
+      TableName: table,
+      Key: { pk: `ORG#${animal.organisationId}#CARE_OFFERS`, sk: `ANIMAL#${animal.id}` }
+    }});
+  }
+    if (transportRescueId) {
     const original = await getRescue(animal.rescueId);
     if (!original || original.organisationId !== animal.organisationId)
       throw new AnimalPhoneConflict('The original rescue cannot be verified for this animal.');
+    writes.push({ Put: {
+      TableName: table,
+      Item: {
+        pk: `ORG#${animal.organisationId}#CARE_OFFERS`,
+        sk: `ANIMAL#${animal.id}`,
+        entity: 'available_animal_care',
+        organisationId: animal.organisationId, animalId: animal.id,
+        species: animal.species, clinic: input.pickupLocation!,
+        transportRescueId, createdAt: now
+      },
+      ConditionExpression: 'attribute_not_exists(pk)'
+    }});
     writes.push({ Put: {
       TableName: table,
       Item: {
@@ -157,7 +176,7 @@ export async function recordAnimalPhoneUpdate(
         injury: 'Transport pickup requested following veterinary telephone update',
         location: input.pickupLocation!,
         latitude: input.pickupLatitude!, longitude: input.pickupLongitude!,
-        status: 'PENDING', transportAnimalId: animal.id,
+        status: 'PENDING', awaitingCarer: true, transportAnimalId: animal.id,
         transportSourceRescueId: original.id,
         createdAt: now, updatedAt: now,
         gsi1pk: 'STATUS#PENDING', gsi1sk: `${now}#${transportRescueId}`,
