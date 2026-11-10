@@ -1,5 +1,7 @@
 # Rescue Lifecycle and Dispatch Workflow
 
+> **Authoritative clarification (10 November 2026):** Read [ANIMAL-LIFECYCLE.md](ANIMAL-LIFECYCLE.md) first. Eligible rescuers self-claim jobs; routine manual dispatch is not the operating model. An animal remains tracked through veterinary care, custody transfers and long-term rehabilitation until an explicit final outcome. Rescue response completion does not close the animal record. Older wording below is historical and must not override these requirements.
+
 ## Objective
 
 The primary workflow begins with a phone call and should produce an actionable rescue on the regional map in seconds.
@@ -67,7 +69,7 @@ The map pin is an operational object, not merely a visual marker. Selecting it s
 
 ## 5. Accept / assign
 
-A rescuer may claim a pending rescue, or a dispatcher may assign it.
+An eligible rescuer claims a pending rescue. Routine manual dispatcher assignment is not the operating model; authorised administrative intervention may be defined separately.
 
 The backend must arbitrate assignment so two rescuers cannot independently believe they have accepted the same rescue.
 
@@ -128,7 +130,7 @@ A completed rescue should not lose its earlier operational history.
 
 ## 8. Close
 
-A rescue can become:
+The initial rescue response can become:
 
 `COMPLETED`
 
@@ -136,7 +138,7 @@ or, for invalid/withdrawn work:
 
 `CANCELLED`
 
-Closing a rescue creates a final audit event.
+Closing the response creates a response audit event, but **does not close the animal record**. Animal care and custody tracking continue until an explicit final disposition.
 
 Records should remain available according to regulatory and organisational retention requirements.
 
