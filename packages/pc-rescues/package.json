@@ -19,7 +19,8 @@
     "@aws-sdk/client-dynamodb": "^3.1136.0",
     "@aws-sdk/lib-dynamodb": "^3.1136.0",
     "@aws-sdk/client-sesv2": "^3.1136.0",
-    "aws4fetch": "^1.0.20"
+    "aws4fetch": "^1.0.20",
+    "jose": "^6.1.0"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
