@@ -1,4 +1,5 @@
 import { json } from '@sveltejs/kit';
+import { getUserById } from '$lib/server/auth';
 import { getAnimal, recordAnimalEvent, changeAnimalState, AnimalConflict } from '$lib/server/animals';
 import type { RequestHandler } from './$types';
 
@@ -24,10 +25,13 @@ export const POST: RequestHandler = async ({ locals, params, request }) => {
       if (animal.currentCustodianUserId !== user.id) return json({ error: 'Only the current custodian can request transfer.' }, { status: 403 });
       if (typeof body.recipientUserId !== 'string' || !body.recipientUserId.trim()) return json({ error: 'Recipient is required.' }, { status: 400 });
       if (body.location !== undefined && (typeof body.location !== 'string' || body.location.length > 250)) return json({ error: 'Invalid location.' }, { status: 400 });
+      const recipient = await getUserById(body.recipientUserId);
+      if (!recipient || !recipient.enabled || recipient.status !== 'ACTIVE' || recipient.organisationId !== user.organisationId || !recipient.roles.some((r) => ['RESCUER', 'CARER'].includes(r))) return json({ error: 'Recipient must be an active rescuer or carer in this organisation.' }, { status: 400 });
       const updated = await changeAnimalState(animal, user.id, { kind: 'TRANSFER', recipientUserId: body.recipientUserId, location: body.location as string | undefined, notes });
       return json({ animal: updated });
     }
     if (body.kind === 'ACCEPT_TRANSFER') {
+      if (!user.roles.some((r) => ['RESCUER', 'CARER'].includes(r))) return json({ error: 'Recipient must be a rescuer or carer.' }, { status: 403 });
       return json({ animal: await changeAnimalState(animal, user.id, { kind: 'ACCEPT_TRANSFER' }) });
     }
     if (body.kind === 'OUTCOME') {
