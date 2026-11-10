@@ -130,6 +130,10 @@ export default function AnimalCare({ rescue, userId, onBack, onUnclaim }: Props)
           <Text style={styles.link}>Call consenting reporter: {reporterContact.contactPhone}</Text>
         </Pressable>
       ) : null}
+      {rescue.transportAnimalId ? <View style={styles.card}>
+        <Text style={styles.section}>Transport pickup job</Text>
+        <Text style={styles.muted}>This animal already has a permanent record. Claiming transport does not transfer custody. Confirm the physical pickup and arrange an acknowledged handover with the current custodian.</Text>
+      </View> : null}
       {error ? <Text style={styles.error}>{error}</Text> : null}
       {loading ? <ActivityIndicator /> : null}
 
@@ -170,7 +174,7 @@ export default function AnimalCare({ rescue, userId, onBack, onUnclaim }: Props)
               </Pressable>
             </View>
           ) : null}
-          {rescue.assignedUserId === userId && (
+          {rescue.assignedUserId === userId && !rescue.transportAnimalId && (
             <View style={styles.card}>
               <Text style={styles.section}>Register an animal</Text>
               <Text style={styles.muted}>Record each animal you collect separately. These details follow the animal through rescue, vet care and handovers.</Text>
