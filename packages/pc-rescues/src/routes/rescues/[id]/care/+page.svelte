@@ -83,12 +83,13 @@
     const result = await api(`/api/mobile/rescues/${data.rescue.id}/animals`);
     animals = result.items;
     if (selected) {
-      const detail = await api(`/api/mobile/animals/${selected.id}`);
+      const animalId = selected.id;
+      const detail = await api(`/api/mobile/animals/${animalId}`);
       selected = detail.animal;
       correctedSpecies = detail.animal.species;
       correctedDescription = detail.animal.description ?? '';
       events = detail.events;
-      const calls = await api(`/api/mobile/animals/${selected.id}/phone-updates`);
+      const calls = await api(`/api/mobile/animals/${animalId}/phone-updates`);
       phoneEvents = calls.items;
     }
   }
@@ -233,7 +234,7 @@
               <option value="CARER">Wildlife carer</option>
               <option value="OTHER">Other</option>
             </select></label>
-            <label>Information provided<textarea required maxlength="4000" bind:value={phoneNotes} placeholder="e.g. The vet says this animal is ready for collection; assessed and stable." /></label>
+            <label>Information provided<textarea required maxlength="4000" bind:value={phoneNotes} placeholder="e.g. The vet says this animal is ready for collection; assessed and stable."></textarea></label>
             <label class="inline-check"><input type="checkbox" bind:checked={callbackAllowed} /> Caller permits a callback</label>
             {#if callbackAllowed}<label>Callback number<input required type="tel" maxlength="25" bind:value={callbackNumber} /></label>{/if}
             {#if selected.status === 'AT_VET'}
