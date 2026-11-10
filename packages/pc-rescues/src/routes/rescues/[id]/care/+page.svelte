@@ -103,6 +103,12 @@
     <div><p class="eyebrow">RESCUE HUB · ANIMAL RECORDS &amp; PHONE UPDATES</p><h1>{data.rescue.type}</h1><p>{data.rescue.location || 'Location not recorded'} · Response: {data.rescue.status}</p></div>
     <span class="tag">{animals.length} animal{animals.length === 1 ? '' : 's'}</span>
   </header>
+  {#if data.rescue.transportAnimalId}
+    <p class="notice"><strong>Volunteer transport pickup</strong> · This is a separate, self-claimable transport job for an existing animal. Claiming this job does not transfer animal custody; confirm the physical pickup and arrange an acknowledged handover.</p>
+    {#if data.rescue.transportSourceRescueId}
+      <p><a href="/rescues/{data.rescue.transportSourceRescueId}/care">View original animal record and incident</a></p>
+    {/if}
+  {/if}
   {#if data.reporterContact?.allowMessages}
     <p><a href="/report/messages/{data.reporterContact.reportId}">Message the person who reported this rescue</a></p>
   {/if}
@@ -137,7 +143,7 @@
       {#if !animals.length}
         <p>No individual animals registered yet. The rescuer registers each collected animal. Phone notes about its veterinary care become available here once the animal has an individual record.</p>
       {/if}
-      {#if data.rescue.assignedUserId === data.userId}
+      {#if data.rescue.assignedUserId === data.userId && !data.rescue.transportAnimalId}
         <form onsubmit={(event) => { event.preventDefault(); void submit(async () => { await api(`/api/mobile/rescues/${data.rescue.id}/animals`, { species, description }); species = ''; description = ''; }); }}>
           <h3>Register animal</h3>
           <label>Species<input required maxlength="120" bind:value={species}/></label>
