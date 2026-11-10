@@ -53,6 +53,7 @@ function endpoint(path: string) {
   return `${API_URL}${path}`;
 }
 
+/** A JSON-only API client that reports outdated deployments without exposing raw HTML errors. */
 async function request<T>(path: string, init: RequestInit = {}, authenticated = true): Promise<T> {
   const token = authenticated ? await SecureStore.getItemAsync(TOKEN_KEY) : null;
   const response = await fetch(endpoint(path), {
@@ -63,9 +64,34 @@ async function request<T>(path: string, init: RequestInit = {}, authenticated = 
       ...(init.headers ?? {})
     }
   });
-  const payload = await response.json();
-  if (!response.ok) throw new Error(payload.error ?? `Request failed: ${response.status}`);
-  return payload as T;
+
+  // SvelteKit returns plain text for unsupported HTTP methods and some gateways
+  // return HTML for missing routes. Neither should become a JSON Parse error.
+  const contentType = response.headers.get('content-type') ?? '';
+  const body = await response.text();
+  let payload: unknown = null;
+  if (contentType.toLowerCase().includes('json') || /^[\\s]*[\\{\\[]/.test(body)) {
+    try { payload = JSON.parse(body); }
+    catch { /* A malformed response is handled below. */ }
+  }
+
+  const data = payload && typeof payload === 'object' && !Array.isArray(payload)
+    ? payload as Record<string, unknown>
+    : null;
+  const errorMessage = typeof data?.error === 'string' ? data.error : null;
+
+  if (!response.ok) {
+    if ((response.status === 404 || response.status === 405) &&
+        (path === '/api/mobile/availability' || path === '/api/mobile/map-config')) {
+      throw new Error('The connected Rescue Hub demo server does not yet support this feature. Deploy the latest demo backend.');
+    }
+    if (errorMessage) throw new Error(errorMessage);
+    throw new Error(`Rescue Hub request failed (${response.status}) for ${path}.`);
+  }
+  if (!data) {
+    throw new Error(`Rescue Hub returned a non-JSON response for ${path}. Check that the mobile app is connected to the current demo backend.`);
+  }
+  return data as T;
 }
 
 export async function login(email: string, password: string) {
