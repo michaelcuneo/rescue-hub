@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { KeyboardAwareScrollView, KeyboardAwareTextInput } from './KeyboardAware';
 import WebView, { type WebViewMessageEvent } from 'react-native-webview';
 import { getDeviceMapPosition } from './map-location';
 import { myPublicReports, submitPublicReport, type PublicWildlifeReport } from './api';
@@ -138,7 +139,7 @@ export default function PublicReporter({ onSignOut }: Props) {
         <Text style={styles.error}>Mapbox token not configured in the Expo environment.</Text>}
       {token.startsWith('pk.') && !ready && <View pointerEvents="none" style={styles.loading}><ActivityIndicator /></View>}
     </View>
-    <ScrollView style={styles.form} contentContainerStyle={styles.formContent} keyboardShouldPersistTaps="handled">
+    <KeyboardAwareScrollView style={styles.form} contentContainerStyle={styles.formContent} keyboardShouldPersistTaps="handled">
       {receipt ? <View style={styles.success}>
         <Text style={styles.bold}>Report received. Thank you.</Text>
         <Text style={styles.small}>Your report has been submitted for automatic geographic routing. Reference: {receipt}</Text>
@@ -153,10 +154,10 @@ export default function PublicReporter({ onSignOut }: Props) {
         {pin ? <Text style={styles.pinText}>Pin: {pin.latitude.toFixed(5)}, {pin.longitude.toFixed(5)}</Text> :
           <Text style={styles.pinText}>No location chosen yet</Text>}
         <Text style={styles.label}>What animal do you think it is?</Text>
-        <TextInput style={styles.input} value={animal} onChangeText={setAnimal} maxLength={120}
+        <KeyboardAwareTextInput style={styles.input} value={animal} onChangeText={setAnimal} maxLength={120}
           placeholder="e.g. Blue-tongue lizard" accessibilityLabel="Animal identification" />
         <Text style={styles.label}>What looks wrong?</Text>
-        <TextInput style={[styles.input,styles.notes]} value={condition} onChangeText={setCondition}
+        <KeyboardAwareTextInput style={[styles.input,styles.notes]} value={condition} onChangeText={setCondition}
           maxLength={2000} multiline textAlignVertical="top"
           placeholder="e.g. Injured leg beside the road" accessibilityLabel="Suspected injury or animal condition" />
         <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: allowMessages }}
@@ -167,7 +168,7 @@ export default function PublicReporter({ onSignOut }: Props) {
           onPress={() => setAllowPhoneContact(v => !v)}>
           <Text style={styles.label}>{allowPhoneContact ? '☑' : '☐'} Allow the rescuer to phone me</Text>
         </Pressable>
-        {allowPhoneContact ? <TextInput style={styles.input} keyboardType="phone-pad" value={contactPhone}
+        {allowPhoneContact ? <KeyboardAwareTextInput style={styles.input} keyboardType="phone-pad" value={contactPhone}
           onChangeText={setContactPhone} maxLength={20} placeholder="Your contact phone number" accessibilityLabel="Contact phone number" /> : null}
         {error ? <Text style={styles.error}>{error}</Text> : null}
         <Pressable accessibilityRole="button" style={styles.submit}
@@ -184,7 +185,7 @@ export default function PublicReporter({ onSignOut }: Props) {
           {report.allowMessages ? <Pressable accessibilityRole="button" onPress={() => setConversationId(report.id)}><Text style={styles.link}>Open messages</Text></Pressable> : null}
         </View>)}
       </View>
-    </ScrollView>
+    </KeyboardAwareScrollView>
   </View>;
 }
 
