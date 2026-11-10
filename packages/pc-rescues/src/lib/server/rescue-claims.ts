@@ -3,6 +3,7 @@ import { DynamoDBDocumentClient, TransactWriteCommand, GetCommand } from '@aws-s
 import { Resource } from 'sst';
 import type { Rescue } from './graphql';
 import { listRescueAnimals } from './animals';
+import { publishRescueChange } from './realtime';
 
 const db = DynamoDBDocumentClient.from(new DynamoDBClient({}), {
   marshallOptions: { removeUndefinedValues: true }
@@ -56,6 +57,7 @@ export async function claimRescue(rescueId: string, organisationId: string, user
     TableName: table, Key: { pk: `RESCUE#${rescueId}`, sk: 'META' }, ConsistentRead: true
   }));
   if (!result.Item) throw new Error('Claim saved but rescue could not be read.');
+  await publishRescueChange();
   return result.Item as Rescue;
 }
 
@@ -120,5 +122,6 @@ export async function unclaimRescue(
     ConsistentRead: true
   }));
   if (!result.Item) throw new Error('Claim was released but the rescue could not be loaded.');
+  await publishRescueChange();
   return result.Item as Rescue;
 }
