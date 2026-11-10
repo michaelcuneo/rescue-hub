@@ -18,6 +18,25 @@ export default function AvailabilitySettings({ onBack, onSave, onSignOut }: {
   useEffect(()=>{
     getAvailability().then(r=>setPolicy(r.policy)).catch(e=>setError(e instanceof Error?e.message:'Could not load settings.'));
   },[]);
+  // A manual override should take effect immediately; schedule edits remain saved explicitly.
+  async function changeMode(mode: AvailabilityMode) {
+    if (!policy || busy || mode === policy.mode) return;
+    setBusy(true);
+    setError('');
+    setMessage('');
+    try {
+      const saved = await saveAvailability({ ...policy, mode });
+      setPolicy(saved.policy);
+      onSave(saved.policy, saved.status);
+      setMessage(mode === 'SCHEDULE' ? 'Following your weekly schedule.' :
+        saved.status === 'AVAILABLE' ? 'You are available now.' : 'You are unavailable now.');
+    } catch(e) {
+      setError(e instanceof Error ? e.message : 'Unable to change availability.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   function updateDay(day: Weekday, change: Partial<AvailabilityPolicy['week'][Weekday]>) {
     setPolicy(p => p ? {...p,week:{...p.week,[day]:{...p.week[day],...change}}}:null);
     setMessage('');
@@ -53,20 +72,35 @@ export default function AvailabilitySettings({ onBack, onSave, onSignOut }: {
       </Pressable>
     </View>
     <Text style={styles.title}>Availability settings</Text>
-    <Text style={styles.subtitle}>Choose your regular rescue hours. ON and OFF override the weekly timetable immediately.</Text>
+    <Text style={styles.subtitle}>Set your weekly rescue hours, or temporarily override them.</Text>
   </View>;
   if(!policy) return <View style={styles.root}>{header}<View style={styles.center}>{error?<Text style={styles.error}>{error}</Text>:<ActivityIndicator />}</View></View>;
   return <ScrollView style={styles.root} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
     {header}
-    <Text style={styles.label}>OVERRIDE</Text>
+    <Text style={styles.label}>AVAILABILITY MODE</Text>
     <View style={styles.modes}>
-      {(['ON','OFF','SCHEDULE'] as AvailabilityMode[]).map(mode=><Pressable key={mode}
-        accessibilityRole="button" accessibilityState={{selected:policy.mode===mode}}
-        style={[styles.mode,policy.mode===mode&&styles.modeActive]}
-        onPress={()=>{setPolicy({...policy,mode});setMessage('');}}>
-        <Text style={[styles.modeText,policy.mode===mode&&styles.modeTextActive]}>{mode==='SCHEDULE'?'Follow schedule':mode}</Text>
-      </Pressable>)}
+      <Pressable accessibilityRole="button" disabled={busy}
+        accessibilityState={{selected:policy.mode==='SCHEDULE'}}
+        style={[styles.mode,policy.mode==='SCHEDULE'&&styles.modeActive]}
+        onPress={()=>void changeMode('SCHEDULE')}>
+        <Text style={[styles.modeText,policy.mode==='SCHEDULE'&&styles.modeTextActive]}>Follow schedule</Text>
+      </Pressable>
+      <Pressable accessibilityRole="button" disabled={busy}
+        accessibilityState={{selected:policy.mode!=='SCHEDULE'}}
+        style={[styles.mode,policy.mode!=='SCHEDULE'&&styles.modeActive]}
+        onPress={()=>void changeMode(policy.mode==='SCHEDULE' ? 'ON' : policy.mode)}>
+        <Text style={[styles.modeText,policy.mode!=='SCHEDULE'&&styles.modeTextActive]}>Override</Text>
+      </Pressable>
     </View>
+    {policy.mode!=='SCHEDULE' ? <View style={styles.override}>
+      <View style={styles.overrideDescription}>
+        <Text style={styles.overrideTitle}>{policy.mode==='ON' ? 'Available for rescues' : 'Unavailable for rescues'}</Text>
+        <Text style={styles.helpOverride}>Manually control rescue notifications until you return to your schedule.</Text>
+      </View>
+      <Switch value={policy.mode==='ON'} disabled={busy}
+        accessibilityLabel="Override availability on or off"
+        onValueChange={enabled=>void changeMode(enabled?'ON':'OFF')}/>
+    </View> : null}
     <Text style={styles.label}>TIME ZONE</Text>
     <TextInput autoCapitalize="none" autoCorrect={false} style={styles.field} value={policy.timezone}
       onChangeText={timezone=>setPolicy(p=>p?{...p,timezone}:p)}
@@ -112,7 +146,9 @@ const styles=StyleSheet.create({
  heading:{padding:20,gap:8},navigation:{flexDirection:'row',alignItems:'center',justifyContent:'space-between'},link:{color:'#24583f',fontSize:14,fontWeight:'800'},signOutText:{color:'#6c7972',fontSize:12,fontWeight:'700'},
  title:{fontSize:27,fontWeight:'800',color:'#17211d'},subtitle:{color:'#58695f',lineHeight:20},
  label:{marginHorizontal:18,marginTop:18,marginBottom:8,color:'#536b5d',fontWeight:'800',fontSize:11,letterSpacing:1.2},
- modes:{marginHorizontal:16,flexDirection:'row',gap:6},mode:{flex:1,paddingVertical:14,paddingHorizontal:6,backgroundColor:'#fff',borderRadius:11,alignItems:'center',borderWidth:1,borderColor:'#d9e1dc'},
+ modes:{marginHorizontal:16,flexDirection:'row',gap:8},mode:{flex:1,paddingVertical:15,paddingHorizontal:6,backgroundColor:'#fff',borderRadius:11,alignItems:'center',borderWidth:1,borderColor:'#d9e1dc'},
+ override:{marginHorizontal:16,marginTop:10,padding:15,backgroundColor:'#fff',borderWidth:1,borderColor:'#d9e1dc',borderRadius:13,flexDirection:'row',alignItems:'center',gap:12},
+ overrideDescription:{flex:1},overrideTitle:{color:'#173d2c',fontWeight:'800',fontSize:15},helpOverride:{fontSize:12,color:'#6c7972',lineHeight:18,marginTop:4},
  modeActive:{backgroundColor:'#173d2c',borderColor:'#173d2c'},modeText:{color:'#40594c',fontWeight:'800',fontSize:12},modeTextActive:{color:'#fff'},
  field:{marginHorizontal:16,backgroundColor:'#fff',borderWidth:1,borderColor:'#d9e1dc',borderRadius:10,padding:12,fontSize:15,color:'#17211d'},
  help:{marginHorizontal:18,marginTop:6,fontSize:12,color:'#6c7972',lineHeight:18},
