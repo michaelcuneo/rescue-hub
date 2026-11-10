@@ -38,6 +38,7 @@ type Rescue {
   injury: String
   status: RescueStatus!
   assignedUserId: ID
+  pickedUpAt: AWSDateTime
   transportAnimalId: ID
   transportSourceRescueId: ID
   createdAt: AWSDateTime!
