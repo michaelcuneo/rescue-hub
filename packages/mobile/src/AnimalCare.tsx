@@ -2,7 +2,7 @@ import ReporterConversation from './ReporterConversation';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import {
-  acceptAnimalTransfer, addAnimalNote, getAnimalHistory, getRescueAnimals,
+  acceptAnimalTransfer, addAnimalNote, getAnimalHistory, getRescueAnimals, confirmRescuePickup,
   recordAnimalOutcome, registerAnimal, requestAnimalTransfer, recordVetDropoff, recordVetAssessment, unclaimRescue,
   correctAnimalIdentification, correctReportedRescue, getRescuerReporterContact, type Animal, type AnimalEvent, type Rescue
 } from './api';
@@ -14,6 +14,8 @@ const terminal = new Set<string>(outcomes);
 
 export default function AnimalCare({ rescue, userId, onBack, onUnclaim }: Props) {
   const [conversationOpen, setConversationOpen] = useState(false);
+  const [collected, setCollected] = useState(Boolean(rescue.pickedUpAt));
+  const [collectionNotes, setCollectionNotes] = useState('');
   const [reporterContact, setReporterContact] = useState<{ reportId: string; allowMessages: boolean; contactPhone: string | null } | null>(null);
   const [animals, setAnimals] = useState<Animal[]>([]);
   const [selected, setSelected] = useState<Animal | null>(null);
@@ -134,6 +136,30 @@ export default function AnimalCare({ rescue, userId, onBack, onUnclaim }: Props)
         <Text style={styles.section}>Transport pickup job</Text>
         <Text style={styles.muted}>This animal already has a permanent record. Claiming transport does not transfer custody. Confirm the physical pickup and arrange an acknowledged handover with the current custodian.</Text>
       </View> : null}
+      {rescue.status === 'ASSIGNED' && rescue.assignedUserId === userId ? (
+        <View style={styles.card}>
+          <Text style={styles.section}>Physical collection</Text>
+          {collected ? (
+            <Text style={styles.muted}>Animal collected. The job pin is now removed from the operational map; the animal's permanent record stays accessible.</Text>
+          ) : (
+            <>
+              <Text style={styles.muted}>Claiming the job did not collect the animal. Confirm only after physically picking up the animal. This removes its pin from the map, not its care record.</Text>
+              <TextInput style={[styles.input,styles.multilineInput]} value={collectionNotes} onChangeText={setCollectionNotes}
+                multiline maxLength={1000} placeholder="Collection notes (optional)" accessibilityLabel="Animal collection notes" />
+              <Pressable style={styles.button} disabled={busy} accessibilityRole="button"
+                onPress={() => Alert.alert('Confirm physical collection?', 'The animal will disappear from the operational map but remain in your care records.', [
+                  { text: 'Not yet', style: 'cancel' },
+                  { text: 'Confirm collected', onPress: () => void run(async () => {
+                    await confirmRescuePickup(rescue.id, collectionNotes);
+                    setCollected(true);
+                  }) }
+                ])}>
+                <Text style={styles.buttonText}>Animal picked up</Text>
+              </Pressable>
+            </>
+          )}
+        </View>
+      ) : null}
       {error ? <Text style={styles.error}>{error}</Text> : null}
       {loading ? <ActivityIndicator /> : null}
 
