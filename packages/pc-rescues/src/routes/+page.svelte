@@ -43,6 +43,7 @@
     let connected = false;
     let stop: (() => void) | null = null;
     let retryConfig: ReturnType<typeof setTimeout> | null = null;
+    let delayedRefresh: ReturnType<typeof setTimeout> | null = null;
     let inFlight = false;
     let pending = false;
 
@@ -70,7 +71,13 @@
         const config = await response.json() as RealtimeConfig;
         if (disposed) return;
         stop = subscribeRescueChanges(config, {
-          onChange: () => void reload(),
+          onChange: () => {
+            void reload();
+            // DynamoDB GSIs are eventually consistent. Reconcile shortly after
+            // invalidation so a just-created or transferred case is not missed.
+            if (delayedRefresh) clearTimeout(delayedRefresh);
+            delayedRefresh = setTimeout(() => void reload(), 1500);
+          },
           onConnected: () => void reload(),
           onStatus: online => { connected = online; }
         });
@@ -96,6 +103,7 @@
       disposed = true;
       clearInterval(fallback);
       if (retryConfig) clearTimeout(retryConfig);
+      if (delayedRefresh) clearTimeout(delayedRefresh);
       document.removeEventListener('visibilitychange', whenVisible);
       window.removeEventListener('online', whenOnline);
       stop?.();
