@@ -291,6 +291,37 @@ export async function unclaimRescue(id: string, reason = '') {
   });
 }
 
+export type ChatChannel = {
+  id: string; name: string; description: string;
+  audience: 'ADMIN' | 'ORG' | 'TEAM'; teamIds: string[];
+  latest?: { text: string; senderName: string; createdAt: string };
+  unread: boolean;
+};
+export type ChatMessage = {
+  id: string; channelId: string; senderUserId: string;
+  senderName: string; text: string; createdAt: string; animalId?: string;
+  kind?: 'MESSAGE' | 'SYSTEM';
+};
+export async function getChatChannels() {
+  return request<{ channels: ChatChannel[] }>('/api/mobile/chats');
+}
+export async function getChannelMessages(channelId: string, before?: string) {
+  return request<{ items: ChatMessage[]; nextCursor: string | null }>(
+    `/api/mobile/chats/${encodeURIComponent(channelId)}` +
+    (before ? `?before=${encodeURIComponent(before)}` : '')
+  );
+}
+export async function sendChannelMessage(channelId: string, text: string, animalId?: string) {
+  return request<{ message: ChatMessage }>(`/api/mobile/chats/${encodeURIComponent(channelId)}`, {
+    method: 'POST', body: JSON.stringify({ text, ...(animalId ? { animalId } : {}) })
+  });
+}
+export async function markChannelRead(channelId: string, messageId: string) {
+  return request<{ ok: true }>(`/api/mobile/chats/${encodeURIComponent(channelId)}`, {
+    method: 'PATCH', body: JSON.stringify({ messageId })
+  });
+}
+
 export type CareOffer = {
   animalId: string; organisationId: string; species: string; clinic: string;
   transportRescueId: string; createdAt: string;

@@ -36,6 +36,8 @@ import AvailabilitySettings from './src/AvailabilitySettings';
 import RescueMap from './src/RescueMap';
 import PublicReporter from './src/PublicReporter';
 import CarerOffers from './src/CarerOffers';
+import OrganisationChats from './src/OrganisationChats';
+import BottomTabs from './src/BottomTabs';
 import { subscribeRescueChanges } from '../core/realtime-client';
 import { shouldShowRescuePin } from '../core/case-map-visibility';
 
@@ -55,7 +57,7 @@ export default function App() {
   const [socialProviders, setSocialProviders] = useState<SocialProvider[]>([]);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
-  const [view, setView] = useState<'map' | 'list' | 'settings' | 'care'>('map');
+  const [view, setView] = useState<'map' | 'list' | 'settings' | 'care' | 'chats'>('map');
   const [policy, setPolicy] = useState<AvailabilityPolicy | null>(null);
   const [pushStatus, setPushStatus] = useState<PushRegistration | null>(null);
   const [feed, setFeed] = useState<RescueFeedDiagnostics | null>(null);
@@ -405,7 +407,19 @@ export default function App() {
     </SafeAreaView>;
   }
 
-  const available = session.user.availabilityStatus === 'AVAILABLE';
+  const activateTab = (tab: 'rescues' | 'chats' | 'account') => {
+    setActiveRescue(null);
+    if (tab === 'rescues') { setView('map'); void refresh(); }
+    else setView(tab === 'account' ? 'settings' : 'chats');
+  };
+  const bottom = (active: 'rescues' | 'chats' | 'account') =>
+    <BottomTabs active={active} onSelect={activateTab} />;
+
+    const available = session.user.availabilityStatus === 'AVAILABLE';
+  if (view === 'chats') return <SafeAreaView style={styles.root}>
+    <OrganisationChats userId={session.user.id} />
+    {bottom('chats')}
+  </SafeAreaView>;
 
   if (view === 'settings') return <SafeAreaView style={styles.root}><AvailabilitySettings
     onBack={() => { setView('map'); void refresh(); }}
@@ -420,11 +434,12 @@ export default function App() {
       setPolicy(savedPolicy);
       setSession({ ...session, user: { ...session.user, availabilityStatus: status, availabilityPolicy: savedPolicy } });
     }}
-  /></SafeAreaView>;
+  />{bottom('account')}</SafeAreaView>;
 
   if (view === 'care' && session.user.roles?.includes('CARER')) return <SafeAreaView style={styles.root}>
     <CarerOffers userId={session.user.id} onBack={() => { setView('map'); void refresh(); }}
       onChanged={() => void refresh()} />
+    {bottom('rescues')}
   </SafeAreaView>;
 
     if (activeRescue) return <SafeAreaView style={styles.root}><AnimalCare
@@ -436,7 +451,7 @@ export default function App() {
       setSelectedMapRescue(null);
       void refresh();
     }}
-  /></SafeAreaView>;
+  />{bottom('rescues')}</SafeAreaView>;
 
   return (
     <SafeAreaView style={styles.root}>
@@ -546,7 +561,7 @@ export default function App() {
           )}
         />
       )}
-
+      {bottom('rescues')}
     </SafeAreaView>
   );
 }

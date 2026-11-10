@@ -1,0 +1,189 @@
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, FlatList, KeyboardAvoidingView, Platform, Pressable,
+  SafeAreaView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { getChatChannels, getChannelMessages, markChannelRead,
+  sendChannelMessage, type ChatChannel, type ChatMessage } from './api';
+import { subscribeRescueChanges } from '../../core/realtime-client';
+import { getRealtimeConfig } from './api';
+
+type Props = { userId: string; initialChannelId?: string; onOpenAnimal?: (animalId: string) => void };
+export default function OrganisationChats({ userId, initialChannelId, onOpenAnimal }: Props) {
+  const [channels, setChannels] = useState<ChatChannel[]>([]);
+  const [selected, setSelected] = useState<string | null>(initialChannelId ?? null);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [cursor, setCursor] = useState<string | null>(null);
+  const [draft, setDraft] = useState('');
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [loadingOlder, setLoadingOlder] = useState(false);
+  const selectedRef = useRef<string | null>(selected);
+  const listRef = useRef<FlatList<ChatMessage>>(null);
+  useEffect(() => { selectedRef.current = selected; }, [selected]);
+
+  const refreshChannels = useCallback(async () => {
+    const result = await getChatChannels();
+    setChannels(result.channels);
+    if (selectedRef.current && !result.channels.some(channel => channel.id === selectedRef.current)) {
+      setSelected(null);
+    }
+  }, []);
+  const refreshMessages = useCallback(async (channelId: string) => {
+    const result = await getChannelMessages(channelId);
+    if (selectedRef.current !== channelId) return;
+    setMessages(result.items);
+    setCursor(result.nextCursor);
+    const latest = result.items[result.items.length - 1];
+    if (latest) void markChannelRead(channelId, latest.id).catch(() => {});
+  }, []);
+  useEffect(() => {
+    let active = true;
+    const init = async () => {
+      try { await refreshChannels(); } catch (e) {
+        if (active) setError(e instanceof Error ? e.message : 'Unable to load chat channels.');
+      } finally { if (active) setLoading(false); }
+    };
+    void init();
+    let stop: (() => void) | null = null;
+    void getRealtimeConfig().then(config => {
+      if (!active) return;
+      stop = subscribeRescueChanges(config, { onChange: () => {
+        void refreshChannels().catch(() => {});
+        if (selectedRef.current) void refreshMessages(selectedRef.current).catch(() => {});
+      } });
+    }).catch(() => {});
+    const poll = setInterval(() => {
+      if (!active) return;
+      void refreshChannels().catch(() => {});
+      if (selectedRef.current) void refreshMessages(selectedRef.current).catch(() => {});
+    }, 15000);
+    return () => { active = false; stop?.(); clearInterval(poll); };
+  }, [refreshChannels, refreshMessages]);
+
+  useEffect(() => {
+    if (!selected) return;
+    setMessages([]); setCursor(null); setError('');
+    void refreshMessages(selected).catch(e => setError(e instanceof Error ? e.message : 'Cannot read channel.'));
+  }, [selected, refreshMessages]);
+
+  const older = async () => {
+    if (!selected || !cursor || loadingOlder) return;
+    setLoadingOlder(true);
+    try {
+      const result = await getChannelMessages(selected, cursor);
+      if (selectedRef.current === selected) {
+        setMessages(previous => [...result.items.filter(item => !previous.some(other => other.id === item.id)), ...previous]);
+        setCursor(result.nextCursor);
+      }
+    } catch (e) { setError(e instanceof Error ? e.message : 'Could not load earlier messages.'); }
+    finally { setLoadingOlder(false); }
+  };
+  const send = async () => {
+    if (!selected || !draft.trim() || busy) return;
+    setBusy(true); setError('');
+    try {
+      await sendChannelMessage(selected, draft.trim());
+      setDraft('');
+      await Promise.all([refreshMessages(selected), refreshChannels()]);
+      requestAnimationFrame(() => listRef.current?.scrollToEnd({ animated: true }));
+    } catch (e) { setError(e instanceof Error ? e.message : 'Unable to send message.'); }
+    finally { setBusy(false); }
+  };
+  const activeChannel = channels.find(channel => channel.id === selected);
+
+  return <SafeAreaView style={styles.root}>
+    {!selected ? <>
+      <View style={styles.heading}><Text style={styles.title}>Chats</Text>
+        <Text style={styles.subtitle}>Your organisation and care groups</Text></View>
+      {loading ? <ActivityIndicator /> : null}
+      {error ? <Text style={styles.error} accessibilityRole="alert">{error}</Text> : null}
+      <FlatList data={channels} keyExtractor={item => item.id}
+        contentContainerStyle={styles.channelList}
+        ListEmptyComponent={!loading ? <Text style={styles.subtitle}>No channels available for your membership.</Text> : undefined}
+        renderItem={({ item }) => <Pressable accessibilityRole="button"
+          accessibilityLabel={item.name + (item.unread ? ', new messages' : '')}
+          style={styles.channel} onPress={() => setSelected(item.id)}>
+          <View style={styles.avatar}><Text style={styles.avatarText}>{item.name.slice(0, 1).toUpperCase()}</Text></View>
+          <View style={styles.channelBody}>
+            <Text style={styles.channelName}>{item.name}</Text>
+            <Text style={styles.preview} numberOfLines={1}>
+              {item.latest ? `${item.latest.senderName}: ${item.latest.text}` : item.description}
+            </Text>
+          </View>
+          {item.unread ? <View style={styles.unread} accessibilityLabel="Unread messages" /> : null}
+        </Pressable>} />
+    </> : <>
+      <View style={styles.toolbar}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Back to chats" onPress={() => setSelected(null)}>
+          <Text style={styles.back}>‹</Text>
+        </Pressable>
+        <View style={styles.channelBody}>
+          <Text style={styles.channelName}>{activeChannel?.name ?? 'Channel'}</Text>
+          <Text numberOfLines={1} style={styles.subtitle}>{activeChannel?.description ?? ''}</Text>
+        </View>
+      </View>
+      {error ? <Text style={styles.error} accessibilityRole="alert">{error}</Text> : null}
+      {cursor ? <Pressable accessibilityRole="button" onPress={() => void older()} disabled={loadingOlder}>
+        <Text style={styles.loadMore}>{loadingOlder ? 'Loading…' : 'View earlier messages'}</Text>
+      </Pressable> : null}
+      <FlatList ref={listRef} style={styles.messages} data={messages}
+        keyExtractor={item => item.id} contentContainerStyle={styles.messageList}
+        onContentSizeChange={() => { if (!cursor) listRef.current?.scrollToEnd({ animated: false }); }}
+        ListEmptyComponent={<Text style={styles.subtitle}>Start the conversation with your group.</Text>}
+        renderItem={({ item }) => {
+          const mine = item.senderUserId === userId;
+          return <View style={[styles.bubble, mine ? styles.myBubble : styles.otherBubble]}>
+            {!mine ? <Text style={styles.author}>{item.senderName}</Text> : null}
+            <Text style={mine ? styles.myText : styles.messageText}>{item.text}</Text>
+            <Text style={[styles.timestamp, mine && styles.myTime]}>{new Date(item.createdAt).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' })}</Text>
+            {item.animalId && onOpenAnimal ? <Pressable accessibilityRole="button"
+              onPress={() => onOpenAnimal(item.animalId!)}>
+              <Text style={styles.animalLink}>View linked animal</Text>
+            </Pressable> : null}
+          </View>;
+        }} />
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <View style={styles.composer}>
+          <TextInput style={styles.input} value={draft} onChangeText={setDraft}
+            multiline maxLength={2000} placeholder="Message your group…"
+            accessibilityLabel="Chat message" />
+          <Pressable accessibilityRole="button" accessibilityLabel="Send message"
+            disabled={busy || !draft.trim()} style={[styles.send, (busy || !draft.trim()) && styles.disabled]}
+            onPress={() => void send()}>
+            <Text style={styles.sendText}>Send</Text>
+          </Pressable>
+        </View>
+      </KeyboardAvoidingView>
+    </>}
+  </SafeAreaView>;
+}
+const styles=StyleSheet.create({
+  root:{flex:1,backgroundColor:'#f5f7f5'},heading:{padding:20,paddingBottom:10},
+  title:{fontSize:29,fontWeight:'800',color:'#173d2c'},
+  subtitle:{fontSize:12,color:'#718077',marginTop:3},
+  channelList:{paddingHorizontal:13,paddingBottom:30},
+  channel:{backgroundColor:'#fff',borderRadius:12,padding:13,flexDirection:'row',alignItems:'center',gap:12,marginBottom:7},
+  avatar:{width:45,height:45,backgroundColor:'#dbe9df',borderRadius:23,alignItems:'center',justifyContent:'center'},
+  avatarText:{fontSize:19,fontWeight:'800',color:'#24583f'},
+  channelBody:{flex:1,minWidth:0},
+  channelName:{fontSize:16,fontWeight:'700',color:'#172c20'},
+  preview:{color:'#69776f',fontSize:13,marginTop:4},
+  unread:{height:10,width:10,borderRadius:5,backgroundColor:'#236b4b'},
+  toolbar:{flexDirection:'row',alignItems:'center',gap:13,padding:12,backgroundColor:'#fff',borderBottomWidth:1,borderBottomColor:'#e0e8e2'},
+  back:{fontSize:34,color:'#24583f',paddingHorizontal:7},
+  messages:{flex:1},messageList:{padding:14,gap:10,flexGrow:1,justifyContent:'flex-end'},
+  bubble:{maxWidth:'85%',borderRadius:16,padding:12,gap:5},
+  myBubble:{backgroundColor:'#d8eede',alignSelf:'flex-end',borderBottomRightRadius:4},
+  otherBubble:{backgroundColor:'#fff',alignSelf:'flex-start',borderBottomLeftRadius:4},
+  author:{fontSize:12,fontWeight:'800',color:'#276245'},
+  messageText:{fontSize:15,color:'#22342a',lineHeight:21},
+  myText:{fontSize:15,color:'#1a3b2a',lineHeight:21},
+  timestamp:{fontSize:10,color:'#819087',alignSelf:'flex-end'},
+  myTime:{color:'#507862'},animalLink:{color:'#256b4c',fontWeight:'700'},
+  composer:{backgroundColor:'#fff',borderTopColor:'#dce6de',borderTopWidth:1,padding:10,flexDirection:'row',gap:8,alignItems:'flex-end'},
+  input:{flex:1,minHeight:42,maxHeight:115,borderRadius:22,backgroundColor:'#f1f5f2',paddingHorizontal:15,paddingVertical:10,fontSize:15},
+  send:{paddingVertical:12,paddingHorizontal:15,backgroundColor:'#173d2c',borderRadius:22},
+  sendText:{color:'#fff',fontWeight:'800'},disabled:{opacity:.5},
+  loadMore:{textAlign:'center',padding:12,color:'#236b4b',fontWeight:'700'},
+  error:{padding:9,color:'#a23f35'}
+});

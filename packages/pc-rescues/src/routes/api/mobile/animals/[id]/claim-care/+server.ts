@@ -4,6 +4,9 @@ import { validateCareDestination } from '../../../../../../../../core/care-deliv
 import type { RequestHandler } from './$types';
 import { getRescue } from '$lib/server/graphql';
 import { notifyEligibleRescuers } from '$lib/server/push';
+import { postChatMessage, requireChannel } from '$lib/server/organisation-chat';
+import { getOrganisationMembershipConfig } from '$lib/server/membership';
+import { relatedAnimalChannel } from '../../../../../../../../core/chat-channels';
 
 export const POST: RequestHandler = async ({ locals, params, request }) => {
   const user = locals.user;
@@ -29,7 +32,23 @@ export const POST: RequestHandler = async ({ locals, params, request }) => {
         injury: 'Animal ready for collection and delivery to its nominated carer.'
       }).catch(error => console.error('Carer reserved animal; transport push failed:', error));
     }
-    return json({ claim },
+    // Announce the offer in the relevant care group's chat without exposing
+    // the carer's GPS/address. Messages are coordination, NOT custody records.
+    if (transport) {
+      try {
+        const config = await getOrganisationMembershipConfig(user.organisationId);
+        const candidate = relatedAnimalChannel(transport.type, config.teams);
+        const channel = await requireChannel(user, candidate).then(() => candidate)
+          .catch(() => 'qa');
+        await postChatMessage(user, channel, {
+          text: `I've claimed ${transport.type} for care. Transport needed from ${transport.location ?? 'the veterinary clinic'} — transport to me is arranged in Rescue Hub. An available volunteer can claim the transport job.`,
+          animalId: claim.animalId
+        });
+      } catch (error) {
+        console.error('Care reservation saved but group chat announcement failed:', error);
+      }
+    }
+        return json({ claim },
       { status: 201, headers: { 'cache-control': 'no-store' } });
   } catch (error) {
     if (error instanceof CareReservationConflict) return json({ error: error.message }, { status: 409 });
