@@ -161,7 +161,7 @@ export default function CarerOffers({ onBack, onChanged }: Props) {
       <Text style={styles.heading}>{item.species}</Text>
       <Text style={styles.copy}>Status: {animals[item.animalId]?.status.replace(/_/g,' ') ?? 'Updating'}</Text>
       <Text style={styles.copy}>Transport arranged separately · Animal ID: {item.animalId}</Text>
-      {animals[item.animalId]?.pendingTransferId ? (
+      {animals[item.animalId]?.pendingTransferToUserId ? (
         <Pressable style={styles.button} disabled={busy} accessibilityRole="button"
           onPress={() => void accept(item.animalId)}>
           <Text style={styles.buttonText}>Accept animal custody after delivery</Text>
