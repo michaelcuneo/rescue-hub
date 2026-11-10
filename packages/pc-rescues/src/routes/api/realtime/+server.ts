@@ -6,8 +6,10 @@ import type { RequestHandler } from './$types';
 // The key can subscribe ONLY to opaque change signals. All rescue data is
 // retrieved through the user's existing authorised HTTP endpoints.
 export const GET: RequestHandler = async ({ locals, cookies }) => {
+  const centralTriage = locals.user?.roles.some(role =>
+    role === 'PLATFORM_ADMIN' || role === 'AUTHORITY_ADMIN');
   if (!locals.user?.enabled || locals.user.status !== 'ACTIVE' ||
-      (!locals.user.organisationId && !getHunterDemo(cookies, locals.user))) {
+      (!locals.user.organisationId && !getHunterDemo(cookies, locals.user) && !centralTriage)) {
     return json({ error: 'An active Rescue Hub session is required.' }, { status: 401 });
   }
   return json({
