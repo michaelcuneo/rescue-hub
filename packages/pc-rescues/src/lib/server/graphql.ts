@@ -98,7 +98,6 @@ export async function createRescue(input: {
   longitude: number;
   injury?: string;
   status?: RescueStatus;
-  assignedUserId?: string;
 }): Promise<Rescue> {
   const mutation = `mutation CreateRescue($input: CreateRescueInput!) {
     createRescue(input: $input) { ${RESCUE_FIELDS} }
