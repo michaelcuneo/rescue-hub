@@ -2,12 +2,10 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
-  ScrollView,
   Pressable,
   SafeAreaView,
   StatusBar,
   StyleSheet,
-  Switch,
   Text,
   TextInput,
   View
