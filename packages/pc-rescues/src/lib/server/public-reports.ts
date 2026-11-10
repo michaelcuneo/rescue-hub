@@ -22,6 +22,9 @@ export type PublicWildlifeReport = {
   updatedAt: string;
   organisationId?: string;
   rescueId?: string;
+  routingStatus?: 'MATCHED' | 'UNROUTED' | 'ROUTING_UNAVAILABLE';
+  routingReason?: string;
+  areaLabel?: string;
 };
 
 export function canReport(user: RescueHubUser | null | undefined): user is RescueHubUser {
@@ -36,7 +39,8 @@ export function canTriage(user: RescueHubUser | null | undefined): user is Rescu
 }
 
 export async function submitWildlifeReport(
-  user: RescueHubUser, input: { animal: string; condition: string; latitude: number; longitude: number }
+  user: RescueHubUser, input: { animal: string; condition: string; latitude: number; longitude: number },
+  routing: { status: 'MATCHED'; organisationId: string; areaLabel: string } | { status: 'UNROUTED' | 'ROUTING_UNAVAILABLE'; reason: string }
 ): Promise<PublicWildlifeReport> {
   if (!canReport(user)) throw new Error('A verified public reporter account is required.');
   const animal = input.animal.trim(), condition = input.condition.trim();
@@ -53,7 +57,11 @@ export async function submitWildlifeReport(
   const id = crypto.randomUUID();
   const report: PublicWildlifeReport = {
     id, reporterUserId: user.id, animal, condition,
-    latitude, longitude, status: 'SUBMITTED', createdAt: iso, updatedAt: iso
+    latitude, longitude, status: 'SUBMITTED', createdAt: iso, updatedAt: iso,
+    routingStatus: routing.status,
+    ...(routing.status === 'MATCHED'
+      ? { organisationId: routing.organisationId, areaLabel: routing.areaLabel }
+      : { routingReason: routing.reason })
   };
   try {
     // Submit the report and move its rate-limit watermark atomically, so a
