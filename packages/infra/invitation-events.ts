@@ -2,7 +2,7 @@ type EventBridgeEvent<T> = { detail: T };
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, GetCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
 import { Resource } from 'sst';
-import { canApplyDeliveryEvent, deliveryEventState, type InvitationEmailStatus } from '../../core/invitation-delivery';
+import { canApplyDeliveryEvent, deliveryEventState, type InvitationEmailStatus } from '../core/invitation-delivery';
 
 const db=DynamoDBDocumentClient.from(new DynamoDBClient({}));
 type SesDetail={eventType?:string;mail?:{destination?:string[];tags?:Record<string,string[]>;messageId?:string};bounce?:{bouncedRecipients?:Array<{emailAddress:string;diagnosticCode?:string}>};deliveryDelay?:{delayedRecipients?:Array<{emailAddress:string}>}};
