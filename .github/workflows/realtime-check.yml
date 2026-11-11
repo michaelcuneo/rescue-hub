@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - deploy/rescue-demo-domain
+      - fix/unified-workspace-navigation-and-theme-contrast
       - fix/member-scope-and-invitation-role-management
       - feature/one-click-organisation-invitations
       - feature/portal-role-documentation
@@ -58,6 +59,8 @@ jobs:
         run: node --experimental-strip-types --test packages/core/operating-area-routing.test.mjs
       - name: AppSync websocket protocol test
         run: node --experimental-strip-types --test packages/core/realtime-client.test.mjs
+      - name: Workspace visual consistency regression checks
+        run: node --test packages/core/workspace-appearance.test.mjs
       - name: TypeScript and warning-free Svelte checks
         run: npm run check
       - name: Production SvelteKit bundle (dummy SST links for CI only)

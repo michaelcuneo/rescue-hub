@@ -1,6 +1,5 @@
 <script lang="ts">
   import AdminOperatingAreas from '$lib/components/AdminOperatingAreas.svelte';
-  import ThemeSwitcher from '$lib/components/ThemeSwitcher.svelte';
   import type { PageData } from './$types';
 
   let { data, form }: { data: PageData; form?: any } = $props();
@@ -199,7 +198,6 @@
       </div>
 
       <div class="admin-actions">
-        <ThemeSwitcher compact />
         {#if canChooseOrganisation}
           <a class="demo-launch" href="/demo/hunter">Open Hunter workspace</a>
           <a class="demo-launch" href="/chats">Organisation chats</a>
@@ -675,36 +673,40 @@
   @media (max-width: 700px) { .people-head, .directory-toolbar { align-items: stretch; flex-direction: column; } .people-stats { grid-template-columns: repeat(2,minmax(0,1fr)); } .person-row { grid-template-columns: 38px minmax(0,1fr) 18px; gap: 10px; padding: 13px; } .person-role, .person-status { display: none; } .people-dialog { padding: 18px; } .form-pair, .capability-grid { grid-template-columns: 1fr; } }
 
   .admin-shell {
-    --ink: #17211d;
-    --muted: #66736c;
-    --line: #d9e1dc;
-    --surface: #ffffff;
-    --surface-soft: #f5f8f6;
-    --forest: #173d2c;
-    --forest-2: #24583f;
-    --lime: #c9f04a;
-    --danger: #b13c3c;
-    --amber: #966d10;
-    min-height: 100vh;
-    background:
-      radial-gradient(circle at 80% 0%, rgba(201, 240, 74, 0.10), transparent 30rem),
-      #edf1ee;
+    --ink: var(--rh-text);
+    --muted: var(--rh-muted);
+    --line: var(--rh-border);
+    --surface: var(--rh-surface);
+    --surface-soft: var(--rh-surface-soft);
+    --forest: var(--rh-primary);
+    --forest-2: var(--rh-accent);
+    --lime: var(--rh-accent-soft);
+    --danger: var(--rh-danger-text);
+    --amber: #b58a4d;
+    min-height: 100dvh;
+    padding: var(--rh-content-top) var(--rh-gutter) var(--rh-gutter);
+    background: var(--rh-background);
+    color: var(--rh-text);
     display: grid;
     grid-template-columns: 244px minmax(0, 1fr);
+    gap: var(--rh-gutter);
   }
 
   .sidebar {
-    min-height: 100vh;
+    height: calc(100dvh - var(--rh-content-top) - var(--rh-gutter));
+    min-height: 0;
     position: sticky;
-    top: 0;
+    top: var(--rh-content-top);
     align-self: start;
     display: flex;
     flex-direction: column;
-    padding: 24px 16px;
-    color:#eef7f0;
-    background:
-      linear-gradient(180deg, rgba(255, 255, 255, 0.035), transparent 28%),
-      var(--forest);
+    overflow-y: auto;
+    padding: 19px 14px;
+    border: 1px solid var(--rh-border);
+    border-radius: 16px;
+    background: var(--rh-surface);
+    color: var(--rh-text);
+    box-shadow: var(--rh-shadow);
   }
 
   .brand {
@@ -720,8 +722,8 @@
     width: 42px;
     height: 42px;
     border-radius: 12px;
-    background:var(--lime);
-    color:var(--rh-t3, #173d2c);
+    background:var(--rh-primary);
+    color:var(--rh-on-primary);
     font-weight: 900;
     letter-spacing: -0.05em;
   }
@@ -759,15 +761,15 @@
     border:0;
     border-radius: 10px;
     background:transparent;
-    color:var(--rh-t82, #bcd0c3);
+    color:var(--rh-muted);
     cursor: pointer;
     text-align: left;
   }
 
   nav button:hover,
   nav button.active {
-    background:rgba(255, 255, 255, 0.075);
-    color:white;
+    background:var(--rh-nav-active);
+    color:var(--rh-text);
   }
 
   .nav-icon {
@@ -776,15 +778,15 @@
     width: 29px;
     height: 29px;
     border-radius: 8px;
-    background:rgba(255, 255, 255, 0.08);
+    background:var(--rh-surface-soft);
     font-size: 12px;
     font-weight: 800;
     letter-spacing: 0.05em;
   }
 
   nav button.active .nav-icon {
-    background:var(--lime);
-    color:var(--forest);
+    background:var(--rh-accent-soft);
+    color:var(--rh-text);
   }
 
   .documentation-link {
@@ -793,23 +795,23 @@
     gap: 11px;
     padding: 11px 12px;
     margin-top: 12px;
-    color:#dceadd;
+    color:var(--rh-text);
     font-weight: 650;
     font-size: 13px;
     text-decoration: none;
-    border:1px solid rgba(255, 255, 255, .13);
+    border:1px solid var(--rh-border);
     border-radius: 9px;
   }
   .documentation-link:hover,
   .documentation-link:focus-visible {
-    background:rgba(255, 255, 255, .09);
-    color:#fff;
+    background:var(--rh-surface-soft);
+    color:var(--rh-text);
   }
 
   .sidebar-footer {
     margin-top: auto;
     padding: 18px 8px 2px;
-    border-top:1px solid rgba(255, 255, 255, 0.1);
+    border-top:1px solid var(--rh-border);
     display: grid;
     grid-template-columns: auto 1fr;
     gap: 10px;
@@ -841,16 +843,21 @@
 
   main {
     min-width: 0;
-    padding: 0 30px 44px;
+    padding: 0 0 32px;
   }
 
   .topbar {
-    min-height: 100px;
+    min-height: 92px;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 28px;
-    border-bottom:1px solid var(--line);
+    gap: 16px;
+    margin-bottom: 16px;
+    padding: 12px 20px;
+    border: 1px solid var(--rh-border);
+    border-radius: 14px;
+    background: var(--rh-surface);
+    box-shadow: var(--rh-shadow);
   }
 
   .topbar h1,
@@ -971,7 +978,7 @@
     min-height: 128px;
     border:1px solid var(--line);
     border-radius: 14px;
-    background:rgba(255, 255, 255, 0.74);
+    background:var(--rh-surface);
     box-shadow: 0 10px 30px rgba(29, 55, 42, 0.035);
   }
 
@@ -1011,7 +1018,7 @@
     padding: 21px;
     border:1px solid var(--line);
     border-radius: 16px;
-    background:rgba(255, 255, 255, 0.84);
+    background:var(--rh-surface);
     box-shadow: 0 12px 32px rgba(29, 55, 42, 0.04);
   }
 
@@ -1498,7 +1505,7 @@
   .people-feedback code {
     padding: 3px 6px;
     border-radius: 5px;
-    background:rgb(255 255 255 / 0.7);
+    background:var(--rh-surface);
   }
 
   .people-table {
@@ -1726,4 +1733,26 @@
   
   
   
+
+  .admin-shell .sidebar strong, .admin-shell .sidebar a { color: var(--rh-text); }
+  .admin-shell .sidebar .brand span, .sidebar-footer span { color: var(--rh-muted); }
+  .admin-shell .panel, .metrics article, .people-dialog {
+    background: var(--rh-surface);
+    border-color: var(--rh-border);
+    color: var(--rh-text);
+  }
+  .admin-shell input, .admin-shell select {
+    background: var(--rh-field);
+    color: var(--rh-text);
+    border-color: var(--rh-border);
+  }
+  @media(min-width:781px) and (max-width:1000px) {
+    .admin-shell { grid-template-columns: 210px minmax(0,1fr); }
+  }
+  @media(max-width:780px) {
+    .admin-shell { display:block; }
+    .sidebar { height:auto; max-height:none; overflow:visible; margin-bottom:12px; }
+    main { padding:0 0 28px; }
+    .topbar { padding:12px; }
+  }
 </style>

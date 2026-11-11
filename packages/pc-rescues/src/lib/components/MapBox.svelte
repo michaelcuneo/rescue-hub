@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onDestroy } from 'svelte';
+	import { resolvedTheme } from '$lib/theme';
 	import { env } from '$env/dynamic/public';
 	import { get } from 'svelte/store';
 	import { Map, Marker, controls } from '@beyonk/svelte-mapbox';
@@ -249,12 +250,13 @@
 
 <div class="map-shell">
 	<div class="map-surface" bind:this={mapSurface}>
+	{#key $resolvedTheme}
 	<Map
 		bind:this={ref}
 		bind:center
 		bind:zoom
 		accessToken={mapboxAccessToken}
-		style="mapbox://styles/michaelcuneo/ckzzecgy7005j14qvpzd53fgn"
+		style={$resolvedTheme === 'dark' ? 'mapbox://styles/mapbox/dark-v11' : 'mapbox://styles/michaelcuneo/ckzzecgy7005j14qvpzd53fgn'}
 		onready={handleMapReady}
 	>
 		<Marker lat={$coords[1]} lng={$coords[0]} label={user.name}>
@@ -298,6 +300,7 @@
 			</Marker>
 		{/if}
 	</Map>
+	{/key}
 	</div>
 
 	<aside class="area-panel" aria-label="NSW operating areas">
@@ -342,7 +345,7 @@
 		place-items: center;
 		width: 38px;
 		height: 38px;
-		border:4px solid var(--rh-t66, white);
+		border:4px solid var(--rh-surface);
 		border-radius: 50% 50% 50% 8px;
 		background:#173d2c;
 		color:white;
@@ -378,7 +381,7 @@
 		overflow: hidden;
 		border:1px solid rgb(27 62 45 / 12%);
 		border-radius: 16px;
-		background:var(--rh-t67, #dce6df);
+		background:var(--rh-map-background);
 		box-shadow: 0 16px 42px rgb(26 54 41 / 14%);
 		pointer-events: auto;
 	}
@@ -402,7 +405,7 @@
 		padding: 16px;
 		border:1px solid rgb(27 62 45 / 12%);
 		border-radius: 16px;
-		background:rgb(255 255 255 / 96%);
+		background:var(--rh-surface);
 		box-shadow: 0 16px 42px rgb(26 54 41 / 14%);
 		backdrop-filter: blur(14px);
 		pointer-events: auto;
@@ -528,7 +531,7 @@
 	/* The dispatch queue occupies the lower half of the compact layout. */
 	@media (max-width: 700px) {
 		.map-shell {
-			top: 78px;
+			top: var(--rh-content-top, 106px);
 			right: var(--dispatch-gutter, 10px);
 			bottom: calc(45vh + var(--dispatch-gutter, 10px) * 2);
 			left: var(--dispatch-gutter, 10px);
@@ -555,4 +558,20 @@
 			font-size: 8px;
 		}
 	}
+
+	/* A legible, neutral rail and properly themed Mapbox control surfaces. */
+	.area-panel, .map-surface { border: 1px solid var(--rh-border); box-shadow: var(--rh-shadow); }
+	.area-panel { background: var(--rh-surface); color: var(--rh-text); backdrop-filter: none; }
+	.area-panel-heading strong, .selected-area strong { color: var(--rh-text); font-size: 13px; }
+	.area-panel-heading small, .area-panel p, .area-panel .warning,
+	.legend span, .selected-area small, .selected-area span {
+		color: var(--rh-muted); font-size: 12px; line-height: 1.55;
+	}
+	.legend { gap: 10px; margin-top: 16px; padding-top: 14px; border-color: var(--rh-border); }
+	.selected-area { padding: 12px; margin-top: 16px; background: var(--rh-surface-soft); }
+	.map-surface :global(.mapboxgl-ctrl-group) {
+		background: var(--rh-surface); border: 1px solid var(--rh-border);
+	}
+	.map-surface :global(.mapboxgl-ctrl-group button) { border-color: var(--rh-border); }
+	.map-surface :global(.mapboxgl-ctrl-group button:hover) { background: var(--rh-raised); }
 </style>
