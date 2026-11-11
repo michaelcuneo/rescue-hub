@@ -1,6 +1,5 @@
 <script lang="ts">
   import { onMount, tick } from 'svelte';
-  import ThemeSwitcher from '$lib/components/ThemeSwitcher.svelte';
   import { subscribeRescueChanges, type RealtimeConfig } from '../../../../core/realtime-client';
   import type { PageData } from './$types';
   let { data }: { data: PageData } = $props();
@@ -134,12 +133,7 @@
 
 <svelte:head><title>Organisation Chats · Rescue Hub</title></svelte:head>
 <main class="page">
-  <header class="topbar">
-    <a href="/" class="back">← Rescues</a>
-    <div><h1>Chats</h1><p>Organisation conversations and care groups</p></div>
-    <ThemeSwitcher compact />
-    <span class="signed">{data.name}</span>
-  </header>
+  <div class="chat-heading"><h1>Chats</h1><p>Organisation conversations and care groups</p></div>
   {#if data.canSelectOrganisation}
     <div class="org-selector">
       <label for="chat-organisation">Viewing organisation chats</label>
@@ -198,15 +192,14 @@
 </main>
 <style>
   :global(body){margin:0;background:var(--rh-t44, #f1f5f2);color:var(--rh-t3, #173d2c);font-family:system-ui,sans-serif}
-  .page{max-width:1350px;padding:18px 24px 40px;margin:auto}
+  .page{max-width:1350px;padding:calc(var(--rh-content-top) + 16px) 24px 40px;margin:auto}
   .org-selector{display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin-bottom:16px}
   .org-selector label{font-weight:750;font-size:14px}
   .org-selector select{min-height:44px;min-width:220px;max-width:100%;border:1px solid var(--rh-t159, #b7c8bd);border-radius:10px;background:var(--rh-t6, white);color:var(--rh-t3, #173d2c);padding:8px 12px;font:inherit}
   .org-selector span{font-size:12px;color:var(--rh-t160, #718077)}
-  .topbar{display:flex;align-items:center;gap:25px;padding-bottom:16px}
-  .topbar h1{font-size:27px;margin:0}.topbar p{font-size:13px;color:var(--rh-t160, #718077);margin:3px 0}
-  .back{color:var(--rh-t161, #24583f);text-decoration:none;font-weight:750}
-  .signed{margin-left:auto;color:var(--rh-t160, #718077);font-size:12px}
+  .chat-heading{display:flex;flex-direction:column;gap:3px;margin-bottom:16px;}
+  .chat-heading h1{font-size:27px;margin:0;color:var(--rh-text)}
+  .chat-heading p{font-size:13px;margin:0;color:var(--rh-muted)}
   .chat-layout{display:grid;grid-template-columns:minmax(260px,350px) minmax(0,1fr);height:min(78vh,850px);min-height:530px;background:var(--rh-t6, white);border:1px solid var(--rh-t162, #dce6df);border-radius:18px;overflow:hidden}
   aside{overflow-y:auto;border-right:1px solid var(--rh-t163, #e2e9e4);padding:14px 9px}
   aside h2{font-size:14px;padding:4px 12px 10px;color:var(--rh-t164, #6d7a70)}
@@ -235,5 +228,5 @@
   .placeholder{margin:auto;padding:30px;text-align:center;color:var(--rh-t177, #687b6d)}
   .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
   .mobile-back{display:none}
-  @media(max-width:680px){.page{padding:6px}.topbar{padding:12px}.signed{display:none}.chat-layout{display:block;height:calc(100dvh - 115px);min-height:350px;border-radius:12px}.chat-layout aside,.chat-layout section{height:100%;border:0}.hide-mobile{display:none!important}.mobile-back{display:block;background:transparent;border:0;font-size:30px;color:var(--rh-t171, #286343);cursor:pointer}.messages{padding:12px}article{max-width:88%}}
+  @media(max-width:680px){.page{padding:calc(var(--rh-content-top) + 6px) 8px 8px}.chat-heading{margin-bottom:8px}.chat-layout{display:block;height:calc(100dvh - var(--rh-content-top) - 90px);min-height:350px;border-radius:12px}.chat-layout aside,.chat-layout section{height:100%;border:0}.hide-mobile{display:none!important}.mobile-back{display:block;background:transparent;border:0;font-size:30px;color:var(--rh-t171, #286343);cursor:pointer}.messages{padding:12px}article{max-width:88%}}
 </style>
