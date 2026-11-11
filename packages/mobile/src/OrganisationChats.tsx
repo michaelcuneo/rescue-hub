@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, FlatList, KeyboardAvoidingView, Platform, Pressable,
+import { ActivityIndicator, FlatList, Pressable,
   SafeAreaView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { KeyboardAwareView, KeyboardAwareTextInput } from './KeyboardAware';
 import { getChatChannels, getChannelMessages, markChannelRead,
   sendChannelMessage, type ChatChannel, type ChatMessage } from './api';
 import { subscribeRescueChanges } from '../../core/realtime-client';
@@ -91,7 +92,7 @@ export default function OrganisationChats({ userId, initialChannelId, onOpenAnim
   };
   const activeChannel = channels.find(channel => channel.id === selected);
 
-  return <SafeAreaView style={styles.root}>
+  return <SafeAreaView style={styles.root}><KeyboardAwareView>
     {!selected ? <>
       <View style={styles.heading}><Text style={styles.title}>Chats</Text>
         <Text style={styles.subtitle}>Your organisation and care groups</Text></View>
@@ -142,9 +143,9 @@ export default function OrganisationChats({ userId, initialChannelId, onOpenAnim
             </Pressable> : null}
           </View>;
         }} />
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <View>
         <View style={styles.composer}>
-          <TextInput style={styles.input} value={draft} onChangeText={setDraft}
+          <KeyboardAwareTextInput style={styles.input} value={draft} onChangeText={setDraft}
             multiline maxLength={2000} placeholder="Message your group…"
             accessibilityLabel="Chat message" />
           <Pressable accessibilityRole="button" accessibilityLabel="Send message"
@@ -153,9 +154,9 @@ export default function OrganisationChats({ userId, initialChannelId, onOpenAnim
             <Text style={styles.sendText}>Send</Text>
           </Pressable>
         </View>
-      </KeyboardAvoidingView>
+      </View>
     </>}
-  </SafeAreaView>;
+  </KeyboardAwareView></SafeAreaView>;
 }
 const styles=StyleSheet.create({
   root:{flex:1,backgroundColor:'#f5f7f5'},heading:{padding:20,paddingBottom:10},

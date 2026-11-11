@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { KeyboardAwareScrollView, KeyboardAwareTextInput, useKeyboardVisible } from './KeyboardAware';
 import WebView, { type WebViewMessageEvent } from 'react-native-webview';
 import { getDeviceMapPosition } from './map-location';
 import { myPublicReports, submitPublicReport, type PublicWildlifeReport } from './api';
@@ -56,6 +57,7 @@ export default function PublicReporter({ onSignOut }: Props) {
   const ref = useRef<WebView<{}>>(null);
   const source = useMemo(() => ({ html: mapHTML(), baseUrl: 'https://api.mapbox.com' }), []);
   const [pin, setPin] = useState<Pin | null>(null);
+  const keyboardVisible = useKeyboardVisible();
   const [animal, setAnimal] = useState('');
   const [condition, setCondition] = useState('');
   const [allowMessages, setAllowMessages] = useState(false);
@@ -131,14 +133,14 @@ export default function PublicReporter({ onSignOut }: Props) {
         <Text style={styles.small}>Sign out</Text>
       </Pressable>
     </View>
-    <View style={styles.map}>
+    <View style={[styles.map, keyboardVisible && styles.mapWhileTyping]}>
       {token.startsWith('pk.') ? <WebView<{}> ref={ref} source={source} geolocationEnabled onMessage={onMessage}
         originWhitelist={['https://*']} javaScriptEnabled domStorageEnabled
         onError={e => setError(e.nativeEvent.description)} /> :
         <Text style={styles.error}>Mapbox token not configured in the Expo environment.</Text>}
       {token.startsWith('pk.') && !ready && <View pointerEvents="none" style={styles.loading}><ActivityIndicator /></View>}
     </View>
-    <ScrollView style={styles.form} contentContainerStyle={styles.formContent} keyboardShouldPersistTaps="handled">
+    <KeyboardAwareScrollView style={styles.form} contentContainerStyle={styles.formContent} keyboardShouldPersistTaps="handled">
       {receipt ? <View style={styles.success}>
         <Text style={styles.bold}>Report received. Thank you.</Text>
         <Text style={styles.small}>Your report has been submitted for automatic geographic routing. Reference: {receipt}</Text>
@@ -153,10 +155,10 @@ export default function PublicReporter({ onSignOut }: Props) {
         {pin ? <Text style={styles.pinText}>Pin: {pin.latitude.toFixed(5)}, {pin.longitude.toFixed(5)}</Text> :
           <Text style={styles.pinText}>No location chosen yet</Text>}
         <Text style={styles.label}>What animal do you think it is?</Text>
-        <TextInput style={styles.input} value={animal} onChangeText={setAnimal} maxLength={120}
+        <KeyboardAwareTextInput style={styles.input} value={animal} onChangeText={setAnimal} maxLength={120}
           placeholder="e.g. Blue-tongue lizard" accessibilityLabel="Animal identification" />
         <Text style={styles.label}>What looks wrong?</Text>
-        <TextInput style={[styles.input,styles.notes]} value={condition} onChangeText={setCondition}
+        <KeyboardAwareTextInput style={[styles.input,styles.notes]} value={condition} onChangeText={setCondition}
           maxLength={2000} multiline textAlignVertical="top"
           placeholder="e.g. Injured leg beside the road" accessibilityLabel="Suspected injury or animal condition" />
         <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: allowMessages }}
@@ -167,7 +169,7 @@ export default function PublicReporter({ onSignOut }: Props) {
           onPress={() => setAllowPhoneContact(v => !v)}>
           <Text style={styles.label}>{allowPhoneContact ? '☑' : '☐'} Allow the rescuer to phone me</Text>
         </Pressable>
-        {allowPhoneContact ? <TextInput style={styles.input} keyboardType="phone-pad" value={contactPhone}
+        {allowPhoneContact ? <KeyboardAwareTextInput style={styles.input} keyboardType="phone-pad" value={contactPhone}
           onChangeText={setContactPhone} maxLength={20} placeholder="Your contact phone number" accessibilityLabel="Contact phone number" /> : null}
         {error ? <Text style={styles.error}>{error}</Text> : null}
         <Pressable accessibilityRole="button" style={styles.submit}
@@ -184,7 +186,7 @@ export default function PublicReporter({ onSignOut }: Props) {
           {report.allowMessages ? <Pressable accessibilityRole="button" onPress={() => setConversationId(report.id)}><Text style={styles.link}>Open messages</Text></Pressable> : null}
         </View>)}
       </View>
-    </ScrollView>
+    </KeyboardAwareScrollView>
   </View>;
 }
 
@@ -195,6 +197,7 @@ const styles = StyleSheet.create({
   heading:{fontSize:18,fontWeight:'800',color:'#173d2c'},
   signout:{padding:8},small:{color:'#5e7063',fontSize:12,lineHeight:18},
   map:{height:'45%',minHeight:230,backgroundColor:'#dce7df',position:'relative'},
+  mapWhileTyping:{height:0,minHeight:0,overflow:'hidden'},
   loading:{...StyleSheet.absoluteFill,alignItems:'center',justifyContent:'center'},
   form:{flex:1},formContent:{padding:18,gap:10,paddingBottom:36},
   label:{fontSize:14,color:'#173d2c',fontWeight:'800',marginTop:6},

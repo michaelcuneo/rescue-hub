@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { KeyboardAwareScrollView, KeyboardAwareTextInput } from './KeyboardAware';
 import { getDeviceMapPosition } from './map-location';
 import {
   acceptAnimalTransfer, claimAvailableCare, changeCareDelivery, getAnimalHistory, getCareOffers,
@@ -121,7 +122,7 @@ export default function CarerOffers({ userId, onBack, onChanged }: Props) {
     finally { setBusy(false); }
   };
 
-  return <ScrollView style={styles.root} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+  return <KeyboardAwareScrollView style={styles.root} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
     <Pressable accessibilityRole="button" onPress={onBack}><Text style={styles.link}>‹ Back to rescue map</Text></Pressable>
     <Text style={styles.title}>Animals needing a carer</Text>
     <Text style={styles.copy}>Claim the animal you can care for. Another volunteer can transport it to your workplace, a chosen address, or your current location. Claiming care does not claim the transport job.</Text>
@@ -153,7 +154,7 @@ export default function CarerOffers({ userId, onBack, onChanged }: Props) {
             <Text style={styles.buttonText}>Use my current location</Text>
           </Pressable>
         ) : <>
-          <TextInput style={styles.input} value={address} onChangeText={value => {
+          <KeyboardAwareTextInput style={styles.input} value={address} onChangeText={value => {
             setAddress(value); setCoords(null);
           }} placeholder={mode === 'WORKPLACE' ? 'Search your workplace address' : 'Search delivery address'}
             accessibilityLabel="Delivery address" />
@@ -195,7 +196,7 @@ export default function CarerOffers({ userId, onBack, onChanged }: Props) {
     <Pressable accessibilityRole="button" onPress={() => void refresh().catch(e=>setError(String(e)))}>
       <Text style={styles.link}>Refresh care offers</Text>
     </Pressable>
-  </ScrollView>;
+  </KeyboardAwareScrollView>;
 }
 const styles=StyleSheet.create({
   root:{flex:1,backgroundColor:'#edf1ee'},content:{padding:18,paddingBottom:55,gap:12},
