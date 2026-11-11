@@ -17,6 +17,7 @@ import type { Cookies } from '@sveltejs/kit';
 import { isValidReporterEmail, isValidReporterVerificationCode, normalizeReporterName } from '../../../../core/public-reporter-validation';
 import { INVITATION_TTL_SECONDS, INVITATION_RESEND_SECONDS, makeInvitationUrl, parseInvitationCredential, invitationNotExpired } from '../../../../core/invitation-links';
 import { getOrganisation } from './graphql';
+import { resolveInviteLookup, inviteLookupExplanation } from '../../../../core/invite-email-resolution';
 
 const scrypt = promisify(scryptCallback);
 const db = DynamoDBDocumentClient.from(new DynamoDBClient({}), {
@@ -132,7 +133,8 @@ function toUser(item: Record<string, unknown>): RescueHubUser {
 async function getUserRecord(userId: string) {
 	const result = await db.send(new GetCommand({
 		TableName: tableName,
-		Key: { pk: `USER#${userId}`, sk: 'PROFILE' }
+		Key: { pk: `USER#${userId}`, sk: 'PROFILE' },
+    ConsistentRead: true
 	}));
 	return result.Item ?? null;
 }
@@ -145,7 +147,8 @@ export async function getUserById(userId: string) {
 async function lookupUserIdByEmail(emailInput: string) {
 	const result = await db.send(new GetCommand({
 		TableName: tableName,
-		Key: { pk: `AUTH#EMAIL#${normalizeEmail(emailInput)}`, sk: 'USER' }
+		Key: { pk: `AUTH#EMAIL#${normalizeEmail(emailInput)}`, sk: 'USER' },
+    ConsistentRead: true
 	}));
 	return result.Item?.userId ? String(result.Item.userId) : null;
 }
@@ -548,13 +551,18 @@ export async function inviteUser(input: {
 	if (!organisationId) throw new Error('Choose an organisation.');
 	if (!roles.length) throw new Error('Choose at least one role.');
 
-	const existingId = await lookupUserIdByEmail(email);
-  if (existingId) {
-    const existing = await getUserById(existingId);
-    if (existing?.status === 'INVITED' && existing.organisationId === organisationId)
-      throw new Error('That email already has a pending invitation. Find the person under Invited and use Resend invitation or Correct email.');
-    throw new Error('That email is already linked to an account. Check People & access before inviting them again.');
+  const existingId = await lookupUserIdByEmail(email);
+  const existing = existingId ? await getUserById(existingId) : null;
+  const emailAction = resolveInviteLookup(Boolean(existingId), existing, organisationId);
+
+  if (emailAction === 'REUSE_INVITATION') {
+    const invitation = await sendOrganisationInvitation(existingId!);
+    return { user: await getUserById(existingId!), invitation };
   }
+  if (!['CREATE', 'RECLAIM_REMOVED', 'RECLAIM_ORPHAN'].includes(emailAction))
+    throw new Error(inviteLookupExplanation(emailAction));
+
+  const reclaim = Boolean(existingId && emailAction !== 'CREATE');
 	const userId = randomUUID();
 	const now = new Date().toISOString();
 
@@ -565,10 +573,24 @@ export async function inviteUser(input: {
 				Put: {
 					TableName: tableName,
 					Item: { pk: `AUTH#EMAIL#${email}`, sk: 'USER', entity: 'auth_lookup', userId },
-					ConditionExpression: 'attribute_not_exists(pk)'
+                    ConditionExpression: reclaim ? 'userId = :oldUserId' : 'attribute_not_exists(pk)',
+                    ...(reclaim ? { ExpressionAttributeValues: { ':oldUserId': existingId } } : {})
 				}
 			},
-			{
+            ...(reclaim ? [{
+              ConditionCheck: {
+                TableName: tableName,
+                Key: { pk: `USER#${existingId}`, sk: 'PROFILE' },
+                ConditionExpression: emailAction === 'RECLAIM_REMOVED'
+                  ? '#status = :removed AND enabled = :disabled AND email = :email'
+                  : 'attribute_not_exists(pk)',
+                ...(emailAction === 'RECLAIM_REMOVED' ? {
+                  ExpressionAttributeNames: { '#status':'status' },
+                  ExpressionAttributeValues: { ':removed':'REMOVED', ':disabled':false, ':email':email }
+                } : {})
+              }
+            }] : []),
+            {
 				Put: {
 					TableName: tableName,
 					Item: {
@@ -621,7 +643,7 @@ export async function inviteUser(input: {
 
   } catch (error) {
     if (error instanceof Error && error.name === 'TransactionCanceledException')
-      throw new Error('This email address is already registered or the invitation was created by another administrator. Refresh People & access and check Invited.');
+      throw new Error('This email was updated by another administrator. Refresh People & Access and try again.');
     throw error;
   }
 
@@ -1068,6 +1090,8 @@ export async function setUserEnabled(userId: string, enabled: boolean) {
 }
 
 export async function removeUser(userId: string) {
+  const account = await getUserRecord(userId);
+  if (!account || account.status === 'REMOVED') throw new Error('Account already removed or not found.');
 	const now = new Date().toISOString();
 	await db.send(new TransactWriteCommand({
 		TransactItems: [
@@ -1093,6 +1117,18 @@ export async function removeUser(userId: string) {
 			}
 		]
 	}));
+  // Retain historical profile and rescue references while freeing the email
+  // for a fresh invitation. Never erase a mapping already reassigned.
+  try {
+    await db.send(new DeleteCommand({
+      TableName: tableName,
+      Key: { pk: `AUTH#EMAIL#${normalizeEmail(String(account.email))}`, sk:'USER' },
+      ConditionExpression: 'userId = :userId',
+      ExpressionAttributeValues: { ':userId': userId }
+    }));
+  } catch (error) {
+    if (!(error instanceof Error && error.name === 'ConditionalCheckFailedException')) throw error;
+  }
 }
 
 export function hasAdministrativeRole(user: RescueHubUser | null | undefined) {
