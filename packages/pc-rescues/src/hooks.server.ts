@@ -21,6 +21,11 @@ export const handle: Handle = async ({ event, resolve }) => {
 		event.locals.user = null;
 	}
 	const response = await resolve(event);
+	if (event.url.pathname === '/activate' || event.url.pathname === '/api/auth/activate') {
+		response.headers.set('x-robots-tag', 'noindex, nofollow, noarchive');
+		response.headers.set('cache-control', 'private, no-store, max-age=0');
+		response.headers.set('referrer-policy', 'no-referrer');
+	}
 	if (event.url.pathname.startsWith('/admin')) {
 		response.headers.set('x-robots-tag', 'noindex, nofollow, noarchive');
 		response.headers.set('cache-control', 'private, no-store, max-age=0');
