@@ -83,8 +83,12 @@
   async function refresh() {
     const result = await api(`/api/mobile/rescues/${data.rescue.id}/animals`);
     animals = result.items;
-    if (selected) {
-      const animalId = selected.id;
+    // Open the first linked animal immediately, including in completed demo
+    // cases, so the history is visible without a second unexplained click.
+    const active = animals.find(animal => animal.id === selected?.id) ?? animals[0];
+    if (active) {
+      selected = active;
+      const animalId = active.id;
       const detail = await api(`/api/mobile/animals/${animalId}`);
       selected = detail.animal;
       correctedSpecies = detail.animal.species;

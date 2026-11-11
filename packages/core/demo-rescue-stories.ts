@@ -250,11 +250,11 @@ export const HUNTER_DEMO_STORIES: Record<string, Story> = {
     ]
   },
   '010': {
-    startedAt: '2026-11-10T00:30:00Z', status: 'IN_RESCUE',
+    startedAt: '2026-11-10T00:30:00Z', status: 'IN_RESCUE', pickupAtHours: 0.75,
     location: 'Rescue site — East Maitland',
     beats: [
-      e(1, 'OBSERVATION', 'Roadside hazard assessed. Echidna sighted moving under low vegetation.'),
-      p(2, 'RESCUER', 'Jordan Blake', 'On site. Will assess for injury and guide the animal away from traffic if it is safe to do so.'),
+      e(1, 'OBSERVATION', 'Roadside hazard assessed. Echidna safely collected from low roadside vegetation.'),
+      p(2, 'RESCUER', 'Jordan Blake', 'Animal safely in a quiet carrier. Assessing for injury before moving it away from traffic.'),
     ]
   },
   '026': {
@@ -332,11 +332,11 @@ export const HUNTER_DEMO_STORIES: Record<string, Story> = {
     ]
   },
   '035': {
-    startedAt: '2026-11-10T01:00:00Z', status: 'IN_RESCUE',
+    startedAt: '2026-11-10T01:00:00Z', status: 'IN_RESCUE', pickupAtHours: 0.75,
     location: 'Rescue site — Edgeworth',
     beats: [
-      e(1, 'OBSERVATION', 'Turtle located beside the road; shell appears intact from a distance.'),
-      p(2, 'RESCUER', 'Riley Chen', 'At location, preparing a safe pickup and shell check before deciding whether a vet visit is required.'),
+      e(1, 'OBSERVATION', 'Turtle safely collected from the road. Initial shell check shows no obvious damage.'),
+      p(2, 'RESCUER', 'Riley Chen', 'Turtle secure after pickup; reviewing movement and shell condition before deciding on a veterinary visit.'),
     ]
   }
 };
