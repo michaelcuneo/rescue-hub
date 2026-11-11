@@ -466,7 +466,7 @@ Rescue Hub`;
  */
 export async function correctPendingInvitationEmail(userId: string, proposedEmail: string) {
   const email = normalizeEmail(proposedEmail);
-  if (!/^\\S+@\\S+\\.\\S+$/.test(email)) throw new Error('Enter a valid email address.');
+  if (!/^\S+@\S+\.\S+$/.test(email) throw new Error('Enter a valid email address.');
   const current = await getUserRecord(userId);
   if (!current || current.status !== 'INVITED' || !current.enabled ||
     !current.organisationId || current.roles?.includes('PUBLIC_REPORTER'))
@@ -548,10 +548,18 @@ export async function inviteUser(input: {
 	if (!organisationId) throw new Error('Choose an organisation.');
 	if (!roles.length) throw new Error('Choose at least one role.');
 
+	const existingId = await lookupUserIdByEmail(email);
+  if (existingId) {
+    const existing = await getUserById(existingId);
+    if (existing?.status === 'INVITED' && existing.organisationId === organisationId)
+      throw new Error('That email already has a pending invitation. Find the person under Invited and use Resend invitation or Correct email.');
+    throw new Error('That email is already linked to an account. Check People & access before inviting them again.');
+  }
 	const userId = randomUUID();
 	const now = new Date().toISOString();
 
-	await db.send(new TransactWriteCommand({
+	try {
+  await db.send(new TransactWriteCommand({
 		TransactItems: [
 			{
 				Put: {
@@ -611,9 +619,15 @@ export async function inviteUser(input: {
 		]
 	}));
 
+  } catch (error) {
+    if (error instanceof Error && error.name === 'TransactionCanceledException')
+      throw new Error('This email address is already registered or the invitation was created by another administrator. Refresh People & access and check Invited.');
+    throw error;
+  }
+
   // A failed SES send does not erase the invited account; admins can correct
   // the address or resend without creating a second user record.
-  await sendOrganisationInvitation(userId);
+  const invitation = await sendOrganisationInvitation(userId);
 	return { user: await getUserById(userId), invitation };
 }
 
