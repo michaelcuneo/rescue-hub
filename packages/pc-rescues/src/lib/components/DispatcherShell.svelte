@@ -332,14 +332,13 @@
 			<div class="logo">RH</div>
 			<div>
 				<strong>Hunter Wildlife Rescue</strong>
-				<span>{demoMode || user.organisationId === 'native-animal-trust-fund' ? 'Fictional demonstration data · Newcastle / Hunter' : 'Newcastle / Hunter'}</span>
+				<span>Newcastle / Hunter</span>
 			</div>
 		</div>
 
 		<div class="topbar-actions">
-			{#if demoMode || user.organisationId === 'native-animal-trust-fund'}<span class="demo-badge">DEMO · FICTIONAL DATA</span>{/if}
 			<span class:offline={!backendOnline} class="backend-state">
-				<i></i>{backendOnline ? 'Live' : 'Demo data'}
+				<i></i>{backendOnline ? 'Connected' : 'Unavailable'}
 			</span>
 
 			<button
@@ -368,7 +367,7 @@
 				<a class="session-link" href="/reports">Public reports</a>
 			{/if}
 			{#if demoMode}
-				<a class="session-link" href="/demo/exit">Exit demo</a>
+				<a class="session-link" href="/demo/exit">Leave Hunter workspace</a>
 			{:else if userCanAdmin}
 				<a class="session-link" href="/admin">Admin</a>
 			{/if}
@@ -590,11 +589,11 @@
 				<div class="form-section two-column compact">
 					<label class="field">
 						<span>Caller name</span>
-						<input bind:value={callerName} placeholder="Optional for demo" />
+						<input bind:value={callerName} placeholder="Optional" />
 					</label>
 					<label class="field">
 						<span>Caller phone</span>
-						<input bind:value={callerPhone} placeholder="Optional for demo" />
+						<input bind:value={callerPhone} placeholder="Optional" />
 					</label>
 				</div>
 
@@ -702,8 +701,7 @@
 	}
 
 	.backend-state,
-	.availability,
-	.demo-badge {
+	.availability {
 		display: inline-flex;
 		align-items: center;
 		gap: 6px;
@@ -714,13 +712,6 @@
 		background: #f7faf8;
 		font-size: 12px;
 		font-weight: 800;
-	}
-
-	.demo-badge {
-		border-color: #d8c45b;
-		background: #fff7c7;
-		color: #715d00;
-		letter-spacing: 0.08em;
 	}
 
 	.backend-state i {
