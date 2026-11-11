@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   buildChatChannels, canAccessChat, visibleChatChannels, validateChatText,
-  relatedAnimalChannel, isValidChatChannelId
+  relatedAnimalChannel, isValidChatChannelId, isPlatformOversightUser, canSelectChatOrganisation
 } from './chat-channels.ts';
 const teams = [
   { id: 'reptile-non-venomous', name: 'Reptile carers', capabilityCode: 'REPTILE_NON_VENOMOUS', active: true },
@@ -46,4 +46,32 @@ test('reptile pickup links to Reptiles, unknown animal falls back to Q&A', () =>
   assert.equal(relatedAnimalChannel('Unknown wildlife',teams),'qa');
   assert.ok(isValidChatChannelId('reptiles'));
   assert.ok(!isValidChatChannelId('../other-org'));
+});
+
+test('real platform administrator with no organisation sees all channels in selected organisation', () => {
+  const platform = { enabled: true, status: 'ACTIVE', roles:['PLATFORM_ADMIN'], teamIds:[] };
+  assert.equal(isPlatformOversightUser(platform), true);
+  assert.equal(canSelectChatOrganisation(platform, 'native-animal-trust-fund'), true);
+  const scoped = { ...platform, organisationId:'native-animal-trust-fund' };
+  const permitted = visibleChatChannels(scoped, teams).map(channel=>channel.id);
+  assert.ok(permitted.includes('administration'));
+  assert.ok(permitted.includes('reptiles'));
+  assert.ok(permitted.includes('qa'));
+  assert.ok(permitted.includes('trading-post'));
+});
+test('platform oversight requires active authenticated privileged role', () => {
+  for (const candidate of [
+    { ...user, roles:['CARER'], organisationId:undefined },
+    { ...user, roles:['PUBLIC_REPORTER'] },
+    { ...user, roles:['PLATFORM_ADMIN'], enabled:false },
+    { ...user, roles:['PLATFORM_ADMIN'], status:'REMOVED' }
+  ]) {
+    assert.equal(isPlatformOversightUser(candidate), false);
+    assert.equal(canSelectChatOrganisation(candidate, 'another-organisation'), false);
+  }
+});
+test('ordinary member cannot select another organisation, even with admin role in own organisation', () => {
+  assert.equal(canSelectChatOrganisation(user, 'natf'), true);
+  assert.equal(canSelectChatOrganisation(user, 'wires'), false);
+  assert.equal(canSelectChatOrganisation({...user,roles:['ORG_ADMIN']}, 'wires'), false);
 });
