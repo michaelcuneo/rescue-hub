@@ -11,6 +11,9 @@
     id: string; channelId: string; senderUserId: string; senderName: string;
     text: string; createdAt: string; animalId?: string;
   };
+  type Organisation = { id: string; name: string };
+  let organisations = $state<Organisation[]>([]);
+  let organisationId = $state('');
   let channels = $state<Channel[]>([]);
   let selectedId = $state('');
   let messages = $state<Message[]>([]);
@@ -32,8 +35,18 @@
     if (!response.ok) throw new Error(payload.error ?? 'Unable to load chat.');
     return payload;
   }
+  const chatUrl = (path: string, before?: string) => {
+    const params = new URLSearchParams();
+    if (organisationId) params.set('organisationId', organisationId);
+    if (before) params.set('before', before);
+    return path + (params.size ? '?' + params.toString() : '');
+  };
   async function refreshChannels() {
-    const response = await api<{ channels: Channel[] }>('/api/mobile/chats');
+    const response = await api<{ channels: Channel[]; organisations: Organisation[]; organisationId: string }>(
+      chatUrl('/api/mobile/chats')
+    );
+    if (!organisationId) organisationId = response.organisationId;
+    organisations = response.organisations;
     channels = response.channels;
     if (selectedId && !channels.some(channel => channel.id === selectedId)) {
       selectedId = ''; messages = [];
@@ -42,20 +55,28 @@
   async function refreshMessages(id = selectedId) {
     if (!id) return;
     const response = await api<{ items: Message[]; nextCursor: string | null }>(
-      `/api/mobile/chats/${encodeURIComponent(id)}`
+      chatUrl(`/api/mobile/chats/${encodeURIComponent(id)}`)
     );
     if (id !== selectedId) return;
     const oldLatest = messages.at(-1)?.id;
     messages = response.items; cursor = response.nextCursor;
     const last = response.items.at(-1);
     if (last) {
-      void api(`/api/mobile/chats/${encodeURIComponent(id)}`, 'PATCH', { messageId: last.id }).catch(() => {});
+      void api(chatUrl(`/api/mobile/chats/${encodeURIComponent(id)}`), 'PATCH', { messageId: last.id }).catch(() => {});
       channels = channels.map(channel => channel.id === id ? { ...channel, unread: false } : channel);
     }
     if (last?.id !== oldLatest) {
       await tick();
       messagePanel?.scrollTo({ top: messagePanel.scrollHeight, behavior: 'smooth' });
     }
+  }
+  async function selectOrganisation(id: string) {
+    if (id === organisationId) return;
+    organisationId = id;
+    selectedId = ''; messages = []; cursor = null; draft = ''; error = ''; loading = true;
+    try { await refreshChannels(); }
+    catch (e) { error = e instanceof Error ? e.message : 'Could not load organisation chats.'; }
+    finally { loading = false; }
   }
   async function selectChannel(id: string) {
     selectedId = id; messages = []; cursor = null; error = '';
@@ -68,7 +89,7 @@
     busy = true;
     try {
       const result = await api<{ items: Message[]; nextCursor: string | null }>(
-        `/api/mobile/chats/${encodeURIComponent(selectedId)}?before=${encodeURIComponent(cursor)}`
+        chatUrl(`/api/mobile/chats/${encodeURIComponent(selectedId)}`, cursor)
       );
       messages = [...result.items.filter(item => !messages.some(existing => existing.id === item.id)), ...messages];
       cursor = result.nextCursor;
@@ -80,7 +101,7 @@
     if (!selectedId || busy || !draft.trim()) return;
     busy = true; error = '';
     try {
-      await api(`/api/mobile/chats/${encodeURIComponent(selectedId)}`, 'POST', { text: draft });
+      await api(chatUrl(`/api/mobile/chats/${encodeURIComponent(selectedId)}`), 'POST', { text: draft });
       draft = '';
       await refreshMessages();
       await refreshChannels();
@@ -117,6 +138,18 @@
     <div><h1>Chats</h1><p>Organisation conversations and care groups</p></div>
     <span class="signed">{data.name}</span>
   </header>
+  {#if data.canSelectOrganisation}
+    <div class="org-selector">
+      <label for="chat-organisation">Viewing organisation chats</label>
+      <select id="chat-organisation" value={organisationId}
+        onchange={(event) => void selectOrganisation(event.currentTarget.value)}>
+        {#each organisations as organisation (organisation.id)}
+          <option value={organisation.id}>{organisation.name}</option>
+        {/each}
+      </select>
+      <span>Platform oversight · organisation-scoped messages</span>
+    </div>
+  {/if}
   <div class="chat-layout">
     <aside class:hide-mobile={Boolean(selectedId)} aria-label="Chat channels">
       <h2>Channels</h2>
@@ -164,6 +197,10 @@
 <style>
   :global(body){margin:0;background:#f1f5f2;color:#173d2c;font-family:system-ui,sans-serif}
   .page{max-width:1350px;padding:18px 24px 40px;margin:auto}
+  .org-selector{display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin-bottom:16px}
+  .org-selector label{font-weight:750;font-size:14px}
+  .org-selector select{min-height:44px;min-width:220px;max-width:100%;border:1px solid #b7c8bd;border-radius:10px;background:white;color:#173d2c;padding:8px 12px;font:inherit}
+  .org-selector span{font-size:12px;color:#718077}
   .topbar{display:flex;align-items:center;gap:25px;padding-bottom:16px}
   .topbar h1{font-size:27px;margin:0}.topbar p{font-size:13px;color:#718077;margin:3px 0}
   .back{color:#24583f;text-decoration:none;font-weight:750}
