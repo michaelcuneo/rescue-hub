@@ -531,7 +531,7 @@
 	/* The dispatch queue occupies the lower half of the compact layout. */
 	@media (max-width: 700px) {
 		.map-shell {
-			top: 78px;
+			top: var(--rh-content-top, 106px);
 			right: var(--dispatch-gutter, 10px);
 			bottom: calc(45vh + var(--dispatch-gutter, 10px) * 2);
 			left: var(--dispatch-gutter, 10px);

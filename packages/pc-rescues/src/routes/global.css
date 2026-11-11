@@ -472,3 +472,5 @@ input::placeholder, textarea::placeholder { color: var(--rh-subtle); opacity: 1;
   border-color: var(--rh-border);
 }
 :root[data-theme='dark'] .mapboxgl-ctrl-attrib a { color: var(--rh-accent); }
+
+@media(max-width:760px) { :root { --rh-content-top: 106px; --rh-gutter:10px; } }

@@ -127,12 +127,15 @@
     .area-navigation a { padding:8px 9px; }
   }
   @media(max-width:760px) {
-    .workspace-bar { top:10px; left:10px; right:10px; height:68px; padding:6px 8px;
-      grid-template-columns:auto minmax(0,1fr) auto; gap:5px; }
+    .workspace-bar { top:10px; left:10px; right:10px; height:86px; padding:6px 8px;
+      grid-template-columns:auto 1fr auto; grid-template-rows:34px 34px; gap:4px; }
+    .identity { grid-column:1; grid-row:1; }
     .identity-text { display:none; }
     .mark { width:34px; height:34px; flex-basis:34px; }
-    .area-navigation { justify-self:stretch; gap:0; justify-content:space-evenly; padding:3px; }
-    .area-navigation a { font-size:11px; padding:7px 5px; }
+    .account-actions { grid-column:3; grid-row:1; }
+    .area-navigation { grid-column:1 / -1; grid-row:2; justify-self:stretch;
+      justify-content:space-evenly; padding:2px; }
+    .area-navigation a { font-size:12px; padding:7px 8px; }
     .person, .sign-out { display:none; }
     .more-menu summary { font-size:0; width:30px; padding:0; }
     .more-menu summary svg { width:16px; height:16px; }

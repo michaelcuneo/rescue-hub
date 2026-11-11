@@ -1749,7 +1749,13 @@
   .admin-shell .people-dialog button, .admin-shell .panel button {
     color: inherit;
   }
-  @media(max-width:1000px) {
+  @media(min-width:781px) and (max-width:1000px) {
     .admin-shell { grid-template-columns: 210px minmax(0,1fr); }
+  }
+  @media(max-width:780px) {
+    .admin-shell { display:block; }
+    .sidebar { height:auto; max-height:none; overflow:visible; margin-bottom:12px; }
+    main { padding:0 0 28px; }
+    .topbar { padding:12px; }
   }
 </style>

@@ -1357,7 +1357,7 @@
 		}
 
 		.intake {
-			top: 78px;
+			top: var(--rh-content-top, 106px);
 			right: 10px;
 			bottom: 10px;
 			width: calc(100vw - 20px);

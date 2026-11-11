@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - deploy/rescue-demo-domain
+      - fix/unified-workspace-navigation-and-theme-contrast
       - fix/member-scope-and-invitation-role-management
       - feature/one-click-organisation-invitations
       - feature/portal-role-documentation

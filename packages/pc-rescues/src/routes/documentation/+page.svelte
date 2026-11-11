@@ -260,7 +260,7 @@
   .docs-root .hero .hero-description { color: #e0e8f0; }
   @media(max-width:730px) {
     .docs-layout { margin:0 10px; }
-    .docs-root { padding-top:88px; }
+    .docs-root { padding-top:var(--rh-content-top); }
     .sidebar { margin-bottom:10px; }
   }
 </style>
