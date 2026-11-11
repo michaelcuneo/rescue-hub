@@ -162,8 +162,8 @@
     <div class="sidebar-footer">
       <div class:online={data.backend.online} class="status-dot"></div>
       <div>
-        <strong>{data.backend.online ? 'SST backend online' : 'Local UI mode'}</strong>
-        <span>{data.backend.online ? 'AppSync + DynamoDB' : 'Backend data unavailable'}</span>
+        <strong>{data.backend.online ? 'Services connected' : 'Services unavailable'}</strong>
+        <span>{data.backend.online ? 'Rescue Hub services' : 'Backend data unavailable'}</span>
       </div>
     </div>
   </aside>
@@ -179,7 +179,7 @@
 
       <div class="admin-actions">
         {#if canChooseOrganisation}
-          <a class="demo-launch" href="/demo/hunter">Open Hunter demo</a>
+          <a class="demo-launch" href="/demo/hunter">Open Hunter workspace</a>
           <a class="demo-launch" href="/chats">Organisation chats</a>
 
         {/if}
@@ -195,10 +195,9 @@
 
     {#if !data.backend.online}
       <section class="backend-warning">
-        <strong>The interface is running, but the SST data layer is not currently reachable.</strong>
+        <strong>Some Rescue Hub services are currently unavailable.</strong>
         <span>
-          Start Rescue Hub from the repository root with <code>npm run dev</code>. SST injects
-          the linked AppSync resources into this server process.
+          Try again shortly. If the problem continues, contact your platform administrator.
         </span>
         {#if data.backend.errors.length}
           <details>
@@ -229,9 +228,9 @@
           <small>authoritative geometry available</small>
         </article>
         <article>
-          <span class="metric-label">Platform stage</span>
-          <strong class="text-metric">Demo</strong>
-          <small>independent NSW prototype</small>
+          <span class="metric-label">Active accounts</span>
+          <strong>{data.users.filter((member) => member.enabled && member.status === 'ACTIVE').length}</strong>
+          <small>Enabled people with active access</small>
         </article>
       </section>
 
@@ -342,7 +341,7 @@
             <p class="eyebrow">NSW DCCEEW directory</p>
             <h2>Organisation registry</h2>
             <p class="intro">
-              Seeded public providers remain unclaimed until an authorised representative is verified.
+              Public directory entries remain unclaimed until an authorised representative is verified.
             </p>
           </div>
           <label class="search">
@@ -369,9 +368,6 @@
                     <strong>{organisation.displayName}</strong>
                     {#if organisation.officialName !== organisation.displayName}
                       <span>{organisation.officialName}</span>
-                    {/if}
-                    {#if organisation.id === 'native-animal-trust-fund'}
-                      <em>Demo organisation</em>
                     {/if}
                   </td>
                   <td>{organisation.areaDescription}</td>
@@ -435,8 +431,8 @@
           </div>
         {:else}
           <div class="empty-state large">
-            <strong>No rescue records in this stage yet</strong>
-            <span>New dispatches from PC Rescues will appear here as the demonstration data is created.</span>
+            <strong>No rescue records yet</strong>
+            <span>New rescue reports will appear here as they are created.</span>
           </div>
         {/if}
       </section>
@@ -516,7 +512,7 @@
             <div class="dialog-heading"><div><p class="eyebrow">New team member</p><h2 id="invite-title">Invite a person</h2></div><button class="dialog-close" type="button" aria-label="Close invitation" onclick={() => (showInvite = false)}>×</button></div>
             <form method="POST" action="?/inviteUser" class="person-form">
               {#if canChooseOrganisation}
-                <div class="reviewer-note"><strong>DCCEEW demonstration access</strong><p>The existing demo reviewer invitation currently grants dispatcher permissions. It is not read-only, so don't use it for an external reviewer until a restricted reviewer role is implemented.</p></div>
+                <div class="reviewer-note"><strong>Reviewer permissions</strong><p>Invitations grant operational access according to the selected role. Do not invite read-only reviewers until a restricted reviewer role is available.</p></div>
               {/if}
               <div class="form-pair"><label><span>Name</span><input name="name" required placeholder="Jane Smith" /></label><label><span>Email</span><input name="email" type="email" required placeholder="jane@example.org" /></label></div>
               <div class="form-pair"><label><span>Organisation</span><select name="organisationId" bind:value={inviteOrganisationId} disabled={!canChooseOrganisation} required>{#each data.organisations as organisation}<option value={organisation.id}>{organisation.displayName}</option>{/each}</select>{#if !canChooseOrganisation}<input type="hidden" name="organisationId" value={inviteOrganisationId} />{/if}</label><label><span>Role</span><select name="role" required><option value="RESCUER">Rescuer</option><option value="CARER">Carer</option><option value="DISPATCHER">Dispatcher</option><option value="ORG_ADMIN">Organisation administrator</option><option value="DATA_STEWARD">Data steward</option></select></label></div>
