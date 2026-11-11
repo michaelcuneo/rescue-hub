@@ -7,6 +7,7 @@ import {
 	listUsers,
 	removeUser,
 	requestPasswordResetForUser,
+	sendOrganisationInvitation,
 	setUserEnabled,
 	updateUserDispatchMembership,
 	type RescueHubRole,
@@ -135,11 +136,11 @@ export const actions: Actions = {
 			return fail(400, { action: 'inviteDemoReviewer', error: 'Enter a valid reviewer email.' });
 		}
 		try {
-			const result = await inviteUser({
+						await inviteUser({
 				name, email, organisationId: HUNTER_DEMO_ORGANISATION,
 				roles: ['DISPATCHER'], membershipTypeId: 'support-member', teamIds: []
 			});
-			return { action: 'inviteDemoReviewer', success: true, devCode: result.invitation.devCode };
+			return { action: 'inviteDemoReviewer', success: true };
 		} catch (error) {
 			return fail(400, { action: 'inviteDemoReviewer', error: error instanceof Error ? error.message : 'Unable to invite reviewer.' });
 		}
@@ -170,7 +171,7 @@ export const actions: Actions = {
 		}
 
 		try {
-			const result = await inviteUser({
+			await inviteUser({
 				name,
 				email,
 				organisationId,
@@ -178,11 +179,7 @@ export const actions: Actions = {
 				membershipTypeId,
 				teamIds
 			});
-			return {
-				action: 'inviteUser',
-				success: true,
-				devCode: result.invitation.devCode
-			};
+			return { action: 'inviteUser', success: true };
 		} catch (error) {
 			return fail(500, {
 				action: 'inviteUser',
@@ -191,6 +188,27 @@ export const actions: Actions = {
 		}
 	},
 
+	resendInvitation: async ({ request, locals }) => {
+		const actor = await requireAdmin(locals);
+		const form = await request.formData();
+		const userId = requiredString(form, 'userId');
+		const target = (await listUsers()).find(user => user.id === userId);
+		if (!target || !canManageUser(actor, target)) {
+			return fail(403, { action: 'resendInvitation', error: 'You cannot manage that account.' });
+		}
+		if (target.status !== 'INVITED' || !target.enabled) {
+			return fail(400, { action: 'resendInvitation', error: 'This invitation is no longer pending.' });
+		}
+		try {
+			await sendOrganisationInvitation(target.id);
+			return { action: 'resendInvitation', success: true };
+		} catch (error) {
+			return fail(400, {
+				action: 'resendInvitation',
+				error: error instanceof Error ? error.message : 'Unable to resend invitation.'
+			});
+		}
+	},
 	updateDispatchMembership: async ({ request, locals }) => {
 		const actor = await requireAdmin(locals);
 		const form = await request.formData();
