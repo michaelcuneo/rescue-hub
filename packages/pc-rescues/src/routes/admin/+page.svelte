@@ -33,6 +33,16 @@
     return matches && filterMatches;
   }));
   const selectedPerson = $derived(data.users.find((user) => user.id === selectedPersonId));
+  const roleOptions = [
+    { id: 'RESCUER', label: 'Rescuer — field rescue access' },
+    { id: 'CARER', label: 'Carer — custody and care access' },
+    { id: 'DISPATCHER', label: 'Dispatcher — coordinate organisation jobs' },
+    { id: 'ORG_ADMIN', label: 'Organisation administrator' },
+    { id: 'DATA_STEWARD', label: 'Data steward — records support' },
+    { id: 'AUTHORITY_AUDITOR', label: 'Authority auditor' },
+    { id: 'AUTHORITY_ADMIN', label: 'Authority administrator' },
+    { id: 'PLATFORM_ADMIN', label: 'Platform administrator — full platform access' }
+  ];
   const inviteMembershipConfig = $derived(
     data.membershipConfigs[inviteOrganisationId || data.currentUser.organisationId || ''] ?? {
       membershipTypes: data.standardMembershipTypes,
@@ -517,9 +527,16 @@
                 <div class="reviewer-note"><strong>Reviewer permissions</strong><p>Invitations grant operational access according to the selected role. Do not invite read-only reviewers until a restricted reviewer role is available.</p></div>
               {/if}
               <div class="form-pair"><label><span>Name</span><input name="name" required placeholder="Jane Smith" /></label><label><span>Email</span><input name="email" type="email" required placeholder="jane@example.org" /></label></div>
-              <div class="form-pair"><label><span>Organisation</span><select name="organisationId" bind:value={inviteOrganisationId} disabled={!canChooseOrganisation} required>{#each data.organisations as organisation}<option value={organisation.id}>{organisation.displayName}</option>{/each}</select>{#if !canChooseOrganisation}<input type="hidden" name="organisationId" value={inviteOrganisationId} />{/if}</label><label><span>Role</span><select name="role" required><option value="RESCUER">Rescuer</option><option value="CARER">Carer</option><option value="DISPATCHER">Dispatcher</option><option value="ORG_ADMIN">Organisation administrator</option><option value="DATA_STEWARD">Data steward</option></select></label></div>
-              <label><span>Membership type</span><select name="membershipTypeId" required>{#each inviteMembershipConfig.membershipTypes as type}<option value={type.id}>{type.name}</option>{/each}</select></label>
-              <fieldset class="capability-picker"><legend>Dispatch teams <small>Choose the rescue notifications this person should receive.</small></legend><div class="capability-grid">{#each inviteMembershipConfig.teams as team}<label class="capability-option"><input type="checkbox" name="teamIds" value={team.id} /><span><strong>{team.name}</strong><small>{team.receivesAllRescues ? 'Receives every rescue' : team.description}</small></span></label>{/each}</div></fieldset>
+              <label><span>Organisation</span><select name="organisationId" bind:value={inviteOrganisationId} disabled={!canChooseOrganisation} required>{#each data.organisations as organisation}<option value={organisation.id}>{organisation.displayName}</option>{/each}</select>{#if !canChooseOrganisation}<input type="hidden" name="organisationId" value={inviteOrganisationId} />{/if}</label>
+              <div class="access-group">
+                <label><span>Account role — what they can do</span><select name="role" required>{#each roleOptions.filter(option => data.assignableRoles.includes(option.id)) as role}<option value={role.id}>{role.label}</option>{/each}</select></label>
+                <p class="permission-help">Choose one access role. Platform administration is available only to existing platform administrators.</p>
+              </div>
+              <div class="access-group">
+                <label><span>Operational membership — how they participate</span><select name="membershipTypeId" required>{#each inviteMembershipConfig.membershipTypes.filter(type => type.active) as type}<option value={type.id}>{type.name}</option>{/each}</select></label>
+                <p class="permission-help">Membership controls field participation, not administrative rights. Choose Active rescuer for qualified rescue work, Transport volunteer for pickup work, or Support member for administration only.</p>
+              </div>
+              <fieldset class="capability-picker"><legend>Species and dispatch teams <small>Only active field rescuers receive matching species rescue offers. Transport volunteers can receive eligible transport offers.</small></legend><div class="capability-grid">{#each inviteMembershipConfig.teams.filter(team => team.active) as team}<label class="capability-option"><input type="checkbox" name="teamIds" value={team.id} /><span><strong>{team.name}</strong><small>{team.receivesAllRescues ? 'Transport team — eligibility is also checked by membership' : team.description}</small></span></label>{/each}</div></fieldset>
               <div class="dialog-actions"><button type="button" onclick={() => (showInvite = false)}>Cancel</button><button class="primary-action" type="submit">Send invitation</button></div>
             </form>
           </div>
@@ -536,11 +553,18 @@
                 <form method="POST" action="?/resendInvitation"><input type="hidden" name="userId" value={selectedPerson.id} /><button type="submit">Resend invitation email</button></form>
               </div>
             {/if}
-            <form method="POST" action="?/updateDispatchMembership" class="person-form">
+            <form method="POST" action="?/updateMemberAccess" class="person-form">
               <input type="hidden" name="userId" value={selectedPerson.id} />
-              <label><span>Membership type</span><select name="membershipTypeId">{#each membershipConfigFor(selectedPerson).membershipTypes as type}<option value={type.id} selected={type.id === selectedPerson.membershipTypeId}>{type.name}</option>{/each}</select></label>
-              <fieldset class="capability-picker"><legend>Dispatch teams <small>Control which rescue notifications this person receives.</small></legend><div class="capability-grid">{#each membershipConfigFor(selectedPerson).teams as team}<label class="capability-option"><input type="checkbox" name="teamIds" value={team.id} checked={(selectedPerson.teamIds ?? []).includes(team.id)} /><span><strong>{team.name}</strong><small>{team.receivesAllRescues ? 'Receives every rescue' : team.description}</small></span></label>{/each}</div></fieldset>
-              <div class="dialog-actions"><button class="primary-action" type="submit">Save membership & teams</button></div>
+              <div class="access-group">
+                <label><span>Account role — permissions</span><select name="role" required disabled={selectedPerson.id === data.currentUser.id}>{#each roleOptions.filter(option => data.assignableRoles.includes(option.id)) as role}<option value={role.id} selected={selectedPerson.roles.includes(role.id)}>{role.label}</option>{/each}</select></label>
+                <p class="permission-help">Controls access to platform, administration, dispatch and animal-care features. A platform administrator can change Chris to Platform administrator here. Changing roles signs the member out of existing sessions.</p>
+              </div>
+              <div class="access-group">
+                <label><span>Operational membership — field participation</span><select name="membershipTypeId" required disabled={selectedPerson.id === data.currentUser.id}>{#each membershipConfigFor(selectedPerson).membershipTypes.filter(type => type.active) as type}<option value={type.id} selected={type.id === selectedPerson.membershipTypeId}>{type.name}</option>{/each}</select></label>
+                <p class="permission-help">This does not grant administrator access. Active rescuer + suitable species teams enables rescue offers; Transport volunteer enables transport work.</p>
+              </div>
+              <fieldset class="capability-picker"><legend>Species and dispatch teams <small>Only matching pending cases appear for active field rescuers.</small></legend><div class="capability-grid">{#each membershipConfigFor(selectedPerson).teams.filter(team => team.active) as team}<label class="capability-option"><input type="checkbox" name="teamIds" value={team.id} checked={(selectedPerson.teamIds ?? []).includes(team.id)} disabled={selectedPerson.id === data.currentUser.id} /><span><strong>{team.name}</strong><small>{team.description}</small></span></label>{/each}</div></fieldset>
+              <div class="dialog-actions"><button class="primary-action" type="submit" disabled={selectedPerson.id === data.currentUser.id}>Save access & eligibility</button></div>
             </form>
             <div class="account-management"><h3>Account access</h3><p>These actions affect sign-in access, not dispatch availability.</p><div class="account-actions"><form method="POST" action={selectedPerson.enabled ? '?/disableUser' : '?/enableUser'}><input type="hidden" name="userId" value={selectedPerson.id} /><button type="submit">{selectedPerson.enabled ? 'Disable access' : 'Enable access'}</button></form><form method="POST" action="?/resetPassword"><input type="hidden" name="userId" value={selectedPerson.id} /><button type="submit">Reset password</button></form><form method="POST" action="?/removeUser" onsubmit={(event) => { if (!confirm('Remove this person from Rescue Hub? This cannot be undone.')) event.preventDefault(); }}><input type="hidden" name="userId" value={selectedPerson.id} /><button class="danger" type="submit">Remove person</button></form></div></div>
           </div>
@@ -613,6 +637,8 @@
   .dialog-heading { align-items: flex-start; border-bottom:1px solid var(--line); padding-bottom: 18px; margin-bottom: 20px; }
   .dialog-close { border:1px solid var(--line); background:var(--rh-t6, white); border-radius: 9px; width: 36px; height: 36px; font-size: 25px; cursor: pointer; }
   .person-form { display: grid; gap: 18px; }
+  .access-group { display: grid; gap: 6px; padding: 15px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-soft); }
+  .permission-help { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.55; }
   .person-form label:not(.capability-option) { display: grid; gap: 7px; font-size: 12px; font-weight: 700; }
   .person-form input:not([type='checkbox']), .person-form select { width: 100%; padding: 11px; border:1px solid var(--line); border-radius: 8px; background:var(--rh-t6, white); font: inherit; }
   .form-pair { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 14px; }

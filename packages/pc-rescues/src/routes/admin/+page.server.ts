@@ -9,7 +9,7 @@ import {
 	requestPasswordResetForUser,
 	sendOrganisationInvitation,
 	setUserEnabled,
-	updateUserDispatchMembership,
+	updateUserAccess,
 	type RescueHubRole,
 	type RescueHubUser
 } from '$lib/server/auth';
@@ -24,14 +24,7 @@ import {
 	STANDARD_TEAMS
 } from '$lib/server/membership';
 import type { Actions, PageServerLoad } from './$types';
-
-const ORGANISATION_ROLES: RescueHubRole[] = [
-	'ORG_ADMIN',
-	'DISPATCHER',
-	'RESCUER',
-	'CARER',
-	'DATA_STEWARD'
-];
+import { assignableStaffRoles, mayAssignStaffRole, mayManageStaffAccount } from '../../../../core/portal-admin-roles';
 
 function requiredString(form: FormData, key: string) {
 	const value = form.get(key);
@@ -52,10 +45,7 @@ async function requireAdmin(locals: App.Locals) {
 }
 
 function canManageUser(actor: RescueHubUser, target: RescueHubUser) {
-	if (isAuthorityAdmin(actor)) return true;
-	return actor.roles.includes('ORG_ADMIN') &&
-		Boolean(actor.organisationId) &&
-		actor.organisationId === target.organisationId;
+	return mayManageStaffAccount(actor, target);
 }
 
 export const load: PageServerLoad = async ({ locals }) => {
@@ -116,6 +106,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 		membershipConfigs,
 		standardMembershipTypes: STANDARD_MEMBERSHIP_TYPES,
 		standardTeams: STANDARD_TEAMS,
+		assignableRoles: assignableStaffRoles(actor),
 		backend: {
 			online: errors.length === 0,
 			errors
@@ -166,8 +157,13 @@ export const actions: Actions = {
 			});
 		}
 
-		if (!ORGANISATION_ROLES.includes(requestedRole)) {
-			return fail(400, { action: 'inviteUser', error: 'Choose a valid organisation role.' });
+		if (!mayAssignStaffRole(actor, requestedRole)) {
+			return fail(403, { action: 'inviteUser', error: 'You cannot grant that access role.' });
+		}
+		const membership = await getOrganisationMembershipConfig(organisationId);
+		if (!membership.membershipTypes.some(type => type.id === membershipTypeId && type.active) ||
+				teamIds.some(id => !membership.teams.some(team => team.id === id && team.active))) {
+			return fail(400, { action: 'inviteUser', error: 'Choose active membership and dispatch teams for the selected organisation.' });
 		}
 
 		try {
@@ -209,23 +205,43 @@ export const actions: Actions = {
 			});
 		}
 	},
-	updateDispatchMembership: async ({ request, locals }) => {
+	updateMemberAccess: async ({ request, locals }) => {
 		const actor = await requireAdmin(locals);
 		const form = await request.formData();
 		const userId = requiredString(form, 'userId');
+		const role = requiredString(form, 'role') as RescueHubRole;
 		const membershipTypeId = requiredString(form, 'membershipTypeId');
 		const teamIds = form.getAll('teamIds').map(String).filter(Boolean);
-		const target = (await listUsers()).find((user) => user.id === userId);
-
+		// Read the current account on the server: never trust roles sent by the browser.
+		const target = (await listUsers()).find(user => user.id === userId);
 		if (!target || !canManageUser(actor, target)) {
-			return fail(403, { action: 'updateDispatchMembership', error: 'You cannot manage that user.' });
+			return fail(403, { action: 'updateMemberAccess', error: 'You cannot manage that account.' });
 		}
-		if (!membershipTypeId) {
-			return fail(400, { action: 'updateDispatchMembership', error: 'Choose a membership type.' });
+		if (actor.id === target.id) {
+			return fail(400, { action: 'updateMemberAccess', error: 'Change another administrator\'s account rather than your own access level.' });
 		}
-
-		await updateUserDispatchMembership({ userId, membershipTypeId, teamIds });
-		return { action: 'updateDispatchMembership', success: true };
+		if (!mayAssignStaffRole(actor, role)) {
+			return fail(403, { action: 'updateMemberAccess', error: 'Only a platform administrator can grant platform administrator access.' });
+		}
+		if (!target.organisationId) {
+			return fail(400, { action: 'updateMemberAccess', error: 'The account must belong to an organisation.' });
+		}
+		const config = await getOrganisationMembershipConfig(target.organisationId);
+		if (!config.membershipTypes.some(type => type.id === membershipTypeId && type.active)) {
+			return fail(400, { action: 'updateMemberAccess', error: 'Select an active operational membership.' });
+		}
+		if (teamIds.some(id => !config.teams.some(team => team.id === id && team.active))) {
+			return fail(400, { action: 'updateMemberAccess', error: 'Invalid or inactive dispatch team selected.' });
+		}
+		try {
+			await updateUserAccess({
+				userId, expectedRoles: target.roles, role,
+				membershipTypeId, teamIds
+			});
+			return { action: 'updateMemberAccess', success: true };
+		} catch (error) {
+			return fail(409, { action: 'updateMemberAccess', error: error instanceof Error ? error.message : 'Unable to update account access.' });
+		}
 	},
 
 	disableUser: async ({ request, locals }) => {
