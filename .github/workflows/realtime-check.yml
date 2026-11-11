@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - deploy/rescue-demo-domain
+      - feature/portal-role-documentation
       - fix/mapbox-geographic-pin-anchoring
       - fix/keyboard-occlusion-native-geometry
       - fix/platform-admin-chat-organisation-oversight
