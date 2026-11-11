@@ -15,7 +15,7 @@
 			{#if form?.error}<div class="error">{form.error}</div>{/if}
 			<button type="submit">Sign in</button>
 		</form>
-		<div class="links"><a href="/activate">Activate invitation</a><a href="/reset">Forgot password?</a></div>
+		<div class="links"><a href="/reset">Forgot password?</a></div>
     <div class="public-link"><a href="/join">Not part of a rescue organisation? Report injured wildlife</a></div>
 	</section>
 </main>
