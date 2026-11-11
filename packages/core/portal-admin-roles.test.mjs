@@ -20,5 +20,6 @@ test('organisation administrators cannot modify platform administrators', () => 
   assert.equal(mayManageStaffAccount(base, { ...chris, organisationId: 'other' }), false);
   assert.equal(mayManageStaffAccount(base, { ...chris, roles: ['PLATFORM_ADMIN'] }), false);
   assert.equal(mayManageStaffAccount({ ...base, roles: ['AUTHORITY_ADMIN'] }, { ...chris, roles: ['PLATFORM_ADMIN'] }), false);
+  assert.equal(mayManageStaffAccount({ ...base, roles: ['AUTHORITY_ADMIN'] }, { ...chris, roles: ['AUTHORITY_ADMIN'] }), false);
   assert.equal(mayManageStaffAccount({ ...base, roles: ['PLATFORM_ADMIN'] }, { ...chris, roles: ['PLATFORM_ADMIN'] }), true);
 });

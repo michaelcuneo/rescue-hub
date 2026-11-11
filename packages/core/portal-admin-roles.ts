@@ -25,7 +25,7 @@ export function assignableStaffRoles(actor: AccessUser): string[] {
  */
 export function mayManageStaffAccount(actor: AccessUser, target: AccessUser): boolean {
   if (actor.roles.includes('PLATFORM_ADMIN')) return true;
-  if (target.roles.includes('PLATFORM_ADMIN')) return false;
+  if (target.roles.includes('PLATFORM_ADMIN') || target.roles.includes('AUTHORITY_ADMIN')) return false;
   if (actor.roles.includes('AUTHORITY_ADMIN')) return true;
   if (target.roles.some(role => ['AUTHORITY_ADMIN', 'AUTHORITY_AUDITOR'].includes(role))) return false;
   return actor.roles.includes('ORG_ADMIN') &&
