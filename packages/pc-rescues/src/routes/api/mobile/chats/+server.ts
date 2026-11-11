@@ -1,12 +1,14 @@
 import { json } from '@sveltejs/kit';
 import { ChatAccessError, listMyChannels, listChatOrganisations } from '$lib/server/organisation-chat';
 import type { RequestHandler } from './$types';
+import { HUNTER_DEMO_ORGANISATION } from '$lib/server/demo';
 
 export const GET: RequestHandler = async ({ locals, url }) => {
   if (!locals.user) return json({ error: 'Sign in to your organisation to access chats.' }, { status: 401 });
   try {
     const organisations = await listChatOrganisations(locals.user);
-    const organisationId = url.searchParams.get('organisationId') || locals.user.organisationId || organisations[0]?.id;
+    const organisationId = url.searchParams.get('organisationId') || locals.user.organisationId ||
+      organisations.find(item => item.id === HUNTER_DEMO_ORGANISATION)?.id || organisations[0]?.id;
     return json({ organisations, organisationId, channels: await listMyChannels(locals.user, organisationId) },
       { headers: { 'cache-control': 'private, no-store' } });
   } catch (error) {
