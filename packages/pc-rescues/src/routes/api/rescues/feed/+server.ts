@@ -2,7 +2,7 @@ import { json } from '@sveltejs/kit';
 import { listAdminRescues } from '$lib/server/admin-data';
 import { getHunterDemo, HUNTER_DEMO_ORGANISATION } from '$lib/server/demo';
 import type { RequestHandler } from './$types';
-import { canSeeDesktopRescue } from '../../../../../core/desktop-dispatch-access';
+import { canSeeDesktopRescue } from '../../../../../../core/desktop-dispatch-access';
 import { classifyDispatchCapability, getOrganisationMembershipConfig, memberCanReceiveCapability } from '$lib/server/membership';
 
 // Authenticated desktop snapshot. Subscriptions signal an invalidation; the

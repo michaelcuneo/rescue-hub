@@ -40,3 +40,13 @@ test('transport closes as completed only after collected animal is accepted by c
   assert.equal(transportCloseStatus('ACCEPT_TRANSFER','PENDING'),'CANCELLED');
   assert.equal(transportCloseStatus('OUTCOME','ASSIGNED','2026-11-11T01:00:00Z'),'CANCELLED');
 });
+
+test('only active field rescuers handle species cases; carers can still be carers', async () => {
+  const { canRescueForOrganisation } = await import('./care-delivery.ts');
+  const active = { enabled: true, status: 'ACTIVE', roles: ['CARER'], membershipTypeId: 'active-rescuer' };
+  assert.equal(canRescueForOrganisation(active), true);
+  assert.equal(canRescueForOrganisation({ ...active, membershipTypeId: 'carer' }), false);
+  assert.equal(canRescueForOrganisation({ ...active, membershipTypeId: 'transport-volunteer' }), false);
+  assert.equal(canRescueForOrganisation({ ...active, roles: ['DATA_STEWARD'] }), false);
+  assert.equal(canRescueForOrganisation({ ...active, roles: ['PUBLIC_REPORTER'] }), false);
+});

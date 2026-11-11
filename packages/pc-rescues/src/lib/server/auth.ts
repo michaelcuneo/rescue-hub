@@ -886,7 +886,7 @@ export async function updateUserAccess(input: {
   const expressions = 'SET roles = :roles, membershipTypeId = :membership, teamIds = :teams, updatedAt = :now';
   const args = {
     ':roles': roles, ':membership': input.membershipTypeId, ':teams': teamIds,
-    ':now': now, ':expected': input.expectedRoles
+    ':now': now
   };
   try {
     await db.send(new TransactWriteCommand({
@@ -900,7 +900,7 @@ export async function updateUserAccess(input: {
             ConditionExpression: 'attribute_exists(pk) AND roles = :expected AND #status <> :removed',
             ExpressionAttributeNames: { '#status': 'status' },
             ExpressionAttributeValues: {
-              ...args, ':removed': 'REMOVED',
+              ...args, ':expected': input.expectedRoles, ':removed': 'REMOVED',
               ...(changedRole ? { ':zero': 0, ':one': 1 } : {})
             }
           }
