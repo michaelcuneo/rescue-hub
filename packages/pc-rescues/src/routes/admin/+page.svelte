@@ -42,7 +42,7 @@
     { id: 'AUTHORITY_AUDITOR', label: 'Authority auditor' },
     { id: 'AUTHORITY_ADMIN', label: 'Authority administrator' },
     { id: 'PLATFORM_ADMIN', label: 'Platform administrator — full platform access' }
-  ];
+  ] as const;
   const inviteMembershipConfig = $derived(
     data.membershipConfigs[inviteOrganisationId || data.currentUser.organisationId || ''] ?? {
       membershipTypes: data.standardMembershipTypes,
