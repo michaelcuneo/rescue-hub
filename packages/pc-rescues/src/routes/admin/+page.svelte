@@ -672,43 +672,8 @@
     box-shadow: var(--rh-shadow);
   }
 
-  .brand {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 0 8px 26px;
-  }
-
-  .brand-mark {
-    display: grid;
-    place-items: center;
-    width: 42px;
-    height: 42px;
-    border-radius: 12px;
-    background:var(--rh-primary);
-    color:var(--rh-on-primary);
-    font-weight: 900;
-    letter-spacing: -0.05em;
-  }
-
-  .brand strong,
-  .brand span,
   .sidebar-footer strong,
-  .sidebar-footer span {
-    display: block;
-  }
-
-  .brand strong {
-    font-size: 19px;
-  }
-
-  .brand span {
-    margin-top: 2px;
-    color:var(--rh-t81, #9fbaa9);
-    font-size: 14px;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-  }
+  .sidebar-footer span { display: block; }
 
   nav {
     display: grid;
@@ -749,25 +714,6 @@
 
   nav button.active .nav-icon {
     background:var(--rh-accent-soft);
-    color:var(--rh-text);
-  }
-
-  .documentation-link {
-    display: flex;
-    align-items: center;
-    gap: 11px;
-    padding: 11px 12px;
-    margin-top: 12px;
-    color:var(--rh-text);
-    font-weight: 650;
-    font-size: 13px;
-    text-decoration: none;
-    border:1px solid var(--rh-border);
-    border-radius: 9px;
-  }
-  .documentation-link:hover,
-  .documentation-link:focus-visible {
-    background:var(--rh-surface-soft);
     color:var(--rh-text);
   }
 
@@ -1607,8 +1553,8 @@
   
   
 
-  .admin-shell .sidebar strong, .admin-shell .sidebar a { color: var(--rh-text); }
-  .admin-shell .sidebar .brand span, .sidebar-footer span { color: var(--rh-muted); }
+  .sidebar-footer strong { color: var(--rh-text); }
+  .sidebar-footer span { color: var(--rh-muted); }
   .admin-shell .panel, .metrics article, .people-dialog {
     background: var(--rh-surface);
     border-color: var(--rh-border);
