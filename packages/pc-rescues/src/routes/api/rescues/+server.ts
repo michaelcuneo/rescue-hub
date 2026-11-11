@@ -1,5 +1,6 @@
 import { json } from '@sveltejs/kit';
 import { createRescue } from '$lib/server/graphql';
+import { markPhoneRescueIntake } from '$lib/server/admin-data';
 import { getHunterDemo, HUNTER_DEMO_ORGANISATION } from '$lib/server/demo';
 import { notifyEligibleRescuers } from '$lib/server/push';
 import { classifyDispatchCapability, getOrganisationMembershipConfig, memberCanReceiveCapability } from '$lib/server/membership';
@@ -54,6 +55,11 @@ export const POST: RequestHandler = async ({ request, locals, cookies }) => {
 			injury: body.injury?.trim() || undefined,
 			status: 'PENDING'
 		});
+
+		// The call and the online form are the same kind of public report.
+		// Record the intake channel before notifying or returning the case.
+		await markPhoneRescueIntake(rescue.id);
+		rescue.intakeSource = 'PHONE';
 
 		const notifications = await notifyEligibleRescuers({
 			id: rescue.id,

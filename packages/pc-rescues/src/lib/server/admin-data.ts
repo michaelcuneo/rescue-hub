@@ -1,7 +1,8 @@
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import {
 	DynamoDBDocumentClient,
-	QueryCommand
+	QueryCommand,
+	UpdateCommand
 } from '@aws-sdk/lib-dynamodb';
 import { Resource } from 'sst';
 import type {
@@ -70,6 +71,7 @@ export async function listAdminRescues(): Promise<Rescue[]> {
 		injury: item.injury ? String(item.injury) : null,
 		status: String(item.status) as Rescue['status'],
 		animalStatus: item.animalStatus ? String(item.animalStatus) : null,
+		intakeSource: item.intakeSource ? String(item.intakeSource) as Rescue['intakeSource'] : null,
 		assignedUserId: item.assignedUserId ? String(item.assignedUserId) : null,
     pickedUpAt: item.pickedUpAt ? String(item.pickedUpAt) : null,
     awaitingCarer: Boolean(item.awaitingCarer),
@@ -92,4 +94,17 @@ export async function listAdminAuditEvents(): Promise<AuditEvent[]> {
 		createdAt: String(item.createdAt),
 		demo: Boolean(item.demo)
 	}));
+}
+
+/** New phone intake and existing online intake use identical rescue records.
+ * This field is provenance only; it never changes eligibility or routing.
+ */
+export async function markPhoneRescueIntake(rescueId: string): Promise<void> {
+  await db.send(new UpdateCommand({
+    TableName: tableName,
+    Key: { pk: `RESCUE#${rescueId}`, sk: 'META' },
+    ConditionExpression: 'attribute_exists(pk)',
+    UpdateExpression: 'SET intakeSource = :channel',
+    ExpressionAttributeValues: { ':channel': 'PHONE' }
+  }));
 }
