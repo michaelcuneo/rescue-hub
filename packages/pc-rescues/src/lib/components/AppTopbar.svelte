@@ -58,13 +58,13 @@
     {:else}
       <a href="/login?next=%2F">Operations</a>
     {/if}
+    {#if viewer && !viewer.roles.includes('PUBLIC_REPORTER')}
+      <a href="/chats" aria-current={path.startsWith('/chats') ? 'page' : undefined}>Chats</a>
+    {/if}
     {#if isAdministrator}
       <a href="/admin" aria-current={path.startsWith('/admin') ? 'page' : undefined}>Administration</a>
     {/if}
     <a href="/documentation" aria-current={path.startsWith('/documentation') ? 'page' : undefined}>Documentation</a>
-    {#if viewer && !viewer.roles.includes('PUBLIC_REPORTER')}
-      <a href="/chats" aria-current={path.startsWith('/chats') ? 'page' : undefined}>Chats</a>
-    {/if}
   </nav>
 
   <div class="account-actions">
