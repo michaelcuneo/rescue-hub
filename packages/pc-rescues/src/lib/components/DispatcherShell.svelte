@@ -357,9 +357,11 @@ import { reportChannelLabel } from '../../../../core/report-channel';
 			const push = payload.notifications;
 			dispatchNotice = !push
 				? 'Rescue created; notification delivery status unavailable.'
-				: push.errors.length
-					? `Rescue created. Push delivery error: ${push.errors.join('; ')}`
-					: `Rescue created. ${push.eligibleUsers} eligible rescuer(s), ${push.pushTokens} registered device(s), ${push.accepted} accepted by Expo, ${push.rejected} rejected. Expo acceptance does not confirm phone delivery.`;
+				: push.eligibleUsers === 0
+					? `Rescue created in Pending, but no available, qualified ${push.capability.replaceAll('_', ' ').toLowerCase()} responders belong to this organisation. Assign an appropriately authorised team member; it will not be sent to unrelated rescuers.`
+					: push.errors.length
+						? `Rescue created. Push delivery error: ${push.errors.join('; ')}`
+						: `Rescue created. ${push.eligibleUsers} eligible rescuer(s), ${push.pushTokens} registered device(s), ${push.accepted} accepted by Expo, ${push.rejected} rejected. Expo acceptance does not confirm phone delivery.`;
 
 			species = '';
 			breed = '';
