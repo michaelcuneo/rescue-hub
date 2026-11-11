@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
   import {
     addressPrecisionLabel, formatRescueCoordinates, locationFallback,
     rescueDirectionsUrl, type AddressPrecision
@@ -36,18 +35,15 @@
     return request;
   }
 
-  onMount(() => {
+  $effect(() => {
     let disposed = false;
-    $effect(() => {
-      const lookupKey = key;
-      const lookupId = id;
-      address = resolved.get(lookupKey) ?? null;
-      loading = !address;
-      void lookup(lookupId, lookupKey).then(result => {
-        if (disposed || lookupKey !== key) return;
-        address = result;
-        loading = false;
-      });
+    const lookupKey = key, lookupId = id;
+    address = resolved.get(lookupKey) ?? null;
+    loading = !address;
+    void lookup(lookupId, lookupKey).then(result => {
+      if (disposed) return;
+      address = result;
+      loading = false;
     });
     return () => { disposed = true; };
   });

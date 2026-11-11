@@ -2,6 +2,7 @@ import ReporterConversation from './ReporterConversation';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import { KeyboardAwareScrollView, KeyboardAwareTextInput } from './KeyboardAware';
+import RescueAddress from './RescueAddress';
 import {
   acceptAnimalTransfer, addAnimalNote, getAnimalHistory, getRescueAnimals, confirmRescuePickup, getCareDelivery, type CareDeliveryDestination,
   recordAnimalOutcome, registerAnimal, requestAnimalTransfer, startVetTransport, recordVetDropoff, recordVetAssessment, unclaimRescue,
@@ -151,7 +152,9 @@ export default function AnimalCare({ rescue, userId, onBack, onUnclaim }: Props)
         <Text style={styles.link}>‹ {selected ? 'All animals' : 'Rescues'}</Text>
       </Pressable>
       <Text style={styles.heading}>{selected ? selected.species : rescue.type}</Text>
-      <Text style={styles.muted}>{selected ? `Status: ${selected.status.replace(/_/g, ' ')}` : rescue.location || 'Location not recorded'}</Text>
+      <Text style={styles.muted}>{selected ? `Status: ${selected.status.replace(/_/g, ' ')}` : 'Rescue location'}</Text>
+       <RescueAddress id={rescue.id} latitude={rescue.latitude}
+         longitude={rescue.longitude} location={rescue.location} showDirections />
       {reporterContact?.allowMessages ? (
         <Pressable accessibilityRole="button" style={styles.button} onPress={() => setConversationOpen(true)}>
           <Text style={styles.buttonText}>Message the person who reported this rescue</Text>
