@@ -8,7 +8,7 @@ import {
   memberCanReceiveCapability
 } from '$lib/server/membership';
 import type { RequestHandler } from './$types';
-import { canTransportForOrganisation } from '../../../../../../core/care-delivery';
+import { canRescueForOrganisation, canTransportForOrganisation } from '../../../../../../core/care-delivery';
 
 /**
  * An OFF-duty member can still browse the open rescues their assigned team
@@ -16,7 +16,7 @@ import { canTransportForOrganisation } from '../../../../../../core/care-deliver
  */
 export const GET: RequestHandler = async ({ locals }) => {
   const user = locals.user;
-  if (!user?.organisationId) return json({ error: 'Authentication required.' }, { status: 401 });
+  if (!user?.organisationId || !user.enabled || user.status !== 'ACTIVE') return json({ error: 'Authentication required.' }, { status: 401 });
   const membership = await getOrganisationMembershipConfig(user.organisationId);
   let rescues: Rescue[] = [];
   let nextToken: string | undefined;
@@ -50,11 +50,9 @@ export const GET: RequestHandler = async ({ locals }) => {
 
   const inOrganisation = rescues.filter((rescue) => rescue.organisationId === user.organisationId);
   const pending = inOrganisation.filter((rescue) => rescue.status === 'PENDING' && !rescue.assignedUserId && !rescue.awaitingCarer);
-  const permittedRole = user.roles.some((role) =>
-    ['RESCUER', 'CARER', 'ORG_ADMIN', 'DISPATCHER'].includes(role)
-  );
+  const permittedRole = canRescueForOrganisation(user) || canTransportForOrganisation(user);
   const qualified = pending.filter((rescue) =>
-    (rescue.transportAnimalId ? canTransportForOrganisation(user) : memberCanReceiveCapability(
+    (rescue.transportAnimalId ? canTransportForOrganisation(user) : canRescueForOrganisation(user) && memberCanReceiveCapability(
       user.teamIds,
       membership,
       classifyDispatchCapability(rescue.type, rescue.breed ?? '')
@@ -106,7 +104,7 @@ export const GET: RequestHandler = async ({ locals }) => {
     activeOwned.has(rescue.id) ||
     custodianRescueIds.has(rescue.id) ||
     (canBrowse && rescue.status === 'PENDING' && !rescue.assignedUserId && !rescue.awaitingCarer &&
-      (rescue.transportAnimalId ? canTransportForOrganisation(user) : memberCanReceiveCapability(
+      (rescue.transportAnimalId ? canTransportForOrganisation(user) : canRescueForOrganisation(user) && memberCanReceiveCapability(
         user.teamIds, membership, classifyDispatchCapability(rescue.type, rescue.breed ?? '')
       )))
   ).map(rescue => ({
