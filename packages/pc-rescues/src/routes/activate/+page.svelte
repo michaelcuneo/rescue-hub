@@ -22,7 +22,8 @@
 <svelte:head>
   <title>Welcome to Rescue Hub — Set your password</title>
   <meta name="robots" content="noindex,nofollow,noarchive" />
-  <meta name="referrer" content="no-referrer" />
+  <!-- Do not use no-referrer here: it changes native form POST Origin to null. -->
+  <meta name="referrer" content="origin" />
 </svelte:head>
 
 <main>

@@ -7,17 +7,10 @@ const config = {
   preprocess: sequence([vitePreprocess(), preprocessMeltUI()]),
   kit: {
     adapter: adapter(),
-    // Behind CloudFront/SST, the server URL can be derived from an internal
-    // host instead of the public HTTPS domain. SvelteKit's CSRF check compares
-    // the browser Origin against that URL for every HTML form POST. Trust only
-    // our own public website origin (and Apple's OAuth form_post callback).
-    // Never disable CSRF or use trustedOrigins: ['*'].
-    csrf: {
-      trustedOrigins: [
-        'https://rescue.michaelcuneo.com.au',
-        'https://appleid.apple.com'
-      ]
-    }
+    // Apple's external OAuth form_post is a genuine third-party POST.
+    // The organisation invitation form is SAME-ORIGIN; its referrer policy
+    // must preserve the Origin header instead of bypassing CSRF here.
+    csrf: { trustedOrigins: ['https://appleid.apple.com'] }
   }
 };
 

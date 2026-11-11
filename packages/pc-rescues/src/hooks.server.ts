@@ -24,7 +24,10 @@ export const handle: Handle = async ({ event, resolve }) => {
 	if (event.url.pathname === '/activate' || event.url.pathname === '/api/auth/activate') {
 		response.headers.set('x-robots-tag', 'noindex, nofollow, noarchive');
 		response.headers.set('cache-control', 'private, no-store, max-age=0');
-		response.headers.set('referrer-policy', 'no-referrer');
+		// `no-referrer` makes ordinary HTML form POSTs send `Origin: null`,
+		// which SvelteKit correctly rejects as CSRF. `origin` sends only the
+		// scheme/host (never the secret invite token or URL path).
+		response.headers.set('referrer-policy', 'origin');
 	}
 	if (event.url.pathname.startsWith('/admin')) {
 		response.headers.set('x-robots-tag', 'noindex, nofollow, noarchive');

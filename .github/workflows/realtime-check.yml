@@ -91,6 +91,8 @@ jobs:
         run: node --experimental-strip-types --test packages/core/invitation-delivery.test.mjs
       - name: Removed and pending invitation email re-use regression tests
         run: node --experimental-strip-types --test packages/core/invite-email-resolution.test.mjs
+      - name: Activation form Origin/CSRF policy regression test
+        run: node --test packages/core/activation-origin.test.mjs
       - name: TypeScript and warning-free Svelte checks
         run: npm run check
       - name: React Native TypeScript validation
