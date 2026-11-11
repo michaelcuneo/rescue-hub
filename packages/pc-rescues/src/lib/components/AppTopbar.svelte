@@ -1,6 +1,7 @@
 <script lang="ts">
   import { page } from '$app/state';
   import ThemeSwitcher from '$lib/components/ThemeSwitcher.svelte';
+  import { ChevronDown, LogOut, Settings } from '@lucide/svelte';
 
   type Viewer = { name: string; roles: string[] };
   let { viewer }: { viewer: Viewer | null } = $props();
@@ -10,7 +11,25 @@
   const initials = $derived(viewer?.name.split(/\s+/).filter(Boolean).slice(0, 2)
     .map(part => part[0]?.toUpperCase()).join('') || '?');
   const path = $derived(page.url.pathname);
+  let profileMenu: HTMLDetailsElement | undefined;
+  function closeProfileMenu() {
+    if (profileMenu) profileMenu.open = false;
+  }
 </script>
+
+<svelte:window
+  onclick={(event) => {
+    if (profileMenu && event.target instanceof Node && !profileMenu.contains(event.target)) {
+      closeProfileMenu();
+    }
+  }}
+  onkeydown={(event) => {
+    if (event.key === 'Escape' && profileMenu?.open) {
+      closeProfileMenu();
+      profileMenu.querySelector('summary')?.focus();
+    }
+  }}
+/>
 
 <header class="workspace-bar">
   <a class="identity" href={viewer ? '/' : '/documentation'} aria-label="Rescue Hub home">
@@ -34,14 +53,25 @@
   </nav>
 
   <div class="account-actions">
-    {#if viewer}
-      <span class="person" title={viewer.name}><span class="person-mark">{initials}</span><span class="person-name">{viewer.name}</span></span>
-    {/if}
     <ThemeSwitcher compact />
     {#if viewer}
-      <form method="POST" action="/logout"><button class="sign-out" type="submit">Sign out</button></form>
+      <details class="profile-menu" bind:this={profileMenu}>
+        <summary title={viewer.name} aria-label={`Account menu for ${viewer.name}`}>
+          <span class="profile-avatar" aria-hidden="true">{initials}</span>
+          <ChevronDown size={14} aria-hidden="true" />
+        </summary>
+        <div class="profile-panel" aria-label="Account options">
+          <a href="/settings" aria-current={path.startsWith('/settings') ? 'page' : undefined}
+            onclick={closeProfileMenu}>
+            <Settings size={17} aria-hidden="true" /> Settings
+          </a>
+          <form method="POST" action="/logout">
+            <button type="submit"><LogOut size={17} aria-hidden="true" /> Sign out</button>
+          </form>
+        </div>
+      </details>
     {:else}
-      <a class="sign-out" href="/login?next=%2F">Sign in</a>
+      <a class="sign-in" href="/login?next=%2F">Sign in</a>
     {/if}
   </div>
 </header>
@@ -81,20 +111,47 @@
   .area-navigation a[aria-current='page'] { background:var(--rh-nav-active); color:var(--rh-text);
     box-shadow: 0 1px 4px rgb(0 0 0 / .08); }
   .account-actions { justify-self:end; display:flex; align-items:center; gap:8px; min-width:0; }
-  .sign-out {
-    display:inline-flex; justify-content:center; align-items:center; gap:6px; min-height:34px;
+  .sign-in {
+    display:inline-flex; align-items:center; min-height:34px;
     border:1px solid var(--rh-border); border-radius:9px; padding:0 10px;
-    background:var(--rh-surface-soft); color:var(--rh-text); font:inherit;
-    text-decoration:none; cursor:pointer; white-space:nowrap;
+    background:var(--rh-surface-soft); color:var(--rh-text); text-decoration:none;
   }
-  .person { display:flex; align-items:center; gap:7px; min-width:0; max-width:160px; }
-  .person-mark { width:31px; height:31px; flex:0 0 31px; display:grid; place-items:center;
-    border-radius:50%; background:var(--rh-raised); color:var(--rh-text); font-weight:800; }
-  .person-name { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-  form { margin:0; }
+  .profile-menu { position:relative; }
+  .profile-menu summary {
+    display:flex; align-items:center; justify-content:center; gap:4px;
+    min-width:53px; min-height:42px; padding:2px 6px;
+    list-style:none; border:1px solid var(--rh-border); border-radius:10px;
+    background:var(--rh-surface-soft); color:var(--rh-text); cursor:pointer;
+  }
+  .profile-menu summary::-webkit-details-marker { display:none; }
+  .profile-menu summary:hover, .profile-menu[open] summary {
+    background:var(--rh-raised); border-color:var(--rh-border-strong);
+  }
+  .profile-menu summary:focus-visible, .profile-panel a:focus-visible,
+  .profile-panel button:focus-visible { outline:3px solid var(--rh-focus); outline-offset:2px; }
+  .profile-avatar {
+    display:grid; place-items:center; width:32px; height:32px; border-radius:50%;
+    background:var(--rh-primary); color:var(--rh-on-primary);
+    font-weight:850; font-size:12px; letter-spacing:.01em;
+  }
+  .profile-panel {
+    position:absolute; top:calc(100% + 9px); right:0; z-index:85;
+    min-width:185px; padding:7px; border:1px solid var(--rh-border);
+    border-radius:12px; background:var(--rh-surface);
+    box-shadow:var(--rh-shadow); color:var(--rh-text);
+  }
+  .profile-panel a, .profile-panel button {
+    display:flex; align-items:center; gap:10px; width:100%; min-height:42px;
+    border:0; border-radius:8px; padding:9px 12px; background:transparent;
+    color:var(--rh-text); font:inherit; font-size:13px; font-weight:700;
+    text-decoration:none; text-align:left; cursor:pointer;
+  }
+  .profile-panel a:hover, .profile-panel button:hover,
+  .profile-panel a[aria-current='page'] { background:var(--rh-raised); }
+  .profile-panel form { margin:0; border-top:1px solid var(--rh-border); padding-top:5px; margin-top:5px; }
   @media(max-width:1280px) {
     .workspace-bar { grid-template-columns:auto minmax(0,1fr) auto; }
-    .person-name { display:none; }
+    .profile-menu summary { min-width:48px; }
   }
   @media(max-width:1050px) {
     .identity-text small { display:none; }
@@ -112,7 +169,7 @@
     .area-navigation { grid-column:1 / -1; grid-row:2; justify-self:stretch;
       justify-content:space-evenly; padding:2px; }
     .area-navigation a { font-size:11px; padding:7px 8px; }
-    .person, .sign-out { display:none; }
+    .sign-in { min-height:34px; }
   }
   @media(max-width:420px) {
     .area-navigation a { font-size:10px; padding:7px 4px; }
