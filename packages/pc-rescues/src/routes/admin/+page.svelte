@@ -1746,9 +1746,6 @@
     color: var(--rh-text);
     border-color: var(--rh-border);
   }
-  .admin-shell .people-dialog button, .admin-shell .panel button {
-    color: inherit;
-  }
   @media(min-width:781px) and (max-width:1000px) {
     .admin-shell { grid-template-columns: 210px minmax(0,1fr); }
   }
