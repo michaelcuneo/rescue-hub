@@ -539,7 +539,10 @@
         <div class="people-overlay" role="presentation">
           <div class="people-dialog" role="dialog" aria-modal="true" aria-labelledby="invite-title">
             <div class="dialog-heading"><div><p class="eyebrow">New team member</p><h2 id="invite-title">Invite a person</h2></div><button class="dialog-close" type="button" aria-label="Close invitation" onclick={() => (showInvite = false)}>×</button></div>
-            <form method="POST" action="?/inviteUser" class="person-form">
+            {#if form?.action === 'inviteUser' && form.error}
+                <p class="people-feedback error" role="alert">{form.error}</p>
+              {/if}
+              <form method="POST" action="?/inviteUser" class="person-form">
               {#if canChooseOrganisation}
                 <div class="reviewer-note"><strong>Reviewer permissions</strong><p>Invitations grant operational access according to the selected role. Do not invite read-only reviewers until a restricted reviewer role is available.</p></div>
               {/if}
@@ -564,6 +567,9 @@
         <div class="people-overlay" role="presentation">
           <div class="people-dialog person-detail" role="dialog" aria-modal="true" aria-labelledby="person-detail-title">
             <div class="dialog-heading"><div><p class="eyebrow">Person details</p><h2 id="person-detail-title">{selectedPerson.name || selectedPerson.email}</h2><p class="intro">{selectedPerson.email} · {organisationName(selectedPerson.organisationId)}</p></div><button class="dialog-close" type="button" aria-label="Close person details" onclick={() => (selectedPersonId = null)}>×</button></div>
+            {#if form?.error && form.userId === selectedPerson.id}
+              <p class="people-feedback error" role="alert">{form.error}</p>
+            {/if}
             <div class="person-detail-summary"><span class:available={selectedPerson.enabled && selectedPerson.availabilityStatus === 'AVAILABLE'} class="availability-state">{selectedPerson.enabled ? selectedPerson.availabilityStatus ?? 'Offline' : 'Disabled'}</span><span>{selectedPerson.roles.join(' · ')}</span><span>{selectedPerson.status}</span></div>
             {#if selectedPerson.status === 'INVITED' && selectedPerson.enabled && !selectedPerson.roles.includes('PUBLIC_REPORTER')}
               <section class="invitation-detail" aria-labelledby="pending-invite-heading">
