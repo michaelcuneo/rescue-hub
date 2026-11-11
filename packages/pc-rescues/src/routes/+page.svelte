@@ -111,5 +111,32 @@
   });
 </script>
 
-<MapBox />
-<DispatcherShell backendOnline={data.backendOnline} user={data.user} demoMode={data.demoMode} membershipConfig={data.membershipConfig} />
+<div class="dispatch-workspace">
+  <MapBox />
+  <DispatcherShell backendOnline={data.backendOnline} user={data.user} demoMode={data.demoMode} membershipConfig={data.membershipConfig} />
+</div>
+
+<style>
+  /* One set of measurements keeps the fixed desktop queue and map panels aligned. */
+  .dispatch-workspace {
+    --dispatch-gutter: 16px;
+    --dispatch-queue-width: 365px;
+    --dispatch-content-top: 84px;
+    --dispatch-areas-width: clamp(240px, 22vw, 285px);
+    position: relative;
+    min-height: 100dvh;
+    background: #edf2ee;
+  }
+
+  @media (max-width: 900px) {
+    .dispatch-workspace {
+      --dispatch-queue-width: 330px;
+    }
+  }
+
+  @media (max-width: 700px) {
+    .dispatch-workspace {
+      --dispatch-gutter: 10px;
+    }
+  }
+</style>

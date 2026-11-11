@@ -788,10 +788,10 @@
 
 	.queue {
 		position: absolute;
-		top: 84px;
-		bottom: 16px;
-		left: 16px;
-		width: 365px;
+		top: var(--dispatch-content-top, 84px);
+		bottom: var(--dispatch-gutter, 16px);
+		left: var(--dispatch-gutter, 16px);
+		width: var(--dispatch-queue-width, 365px);
 		display: flex;
 		flex-direction: column;
 		overflow: hidden;
@@ -1078,8 +1078,9 @@
 
 	.detail-card {
 		position: absolute;
-		right: 18px;
-		bottom: 18px;
+		/* Leave the right-hand operating-area panel unobstructed. */
+		right: calc(var(--dispatch-areas-width, 285px) + var(--dispatch-gutter, 16px) * 2);
+		bottom: var(--dispatch-gutter, 16px);
 		width: 320px;
 		padding: 17px;
 		border: 1px solid rgb(27 62 45 / 0.12);
@@ -1481,6 +1482,15 @@
 		}
 	}
 
+	@media (min-width: 701px) and (max-width: 1120px) {
+		.detail-card {
+			top: calc(var(--dispatch-content-top, 84px) + 12px);
+			right: calc(var(--dispatch-gutter, 16px) + 12px);
+			bottom: auto;
+			width: min(320px, calc(100vw - var(--dispatch-queue-width, 330px) - var(--dispatch-gutter, 16px) * 3 - 24px));
+		}
+	}
+
 	@media (max-width: 900px) {
 		.user div {
 			display: none;
@@ -1491,7 +1501,7 @@
 		}
 
 		.queue {
-			width: 330px;
+			width: var(--dispatch-queue-width, 330px);
 		}
 	}
 

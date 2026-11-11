@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { onDestroy } from 'svelte';
 	import { env } from '$env/dynamic/public';
 	import { get } from 'svelte/store';
 	import { Map, Marker, controls } from '@beyonk/svelte-mapbox';
@@ -41,6 +42,10 @@
 	let areaFeatureCount = $state(0);
 	let selectedArea: AreaSelection | null = $state(null);
 	let secureContext = $state(false);
+	let mapSurface: HTMLDivElement | undefined;
+	let resizeObserver: ResizeObserver | undefined;
+
+	onDestroy(() => resizeObserver?.disconnect());
 
 	const mapboxAccessToken = env.PUBLIC_MAPBOX_ACCESS_TOKEN ?? '';
 	const { GeolocateControl, NavigationControl, ScaleControl } = controls;
@@ -216,6 +221,14 @@
 		const rawMap = ref?.getMap?.();
 		if (!rawMap) return;
 
+		// Mapbox must recalculate its canvas when the dispatch workspace changes size.
+		if (mapSurface && typeof ResizeObserver !== 'undefined') {
+			resizeObserver?.disconnect();
+			resizeObserver = new ResizeObserver(() => rawMap.resize?.());
+			resizeObserver.observe(mapSurface);
+		}
+		rawMap.resize?.();
+
 		if (typeof rawMap.isStyleLoaded === 'function' && !rawMap.isStyleLoaded()) {
 			await new Promise<void>((resolve) => rawMap.once('load', () => resolve()));
 		}
@@ -235,6 +248,7 @@
 </script>
 
 <div class="map-shell">
+	<div class="map-surface" bind:this={mapSurface}>
 	<Map
 		bind:this={ref}
 		bind:center
@@ -284,8 +298,9 @@
 			</Marker>
 		{/if}
 	</Map>
+	</div>
 
-	<div class="area-panel">
+	<aside class="area-panel" aria-label="NSW operating areas">
 		<div class="area-panel-heading">
 			<span class="area-dot"></span>
 			<div>
@@ -318,7 +333,7 @@
 				<span>{selectedArea.status}</span>
 			</div>
 		{/if}
-	</div>
+	</aside>
 </div>
 
 <style>
@@ -343,29 +358,54 @@
 
 	.map-shell {
 		position: fixed;
-		inset: 0;
-		overflow: hidden;
-		background: #dce6df;
+		z-index: 1;
+		top: var(--dispatch-content-top, 84px);
+		right: var(--dispatch-gutter, 16px);
+		bottom: var(--dispatch-gutter, 16px);
+		left: calc(var(--dispatch-queue-width, 365px) + var(--dispatch-gutter, 16px) * 2);
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) var(--dispatch-areas-width, 285px);
+		gap: var(--dispatch-gutter, 16px);
+		min-width: 0;
+		min-height: 0;
+		pointer-events: none;
 	}
 
-	:global(.mapboxgl-map) {
+	.map-surface {
+		position: relative;
+		min-width: 0;
+		min-height: 0;
+		overflow: hidden;
+		border: 1px solid rgb(27 62 45 / 12%);
+		border-radius: 16px;
+		background: #dce6df;
+		box-shadow: 0 16px 42px rgb(26 54 41 / 14%);
+		pointer-events: auto;
+	}
+
+	.map-surface :global(.mapboxgl-map) {
 		width: 100% !important;
 		height: 100% !important;
 	}
 
+	.map-surface :global(.mapboxgl-ctrl-top-right) {
+		top: 10px;
+		right: 10px;
+	}
+
 	.area-panel {
-		position: absolute;
-		z-index: 8;
-		top: 78px;
-		right: 18px;
-		width: min(285px, calc(100vw - 36px));
-		padding: 13px 14px;
-		border: 1px solid rgb(23 61 44 / 12%);
-		border-radius: 12px;
-		background: rgb(255 255 255 / 92%);
-		box-shadow: 0 12px 30px rgb(23 61 44 / 14%);
-		backdrop-filter: blur(10px);
-		pointer-events: none;
+		position: relative;
+		z-index: 2;
+		min-width: 0;
+		min-height: 0;
+		overflow-y: auto;
+		padding: 16px;
+		border: 1px solid rgb(27 62 45 / 12%);
+		border-radius: 16px;
+		background: rgb(255 255 255 / 96%);
+		box-shadow: 0 16px 42px rgb(26 54 41 / 14%);
+		backdrop-filter: blur(14px);
+		pointer-events: auto;
 	}
 
 	.area-panel-heading {
@@ -465,13 +505,15 @@
 		font-size: 10px;
 	}
 
-	@media (max-width: 760px) {
+	/* On narrower desktops, preserve map usability by putting boundaries below it. */
+	@media (max-width: 1120px) {
+		.map-shell {
+			grid-template-columns: minmax(0, 1fr);
+			grid-template-rows: minmax(200px, 1fr) auto;
+		}
+
 		.area-panel {
-			top: auto;
-			right: 12px;
-			bottom: 64px;
-			left: 12px;
-			width: auto;
+			max-height: min(31vh, 250px);
 		}
 
 		.legend {
@@ -480,6 +522,37 @@
 
 		.legend span {
 			align-items: flex-start;
+		}
+	}
+
+	/* The dispatch queue occupies the lower half of the compact layout. */
+	@media (max-width: 700px) {
+		.map-shell {
+			top: 78px;
+			right: var(--dispatch-gutter, 10px);
+			bottom: calc(45vh + var(--dispatch-gutter, 10px) * 2);
+			left: var(--dispatch-gutter, 10px);
+			display: block;
+		}
+
+		.map-surface {
+			width: 100%;
+			height: 100%;
+		}
+
+		.area-panel {
+			position: absolute;
+			z-index: 8;
+			right: 10px;
+			bottom: 10px;
+			left: 10px;
+			max-height: min(33%, 120px);
+			padding: 8px 10px;
+			border-radius: 10px;
+		}
+
+		.legend span {
+			font-size: 8px;
 		}
 	}
 </style>
