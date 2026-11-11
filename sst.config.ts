@@ -21,6 +21,11 @@ export default $config({
     const { realtime, realtimeLink } = await import("./packages/infra/realtime");
     const { mailFrom } = await import("./packages/infra/config");
     const { invitationEmailConfigurationSetName } = await import("./packages/infra/invitation-email");
+    // SvelteKit's Lambda adapter uses ORIGIN for form-action CSRF checks.
+    // CloudFront can forward an internal host instead of the browser-facing URL.
+    const publicOrigin = (process.env.RESCUE_HUB_PUBLIC_ORIGIN || (
+      $app.stage === "demo" ? "https://rescue.michaelcuneo.com.au" : ""
+    )).trim();
     await import("./packages/infra/directory");
     await import("./packages/infra/demo");
 
@@ -39,7 +44,8 @@ export default $config({
         PUBLIC_MAPBOX_ACCESS_TOKEN: process.env.PUBLIC_MAPBOX_ACCESS_TOKEN ?? "",
         RESCUE_HUB_SES_CONFIGURATION_SET: invitationEmailConfigurationSetName,
         // Trusted website origin for single-use organisation invitation links.
-        RESCUE_HUB_PUBLIC_ORIGIN: process.env.RESCUE_HUB_PUBLIC_ORIGIN ?? ($app.stage === "demo" ? "https://rescue.michaelcuneo.com.au" : ""),
+        RESCUE_HUB_PUBLIC_ORIGIN: publicOrigin,
+        ...(publicOrigin ? { ORIGIN: new URL(publicOrigin).origin } : {}),
         // Server-side OAuth credentials; these are never PUBLIC_ variables.
         GOOGLE_OAUTH_CLIENT_ID: process.env.GOOGLE_OAUTH_CLIENT_ID ?? "",
         GOOGLE_OAUTH_CLIENT_SECRET: process.env.GOOGLE_OAUTH_CLIENT_SECRET ?? "",
