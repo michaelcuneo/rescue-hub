@@ -9,6 +9,7 @@ import {
 } from '$lib/server/membership';
 import type { RequestHandler } from './$types';
 import { canRescueForOrganisation, canTransportForOrganisation } from '../../../../../../core/care-delivery';
+import { reconcileRescueSnapshots } from '../../../../../../core/rescue-feed-reconciliation';
 
 /**
  * An OFF-duty member can still browse the open rescues their assigned team
@@ -18,35 +19,40 @@ export const GET: RequestHandler = async ({ locals }) => {
   const user = locals.user;
   if (!user?.organisationId || !user.enabled || user.status !== 'ACTIVE') return json({ error: 'Authentication required.' }, { status: 401 });
   const membership = await getOrganisationMembershipConfig(user.organisationId);
-  let rescues: Rescue[] = [];
   let nextToken: string | undefined;
-  let source: 'appsync' | 'dynamodb-fallback' = 'appsync';
-  let graphqlFailed = false;
+  // Both sources are projections of the same rescue table. A nonempty AppSync
+  // result can still be stale, so ALWAYS reconcile it with the desktop GSI.
+  const [appsync, indexed] = await Promise.allSettled([
+    (async () => {
+      const items: Rescue[] = [];
+      let cursor: string | undefined;
+      let page = 0;
+      do {
+        const result = await getRescues(undefined, 100, cursor);
+        items.push(...result.items);
+        cursor = result.nextToken ?? undefined;
+        page += 1;
+      } while (cursor && page < 20);
+      return { items, nextToken: cursor };
+    })(),
+    listAdminRescues()
+  ]);
 
-  try {
-    let page = 0;
-    do {
-      const result = await getRescues(undefined, 100, nextToken);
-      rescues.push(...result.items);
-      nextToken = result.nextToken ?? undefined;
-      page += 1;
-    } while (nextToken && page < 20);
-  } catch (error) {
-    graphqlFailed = true;
-    console.error('Mobile AppSync rescue feed unavailable; trying the DynamoDB index', error);
-    rescues = [];
-  }
+  if (appsync.status === 'rejected')
+    console.error('Mobile AppSync rescue query failed; reconciling with the dispatch index.', appsync.reason);
+  if (indexed.status === 'rejected')
+    console.error('Mobile DynamoDB dispatch index unavailable; using AppSync.', indexed.reason);
+  if (appsync.status === 'rejected' && indexed.status === 'rejected')
+    return json({ error: 'Rescue feed is unavailable. Retry shortly.' }, { status: 503 });
 
-  // The dispatcher portal reads the DynamoDB index directly. Use that same
-  // index when AppSync has no data or fails, instead of showing an empty map.
-  if (rescues.length === 0) {
-    const fallback = await listAdminRescues();
-    if (fallback.length || graphqlFailed) {
-      rescues = fallback;
-      source = 'dynamodb-fallback';
-      nextToken = undefined;
-    }
-  }
+  nextToken = appsync.status === 'fulfilled' ? appsync.value.nextToken : undefined;
+  const source: 'appsync' | 'dynamodb-fallback' | 'reconciled' =
+    appsync.status === 'fulfilled' && indexed.status === 'fulfilled'
+      ? 'reconciled' : indexed.status === 'fulfilled' ? 'dynamodb-fallback' : 'appsync';
+  const rescues: Rescue[] = reconcileRescueSnapshots(
+    appsync.status === 'fulfilled' ? appsync.value.items : [],
+    indexed.status === 'fulfilled' ? indexed.value : []
+  );
 
   const inOrganisation = rescues.filter((rescue) => rescue.organisationId === user.organisationId);
   const pending = inOrganisation.filter((rescue) => rescue.status === 'PENDING' && !rescue.assignedUserId && !rescue.awaitingCarer);
