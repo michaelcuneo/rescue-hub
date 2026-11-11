@@ -71,12 +71,13 @@
   let outcome = $state('RELEASED');
   let errorMessage = $state('');
   let busy = $state(false);
-  let pickedUp = $state(Boolean(data.rescue.pickedUpAt));
+  const initialPickedUp = () => Boolean(data.rescue.pickedUpAt);
+  let pickedUp = $state(initialPickedUp());
   let vetClinic = $state('');
   let vetNotes = $state('');
   let vetMessage = $state('');
   let showDetailedHistory = $state(false);
-  const isAssigned = data.rescue.assignedUserId === data.userId && data.rescue.status === 'ASSIGNED' && !data.rescue.transportAnimalId;
+  const isAssigned = $derived(data.rescue.assignedUserId === data.userId && data.rescue.status === 'ASSIGNED' && !data.rescue.transportAnimalId);
   const activeAnimal = $derived(selected ?? (animals.length === 1 ? animals[0] : null));
   const canQuickVet = $derived(isAssigned && pickedUp &&
     (activeAnimal ? ['IN_RESCUE', 'IN_TRANSIT'].includes(activeAnimal.status) && activeAnimal.currentCustodianUserId === data.userId :
