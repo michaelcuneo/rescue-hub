@@ -72,6 +72,8 @@ jobs:
         run: node --experimental-strip-types --test packages/core/rescue-location.test.mjs
       - name: TypeScript and warning-free Svelte checks
         run: npm run check
+      - name: React Native TypeScript validation
+        run: npm run check --workspace=@rescue-hub/mobile
       - name: Production SvelteKit bundle (dummy SST links for CI only)
         env:
           SST_RESOURCE_RescueHubData: '{"name":"ci-placeholder-table"}'
