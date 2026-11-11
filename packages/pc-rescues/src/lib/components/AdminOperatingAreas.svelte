@@ -153,9 +153,9 @@
 		position: relative;
 		min-height: 520px;
 		overflow: hidden;
-		border: 1px solid #d9e1dc;
+		border:1px solid var(--rh-t178, #d9e1dc);
 		border-radius: 16px;
-		background: #dce6df;
+		background:var(--rh-t179, #dce6df);
 		box-shadow: 0 12px 32px rgb(29 55 42 / 0.05);
 	}
 
@@ -172,9 +172,9 @@
 		z-index: 4;
 		left: 14px;
 		padding: 10px 12px;
-		border: 1px solid rgb(23 61 44 / 0.12);
+		border:1px solid rgb(23 61 44 / 0.12);
 		border-radius: 10px;
-		background: rgb(255 255 255 / 0.92);
+		background:rgb(255 255 255 / 0.92);
 		box-shadow: 0 8px 24px rgb(23 61 44 / 0.12);
 		backdrop-filter: blur(10px);
 	}
@@ -190,12 +190,12 @@
 	}
 
 	.map-status span {
-		color: #68756e;
+		color:var(--rh-t180, #68756e);
 		font-size: 12px;
 	}
 
 	.map-status span.error {
-		color: #a23f35;
+		color:var(--rh-t181, #a23f35);
 	}
 
 	.legend {
@@ -208,30 +208,30 @@
 		display: flex;
 		align-items: center;
 		gap: 5px;
-		color: #4f5d55;
+		color:var(--rh-t182, #4f5d55);
 		font-size: 12px;
 	}
 
 	.legend i {
 		width: 15px;
 		height: 8px;
-		border: 1px solid;
+		border:1px solid;
 		border-radius: 2px;
 	}
 
 	.legend .hunter {
-		border-color: #8a6200;
-		background: rgb(242 183 5 / 0.35);
+		border-color:#8a6200;
+		background:rgb(242 183 5 / 0.35);
 	}
 
 	.legend .wires {
-		border-color: #31597f;
-		background: rgb(81 125 168 / 0.24);
+		border-color:#31597f;
+		background:rgb(81 125 168 / 0.24);
 	}
 
 	.legend .other {
-		border-color: #2d7148;
-		background: rgb(80 169 113 / 0.24);
+		border-color:#2d7148;
+		background:rgb(80 169 113 / 0.24);
 	}
 
 	@media (max-width: 700px) {

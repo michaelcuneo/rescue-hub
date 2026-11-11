@@ -324,6 +324,80 @@ h6 {
   --rh-t176: #e3ede5;
   --rh-t177: #b4c8ba;
 }
+:root[data-theme='dark'] {
+  --rh-t178: #3a5243;
+  --rh-t179: #26352b;
+  --rh-t180: #b4c8ba;
+  --rh-t181: #fca89a;
+  --rh-t182: #e3ede5;
+  --rh-t183: #26352b;
+  --rh-t184: #26352b;
+  --rh-t185: #e3ede5;
+  --rh-t186: #1e2a24;
+  --rh-t187: #b4c8ba;
+  --rh-t188: #b4c8ba;
+  --rh-t189: #3a5243;
+  --rh-t190: #26352b;
+  --rh-t191: #fca89a;
+  --rh-t192: #e3ede5;
+  --rh-t193: #26352b;
+  --rh-t194: #e3ede5;
+  --rh-t195: #3a5243;
+  --rh-t196: #b4c8ba;
+  --rh-t197: #b4c8ba;
+  --rh-t198: #e3ede5;
+  --rh-t199: #3a5243;
+  --rh-t200: #1e2a24;
+  --rh-t201: #b4c8ba;
+  --rh-t202: #506454;
+  --rh-t203: #506454;
+  --rh-t204: #b4c8ba;
+  --rh-t205: #fca89a;
+  --rh-t206: #b4c8ba;
+  --rh-t207: #e3ede5;
+  --rh-t208: #506454;
+  --rh-t209: #e3ede5;
+  --rh-t210: #3a5243;
+  --rh-t211: #1e2a24;
+  --rh-t212: #3a5243;
+  --rh-t213: #e3ede5;
+  --rh-t214: #fca89a;
+  --rh-t215: #1e2a24;
+  --rh-t216: #e3ede5;
+  --rh-t217: #506454;
+  --rh-t218: #b4c8ba;
+  --rh-t219: #506454;
+  --rh-t220: #26352b;
+  --rh-t221: #3a5243;
+  --rh-t222: #3a5243;
+  --rh-t223: #1e2a24;
+  --rh-t224: #1e2a24;
+  --rh-t225: #e3ede5;
+  --rh-t226: #b4c8ba;
+  --rh-t227: #26352b;
+  --rh-t228: #26352b;
+  --rh-t229: #26352b;
+  --rh-t230: #26352b;
+  --rh-t231: #1e2a24;
+  --rh-t232: #26352b;
+  --rh-t233: #b4c8ba;
+  --rh-t234: #e3ede5;
+  --rh-t235: #b4c8ba;
+  --rh-t236: #3a5243;
+  --rh-t237: #506454;
+  --rh-t238: #506454;
+  --rh-t239: #e3ede5;
+  --rh-t240: #26352b;
+  --rh-t241: #e3ede5;
+  --rh-t242: #e3ede5;
+  --rh-t243: #26352b;
+  --rh-t244: #b4c8ba;
+  --rh-t245: #3a5243;
+  --rh-t246: #506454;
+  --rh-t247: #fca89a;
+  --rh-t248: #1e2a24;
+}
+
 :root[data-theme='dark'] body { background:var(--rh-background);color:var(--rh-text); }
 :root[data-theme='dark'] input, :root[data-theme='dark'] select, :root[data-theme='dark'] textarea { color-scheme:dark; }
 :root[data-theme='dark'] .mapboxgl-ctrl-group {background:var(--rh-surface);border:1px solid var(--rh-border)}

@@ -149,34 +149,34 @@
 </main>
 
 <style>
-  :global(body){margin:0;background:#edf1ee;font-family:Inter,system-ui,sans-serif;color:#17211d}
+  :global(body){margin:0;background:var(--rh-t184, #edf1ee);font-family:Inter,system-ui,sans-serif;color:var(--rh-t185, #17211d)}
   header{height:56px;padding:0 20px;display:flex;align-items:center;gap:24px;background:#173d2c;color:white}
   header a{color:white;text-decoration:none;font-size:13px}
   header form{margin-left:auto;margin-top:0;display:block}
   header .signout{background:transparent;color:white;padding:8px;font-size:13px;font-weight:700;min-height:40px}
   .brand{font-weight:900;letter-spacing:.1em}
   .layout{display:grid;grid-template-columns:minmax(320px,420px) minmax(0,1fr);min-height:calc(100dvh - 56px)}
-  .intro{padding:28px;max-height:calc(100dvh - 56px);overflow:auto;background:white}
-  .eyebrow{font-size:11px;color:#648074;font-weight:900;letter-spacing:.12em}
+  .intro{padding:28px;max-height:calc(100dvh - 56px);overflow:auto;background:var(--rh-t186, white)}
+  .eyebrow{font-size:11px;color:var(--rh-t187, #648074);font-weight:900;letter-spacing:.12em}
   h1{font-size:28px;letter-spacing:-.04em;margin:8px 0 12px}
-  p{line-height:1.5;color:#56665b}
-  .safety{font-size:13px;color:#83580a;background:#fff6df;padding:12px;border-radius:10px}
+  p{line-height:1.5;color:var(--rh-t213, #56665b)}
+  .safety{font-size:13px;color:var(--rh-t214, #83580a);background:var(--rh-t215, #fff6df);padding:12px;border-radius:10px}
   form{display:grid;gap:17px;margin-top:20px}
   .field{display:grid;gap:7px}
-  label,.label{font-size:13px;font-weight:800;color:#243c2e}
-  input,textarea{box-sizing:border-box;width:100%;font:inherit;padding:12px;border-radius:10px;border:1px solid #cbd9d0}
-  input[type=checkbox]{width:auto;margin-right:8px}small,.hint{color:#65776b;font-size:12px;margin:0}
+  label,.label{font-size:13px;font-weight:800;color:var(--rh-t216, #243c2e)}
+  input,textarea{box-sizing:border-box;width:100%;font:inherit;padding:12px;border-radius:10px;border:1px solid var(--rh-t217, #cbd9d0)}
+  input[type=checkbox]{width:auto;margin-right:8px}small,.hint{color:var(--rh-t218, #65776b);font-size:12px;margin:0}
   button{border:0;cursor:pointer;min-height:44px;border-radius:10px;font:inherit;font-weight:800;padding:11px}
   button:disabled{opacity:.55;cursor:default}
   .submit{background:#173d2c;color:white}
-  .secondary{border:1px solid #b9cbc0;background:#f2f6f3;color:#173d2c}
-  .previous-reports{margin-top:24px;border-top:1px solid #dce5df;padding-top:16px;display:grid;gap:10px}.previous-reports h2{font-size:18px}.previous-reports article{padding:12px;border:1px solid #dce5df;border-radius:9px;display:grid;gap:5px}.previous-reports a{color:#24583f;font-weight:800}
+  .secondary{border:1px solid var(--rh-t219, #b9cbc0);background:var(--rh-t220, #f2f6f3);color:var(--rh-t198, #173d2c)}
+  .previous-reports{margin-top:24px;border-top:1px solid var(--rh-t221, #dce5df);padding-top:16px;display:grid;gap:10px}.previous-reports h2{font-size:18px}.previous-reports article{padding:12px;border:1px solid var(--rh-t221, #dce5df);border-radius:9px;display:grid;gap:5px}.previous-reports a{color:var(--rh-t192, #24583f);font-weight:800}
   .map-panel{position:relative;min-height:400px}
-  .report-pin{width:22px;height:22px;background:#bf4429;border-radius:100%;border:4px solid white;box-shadow:0 0 0 5px #bf442955}
-  .map-tip{position:absolute;top:10px;left:10px;background:#ffffffed;padding:9px 12px;border-radius:10px;color:#173d2c;font-size:12px;font-weight:800}
-  .error{color:#a23f35;font-weight:700}
-  .success{background:#eff8f1;padding:16px;border-radius:12px;display:grid;gap:12px}
-  .coordinates{font-weight:700;color:#173d2c}
+  .report-pin{width:22px;height:22px;background:#bf4429;border-radius:100%;border:4px solid var(--rh-t222, white);box-shadow:0 0 0 5px #bf442955}
+  .map-tip{position:absolute;top:10px;left:10px;background:var(--rh-t223, #ffffffed);padding:9px 12px;border-radius:10px;color:var(--rh-t198, #173d2c);font-size:12px;font-weight:800}
+  .error{color:var(--rh-t181, #a23f35);font-weight:700}
+  .success{background:var(--rh-t224, #eff8f1);padding:16px;border-radius:12px;display:grid;gap:12px}
+  .coordinates{font-weight:700;color:var(--rh-t198, #173d2c)}
   .map-error{display:grid;place-items:center;padding:24px}
   @media(max-width:800px){.layout{grid-template-columns:1fr}.intro{max-height:none;padding:20px}.map-panel{height:55dvh;min-height:350px}header{gap:12px;padding:0 12px}}
 </style>
