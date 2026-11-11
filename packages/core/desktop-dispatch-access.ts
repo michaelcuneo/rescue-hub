@@ -1,5 +1,3 @@
-import { canRescueForOrganisation, canTransportForOrganisation } from './care-delivery';
-
 export type DesktopRescueViewer = {
   id: string;
   organisationId?: string;
@@ -39,7 +37,15 @@ export function canSeeDesktopRescue(
 
   if (rescue.status !== 'PENDING' || rescue.assignedUserId || rescue.awaitingCarer) return false;
 
-  if (rescue.transportAnimalId) return canTransportForOrganisation(viewer);
+  // Keep eligibility independent of the app/server module graph so this
+  // pure policy runs identically under Node's strip-types test runner.
+  const fieldRescuer = (!viewer.membershipTypeId ||
+    viewer.membershipTypeId === 'active-rescuer') &&
+    viewer.roles.some(role => ['RESCUER', 'CARER', 'ORG_ADMIN'].includes(role));
 
-  return canRescueForOrganisation(viewer) && suitableSpeciesTeam;
+  if (rescue.transportAnimalId) {
+    return fieldRescuer || viewer.membershipTypeId === 'transport-volunteer';
+  }
+
+  return fieldRescuer && suitableSpeciesTeam;
 }
