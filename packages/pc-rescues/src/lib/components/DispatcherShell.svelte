@@ -108,9 +108,22 @@
 	}
 
 	function rescueProgress(item: RescueItem) {
-		if (item.status === 'COMPLETED') return 'Case closed';
+		if (item.status === 'COMPLETED') {
+			switch (item.animalStatus) {
+				case 'RELEASED': return 'Released';
+				case 'EUTHANISED': return 'Euthanised on veterinary advice';
+				case 'DECEASED': return 'Died during treatment';
+				default: return 'Case closed';
+			}
+		}
 		if (!item.assignedUserId) return 'Awaiting assignment';
-		return item.pickedUpAt ? 'Animal collected' : 'Awaiting collection';
+		if (!item.pickedUpAt) return 'Awaiting collection';
+		switch (item.animalStatus) {
+			case 'AT_VET': return 'At veterinary clinic';
+			case 'IN_TRANSIT': return 'In transit';
+			case 'IN_CARE': return 'With wildlife carer';
+			default: return 'Animal collected';
+		}
 	}
 
 	const relativeTime = (value?: string) => {

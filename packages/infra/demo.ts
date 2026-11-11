@@ -164,7 +164,10 @@ allDemoRescues.forEach((r, index) => {
   };
   if (assignedUserId) item.assignedUserId = S(assignedUserId);
   if (story?.pickedUpAt) item.pickedUpAt = S(story.pickedUpAt);
-  if (story) item.animalCount = N(1);
+  if (story) {
+    item.animalCount = N(1);
+    item.animalStatus = S(String(story.animal.status));
+  }
   put(`DemoRescue-${id}`, item);
 
   if (story) {
