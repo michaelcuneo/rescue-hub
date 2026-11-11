@@ -22,6 +22,16 @@
   let showInvite = $state(false);
   let selectedPersonId = $state<string | null>(null);
   let inviteOrganisationId = $state('');
+  let inviteRole = $state('RESCUER');
+  let inviteMembershipTypeId = $state('active-rescuer');
+
+  function selectInvitationRole(role: string) {
+    inviteRole = role;
+    // Suggested defaults, not permission grants: teams and membership are
+    // always validated when the invitation is submitted.
+    inviteMembershipTypeId = role === 'RESCUER' || role === 'CARER'
+      ? 'active-rescuer' : 'support-member';
+  }
 
   const visiblePeople = $derived(data.users.filter((user) => {
     const query = peopleSearch.trim().toLowerCase();
@@ -472,7 +482,7 @@
             <h2>People & access</h2>
             <p class="intro">Manage organisation membership, dispatch capabilities and account access.</p>
           </div>
-          <button class="primary-action" type="button" onclick={() => { inviteOrganisationId = data.currentUser.organisationId ?? data.organisations[0]?.id ?? ''; showInvite = true; }}>+ Invite person</button>
+          <button class="primary-action" type="button" onclick={() => { inviteOrganisationId = data.currentUser.organisationId ?? data.organisations[0]?.id ?? ''; selectInvitationRole('RESCUER'); showInvite = true; }}>+ Invite person</button>
         </div>
 
         <div class="people-stats" aria-label="People summary">
@@ -529,11 +539,11 @@
               <div class="form-pair"><label><span>Name</span><input name="name" required placeholder="Jane Smith" /></label><label><span>Email</span><input name="email" type="email" required placeholder="jane@example.org" /></label></div>
               <label><span>Organisation</span><select name="organisationId" bind:value={inviteOrganisationId} disabled={!canChooseOrganisation} required>{#each data.organisations as organisation}<option value={organisation.id}>{organisation.displayName}</option>{/each}</select>{#if !canChooseOrganisation}<input type="hidden" name="organisationId" value={inviteOrganisationId} />{/if}</label>
               <div class="access-group">
-                <label><span>Account role — what they can do</span><select name="role" required>{#each roleOptions.filter(option => data.assignableRoles.includes(option.id)) as role}<option value={role.id}>{role.label}</option>{/each}</select></label>
+                <label><span>Account role — what they can do</span><select name="role" required bind:value={inviteRole} onchange={(event) => selectInvitationRole(event.currentTarget.value)}>{#each roleOptions.filter(option => data.assignableRoles.includes(option.id)) as role}<option value={role.id}>{role.label}</option>{/each}</select></label>
                 <p class="permission-help">Choose one access role. Platform administration is available only to existing platform administrators.</p>
               </div>
               <div class="access-group">
-                <label><span>Operational membership — how they participate</span><select name="membershipTypeId" required>{#each inviteMembershipConfig.membershipTypes.filter(type => type.active) as type}<option value={type.id}>{type.name}</option>{/each}</select></label>
+                <label><span>Operational membership — how they participate</span><select name="membershipTypeId" required bind:value={inviteMembershipTypeId}>{#each inviteMembershipConfig.membershipTypes.filter(type => type.active) as type}<option value={type.id}>{type.name}</option>{/each}</select></label>
                 <p class="permission-help">Membership controls field participation, not administrative rights. Choose Active rescuer for qualified rescue work, Transport volunteer for pickup work, or Support member for administration only.</p>
               </div>
               <fieldset class="capability-picker"><legend>Species and dispatch teams <small>Only active field rescuers receive matching species rescue offers. Transport volunteers can receive eligible transport offers.</small></legend><div class="capability-grid">{#each inviteMembershipConfig.teams.filter(team => team.active) as team}<label class="capability-option"><input type="checkbox" name="teamIds" value={team.id} /><span><strong>{team.name}</strong><small>{team.receivesAllRescues ? 'Transport team — eligibility is also checked by membership' : team.description}</small></span></label>{/each}</div></fieldset>
