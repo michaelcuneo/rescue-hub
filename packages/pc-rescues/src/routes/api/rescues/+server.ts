@@ -45,7 +45,7 @@ export const POST: RequestHandler = async ({ request, locals, cookies }) => {
 
 	try {
 		const rescue = await createRescue({
-			id: crypto.randomUUID(),
+			id: `phone-report-${crypto.randomUUID()}`,
 			organisationId,
 			type,
 			breed: body.breed?.trim() || undefined,
@@ -58,7 +58,11 @@ export const POST: RequestHandler = async ({ request, locals, cookies }) => {
 
 		// The call and the online form are the same kind of public report.
 		// Record the intake channel before notifying or returning the case.
-		await markPhoneRescueIntake(rescue.id);
+		// The ID also preserves provenance if the ancillary metadata write fails:
+		// the rescue itself has already been durably created.
+		await markPhoneRescueIntake(rescue.id).catch(error =>
+			console.warn('Unable to persist redundant phone intake metadata:', error)
+		);
 		rescue.intakeSource = 'PHONE';
 
 		const notifications = await notifyEligibleRescuers({

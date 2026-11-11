@@ -4,6 +4,7 @@ export type RescueOrigin = { id: string; intakeSource?: string | null };
 /** Every intake is a public report. The channel is metadata, not a workflow. */
 export function reportChannel(rescue: RescueOrigin): ReportChannel {
   if (rescue.id.startsWith('public-report-')) return 'ONLINE';
+  if (rescue.id.startsWith('phone-report-')) return 'PHONE';
   if (rescue.intakeSource === 'PHONE') return 'PHONE';
   if (rescue.intakeSource === 'ONLINE') return 'ONLINE';
   return 'UNVERIFIED';

@@ -34,6 +34,18 @@ export type RescueHubPerson = {
     teamIds: string[];
 };
 
+export type PendingRoutingException = {
+  id: string;
+  animal: string;
+  condition: string;
+  latitude: number;
+  longitude: number;
+  createdAt: string;
+  routingStatus: string;
+  routingReason: string | null;
+  areaLabel: string | null;
+};
+
 export type RescueData = {
 	pending: RescueItem[];
 	assigned: RescueItem[];
@@ -53,5 +65,6 @@ export const intakeOpen = writable(false);
 export const draftLocation = writable<DraftLocation | null>(null);
 export const available = writable(true);
 export const people = writable<RescueHubPerson[]>([]);
+export const routingExceptions = writable<PendingRoutingException[]>([]);
 
 export const data = writable<RescueData>({ pending: [], assigned: [], completed: [] });

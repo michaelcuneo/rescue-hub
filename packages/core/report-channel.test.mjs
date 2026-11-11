@@ -6,6 +6,7 @@ test('phone and online are intake channels for one dispatch pipeline', () => {
   assert.equal(reportChannel({ id: 'new-id', intakeSource: 'PHONE' }), 'PHONE');
   assert.equal(reportChannelLabel({ id: 'new-id', intakeSource: 'PHONE' }), 'Phone report');
   assert.equal(reportChannel({ id: 'public-report-report123' }), 'ONLINE');
+  assert.equal(reportChannel({ id: 'phone-report-report123' }), 'PHONE');
   assert.equal(reportChannelLabel({ id: 'public-report-report123' }), 'Online report');
 });
 test('historical rescues without provenance are not falsely called phone reports', () => {
