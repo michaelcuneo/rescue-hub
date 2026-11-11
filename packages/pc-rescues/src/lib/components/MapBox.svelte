@@ -342,10 +342,10 @@
 		place-items: center;
 		width: 38px;
 		height: 38px;
-		border: 4px solid white;
+		border:4px solid var(--rh-t66, white);
 		border-radius: 50% 50% 50% 8px;
-		background: #173d2c;
-		color: white;
+		background:#173d2c;
+		color:white;
 		box-shadow: 0 4px 14px rgb(0 0 0 / 0.3);
 		transform: rotate(-45deg);
 	}
@@ -376,9 +376,9 @@
 		min-width: 0;
 		min-height: 0;
 		overflow: hidden;
-		border: 1px solid rgb(27 62 45 / 12%);
+		border:1px solid rgb(27 62 45 / 12%);
 		border-radius: 16px;
-		background: #dce6df;
+		background:var(--rh-t67, #dce6df);
 		box-shadow: 0 16px 42px rgb(26 54 41 / 14%);
 		pointer-events: auto;
 	}
@@ -400,9 +400,9 @@
 		min-height: 0;
 		overflow-y: auto;
 		padding: 16px;
-		border: 1px solid rgb(27 62 45 / 12%);
+		border:1px solid rgb(27 62 45 / 12%);
 		border-radius: 16px;
-		background: rgb(255 255 255 / 96%);
+		background:rgb(255 255 255 / 96%);
 		box-shadow: 0 16px 42px rgb(26 54 41 / 14%);
 		backdrop-filter: blur(14px);
 		pointer-events: auto;
@@ -420,14 +420,14 @@
 	}
 
 	.area-panel-heading strong {
-		color: #173d2c;
+		color:var(--rh-t3, #173d2c);
 		font-size: 12px;
 	}
 
 	.area-panel-heading small,
 	.area-panel p,
 	.area-panel .warning {
-		color: #6b766f;
+		color:var(--rh-t68, #6b766f);
 		font-size: 9px;
 	}
 
@@ -436,14 +436,14 @@
 	}
 
 	.area-panel p.error {
-		color: #a23f35;
+		color:var(--rh-t69, #a23f35);
 	}
 
 	.area-dot {
 		width: 9px;
 		height: 9px;
 		border-radius: 999px;
-		background: #50a971;
+		background:#50a971;
 		box-shadow: 0 0 0 4px rgb(80 169 113 / 13%);
 	}
 
@@ -452,14 +452,14 @@
 		gap: 5px;
 		margin-top: 10px;
 		padding-top: 9px;
-		border-top: 1px solid rgb(23 61 44 / 9%);
+		border-top:1px solid rgb(23 61 44 / 9%);
 	}
 
 	.legend span {
 		display: flex;
 		align-items: center;
 		gap: 7px;
-		color: #445249;
+		color:var(--rh-t70, #445249);
 		font-size: 9px;
 	}
 
@@ -467,22 +467,22 @@
 		width: 17px;
 		height: 8px;
 		border-radius: 2px;
-		border: 1px solid;
+		border:1px solid;
 	}
 
 	.swatch.hunter {
-		border-color: #8a6200;
-		background: rgb(242 183 5 / 35%);
+		border-color:#8a6200;
+		background:rgb(242 183 5 / 35%);
 	}
 
 	.swatch.wires {
-		border-color: #31597f;
-		background: rgb(81 125 168 / 25%);
+		border-color:#31597f;
+		background:rgb(81 125 168 / 25%);
 	}
 
 	.swatch.other {
-		border-color: #2d7148;
-		background: rgb(80 169 113 / 24%);
+		border-color:#2d7148;
+		background:rgb(80 169 113 / 24%);
 	}
 
 	.selected-area {
@@ -491,17 +491,17 @@
 		margin-top: 10px;
 		padding: 9px 10px;
 		border-radius: 8px;
-		background: #f4f7f5;
+		background:var(--rh-t71, #f4f7f5);
 	}
 
 	.selected-area small,
 	.selected-area span {
-		color: #6b766f;
+		color:var(--rh-t68, #6b766f);
 		font-size: 8px;
 	}
 
 	.selected-area strong {
-		color: #173d2c;
+		color:var(--rh-t3, #173d2c);
 		font-size: 10px;
 	}
 
