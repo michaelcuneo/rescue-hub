@@ -71,6 +71,37 @@
   let outcome = $state('RELEASED');
   let errorMessage = $state('');
   let busy = $state(false);
+  let pickedUp = $state(Boolean(data.rescue.pickedUpAt));
+  let vetClinic = $state('');
+  let vetNotes = $state('');
+  let vetMessage = $state('');
+  let showDetailedHistory = $state(false);
+  const isAssigned = data.rescue.assignedUserId === data.userId && data.rescue.status === 'ASSIGNED' && !data.rescue.transportAnimalId;
+  const activeAnimal = $derived(selected ?? (animals.length === 1 ? animals[0] : null));
+  const canQuickVet = $derived(isAssigned && pickedUp &&
+    (activeAnimal ? ['IN_RESCUE', 'IN_TRANSIT'].includes(activeAnimal.status) && activeAnimal.currentCustodianUserId === data.userId :
+      animals.length === 0));
+  async function quickVet(kind: 'GOING_TO_VET' | 'HANDED_TO_VET') {
+    if (kind === 'HANDED_TO_VET' && !vetClinic.trim()) {
+      errorMessage = 'Enter the receiving veterinary clinic.'; return;
+    }
+    await submit(async () => {
+      const result = await api(`/api/mobile/rescues/${data.rescue.id}/vet-progress`, {
+        kind, clinic: vetClinic.trim(), notes: vetNotes.trim(),
+        ...(activeAnimal ? { animalId: activeAnimal.id } : {})
+      });
+      selected = result.animal;
+      vetMessage = result.message;
+      vetNotes = '';
+    });
+  }
+  async function markCollected() {
+    await submit(async () => {
+      const result = await api(`/api/mobile/rescues/${data.rescue.id}/pickup`, { notes: '' });
+      pickedUp = Boolean(result.rescue.pickedUpAt);
+      vetMessage = 'Collected. The rescue pin is removed; the care record remains active.';
+    });
+  }
   const canCoordinate = $derived(data.roles.some((role) => ['ORG_ADMIN', 'DISPATCHER', 'PLATFORM_ADMIN', 'AUTHORITY_ADMIN'].includes(role)));
   const isCustodian = $derived(selected?.currentCustodianUserId === data.userId);
   const final = $derived(selected ? ['RELEASED', 'EUTHANISED', 'DECEASED'].includes(selected.status) : false);
@@ -175,6 +206,34 @@
     <p><a href="tel:{data.reporterContact.contactPhone}">Call consenting reporter: {data.reporterContact.contactPhone}</a></p>
   {/if}
   {#if errorMessage}<p class="error" role="alert">{errorMessage}</p>{/if}
+  {#if isAssigned && (!pickedUp || canQuickVet || activeAnimal?.status === 'AT_VET')}
+    <section class="quick-rescue-panel" aria-labelledby="quick-rescue-heading">
+      <h2 id="quick-rescue-heading">Next step for this animal</h2>
+      {#if !pickedUp}
+        <p>Only select this once you have physically collected the animal.</p>
+        <button class="primary next-action" disabled={busy} onclick={() => void markCollected()}>Animal collected</button>
+      {:else if canQuickVet}
+        <p>You have collected the animal. Choose what is happening next.</p>
+        <div class="quick-inputs">
+          <label>Veterinary clinic <small>(required at drop-off)
+            </small><input maxlength="250" bind:value={vetClinic} placeholder="e.g. AREC, Broadmeadow" /></label>
+          <label>Notes <small>(optional)</small><textarea maxlength="1000" rows="2" bind:value={vetNotes} placeholder="e.g. Arrived safely, accepted by staff"></textarea></label>
+        </div>
+        <div class="quick-actions">
+          {#if activeAnimal?.status !== 'IN_TRANSIT'}
+            <button class="primary next-action" disabled={busy} onclick={() => void quickVet('GOING_TO_VET')}>Taking to vet</button>
+          {:else}
+            <p>On the way to the vet — ready to record drop-off.</p>
+          {/if}
+          <button class="primary next-action" disabled={busy || !vetClinic.trim()}
+            onclick={() => { if (confirm(`Confirm the animal has been received at ${vetClinic.trim()}?`)) void quickVet('HANDED_TO_VET'); }}>Handed to vet</button>
+        </div>
+      {:else if activeAnimal?.status === 'AT_VET'}
+        <p>Animal at veterinary clinic. The permanent record remains open for care updates, and further transport can be arranged later.</p>
+      {/if}
+      {#if vetMessage}<p role="status" class="quick-success">{vetMessage}</p>{/if}
+    </section>
+  {/if}
   <div class="layout">
     <aside class="panel">
       <h2>Animal records</h2>
@@ -335,5 +394,14 @@
 </main>
 <style>
   :global(body){margin:0;background:var(--rh-t240, #f1f4f1);color:var(--rh-t241, #1b2d24);font-family:system-ui,sans-serif}
+  .quick-rescue-panel { padding:24px; margin:12px 0 22px; border:2px solid var(--rh-border-strong);
+    border-radius:16px; background:var(--rh-surface); color:var(--rh-text); }
+  .quick-rescue-panel h2 { margin:0 0 10px; font-size:23px; }
+  .quick-rescue-panel p { margin:8px 0; color:var(--rh-muted); }
+  .quick-inputs { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; }
+  .quick-actions { display:flex; flex-wrap:wrap; align-items:center; gap:12px; margin-top:16px; }
+  .quick-rescue-panel .next-action { min-height:48px; font-size:16px; }
+  .quick-success { font-weight:750; color:var(--rh-text); }
+  @media(max-width:750px){.quick-inputs{grid-template-columns:1fr}}
   .phone-coordinates{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}@media(max-width:600px){.phone-coordinates{grid-template-columns:1fr}} .inline-check{display:flex;align-items:center;gap:10px}.inline-check input{width:auto;margin:0} .care{max-width:1250px;margin:auto;padding:32px 22px 80px}.care>a{color:var(--rh-t192, #24583f);font-weight:700}header,.record-head{display:flex;justify-content:space-between;align-items:center;gap:16px}header{margin:22px 0}.eyebrow{font-size:11px;font-weight:800;letter-spacing:1.3px;color:var(--rh-t187, #648074)}h1{font-size:32px;margin:4px 0}h2{margin:0 0 14px}h3{margin:22px 0 12px}p{line-height:1.5;color:var(--rh-t242, #52655a)}.layout{display:grid;grid-template-columns:minmax(260px,1fr) minmax(0,2fr);gap:18px}.panel{background:var(--rh-t186, white);border:1px solid var(--rh-t221, #dce5df);border-radius:16px;padding:22px;min-width:0}.tag{background:var(--rh-t243, #e1eee6);border-radius:20px;padding:8px 12px;font-size:12px;font-weight:800}.animal-row{display:flex;flex-direction:column;align-items:flex-start;width:100%;background:var(--rh-t186, white);border:1px solid var(--rh-t221, #dce5df);border-radius:10px;padding:12px;margin:8px 0;cursor:pointer}.animal-row.active{background:var(--rh-t243, #e1eee6);border-color:#24583f}small{display:block;color:var(--rh-t244, #6a7c70);margin-top:5px}form{border-top:1px solid var(--rh-t245, #e3e9e5);margin-top:22px;padding-top:4px}label{display:block;font-size:13px;font-weight:700;margin:12px 0}input,textarea,select{box-sizing:border-box;display:block;width:100%;margin-top:7px;padding:11px;border:1px solid var(--rh-t217, #cbd9d0);border-radius:9px;font:inherit}textarea{min-height:90px}.primary{background:#173d2c;color:white;border:0;border-radius:9px;padding:12px 16px;font-weight:700;cursor:pointer}.primary:disabled{opacity:.5;cursor:not-allowed}dl{display:flex;gap:24px;flex-wrap:wrap}dt{font-size:12px;color:var(--rh-t244, #6a7c70)}dd{margin:5px 0;font-weight:700}.timeline{padding-left:24px}.timeline li{border-left:2px solid var(--rh-t246, #bdd2c4);padding:0 0 18px 16px;margin-left:-4px}.timeline p{margin:6px 0}.notice{color:var(--rh-t247, #805a12);background:var(--rh-t248, #fff6dc);padding:12px;border-radius:9px}.error{color:var(--rh-t181, #a23f35);font-weight:700}@media(max-width:750px){.layout{grid-template-columns:1fr}.care{padding:18px 12px}header{align-items:flex-start}}
 </style>
