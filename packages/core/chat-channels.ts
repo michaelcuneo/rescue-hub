@@ -17,6 +17,21 @@ export type ChatChannel = {
   teamIds: string[];
 };
 const ADMIN_ROLES = new Set(['ORG_ADMIN', 'DISPATCHER', 'PLATFORM_ADMIN', 'AUTHORITY_ADMIN']);
+const PLATFORM_OVERSIGHT_ROLES = new Set(['PLATFORM_ADMIN', 'AUTHORITY_ADMIN']);
+
+/** Only actual active elevated accounts can inspect an organisation without
+ * being a member. Normal organisation users cannot switch tenants.
+ */
+export function isPlatformOversightUser(user: ChatViewer): boolean {
+  return user.enabled && user.status === 'ACTIVE' &&
+    !user.roles.includes('PUBLIC_REPORTER') &&
+    user.roles.some(role => PLATFORM_OVERSIGHT_ROLES.has(role));
+}
+export function canSelectChatOrganisation(user: ChatViewer, organisationId: string): boolean {
+  if (!organisationId || !user.enabled || user.status !== 'ACTIVE' ||
+      user.roles.includes('PUBLIC_REPORTER')) return false;
+  return isPlatformOversightUser(user) || user.organisationId === organisationId;
+}
 const groups = [
   { id: 'reptiles', name: 'Reptiles', capabilities: ['REPTILE_NON_VENOMOUS', 'REPTILE_VENOMOUS'] },
   { id: 'birds', name: 'Birds', capabilities: ['BIRD'] },
@@ -62,8 +77,10 @@ export function buildChatChannels(teams: ChatTeam[]): ChatChannel[] {
 }
 
 export function canAccessChat(user: ChatViewer, channel: ChatChannel): boolean {
-  if (!user.enabled || user.status !== 'ACTIVE' || !user.organisationId ||
+  if (!user.enabled || user.status !== 'ACTIVE' ||
       user.roles.includes('PUBLIC_REPORTER')) return false;
+  if (isPlatformOversightUser(user)) return true;
+  if (!user.organisationId) return false;
   const admin = user.roles.some(role => ADMIN_ROLES.has(role));
   if (channel.audience === 'ADMIN') return admin;
   if (channel.audience === 'ORG') return true;
