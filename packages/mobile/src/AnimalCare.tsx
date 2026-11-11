@@ -156,13 +156,20 @@ export default function AnimalCare({ rescue, userId, onBack, onUnclaim }: Props)
       setError('Enter the veterinary clinic or receiving person first.');
       return;
     }
-    await run(async () => {
+    if (busy) return;
+    setBusy(true);
+    setError('');
+    try {
       const result = await quickVetProgress(rescue.id, kind, vetLocation.trim(),
         quickVetNotes.trim(), activeAnimal?.id);
+      await refresh(result.animal.id);
       setQuickMessage(result.message);
       setQuickVetNotes('');
-      setSelected(result.animal);
-    }, activeAnimal?.id);
+    } catch (issue) {
+      setError(issue instanceof Error ? issue.message : 'Unable to save veterinary update.');
+    } finally {
+      setBusy(false);
+    }
   }
   const isFinal = selected ? terminal.has(selected.status) : false;
 
@@ -281,7 +288,7 @@ export default function AnimalCare({ rescue, userId, onBack, onUnclaim }: Props)
             </Pressable>
           ))}
           {animals.length === 0 && !loading ? <Text style={styles.muted}>No animals registered yet.</Text> : null}
-          {rescue.assignedUserId === userId && animals.length === 0 && !loading ? (
+          {rescue.assignedUserId === userId && animals.length === 0 && !loading && !collected ? (
             <View style={styles.card}>
               <Text style={styles.section}>Release this rescue</Text>
               <Text style={styles.muted}>Can't attend? Return the case to qualified rescuers. Once an animal is registered, arrange a custody handover instead.</Text>
@@ -354,7 +361,12 @@ export default function AnimalCare({ rescue, userId, onBack, onUnclaim }: Props)
           </View>
           <View style={styles.card}>
             <Text style={styles.section}>Current custody</Text>
-            <Text style={styles.muted}>Custodian: {isCustodian ? 'You' : selected.currentCustodianUserId || 'Unassigned'}</Text>
+            <Text style={styles.muted}>Physical location: {selected.physicalCustodianType === 'VET'
+              ? `Veterinary clinic — ${selected.physicalCustodianName || selected.currentLocation || 'not specified'}`
+              : isCustodian ? 'With you' : selected.currentLocation || 'With assigned custodian'}</Text>
+            {selected.physicalCustodianType === 'VET' ? <Text style={styles.muted}>
+              The clinic has the animal. The organisation remains responsible for follow-up until its next verified handover.
+            </Text> : null}
             <Text style={styles.muted}>Location: {selected.currentLocation || 'Not recorded'}</Text>
             <Text style={styles.muted}>Updated: {new Date(selected.updatedAt).toLocaleString()}</Text>
             {selected.vetStage === 'AWAITING_ASSESSMENT' ?

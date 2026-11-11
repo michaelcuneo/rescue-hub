@@ -3,7 +3,7 @@
   import { env } from '$env/dynamic/public';
   import type { PageData } from './$types';
   let { data }: { data: PageData } = $props();
-  type Animal = { id: string; species: string; status: string; currentCustodianUserId?: string; currentCustodianName?: string; currentLocation?: string; pendingTransferId?: string; activeTransportRescueId?: string };
+  type Animal = { id: string; species: string; status: string; currentCustodianUserId?: string; currentCustodianName?: string; currentLocation?: string; physicalCustodianType?: 'RESCUER' | 'VET'; physicalCustodianName?: string; pendingTransferId?: string; activeTransportRescueId?: string };
   type Event = { id: string; type: string; notes?: string; actorUserId?: string; actorName?: string; createdAt: string; occurredAt?: string; reportedByName?: string; source?: string };
   let animals = $state<Animal[]>([]);
   let selected = $state<Animal | null>(null);
@@ -274,7 +274,7 @@
     <section class="panel">
       {#if selected}
         <div class="record-head"><div><p class="eyebrow">PERMANENT ANIMAL RECORD</p><h2>{selected.species}</h2></div><span class="tag">{selected.status.replaceAll('_', ' ')}</span></div>
-        <dl><div><dt>Custodian</dt><dd>{isCustodian ? 'You' : selected.currentCustodianName || selected.currentCustodianUserId || 'Not recorded'}</dd></div><div><dt>Location</dt><dd>{selected.currentLocation || 'Not recorded'}</dd></div></dl>
+        <dl><div><dt>Responsible member</dt><dd>{isCustodian ? 'You' : selected.currentCustodianName || selected.currentCustodianUserId || 'Not recorded'}</dd></div><div><dt>Physical location</dt><dd>{selected.physicalCustodianType === 'VET' ? `Veterinary clinic — ${selected.physicalCustodianName || selected.currentLocation || 'not specified'}` : selected.currentLocation || 'Not recorded'}</dd></div></dl>
         {#if selected.pendingTransferId}<p class="notice">Custody handover awaiting acknowledgement.</p>{/if}
         {#if !final && (isCustodian || canCoordinate)}
           <form onsubmit={(e) => { e.preventDefault(); void submit(async () => {
