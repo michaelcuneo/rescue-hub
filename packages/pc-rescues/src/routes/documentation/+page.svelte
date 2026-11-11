@@ -56,9 +56,9 @@
         </div>
         <nav class="guide-nav" aria-label="Guides">
           {#each roles as item (item.id)}
+            {@const GuideIcon = iconFor(item.id)}
             <a class:current={item.id === data.guide.id}
               href="/documentation?guide={item.id}" aria-current={item.id === data.guide.id ? 'page' : undefined}>
-              {@const GuideIcon = iconFor(item.id)}
               <GuideIcon size={18} strokeWidth={1.8} aria-hidden="true"/>
               <span>{item.title}</span>
               {#if item.id === data.guide.id}<span class="current-marker" aria-hidden="true"></span>{/if}
@@ -106,9 +106,10 @@
             <div><HeartHandshake size={25} strokeWidth={1.7}/><strong>Continuous animal care</strong><p>One record through pickup, veterinary care and release.</p></div>
           </div>
         {:else}
+          {@const HeroIcon = iconFor(data.guide.id)}
           <div class="guide-hero">
             <p class="eyebrow">RESCUE HUB · ROLE-BASED GUIDES</p>
-            <div class="guide-icon"><svelte:component this={iconFor(data.guide.id)} size={25} strokeWidth={1.8}/></div>
+            <div class="guide-icon"><HeroIcon size={25} strokeWidth={1.8}/></div>
             <h1>{data.guide.title}</h1>
             <p class="hero-description">{data.guide.description}</p>
             <div class="guide-metadata"><span>{data.guide.audience}</span><span>·</span><span>Approx. {data.guide.minutes} min read</span><span>·</span><span>{totalSections} sections</span></div>
