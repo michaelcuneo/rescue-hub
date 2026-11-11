@@ -15,6 +15,8 @@ import {
 import { Resource } from 'sst';
 import type { Cookies } from '@sveltejs/kit';
 import { isValidReporterEmail, isValidReporterVerificationCode, normalizeReporterName } from '../../../../core/public-reporter-validation';
+import { INVITATION_TTL_SECONDS, INVITATION_RESEND_SECONDS, makeInvitationUrl, parseInvitationCredential, invitationNotExpired } from '../../../../core/invitation-links';
+import { getOrganisation } from './graphql';
 
 const scrypt = promisify(scryptCallback);
 const db = DynamoDBDocumentClient.from(new DynamoDBClient({}), {
@@ -57,7 +59,7 @@ export type RescueHubUser = {
 	updatedAt: string;
 };
 
-type CodePurpose = 'INVITE' | 'RESET_PASSWORD' | 'PUBLIC_SIGNUP';
+type CodePurpose = 'RESET_PASSWORD' | 'PUBLIC_SIGNUP';
 
 function normalizeEmail(value: string) {
 	return value.trim().toLowerCase();
@@ -153,13 +155,10 @@ async function sendCode(email: string, code: string, purpose: CodePurpose) {
 		throw new Error('Rescue Hub email delivery is not configured.');
 	}
 
-	const invitation = purpose === 'INVITE';
 	const signup = purpose === 'PUBLIC_SIGNUP';
-	const subject = invitation ? 'Your Rescue Hub invitation' : signup ? 'Verify your Rescue Hub reporter account' : 'Reset your Rescue Hub password';
-	const heading = invitation ? 'RESCUE HUB INVITATION' : signup ? 'VERIFY YOUR REPORTER ACCOUNT' : 'RESET YOUR PASSWORD';
-	const intro = invitation
-		? 'Use this six-digit code to activate your Rescue Hub account and choose a password.'
-		: signup ? 'Enter this six-digit code to confirm your email before reporting an injured animal.'
+	const subject = signup ? 'Verify your Rescue Hub reporter account' : 'Reset your Rescue Hub password';
+	const heading = signup ? 'VERIFY YOUR REPORTER ACCOUNT' : 'RESET YOUR PASSWORD';
+	const intro = signup ? 'Enter this six-digit code to confirm your email before reporting an injured animal.'
 		: 'Use this six-digit code to choose a new Rescue Hub password.';
 	const text = `${heading}\n\n${intro}\n\n${code}\n\nThis code expires in 15 minutes.`;
 
@@ -355,6 +354,90 @@ export async function hasCompletedBootstrap() {
 	return Boolean(result.Item);
 }
 
+
+/** Invite only a pending organisation member; the URL and the token never appear in logs. */
+export async function sendOrganisationInvitation(userId: string) {
+	const profile = await getUserRecord(userId);
+	if (!profile || profile.status !== 'INVITED' || !profile.enabled || !profile.organisationId ||
+		!profile.email || !profile.name || !Array.isArray(profile.roles) ||
+		profile.roles.includes('PUBLIC_REPORTER')) {
+		throw new Error('Only pending organisation members can receive an invitation.');
+	}
+	const origin = process.env.RESCUE_HUB_PUBLIC_ORIGIN?.trim();
+	if (!origin) throw new Error('Rescue Hub invitation website URL is not configured.');
+	const sender = mailFrom();
+	if (!sender) throw new Error('Rescue Hub email delivery is not configured.');
+	const secret = randomBytes(32).toString('base64url');
+	const url = makeInvitationUrl(origin, \`\${userId}.\${secret}\`);
+	const now = Math.floor(Date.now() / 1000);
+	const expiresAt = now + INVITATION_TTL_SECONDS;
+	const key = { pk: \`USER#\${userId}\`, sk: 'INVITATION' };
+	const organisationId = String(profile.organisationId);
+	const organisation = await getOrganisation(organisationId).catch(() => null);
+	const organisationName = organisation?.displayName || organisation?.officialName || organisationId;
+	await db.send(new PutCommand({
+		TableName: tableName,
+		Item: {
+			...key, entity: 'organisation_invitation', userId, tokenHash: hashToken(secret),
+			issuedAt: now, expiresAt, ttl: expiresAt
+		},
+		ConditionExpression: 'attribute_not_exists(pk) OR issuedAt < :cutoff',
+		ExpressionAttributeValues: { ':cutoff': now - INVITATION_RESEND_SECONDS }
+	})).catch(error => {
+		if (error instanceof Error && error.name === 'ConditionalCheckFailedException')
+			throw new Error('Please wait a minute before resending this invitation.');
+		throw error;
+	});
+	const text = \`Hello \${String(profile.name)},
+
+You've been invited to join \${organisationName} on Rescue Hub using \${String(profile.email)}.
+
+Set your password and enter your organisation workspace using this secure link:
+
+\${url}
+
+The link expires in 7 days and can only be used once. If you weren't expecting this invitation, ignore this email.
+
+Rescue Hub\`;
+	await ses.send(new SendEmailCommand({
+		FromEmailAddress: sender,
+		Destination: { ToAddresses: [String(profile.email)] },
+		Content: {
+			Simple: {
+				Subject: { Data: \`Join \${organisationName} on Rescue Hub\`, Charset: 'UTF-8' },
+				Body: { Text: { Data: text, Charset: 'UTF-8' } }
+			}
+		}
+	}));
+	return { sent: true };
+}
+
+/** Lookup requires possession of the actual secret, not merely the user id. */
+export async function getInvitation(credential: string | undefined | null) {
+	const token = parseInvitationCredential(credential);
+	if (!token) return null;
+	const [invitation, profile] = await Promise.all([
+		db.send(new GetCommand({
+			TableName: tableName, Key: { pk: \`USER#\${token.userId}\`, sk: 'INVITATION' }
+		})),
+		getUserRecord(token.userId)
+	]);
+	const item = invitation.Item;
+	const now = Math.floor(Date.now() / 1000);
+	if (!item?.tokenHash || !invitationNotExpired(item.expiresAt, now) ||
+		!profile || profile.status !== 'INVITED' || !profile.enabled ||
+		!profile.organisationId || profile.roles?.includes('PUBLIC_REPORTER')) return null;
+	const actual = Buffer.from(hashToken(token.secret), 'hex');
+	const expected = Buffer.from(String(item.tokenHash), 'hex');
+	if (actual.length !== expected.length || !timingSafeEqual(actual, expected)) return null;
+	const organisationId = String(profile.organisationId);
+	const organisation = await getOrganisation(organisationId).catch(() => null);
+	return {
+		name: String(profile.name), email: String(profile.email), organisationId,
+		organisationName: organisation?.displayName || organisation?.officialName || organisationId
+	};
+}
+
 export async function inviteUser(input: {
 	name: string;
 	email: string;
@@ -438,56 +521,76 @@ export async function inviteUser(input: {
 		]
 	}));
 
-	const invitation = await issueCode('INVITE', userId, email);
+	const invitation = await sendOrganisationInvitation(userId);
 	return { user: await getUserById(userId), invitation };
 }
 
-export async function acceptInvite(email: string, code: string, password: string, cookies?: Cookies) {
+export async function acceptInvite(credential: string, password: string, cookies?: Cookies) {
 	const passwordError = validatePassword(password);
 	if (passwordError) throw new Error(passwordError);
+	const token = parseInvitationCredential(credential);
+	if (!token || !await getInvitation(credential)) {
+		throw new Error('This invitation link is invalid or has expired. Ask your organisation administrator to resend it.');
+	}
 
-	const record = await consumeCode('INVITE', email, code);
-	const credential = await hashPassword(password);
-	const now = new Date().toISOString();
-
-	await db.send(new TransactWriteCommand({
-		TransactItems: [
-			{
-				Put: {
-					TableName: tableName,
-					Item: {
-						pk: `USER#${record.userId}`,
-						sk: 'PASSWORD',
-						entity: 'credential',
-						salt: credential.salt,
-						passwordHash: credential.hash,
-						updatedAt: now
+	const newCredential = await hashPassword(password);
+	const nowIso = new Date().toISOString();
+	const now = Math.floor(Date.now() / 1000);
+	try {
+		await db.send(new TransactWriteCommand({
+			TransactItems: [
+				{
+					Delete: {
+						TableName: tableName,
+						Key: { pk: \`USER#\${token.userId}\`, sk: 'INVITATION' },
+						ConditionExpression: 'tokenHash = :hash AND expiresAt > :now',
+						ExpressionAttributeValues: { ':hash': hashToken(token.secret), ':now': now }
+					}
+				},
+				{
+					Put: {
+						TableName: tableName,
+						Item: {
+							pk: \`USER#\${token.userId}\`, sk: 'PASSWORD',
+							entity: 'credential', salt: newCredential.salt,
+							passwordHash: newCredential.hash, updatedAt: nowIso
+						},
+						ConditionExpression: 'attribute_not_exists(pk)'
+					}
+				},
+				{
+					Update: {
+						TableName: tableName,
+						Key: { pk: \`USER#\${token.userId}\`, sk: 'PROFILE' },
+						UpdateExpression: 'SET #status = :active, emailVerified = :yes, updatedAt = :at',
+						ConditionExpression: '#status = :invited AND enabled = :yes AND attribute_exists(organisationId)',
+						ExpressionAttributeNames: { '#status': 'status' },
+						ExpressionAttributeValues: {
+							':active': 'ACTIVE', ':invited': 'INVITED', ':yes': true, ':at': nowIso
+						}
+					}
+				},
+				{
+					Update: {
+						TableName: tableName,
+						Key: { pk: \`USER#\${token.userId}\`, sk: 'MEMBERSHIP' },
+						UpdateExpression: 'SET #status = :active, updatedAt = :at',
+						ConditionExpression: '#status = :pending AND attribute_exists(organisationId)',
+						ExpressionAttributeNames: { '#status': 'status' },
+						ExpressionAttributeValues: { ':active': 'ACTIVE', ':pending': 'PENDING', ':at': nowIso }
 					}
 				}
-			},
-			{
-				Update: {
-					TableName: tableName,
-					Key: { pk: `USER#${record.userId}`, sk: 'PROFILE' },
-					UpdateExpression: 'SET #status = :active, emailVerified = :yes, updatedAt = :at',
-					ExpressionAttributeNames: { '#status': 'status' },
-					ExpressionAttributeValues: { ':active': 'ACTIVE', ':yes': true, ':at': now }
-				}
-			},
-			{
-				Update: {
-					TableName: tableName,
-					Key: { pk: `USER#${record.userId}`, sk: 'MEMBERSHIP' },
-					UpdateExpression: 'SET #status = :active, updatedAt = :at',
-					ExpressionAttributeNames: { '#status': 'status' },
-					ExpressionAttributeValues: { ':active': 'ACTIVE', ':at': now }
-				}
-			}
-		]
-	}));
-
-	return { user: await getUserById(record.userId), sessionToken: await createSession(record.userId, cookies) };
+			]
+		}));
+	} catch (error) {
+		if (error instanceof Error && error.name === 'TransactionCanceledException') {
+			throw new Error('This invitation has expired or was already used. Ask your organisation administrator to resend it.');
+		}
+		throw error;
+	}
+	return { user: await getUserById(token.userId), sessionToken: await createSession(token.userId, cookies) };
 }
+
 
 /**
  * Public self-registration NEVER grants organisation membership or staff
