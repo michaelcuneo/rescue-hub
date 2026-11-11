@@ -418,7 +418,7 @@ export async function getInvitation(credential: string | undefined | null) {
 	if (!token) return null;
 	const [invitation, profile] = await Promise.all([
 		db.send(new GetCommand({
-			TableName: tableName, Key: { pk: `USER#${token.userId}`, sk: 'INVITATION' }
+			TableName: tableName, Key: { pk: `USER#${token.userId}`, sk: 'INVITATION' }, ConsistentRead: true
 		})),
 		getUserRecord(token.userId)
 	]);
