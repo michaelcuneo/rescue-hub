@@ -3,9 +3,11 @@ import { DynamoDBDocumentClient, GetCommand, PutCommand, QueryCommand, UpdateCom
 import { Resource } from 'sst';
 import { getOrganisationMembershipConfig } from './membership';
 import { publishRescueChange } from './realtime';
-import type { RescueHubUser } from './auth';
+import { listUsers, type RescueHubUser } from './auth';
+import { listAdminOrganisations } from './admin-data';
 import {
-  buildChatChannels, canAccessChat, isValidChatChannelId, validateChatText,
+  buildChatChannels, canAccessChat, canSelectChatOrganisation, isPlatformOversightUser,
+  isValidChatChannelId, validateChatText,
   type ChatChannel
 } from '../../../../core/chat-channels';
 
@@ -37,30 +39,65 @@ const channelPk = (organisationId: string, channelId: string) =>
 
 export class ChatAccessError extends Error {}
 
-export async function requireChannel(
-  user: RescueHubUser, channelId: string
-): Promise<ChatChannel> {
-  if (!user.organisationId || !isValidChatChannelId(channelId) ||
-      user.enabled !== true || user.status !== 'ACTIVE' ||
-      user.roles.includes('PUBLIC_REPORTER')) {
-    throw new ChatAccessError('Chat is not available for this account.');
+/**
+ * Privileged access requires an explicit selected organisation. Ordinary users
+ * are always locked to their membership; platform/admin identities have no
+ * implicit organisation and cannot leak messages across organisations.
+ */
+export async function resolveChatOrganisation(user: RescueHubUser, selected?: string): Promise<string> {
+  const organisationId = selected || user.organisationId;
+  if (!organisationId || !/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,127}$/.test(organisationId) ||
+      !canSelectChatOrganisation(user, organisationId)) {
+    throw new ChatAccessError('Select an authorised organisation to access its chats.');
   }
-  const config = await getOrganisationMembershipConfig(user.organisationId);
-  const channel = buildChatChannels(config.teams).find(item => item.id === channelId);
-  if (!channel || !canAccessChat(user, channel)) {
-    throw new ChatAccessError('You are not a member of this chat channel.');
+  if (isPlatformOversightUser(user)) {
+    const organisations = await listChatOrganisations(user);
+    if (!organisations.some(item => item.id === organisationId))
+      throw new ChatAccessError('The selected organisation is not available.');
   }
-  return channel;
+  return organisationId;
 }
 
-/** Strictly scoped to authenticated users' own organisation. No full-table scan. */
-export async function listMyChannels(user: RescueHubUser): Promise<ChatSummary[]> {
-  if (!user.organisationId || !user.enabled || user.status !== 'ACTIVE' ||
-      user.roles.includes('PUBLIC_REPORTER')) throw new ChatAccessError('Organisation membership required.');
-  const config = await getOrganisationMembershipConfig(user.organisationId);
-  const allowed = buildChatChannels(config.teams).filter(c => canAccessChat(user,c));
+export async function listChatOrganisations(user: RescueHubUser):
+  Promise<Array<{ id: string; name: string }>> {
+  if (!user.enabled || user.status !== 'ACTIVE' || user.roles.includes('PUBLIC_REPORTER'))
+    throw new ChatAccessError('Chat access requires an active account.');
+  if (!isPlatformOversightUser(user)) {
+    if (!user.organisationId) throw new ChatAccessError('Organisation membership required.');
+    return [{ id: user.organisationId, name: user.organisationId }];
+  }
+  const [directory, users] = await Promise.all([listAdminOrganisations(), listUsers()]);
+  const organisations = new Map<string, string>();
+  for (const item of directory) organisations.set(item.id, item.displayName || item.officialName || item.id);
+  for (const member of users) if (member.organisationId && !organisations.has(member.organisationId))
+    organisations.set(member.organisationId, member.organisationId);
+  if (user.organisationId && !organisations.has(user.organisationId))
+    organisations.set(user.organisationId, user.organisationId);
+  return [...organisations].map(([id, name]) => ({ id, name }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+
+export async function requireChannel(
+  user: RescueHubUser, channelId: string, selectedOrganisationId?: string
+): Promise<{ channel: ChatChannel; organisationId: string }> {
+  if (!isValidChatChannelId(channelId)) throw new ChatAccessError('Invalid chat channel.');
+  const organisationId = await resolveChatOrganisation(user, selectedOrganisationId);
+  const config = await getOrganisationMembershipConfig(organisationId);
+  const channel = buildChatChannels(config.teams).find(item => item.id === channelId);
+  if (!channel || !canAccessChat({ ...user, organisationId }, channel))
+    throw new ChatAccessError('You are not authorised for this chat channel.');
+  return { channel, organisationId };
+}
+
+/** Strictly scoped to an explicitly authorised organisation. No full-table scan. */
+export async function listMyChannels(user: RescueHubUser, selectedOrganisationId?: string): Promise<ChatSummary[]> {
+  const organisationId = await resolveChatOrganisation(user, selectedOrganisationId);
+  const config = await getOrganisationMembershipConfig(organisationId);
+  const allowed = buildChatChannels(config.teams)
+    .filter(c => canAccessChat({ ...user, organisationId }, c));
   return Promise.all(allowed.map(async channel => {
-    const pk = channelPk(user.organisationId!, channel.id);
+    const pk = channelPk(organisationId, channel.id);
     const [latest, marker] = await Promise.all([
       db.send(new QueryCommand({
         TableName: table, KeyConditionExpression: 'pk = :pk AND begins_with(sk, :prefix)',
@@ -68,7 +105,7 @@ export async function listMyChannels(user: RescueHubUser): Promise<ChatSummary[]
         ScanIndexForward: false, Limit: 1
       })),
       db.send(new GetCommand({
-        TableName: table, Key: { pk: `USER#${user.id}`, sk: `CHAT_READ#${channel.id}` }
+        TableName: table, Key: { pk: `USER#${user.id}`, sk: `CHAT_READ#${organisationId}#${channel.id}` }
       }))
     ]);
     const message = latest.Items?.[0] as (ChatMessage & { sk?: string }) | undefined;
@@ -85,10 +122,10 @@ export async function listMyChannels(user: RescueHubUser): Promise<ChatSummary[]
 }
 
 export async function readChatPage(
-  user: RescueHubUser, channelId: string, before?: string
+  user: RescueHubUser, channelId: string, before?: string, selectedOrganisationId?: string
 ): Promise<{ items: ChatMessage[]; nextCursor: string | null }> {
-  await requireChannel(user, channelId);
-  const pk = channelPk(user.organisationId!, channelId);
+  const { organisationId } = await requireChannel(user, channelId, selectedOrganisationId);
+  const pk = channelPk(organisationId, channelId);
   if (before && (!/^MSG#\d{4}-\d\d-\d\dT[\d:.]+Z#[0-9a-f-]{36}$/.test(before) || before.length > 110))
     throw new ChatAccessError('Invalid chat cursor.');
   const page = await db.send(new QueryCommand({
@@ -121,9 +158,10 @@ export async function readChatPage(
 }
 
 export async function postChatMessage(
-  user: RescueHubUser, channelId: string, input: { text: unknown; animalId?: unknown }
+  user: RescueHubUser, channelId: string, input: { text: unknown; animalId?: unknown },
+  selectedOrganisationId?: string
 ): Promise<ChatMessage> {
-  await requireChannel(user, channelId);
+  const { organisationId } = await requireChannel(user, channelId, selectedOrganisationId);
   const text = validateChatText(input.text);
   const animalId = input.animalId;
   if (animalId !== undefined &&
@@ -133,7 +171,7 @@ export async function postChatMessage(
   if (typeof animalId === 'string') {
     const { getAnimal } = await import('./animals');
     const animal = await getAnimal(animalId);
-    if (!animal || animal.organisationId !== user.organisationId) {
+    if (!animal || animal.organisationId !== organisationId) {
       throw new ChatAccessError('Linked animal is not available in your organisation.');
     }
   }
@@ -146,9 +184,9 @@ export async function postChatMessage(
   await db.send(new PutCommand({
     TableName: table,
     Item: {
-      pk: channelPk(user.organisationId!, channelId),
+      pk: channelPk(organisationId, channelId),
       sk: `MSG#${createdAt}#${id}`,
-      entity: 'chat_message', organisationId: user.organisationId, ...message
+      entity: 'chat_message', organisationId, ...message
     },
     ConditionExpression: 'attribute_not_exists(pk)'
   }));
@@ -156,11 +194,13 @@ export async function postChatMessage(
   return message;
 }
 
-export async function markChatRead(user: RescueHubUser, channelId: string, lastMessageId: unknown) {
-  await requireChannel(user, channelId);
+export async function markChatRead(
+  user: RescueHubUser, channelId: string, lastMessageId: unknown, selectedOrganisationId?: string
+) {
+  const { organisationId } = await requireChannel(user, channelId, selectedOrganisationId);
   if (typeof lastMessageId !== 'string' || !/^[a-f0-9-]{36}$/i.test(lastMessageId))
     throw new ChatAccessError('Invalid message.');
-  const pk = channelPk(user.organisationId!, channelId);
+  const pk = channelPk(organisationId, channelId);
   // Never accept an arbitrary timestamp/cursor from the client.
   let found: Record<string, unknown> | undefined;
   let cursor: Record<string, unknown> | undefined;
@@ -181,10 +221,10 @@ export async function markChatRead(user: RescueHubUser, channelId: string, lastM
   const lastSeenKey = String(found.sk);
   await db.send(new UpdateCommand({
     TableName: table,
-    Key: { pk: `USER#${user.id}`, sk: `CHAT_READ#${channelId}` },
+    Key: { pk: `USER#${user.id}`, sk: `CHAT_READ#${organisationId}#${channelId}` },
     UpdateExpression: 'SET lastSeenKey = :seen, organisationId = :org, updatedAt = :at',
     ConditionExpression: 'attribute_not_exists(lastSeenKey) OR lastSeenKey <= :seen',
-    ExpressionAttributeValues: { ':seen': lastSeenKey, ':org': user.organisationId, ':at': new Date().toISOString() }
+    ExpressionAttributeValues: { ':seen': lastSeenKey, ':org': organisationId, ':at': new Date().toISOString() }
   })).catch(error => {
     if (!(error instanceof Error && error.name === 'ConditionalCheckFailedException')) throw error;
   });
