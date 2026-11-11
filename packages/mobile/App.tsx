@@ -170,9 +170,11 @@ export default function App() {
 
     void sync();
     void connect();
+    // Reconcile periodically even with a live websocket: a dropped network
+    // invalidation must not leave qualified field rescuers with a stale map.
     const fallback = setInterval(() => {
-      if (foreground && !connected) void sync();
-    }, 30_000);
+      if (foreground) void sync();
+    }, 60_000);
     const appStateSubscription = AppState.addEventListener('change', state => {
       const active = state === 'active';
       if (active === foreground) return;
