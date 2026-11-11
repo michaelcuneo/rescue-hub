@@ -13,6 +13,8 @@ export type Rescue = {
   longitude: number;
   injury?: string | null;
   status: RescueStatus;
+  // Optional dispatch-list projection. Do not request it from the AppSync schema.
+  animalStatus?: string | null;
   assignedUserId?: string | null;
   pickedUpAt?: string | null;
   transportAnimalId?: string | null;

@@ -69,6 +69,7 @@ export async function listAdminRescues(): Promise<Rescue[]> {
 		longitude: Number(item.longitude),
 		injury: item.injury ? String(item.injury) : null,
 		status: String(item.status) as Rescue['status'],
+		animalStatus: item.animalStatus ? String(item.animalStatus) : null,
 		assignedUserId: item.assignedUserId ? String(item.assignedUserId) : null,
     pickedUpAt: item.pickedUpAt ? String(item.pickedUpAt) : null,
     awaitingCarer: Boolean(item.awaitingCarer),

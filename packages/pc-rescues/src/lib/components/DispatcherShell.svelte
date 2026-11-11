@@ -18,6 +18,7 @@
 		available,
 		coords,
 		data,
+		people,
 		draftLocation,
 		intakeOpen,
 		mapRef,
@@ -99,6 +100,31 @@
 	);
 
 	const selected = $derived($selectedRescue);
+
+	function assigneeName(userId?: string | null) {
+		if (!userId) return null;
+		if (userId === user.id) return user.name;
+		return $people.find(person => person.id === userId)?.name ?? 'Assigned responder';
+	}
+
+	function rescueProgress(item: RescueItem) {
+		if (item.status === 'COMPLETED') {
+			switch (item.animalStatus) {
+				case 'RELEASED': return 'Released';
+				case 'EUTHANISED': return 'Euthanised on veterinary advice';
+				case 'DECEASED': return 'Died during treatment';
+				default: return 'Case closed';
+			}
+		}
+		if (!item.assignedUserId) return 'Awaiting assignment';
+		if (!item.pickedUpAt) return 'Awaiting collection';
+		switch (item.animalStatus) {
+			case 'AT_VET': return 'At veterinary clinic';
+			case 'IN_TRANSIT': return 'In transit';
+			case 'IN_CARE': return 'With wildlife carer';
+			default: return 'Animal collected';
+		}
+	}
 
 	const relativeTime = (value?: string) => {
 		if (!value) return 'just now';
@@ -381,6 +407,12 @@
 							{item.location || 'Location not recorded'}
 						</span>
 						<span class="rescue-injury">{item.injury || 'Condition not recorded'}</span>
+						{#if item.assignedUserId}
+							<span class="rescue-assignment">
+								<strong>{assigneeName(item.assignedUserId)}</strong>
+								<small>· {rescueProgress(item)}</small>
+							</span>
+						{/if}
 					</span>
 					<span class="rescue-time">
 						<Clock3 size={11} />
@@ -432,6 +464,14 @@
 					<span>{Number(selected.latitude).toFixed(5)}, {Number(selected.longitude).toFixed(5)}</span>
 				</div>
 			</div>
+
+			{#if selected.assignedUserId}
+				<div class="rescue-owner-summary">
+					<small>{selected.status === 'COMPLETED' ? 'Responding rescuer' : 'Assigned responder'}</small>
+					<strong>{assigneeName(selected.assignedUserId)}</strong>
+					<span>{rescueProgress(selected)}{selected.pickedUpAt ? ` · Collected ${new Date(selected.pickedUpAt).toLocaleString('en-AU', { dateStyle: 'medium', timeStyle: 'short' })}` : ''}</span>
+				</div>
+			{/if}
 
 			<div class="condition">
 				<small>Reported condition</small>
@@ -1388,4 +1428,16 @@
 	.new-rescue:hover, .detail-actions .primary:hover, .intake footer .create:hover {
 		background: var(--rh-primary-hover);
 	}
+
+	.rescue-assignment { display: inline-flex; flex-wrap: wrap; gap: 3px; align-items: baseline;
+		margin-top: 7px; font-size: 12px; color: var(--rh-text); }
+	.rescue-assignment strong { font-size: 12px; font-weight: 750; }
+	.rescue-assignment small { font-size: 11px; font-weight: 500; color: var(--rh-muted); }
+	.rescue-owner-summary { display: grid; gap: 3px; margin-top: 12px; padding: 12px;
+		border: 1px solid var(--rh-border); border-radius: 10px;
+		background: var(--rh-surface-soft); }
+	.rescue-owner-summary small { color: var(--rh-muted); font-size: 11px;
+		font-weight: 750; text-transform: uppercase; letter-spacing: .06em; }
+	.rescue-owner-summary strong { color: var(--rh-text); font-size: 14px; }
+	.rescue-owner-summary span { color: var(--rh-muted); font-size: 12px; }
 </style>
