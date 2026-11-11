@@ -176,6 +176,7 @@
       <div class="admin-actions">
         {#if canChooseOrganisation}
           <a class="demo-launch" href="/demo/hunter">Open Hunter demo</a>
+          <a class="demo-launch" href="/chats">Organisation chats</a>
 
         {/if}
       <div class="demo-identity">

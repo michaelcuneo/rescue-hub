@@ -1,15 +1,18 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, FlatList, Pressable,
+import { ActivityIndicator, FlatList, ScrollView, Pressable,
   SafeAreaView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { KeyboardAwareView, KeyboardAwareTextInput } from './KeyboardAware';
 import { getChatChannels, getChannelMessages, markChannelRead,
-  sendChannelMessage, type ChatChannel, type ChatMessage } from './api';
+  sendChannelMessage, type ChatChannel, type ChatMessage, type ChatOrganisation } from './api';
 import { subscribeRescueChanges } from '../../core/realtime-client';
 import { getRealtimeConfig } from './api';
 
 type Props = { userId: string; initialChannelId?: string; onOpenAnimal?: (animalId: string) => void };
 export default function OrganisationChats({ userId, initialChannelId, onOpenAnimal }: Props) {
   const [channels, setChannels] = useState<ChatChannel[]>([]);
+  const [organisations, setOrganisations] = useState<ChatOrganisation[]>([]);
+  const [organisationId, setOrganisationId] = useState('');
+  const organisationRef = useRef('');
   const [selected, setSelected] = useState<string | null>(initialChannelId ?? null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
@@ -19,23 +22,32 @@ export default function OrganisationChats({ userId, initialChannelId, onOpenAnim
   const [loading, setLoading] = useState(true);
   const [loadingOlder, setLoadingOlder] = useState(false);
   const selectedRef = useRef<string | null>(selected);
+  useEffect(() => { organisationRef.current = organisationId; }, [organisationId]);
   const listRef = useRef<FlatList<ChatMessage>>(null);
   useEffect(() => { selectedRef.current = selected; }, [selected]);
 
   const refreshChannels = useCallback(async () => {
-    const result = await getChatChannels();
+    const scope = organisationRef.current;
+    const result = await getChatChannels(scope || undefined);
+    if (scope && scope !== organisationRef.current) return;
+    setOrganisations(result.organisations);
+    if (!scope) {
+      organisationRef.current = result.organisationId;
+      setOrganisationId(result.organisationId);
+    }
     setChannels(result.channels);
     if (selectedRef.current && !result.channels.some(channel => channel.id === selectedRef.current)) {
       setSelected(null);
     }
   }, []);
   const refreshMessages = useCallback(async (channelId: string) => {
-    const result = await getChannelMessages(channelId);
-    if (selectedRef.current !== channelId) return;
+    const scope = organisationRef.current;
+    const result = await getChannelMessages(channelId, undefined, scope || undefined);
+    if (selectedRef.current !== channelId || scope !== organisationRef.current) return;
     setMessages(result.items);
     setCursor(result.nextCursor);
     const latest = result.items[result.items.length - 1];
-    if (latest) void markChannelRead(channelId, latest.id).catch(() => {});
+    if (latest) void markChannelRead(channelId, latest.id, scope || undefined).catch(() => {});
   }, []);
   useEffect(() => {
     let active = true;
@@ -71,7 +83,7 @@ export default function OrganisationChats({ userId, initialChannelId, onOpenAnim
     if (!selected || !cursor || loadingOlder) return;
     setLoadingOlder(true);
     try {
-      const result = await getChannelMessages(selected, cursor);
+      const result = await getChannelMessages(selected, cursor, organisationRef.current || undefined);
       if (selectedRef.current === selected) {
         setMessages(previous => [...result.items.filter(item => !previous.some(other => other.id === item.id)), ...previous]);
         setCursor(result.nextCursor);
@@ -83,7 +95,7 @@ export default function OrganisationChats({ userId, initialChannelId, onOpenAnim
     if (!selected || !draft.trim() || busy) return;
     setBusy(true); setError('');
     try {
-      await sendChannelMessage(selected, draft.trim());
+      await sendChannelMessage(selected, draft.trim(), undefined, organisationRef.current || undefined);
       setDraft('');
       await Promise.all([refreshMessages(selected), refreshChannels()]);
       requestAnimationFrame(() => listRef.current?.scrollToEnd({ animated: true }));
@@ -91,11 +103,37 @@ export default function OrganisationChats({ userId, initialChannelId, onOpenAnim
     finally { setBusy(false); }
   };
   const activeChannel = channels.find(channel => channel.id === selected);
+  const changeOrganisation = (id: string) => {
+    if (id === organisationRef.current) return;
+    organisationRef.current = id;
+    setOrganisationId(id);
+    selectedRef.current = null;
+    setSelected(null);
+    setMessages([]);
+    setCursor(null);
+    setDraft('');
+    setError('');
+    setLoading(true);
+    void refreshChannels().catch(e => setError(e instanceof Error ? e.message : 'Unable to open organisation chats.'))
+      .finally(() => setLoading(false));
+  };
 
   return <SafeAreaView style={styles.root}><KeyboardAwareView>
     {!selected ? <>
       <View style={styles.heading}><Text style={styles.title}>Chats</Text>
-        <Text style={styles.subtitle}>Your organisation and care groups</Text></View>
+        <Text style={styles.subtitle}>Your organisation and care groups</Text>
+        {organisations.length > 1 ? <View style={styles.organisations}>
+          <Text style={styles.organisationLabel}>Viewing organisation</Text>
+          <ScrollView style={styles.organisationScroll} nestedScrollEnabled keyboardShouldPersistTaps="handled">
+          {organisations.map(org => <Pressable key={org.id} accessibilityRole="button"
+            accessibilityState={{ selected: organisationId === org.id }}
+            style={[styles.organisationButton, organisationId === org.id && styles.organisationSelected]}
+            onPress={() => changeOrganisation(org.id)}>
+            <Text style={organisationId === org.id ? styles.organisationTextSelected : styles.organisationText}>{org.name}</Text>
+          </Pressable>)}
+          </ScrollView>
+        </View> : null}
+      </View>
       {loading ? <ActivityIndicator /> : null}
       {error ? <Text style={styles.error} accessibilityRole="alert">{error}</Text> : null}
       <FlatList data={channels} keyExtractor={item => item.id}
@@ -160,6 +198,13 @@ export default function OrganisationChats({ userId, initialChannelId, onOpenAnim
 }
 const styles=StyleSheet.create({
   root:{flex:1,backgroundColor:'#f5f7f5'},heading:{padding:20,paddingBottom:10},
+  organisations:{gap:6,marginTop:12,maxHeight:220},
+  organisationScroll:{maxHeight:175},
+  organisationLabel:{fontSize:12,fontWeight:'700',color:'#4c6755'},
+  organisationButton:{padding:9,borderWidth:1,borderColor:'#d4e1d7',borderRadius:9,backgroundColor:'#fff'},
+  organisationSelected:{backgroundColor:'#173d2c'},
+  organisationText:{fontSize:12,color:'#173d2c'},
+  organisationTextSelected:{fontSize:12,color:'#fff',fontWeight:'700'},
   title:{fontSize:29,fontWeight:'800',color:'#173d2c'},
   subtitle:{fontSize:12,color:'#718077',marginTop:3},
   channelList:{paddingHorizontal:13,paddingBottom:30},

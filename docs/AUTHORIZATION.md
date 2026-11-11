@@ -82,9 +82,19 @@ Suggested roles:
 
 #### Platform administrator
 
-Technical platform administration only.
+The authenticated `PLATFORM_ADMIN` oversees Rescue Hub across all rescue organisations.
+This role must not require joining an individual organisation just to inspect its
+administrative and operational records, messaging, people or system configuration.
+Cross-organisation inspection must use an explicit, validated organisation
+context, with privileged access recorded in the audit history. For example,
+the organisation-chat selector lets the platform administrator read and
+participate in Administration, Q&A, Trading Post and specialist care groups
+inside any listed organisation, without being counted as a rescuer or carer.
 
-This role should not automatically imply operational permission to read every rescue record.
+This oversight role does **not** silently impersonate a qualified volunteer,
+perform a physical custody handover, or exempt a rescue action from species,
+availability or animal-safety requirements. Operational changes must use
+an explicitly authorised administrative override with an audit trail.
 
 #### Governing authority administrator
 

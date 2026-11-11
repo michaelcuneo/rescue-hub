@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - deploy/rescue-demo-domain
+      - fix/platform-admin-chat-organisation-oversight
       - fix/expo-keyboard-focus-visibility
       - feature/organisation-group-chats
       - feature/carer-self-claim-transport-to-me
