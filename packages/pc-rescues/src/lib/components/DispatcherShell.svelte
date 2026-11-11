@@ -359,6 +359,7 @@
 					<small>{userRole}</small>
 				</div>
 			</div>
+			<a class="session-link" href="/documentation">Guides</a>
 			<a class="session-link" href="/chats">Chats</a>
 			{#if user.roles.includes('CARER')}
 				<a class="session-link" href="/care-offers">Care offers</a>
