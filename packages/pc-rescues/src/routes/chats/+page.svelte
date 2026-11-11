@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount, tick } from 'svelte';
+  import ThemeSwitcher from '$lib/components/ThemeSwitcher.svelte';
   import { subscribeRescueChanges, type RealtimeConfig } from '../../../../core/realtime-client';
   import type { PageData } from './$types';
   let { data }: { data: PageData } = $props();
@@ -136,6 +137,7 @@
   <header class="topbar">
     <a href="/" class="back">← Rescues</a>
     <div><h1>Chats</h1><p>Organisation conversations and care groups</p></div>
+    <ThemeSwitcher compact />
     <span class="signed">{data.name}</span>
   </header>
   {#if data.canSelectOrganisation}

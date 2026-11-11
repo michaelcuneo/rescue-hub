@@ -1,8 +1,22 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="light">
 
 <head>
 	<meta charset="utf-8" />
+	<script>
+		// Read the saved or operating-system theme before the first paint.
+		(function () {
+			var preference = 'system';
+			try {
+				var stored = localStorage.getItem('rescue-hub-appearance');
+				if (stored === 'light' || stored === 'dark' || stored === 'system') preference = stored;
+			} catch (_) {}
+			var systemDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+			var resolved = preference === 'system' ? (systemDark ? 'dark' : 'light') : preference;
+			document.documentElement.dataset.theme = resolved;
+			document.documentElement.style.colorScheme = resolved;
+		})();
+	</script>
 	<link rel="icon" href="%sveltekit.assets%/favicon.png" />
 	<meta name="viewport" content="width=device-width, initial-scale=1" />
 	<link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">

@@ -1,5 +1,6 @@
 <script lang="ts">
   import AdminOperatingAreas from '$lib/components/AdminOperatingAreas.svelte';
+  import ThemeSwitcher from '$lib/components/ThemeSwitcher.svelte';
   import type { PageData } from './$types';
 
   let { data, form }: { data: PageData; form?: any } = $props();
@@ -178,6 +179,7 @@
       </div>
 
       <div class="admin-actions">
+        <ThemeSwitcher compact />
         {#if canChooseOrganisation}
           <a class="demo-launch" href="/demo/hunter">Open Hunter workspace</a>
           <a class="demo-launch" href="/chats">Organisation chats</a>

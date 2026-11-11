@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { PageData } from './$types';
+  import ThemeSwitcher from '$lib/components/ThemeSwitcher.svelte';
   import {
     ArrowLeft, ArrowRight, BookOpen, CheckCircle2, CircleHelp,
     ClipboardList, FileText, HeartHandshake, Leaf, MapPinned,
@@ -38,6 +39,7 @@
       <span><strong>RESCUE HUB</strong><small>Documentation centre</small></span>
     </a>
     <nav aria-label="Site">
+      <ThemeSwitcher compact />
       <a href="/documentation">Documentation</a>
       {#if data.isAdministrator}<a href="/admin">Administration</a>
       {:else if data.isStaff}<a href="/">Rescue dashboard</a>{/if}

@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { env } from '$env/dynamic/public';
 	import { australianAnimalNames } from '$lib/data/australian-animals';
+	import ThemeSwitcher from '$lib/components/ThemeSwitcher.svelte';
 	import type { OrganisationMembershipConfig } from '$lib/server/membership';
 	import {
 		Search,
@@ -351,6 +352,7 @@
 				{$available ? 'Available' : 'Unavailable'}
 			</button>
 
+			<ThemeSwitcher compact />
 			<div class="user">
 				<span>{userInitials}</span>
 				<div>
@@ -489,7 +491,11 @@
 			</div>
 
 			<div class="detail-actions">
-				<a class="primary" href="/rescues/{selected.id}/care">Animal Records &amp; Phone Updates</a>
+				{#if selected.assignedUserId === user.id || user.roles.some((role) => ['ORG_ADMIN', 'DISPATCHER', 'PLATFORM_ADMIN', 'AUTHORITY_ADMIN'].includes(role))}
+					<a class="primary" href="/rescues/{selected.id}/care">Animal Records &amp; Phone Updates</a>
+				{:else}
+					<p class="detail-restricted">Animal records are available to the assigned rescuer and authorised dispatch staff.</p>
+				{/if}
 			</div>
 		</section>
 	{/if}
@@ -1192,6 +1198,13 @@
 		grid-template-columns: 1fr;
 		gap: 7px;
 		margin-top: 15px;
+	}
+
+	.detail-restricted {
+		margin: 0;
+		color: var(--rh-muted);
+		font-size: 12px;
+		line-height: 1.5;
 	}
 
 	.detail-actions a {
