@@ -105,8 +105,8 @@ export const documentationGuides: DocumentationGuide[] = [
       },
       {
         "id": "scope",
-        "title": "Current scope and independence",
-        "intro": "Rescue Hub is an evolving independent NSW-oriented demonstration, not an official NPWS, DCCEEW or participating-organisation product. The current geographic routing is based on a demonstration snapshot and requires licensing/coverage validation before live operations. Nationwide support and official NPWS exports are goals, not finished integrations."
+        "title": "Coverage and integrations",
+        "intro": "Rescue Hub currently supports NSW operating-area routing using a mapped geographic boundary snapshot. Licensing, organisation coverage and overlap rules require validation for operational adoption. National coverage and regulator-approved exports are planned integrations."
       }
     ]
   },
@@ -149,8 +149,8 @@ export const documentationGuides: DocumentationGuide[] = [
             "detail": "Ask each person to sign in, review their assigned chat channels and verify their rescue/transport eligibility."
           },
           {
-            "title": "Test operations",
-            "detail": "Run a clearly marked fictional report and check the rescue appears for the appropriate volunteer; confirm no real animal or government data has been represented as live."
+            "title": "Verify incident routing",
+            "detail": "Submit a report and confirm that geographic routing offers the rescue to eligible volunteers in the responsible organisation."
           }
         ]
       },
@@ -179,8 +179,8 @@ export const documentationGuides: DocumentationGuide[] = [
         "id": "safety",
         "title": "Administration checklist",
         "points": [
-          "Use demonstration-only cases for training.",
-          "Keep real client/reporter contact details out of public presentations and chats.",
+          "Use training records without real personal information for practice.",
+          "Protect caller and reporter contact details when sharing screens or messages.",
           "Check that user role, membership and species team are correct before inviting them into live work.",
           "Test actual iPhone/Android push delivery and native maps before operational rollout.",
           "Agree privacy, chat moderation, data retention, emergency escalation and government reporting requirements before production."
@@ -639,7 +639,7 @@ export const documentationGuides: DocumentationGuide[] = [
     "title": "What is built and what is next",
     "audience": "Reviewers, administrators and decision-makers",
     "minutes": 5,
-    "description": "An accurate implementation and verification status for demonstrations and adoption planning.",
+    "description": "Implemented capabilities, operational checks and planned integrations.",
     "sections": [
       {
         "id": "implemented",
@@ -678,24 +678,24 @@ export const documentationGuides: DocumentationGuide[] = [
         ]
       },
       {
-        "id": "demo",
-        "title": "How to demonstrate responsibly",
+        "id": "walkthrough",
+        "title": "Workflow walkthrough",
         "steps": [
           {
             "title": "Start at the overview",
             "detail": "Explain the connected workflow, roles and difference between a map job and an animal record."
           },
           {
-            "title": "Use fictional animals",
-            "detail": "Create a clearly labelled test report in the demonstration area. Avoid using real phone numbers, addresses or injured wildlife."
+            "title": "Create a wildlife report",
+            "detail": "Place an incident pin, enter an observation and follow the report into the responsible organisation. Avoid entering unnecessary personal information.",
           },
           {
             "title": "Show self-claim and pickup",
-            "detail": "Demonstrate an eligible volunteer accepting a rescue and confirming collection."
+            "detail": "Follow an eligible volunteer accepting a rescue and confirming physical collection.",
           },
           {
             "title": "Show veterinary follow-up",
-            "detail": "Record a fictional AREC call, open a care offer and arrange independent transport to a carer."
+            "detail": "Record a veterinary callback, open a care offer and arrange independent transport to a carer.",
           },
           {
             "title": "Finish with oversight",
@@ -706,7 +706,7 @@ export const documentationGuides: DocumentationGuide[] = [
       {
         "id": "support",
         "title": "Support and limitations",
-        "intro": "The documentation describes the current codebase as at 11 November 2026. It is not clinical wildlife-care advice, a guarantee of push delivery, or proof of government approval. If a critical operation fails, use established emergency and organisational procedures rather than relying on a prototype."
+        "intro": "These guides explain the platform workflows as at 11 November 2026; they do not replace clinical wildlife-care advice. If a critical operation is unavailable, follow established emergency and organisational procedures."
       }
     ]
   }
