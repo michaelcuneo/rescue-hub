@@ -39,6 +39,36 @@ const channelPk = (organisationId: string, channelId: string) =>
 
 export class ChatAccessError extends Error {}
 
+// Audit privilege use once per user/organisation per UTC day, not on every
+// 15-second chat refresh. The Dynamo conditional write deduplicates cold starts.
+const auditedOversight = new Set<string>();
+async function recordOversightAccess(user: RescueHubUser, organisationId: string) {
+  const day = new Date().toISOString().slice(0, 10);
+  const key = `${day}#${user.id}#${organisationId}`;
+  if (auditedOversight.has(key)) return;
+  const now = new Date().toISOString();
+  try {
+    await db.send(new PutCommand({
+      TableName: table,
+      Item: {
+        pk: `AUDIT#CHAT_OVERSIGHT#${key}`, sk: 'META',
+        entity: 'audit_event', id: crypto.randomUUID(),
+        organisationId, action: 'PLATFORM_CHAT_OVERSIGHT',
+        summary: 'Platform administrator viewed organisation chat channels',
+        actorUserId: user.id, createdAt: now,
+        gsi2pk: 'AUDIT', gsi2sk: `${now}#${user.id}`
+      },
+      ConditionExpression: 'attribute_not_exists(pk)'
+    }));
+  } catch (error) {
+    if (!(error instanceof Error && error.name === 'ConditionalCheckFailedException')) {
+      console.error('Privileged chat oversight audit failed:', error);
+      return;
+    }
+  }
+  auditedOversight.add(key);
+}
+
 /**
  * Privileged access requires an explicit selected organisation. Ordinary users
  * are always locked to their membership; platform/admin identities have no
@@ -54,6 +84,7 @@ export async function resolveChatOrganisation(user: RescueHubUser, selected?: st
     const organisations = await listChatOrganisations(user);
     if (!organisations.some(item => item.id === organisationId))
       throw new ChatAccessError('The selected organisation is not available.');
+    await recordOversightAccess(user, organisationId);
   }
   return organisationId;
 }
