@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - deploy/rescue-demo-domain
+      - feature/one-click-organisation-invitations
       - feature/portal-role-documentation
       - fix/mapbox-geographic-pin-anchoring
       - fix/keyboard-occlusion-native-geometry
@@ -32,6 +33,8 @@ jobs:
           node-version: '22'
       - name: Install workspaces
         run: npm install --no-audit --no-fund
+      - name: Single-use organisation invitation link tests
+        run: node --experimental-strip-types --test packages/core/invitation-links.test.mjs
       - name: Public reporter signup and email verification validation tests
         run: node --experimental-strip-types --test packages/core/public-reporter-validation.test.mjs
       - name: Geographic rescue pin anchoring tests
