@@ -142,7 +142,7 @@ export const documentationGuides: DocumentationGuide[] = [
           },
           {
             "title": "Invite staff and volunteers",
-            "detail": "Use People & access to invite coordinators, dispatchers, rescuers and carers. Select the right organisation, role, membership type and specialist teams."
+            "detail": "Use People & access to invite coordinators, dispatchers, rescuers and carers. Choose their organisation, role and teams; they receive a secure email link to set their password and sign in without a verification code."
           },
           {
             "title": "Verify access",
