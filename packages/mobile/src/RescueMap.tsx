@@ -108,10 +108,11 @@ function installPins(){
 function display(collection){
   if(!collection || collection.type!=='FeatureCollection' || !Array.isArray(collection.features))return;
   const nextPayload=JSON.stringify(collection);
-  if(nextPayload===lastPayload)return;
-  lastPayload=nextPayload;
   latestCollection=collection;
-  if(!pinsReady)return;
+  // The first feed may arrive before the map style has loaded.
+  // Keep its data, but apply it as soon as geographic layers exist.
+  if(!pinsReady || nextPayload===lastPayload)return;
+  lastPayload=nextPayload;
   const source=map.getSource('rescue-pins');
   if(source)source.setData(collection);
   if(collection.features.length && !hasFitted){
