@@ -73,7 +73,11 @@ export default function App() {
       const restored = await restoreSession();
       if (restored) {
         setSession(restored);
-        if (!restored.user.roles?.includes('PUBLIC_REPORTER')) {
+        if (!restored.user.organisationId &&
+            restored.user.roles?.some(role => role === 'PLATFORM_ADMIN' || role === 'AUTHORITY_ADMIN')) {
+          setView('chats');
+        }
+        if (restored.user.organisationId && !restored.user.roles?.includes('PUBLIC_REPORTER')) {
           setPushStatus(await registerForPushNotifications());
         try {
           const result = await getRescues();
@@ -93,7 +97,7 @@ export default function App() {
   // server filters actual records by organisation/team/custodian; the websocket
   // carries no rescue or location data and has no mutation permissions.
   useEffect(() => {
-    if (!session?.user.id || session.user.roles?.includes('PUBLIC_REPORTER')) return;
+    if (!session?.user.id || !session.user.organisationId || session.user.roles?.includes('PUBLIC_REPORTER')) return;
     const userId = session.user.id;
     let closed = false;
     let foreground = AppState.currentState === 'active';
@@ -207,7 +211,11 @@ export default function App() {
     try {
       const result = await login(email.trim(), password);
       setSession({ user: result.user, membership: result.membership });
-      if (!result.user.roles?.includes('PUBLIC_REPORTER')) {
+      if (!result.user.organisationId &&
+          result.user.roles?.some(role => role === 'PLATFORM_ADMIN' || role === 'AUTHORITY_ADMIN')) {
+        setView('chats');
+      }
+      if (result.user.organisationId && !result.user.roles?.includes('PUBLIC_REPORTER')) {
         setPushStatus(await registerForPushNotifications());
         const initial = await getRescues();
         setRescues(initial.items);
