@@ -952,10 +952,6 @@
     letter-spacing: -0.05em;
   }
 
-  .metrics strong.text-metric {
-    font-size: 25px;
-  }
-
   .metrics small {
     font-size: 13px;
   }
@@ -1254,8 +1250,7 @@
   }
 
   td strong,
-  td span,
-  td em {
+  td span {
     display: block;
   }
 
@@ -1268,19 +1263,6 @@
     margin-top: 2px;
     color: var(--muted);
     font-size: 12px;
-  }
-
-  td em {
-    width: max-content;
-    margin-top: 5px;
-    padding: 3px 6px;
-    border-radius: 5px;
-    background: #eef4da;
-    color: #526b18;
-    font-size: 12px;
-    font-style: normal;
-    font-weight: 800;
-    text-transform: uppercase;
   }
 
   td .boundary,
