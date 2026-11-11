@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import MapBox from '$lib/components/MapBox.svelte';
   import DispatcherShell from '$lib/components/DispatcherShell.svelte';
-  import { data as rescueData, people, selectedRescue } from '$lib/stores';
+  import { data as rescueData, people, selectedRescue, routingExceptions } from '$lib/stores';
   import { subscribeRescueChanges, type RealtimeConfig } from '../../../core/realtime-client';
   import type { PageData } from './$types';
 
@@ -37,6 +37,7 @@
 
   onMount(() => {
     people.set(data.people ?? []);
+    routingExceptions.set(data.routingExceptions ?? []);
     selectedRescue.set(null);
     showRescues(data.rescues);
     let disposed = false;
@@ -54,8 +55,11 @@
       try {
         const response = await fetch('/api/rescues/feed', { cache: 'no-store' });
         if (!response.ok) throw new Error(`Rescue snapshot HTTP ${response.status}`);
-        const snapshot = await response.json() as { items: RescueRecord[] };
-        if (!disposed) showRescues(snapshot.items);
+        const snapshot = await response.json() as { items: RescueRecord[]; routingExceptions: PageData['routingExceptions'] };
+        if (!disposed) {
+          showRescues(snapshot.items);
+          routingExceptions.set(snapshot.routingExceptions ?? []);
+        }
       } catch (error) {
         if (!disposed) console.error('Desktop realtime rescue refresh failed:', error);
       } finally {
