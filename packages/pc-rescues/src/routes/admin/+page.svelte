@@ -154,6 +154,10 @@
         </button>
       {/each}
     </nav>
+    <a class="documentation-link" href="/documentation">
+      <span class="nav-icon" aria-hidden="true">DC</span>
+      <span>Documentation &amp; guides</span>
+    </a>
 
     <div class="sidebar-footer">
       <div class:online={data.backend.online} class="status-dot"></div>
@@ -742,6 +746,25 @@
   nav button.active .nav-icon {
     background: var(--lime);
     color: var(--forest);
+  }
+
+  .documentation-link {
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    padding: 11px 12px;
+    margin-top: 12px;
+    color: #dceadd;
+    font-weight: 650;
+    font-size: 13px;
+    text-decoration: none;
+    border: 1px solid rgba(255, 255, 255, .13);
+    border-radius: 9px;
+  }
+  .documentation-link:hover,
+  .documentation-link:focus-visible {
+    background: rgba(255, 255, 255, .09);
+    color: #fff;
   }
 
   .sidebar-footer {
