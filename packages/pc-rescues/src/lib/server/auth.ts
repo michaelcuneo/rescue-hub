@@ -466,7 +466,7 @@ Rescue Hub`;
  */
 export async function correctPendingInvitationEmail(userId: string, proposedEmail: string) {
   const email = normalizeEmail(proposedEmail);
-  if (!/^\S+@\S+\.\S+$/.test(email) throw new Error('Enter a valid email address.');
+  if (!/^\S+@\S+\.\S+$/.test(email)) throw new Error('Enter a valid email address.');
   const current = await getUserRecord(userId);
   if (!current || current.status !== 'INVITED' || !current.enabled ||
     !current.organisationId || current.roles?.includes('PUBLIC_REPORTER'))
