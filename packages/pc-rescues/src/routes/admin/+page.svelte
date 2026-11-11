@@ -20,6 +20,9 @@
   let peopleFilter = $state<'all' | 'available' | 'admins' | 'disabled'>('all');
   let showInvite = $state(false);
   let selectedPersonId = $state<string | null>(null);
+  $effect(() => {
+    if (form?.action === 'removeUser' && form.success) selectedPersonId = null;
+  });
   let inviteOrganisationId = $state('');
   let inviteRole = $state('RESCUER');
   let inviteMembershipTypeId = $state('active-rescuer');
@@ -464,7 +467,11 @@
           <div class="people-feedback error" role="alert">{form.error}</div>
         {:else if form?.success}
           <div class="people-feedback success" role="status">
-            {['inviteUser', 'inviteDemoReviewer', 'resendInvitation'].includes(form.action) ? 'Invitation email sent. The recipient can use the secure link to set a password and enter their organisation.' : 'User updated.'}
+            {['inviteUser', 'inviteDemoReviewer', 'resendInvitation'].includes(form.action)
+                ? 'Invitation email sent. The recipient can use the secure link to set a password and enter their organisation.'
+                : form.action === 'removeUser'
+                  ? 'Person removed from the active directory. Historical rescue records remain intact.'
+                  : 'User updated.'}
             {#if form.action === 'resetPassword' && form.devCode}<code>Development reset code: {form.devCode}</code>{/if}
           </div>
         {/if}

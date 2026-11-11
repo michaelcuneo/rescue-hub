@@ -835,7 +835,7 @@ export async function listUsers() {
 		KeyConditionExpression: 'gsi2pk = :pk',
 		ExpressionAttributeValues: { ':pk': 'USERS' }
 	}));
-	return (result.Items ?? []).map((item) => toUser(item));
+	return (result.Items ?? []).filter(item => item.status !== 'REMOVED').map(item => toUser(item));
 }
 
 export async function updateUserDispatchMembership(input: {
@@ -970,6 +970,7 @@ export async function removeUser(userId: string) {
 					TableName: tableName,
 					Key: { pk: `USER#${userId}`, sk: 'PROFILE' },
 					UpdateExpression: 'SET enabled = :no, #status = :removed, authEpoch = if_not_exists(authEpoch, :zero) + :one, updatedAt = :at',
+                    ConditionExpression: 'attribute_exists(pk) AND #status <> :removed',
 					ExpressionAttributeNames: { '#status': 'status' },
 					ExpressionAttributeValues: { ':no': false, ':removed': 'REMOVED', ':zero': 0, ':one': 1, ':at': now }
 				}
@@ -979,6 +980,7 @@ export async function removeUser(userId: string) {
 					TableName: tableName,
 					Key: { pk: `USER#${userId}`, sk: 'MEMBERSHIP' },
 					UpdateExpression: 'SET #status = :removed, updatedAt = :at',
+                    ConditionExpression: 'attribute_exists(pk)',
 					ExpressionAttributeNames: { '#status': 'status' },
 					ExpressionAttributeValues: { ':removed': 'REMOVED', ':at': now }
 				}
