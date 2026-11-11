@@ -138,7 +138,7 @@
     .area-navigation a { font-size:12px; padding:7px 8px; }
     .person, .sign-out { display:none; }
     .more-menu summary { font-size:0; width:30px; padding:0; }
-    .more-menu summary svg { width:16px; height:16px; }
+    .more-menu summary :global(svg) { width:16px; height:16px; }
   }
   @media(max-width:420px) {
     .area-navigation a { font-size:10px; padding:7px 4px; }

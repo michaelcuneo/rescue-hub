@@ -1741,7 +1741,7 @@
     border-color: var(--rh-border);
     color: var(--rh-text);
   }
-  .admin-shell input, .admin-shell select, .admin-shell textarea {
+  .admin-shell input, .admin-shell select {
     background: var(--rh-field);
     color: var(--rh-text);
     border-color: var(--rh-border);
