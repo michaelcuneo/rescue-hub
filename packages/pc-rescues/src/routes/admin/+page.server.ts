@@ -136,7 +136,7 @@ export const actions: Actions = {
 			return fail(400, { action: 'inviteDemoReviewer', error: 'Enter a valid reviewer email.' });
 		}
 		try {
-						await inviteUser({
+			await inviteUser({
 				name, email, organisationId: HUNTER_DEMO_ORGANISATION,
 				roles: ['DISPATCHER'], membershipTypeId: 'support-member', teamIds: []
 			});
