@@ -2,6 +2,7 @@
   import { onMount, tick } from 'svelte';
   import { subscribeRescueChanges, type RealtimeConfig } from '../../../../core/realtime-client';
   import type { PageData } from './$types';
+  import { shouldSendChatOnKey } from '../../../../core/chat-composer-keyboard';
   let { data }: { data: PageData } = $props();
   type Channel = {
     id: string; name: string; description: string; unread: boolean;
@@ -96,6 +97,13 @@
     } catch (e) { error = e instanceof Error ? e.message : 'Could not load earlier messages.'; }
     finally { busy = false; }
   }
+  function onChatKeydown(event: KeyboardEvent) {
+    if (!shouldSendChatOnKey(event)) return;
+    event.preventDefault();
+    if (event.target instanceof HTMLTextAreaElement && event.target.form) {
+      event.target.form.requestSubmit();
+    }
+  }
   async function send(event: SubmitEvent) {
     event.preventDefault();
     if (!selectedId || busy || !draft.trim()) return;
@@ -181,7 +189,10 @@
         </div>
         <form onsubmit={send}>
           <label class="sr-only" for="chat-message">Message to {selected?.name ?? 'channel'}</label>
-          <textarea id="chat-message" maxlength="2000" rows="2" bind:value={draft} placeholder="Message your group…"></textarea>
+          <textarea id="chat-message" maxlength="2000" rows="2" bind:value={draft}
+            onkeydown={onChatKeydown} placeholder="Message your group…"
+            aria-describedby="chat-compose-shortcut"></textarea>
+          <span id="chat-compose-shortcut" class="sr-only">Press Enter to send. Press Shift and Enter to start a new line.</span>
           <button class="send" disabled={busy || !draft.trim()}>Send</button>
         </form>
       {:else}
