@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - deploy/rescue-demo-domain
+      - fix/rescuer-ownership-and-simple-vet-handover
       - feature/desktop-account-settings-and-rescue-assignees
       - fix/chat-admin-layout-and-species-mobile-feed
       - feature/rescue-addresses-and-directions
@@ -76,6 +77,8 @@ jobs:
         run: node --experimental-strip-types --test packages/core/dispatch-species.test.mjs
       - name: Realtime mobile feed reconciliation tests
         run: node --experimental-strip-types --test packages/core/rescue-feed-reconciliation.test.mjs
+      - name: Assigned rescuer and simple vet handover regression tests
+        run: node --experimental-strip-types --test packages/core/field-rescue-progress.test.mjs
       - name: TypeScript and warning-free Svelte checks
         run: npm run check
       - name: React Native TypeScript validation
