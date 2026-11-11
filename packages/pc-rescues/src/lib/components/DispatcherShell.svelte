@@ -119,9 +119,10 @@ import { reportChannelLabel } from '../../../../core/report-channel';
 			const result = await response.json() as { rescue?: RescueItem; error?: string };
 			if (!response.ok || !result.rescue) throw new Error(result.error ?? 'Routing has not resolved yet.');
 			routingExceptions.update(items => items.filter(item => item.id !== id));
+			const routed = { ...result.rescue, color: 'd2222d', disabled: false, status: 'PENDING' };
 			data.update(current => ({
 				...current,
-				pending: [result.rescue!, ...current.pending.filter(item => item.id !== result.rescue!.id)]
+				pending: [routed, ...current.pending.filter(item => item.id !== routed.id)]
 			}));
 			dispatchNotice = 'Public report GPS-routed into Pending. Eligible rescuers have been notified.';
 		} catch (error) {
