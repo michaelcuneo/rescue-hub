@@ -1,10 +1,18 @@
 import { putSeedItem } from "./seed";
+import { buildHunterDemoStory } from "../core/demo-rescue-stories";
 
 const HUNTER_ORG = "native-animal-trust-fund";
 const S = (value: string) => ({ S: value });
 const N = (value: number) => ({ N: String(value) });
 const B = (value: boolean) => ({ BOOL: value });
 const L = (values: string[]) => ({ L: values.map(S) });
+
+// Pulumi TableItem takes DynamoDB AttributeValues rather than document values.
+// Keep fixture conversion local and never convert arbitrary application data.
+const demoAttribute = (value: string | number | boolean) =>
+  typeof value === "string" ? S(value) : typeof value === "number" ? N(value) : B(value);
+const demoItem = (value: Record<string, string | number | boolean>) =>
+  Object.fromEntries(Object.entries(value).map(([key, entry]) => [key, demoAttribute(entry)]));
 
 const put = putSeedItem;
 
@@ -138,16 +146,33 @@ allDemoRescues.forEach((r, index) => {
   const [n,type,breed,location,latitude,longitude,injury,status,assignedUserId] = r;
   const id = `demo-hunter-rescue-${n}`;
   const at = new Date(Date.UTC(2026, 10, 5, 9, 0) - index * 17 * 60_000).toISOString();
+
+  // The detailed care histories belong to the demo stack ONLY. Do not add
+  // synthetic treatment, custody or outcomes to non-demo deployments.
+  const story = $app.stage === "demo" && (status === "ASSIGNED" || status === "COMPLETED")
+    ? buildHunterDemoStory({ id, type, breed, location, assignedUserId, status })
+    : null;
+  const createdAt = story?.createdAt ?? at;
+  const updatedAt = story?.updatedAt ?? at;
   const item: Record<string, unknown> = {
     pk: S(`RESCUE#${id}`), sk: S("META"), entity: S("rescue"), id: S(id),
     organisationId: S(HUNTER_ORG), type: S(type), breed: S(breed), location: S(location),
     latitude: N(latitude), longitude: N(longitude), injury: S(injury), status: S(status),
-    demo: B(true), createdAt: S(at), updatedAt: S(at),
-    gsi1pk: S(`STATUS#${status}`), gsi1sk: S(`${at}#${id}`),
-    gsi2pk: S("RESCUES"), gsi2sk: S(`${at}#${id}`),
+    demo: B(true), createdAt: S(createdAt), updatedAt: S(updatedAt),
+    gsi1pk: S(`STATUS#${status}`), gsi1sk: S(`${updatedAt}#${id}`),
+    gsi2pk: S("RESCUES"), gsi2sk: S(`${updatedAt}#${id}`),
   };
   if (assignedUserId) item.assignedUserId = S(assignedUserId);
+  if (story?.pickedUpAt) item.pickedUpAt = S(story.pickedUpAt);
+  if (story) item.animalCount = N(1);
   put(`DemoRescue-${id}`, item);
+
+  if (story) {
+    put(`DemoStoryAnimal-${n}`, demoItem(story.animal));
+    for (const [i, event] of story.events.entries()) {
+      put(`DemoStoryEvent-${n}-${String(i).padStart(2, "0")}`, demoItem(event));
+    }
+  }
 });
 
 
