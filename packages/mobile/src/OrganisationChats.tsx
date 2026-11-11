@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, FlatList, Pressable,
+import { ActivityIndicator, FlatList, ScrollView, Pressable,
   SafeAreaView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { KeyboardAwareView, KeyboardAwareTextInput } from './KeyboardAware';
 import { getChatChannels, getChannelMessages, markChannelRead,
@@ -124,12 +124,14 @@ export default function OrganisationChats({ userId, initialChannelId, onOpenAnim
         <Text style={styles.subtitle}>Your organisation and care groups</Text>
         {organisations.length > 1 ? <View style={styles.organisations}>
           <Text style={styles.organisationLabel}>Viewing organisation</Text>
+          <ScrollView style={styles.organisationScroll} nestedScrollEnabled keyboardShouldPersistTaps="handled">
           {organisations.map(org => <Pressable key={org.id} accessibilityRole="button"
             accessibilityState={{ selected: organisationId === org.id }}
             style={[styles.organisationButton, organisationId === org.id && styles.organisationSelected]}
             onPress={() => changeOrganisation(org.id)}>
             <Text style={organisationId === org.id ? styles.organisationTextSelected : styles.organisationText}>{org.name}</Text>
           </Pressable>)}
+          </ScrollView>
         </View> : null}
       </View>
       {loading ? <ActivityIndicator /> : null}
@@ -196,7 +198,8 @@ export default function OrganisationChats({ userId, initialChannelId, onOpenAnim
 }
 const styles=StyleSheet.create({
   root:{flex:1,backgroundColor:'#f5f7f5'},heading:{padding:20,paddingBottom:10},
-  organisations:{gap:6,marginTop:12,maxHeight:200,overflow:'hidden'},
+  organisations:{gap:6,marginTop:12,maxHeight:220},
+  organisationScroll:{maxHeight:175},
   organisationLabel:{fontSize:12,fontWeight:'700',color:'#4c6755'},
   organisationButton:{padding:9,borderWidth:1,borderColor:'#d4e1d7',borderRadius:9,backgroundColor:'#fff'},
   organisationSelected:{backgroundColor:'#173d2c'},
