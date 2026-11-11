@@ -104,7 +104,7 @@ export function KeyboardAwareScrollView({ children, style, contentContainerStyle
     const subscriptions = [
       Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow', updateKeyboard),
       Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide', hideKeyboard),
-      Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillChangeFrame' : 'keyboardDidShow', updateKeyboard)
+      ...(Platform.OS === 'ios' ? [Keyboard.addListener('keyboardWillChangeFrame', updateKeyboard)] : [])
     ];
     // Focus can happen while the keyboard is already visible (e.g. switching
     // between the many schedule fields). No extra show event is required.
@@ -125,7 +125,8 @@ export function KeyboardAwareScrollView({ children, style, contentContainerStyle
           scrollY.current = event.nativeEvent.contentOffset.y;
           onScroll?.(event);
         }}
-        onLayout={() => queueReveal(null)}>
+        onLayout={() => queueReveal(null)}
+        onContentSizeChange={() => queueReveal(null)}>
         {children}
       </ScrollView>
     </KeyboardAwareView>
