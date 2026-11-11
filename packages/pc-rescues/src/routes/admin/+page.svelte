@@ -1505,7 +1505,7 @@
   .people-feedback code {
     padding: 3px 6px;
     border-radius: 5px;
-    background:rgb(255 255 255 / 0.7);
+    background:var(--rh-surface);
   }
 
   .people-table {
