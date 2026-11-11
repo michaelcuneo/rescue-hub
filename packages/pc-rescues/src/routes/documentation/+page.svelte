@@ -76,8 +76,8 @@
           </div>
         {/if}
         <div class="side-footer">
-          <p>NSW demonstration · November 2026</p>
-          <p>Independent prototype, not a government service.</p>
+          <p>NSW wildlife rescue coordination</p>
+          <p>Operating guides and reference materials</p>
         </div>
       </div>
     </aside>
@@ -169,7 +169,7 @@
       </div>
     </main>
   </div>
-  <footer class="site-footer"><span>© Rescue Hub · Independent wildlife rescue coordination prototype</span><a href="/documentation">Documentation home</a></footer>
+  <footer class="site-footer"><span>© Rescue Hub · Wildlife rescue coordination</span><a href="/documentation">Documentation home</a></footer>
 </div>
 
 <style>
