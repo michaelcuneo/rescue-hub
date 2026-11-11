@@ -302,22 +302,30 @@ export type ChatMessage = {
   senderName: string; text: string; createdAt: string; animalId?: string;
   kind?: 'MESSAGE' | 'SYSTEM';
 };
-export async function getChatChannels() {
-  return request<{ channels: ChatChannel[] }>('/api/mobile/chats');
-}
-export async function getChannelMessages(channelId: string, before?: string) {
-  return request<{ items: ChatMessage[]; nextCursor: string | null }>(
-    `/api/mobile/chats/${encodeURIComponent(channelId)}` +
-    (before ? `?before=${encodeURIComponent(before)}` : '')
+export type ChatOrganisation = { id: string; name: string };
+const chatQuery = (organisationId?: string, before?: string) => {
+  const params = new URLSearchParams();
+  if (organisationId) params.set('organisationId', organisationId);
+  if (before) params.set('before', before);
+  return params.size ? '?' + params.toString() : '';
+};
+export async function getChatChannels(organisationId?: string) {
+  return request<{ channels: ChatChannel[]; organisations: ChatOrganisation[]; organisationId: string }>(
+    '/api/mobile/chats' + chatQuery(organisationId)
   );
 }
-export async function sendChannelMessage(channelId: string, text: string, animalId?: string) {
-  return request<{ message: ChatMessage }>(`/api/mobile/chats/${encodeURIComponent(channelId)}`, {
+export async function getChannelMessages(channelId: string, before?: string, organisationId?: string) {
+  return request<{ items: ChatMessage[]; nextCursor: string | null }>(
+    `/api/mobile/chats/${encodeURIComponent(channelId)}` + chatQuery(organisationId, before)
+  );
+}
+export async function sendChannelMessage(channelId: string, text: string, animalId?: string, organisationId?: string) {
+  return request<{ message: ChatMessage }>(`/api/mobile/chats/${encodeURIComponent(channelId)}` + chatQuery(organisationId), {
     method: 'POST', body: JSON.stringify({ text, ...(animalId ? { animalId } : {}) })
   });
 }
-export async function markChannelRead(channelId: string, messageId: string) {
-  return request<{ ok: true }>(`/api/mobile/chats/${encodeURIComponent(channelId)}`, {
+export async function markChannelRead(channelId: string, messageId: string, organisationId?: string) {
+  return request<{ ok: true }>(`/api/mobile/chats/${encodeURIComponent(channelId)}` + chatQuery(organisationId), {
     method: 'PATCH', body: JSON.stringify({ messageId })
   });
 }
