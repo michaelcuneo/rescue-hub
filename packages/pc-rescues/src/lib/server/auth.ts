@@ -368,10 +368,10 @@ export async function sendOrganisationInvitation(userId: string) {
 	const sender = mailFrom();
 	if (!sender) throw new Error('Rescue Hub email delivery is not configured.');
 	const secret = randomBytes(32).toString('base64url');
-	const url = makeInvitationUrl(origin, \`\${userId}.\${secret}\`);
+	const url = makeInvitationUrl(origin, `${userId}.${secret}`);
 	const now = Math.floor(Date.now() / 1000);
 	const expiresAt = now + INVITATION_TTL_SECONDS;
-	const key = { pk: \`USER#\${userId}\`, sk: 'INVITATION' };
+	const key = { pk: `USER#${userId}`, sk: 'INVITATION' };
 	const organisationId = String(profile.organisationId);
 	const organisation = await getOrganisation(organisationId).catch(() => null);
 	const organisationName = organisation?.displayName || organisation?.officialName || organisationId;
@@ -388,23 +388,23 @@ export async function sendOrganisationInvitation(userId: string) {
 			throw new Error('Please wait a minute before resending this invitation.');
 		throw error;
 	});
-	const text = \`Hello \${String(profile.name)},
+	const text = `Hello ${String(profile.name)},
 
-You've been invited to join \${organisationName} on Rescue Hub using \${String(profile.email)}.
+You've been invited to join ${organisationName} on Rescue Hub using ${String(profile.email)}.
 
 Set your password and enter your organisation workspace using this secure link:
 
-\${url}
+${url}
 
 The link expires in 7 days and can only be used once. If you weren't expecting this invitation, ignore this email.
 
-Rescue Hub\`;
+Rescue Hub`;
 	await ses.send(new SendEmailCommand({
 		FromEmailAddress: sender,
 		Destination: { ToAddresses: [String(profile.email)] },
 		Content: {
 			Simple: {
-				Subject: { Data: \`Join \${organisationName} on Rescue Hub\`, Charset: 'UTF-8' },
+				Subject: { Data: `Join ${organisationName} on Rescue Hub`, Charset: 'UTF-8' },
 				Body: { Text: { Data: text, Charset: 'UTF-8' } }
 			}
 		}
@@ -418,7 +418,7 @@ export async function getInvitation(credential: string | undefined | null) {
 	if (!token) return null;
 	const [invitation, profile] = await Promise.all([
 		db.send(new GetCommand({
-			TableName: tableName, Key: { pk: \`USER#\${token.userId}\`, sk: 'INVITATION' }
+			TableName: tableName, Key: { pk: `USER#${token.userId}`, sk: 'INVITATION' }
 		})),
 		getUserRecord(token.userId)
 	]);
@@ -542,7 +542,7 @@ export async function acceptInvite(credential: string, password: string, cookies
 				{
 					Delete: {
 						TableName: tableName,
-						Key: { pk: \`USER#\${token.userId}\`, sk: 'INVITATION' },
+						Key: { pk: `USER#${token.userId}`, sk: 'INVITATION' },
 						ConditionExpression: 'tokenHash = :hash AND expiresAt > :now',
 						ExpressionAttributeValues: { ':hash': hashToken(token.secret), ':now': now }
 					}
@@ -551,7 +551,7 @@ export async function acceptInvite(credential: string, password: string, cookies
 					Put: {
 						TableName: tableName,
 						Item: {
-							pk: \`USER#\${token.userId}\`, sk: 'PASSWORD',
+							pk: `USER#${token.userId}`, sk: 'PASSWORD',
 							entity: 'credential', salt: newCredential.salt,
 							passwordHash: newCredential.hash, updatedAt: nowIso
 						},
@@ -561,7 +561,7 @@ export async function acceptInvite(credential: string, password: string, cookies
 				{
 					Update: {
 						TableName: tableName,
-						Key: { pk: \`USER#\${token.userId}\`, sk: 'PROFILE' },
+						Key: { pk: `USER#${token.userId}`, sk: 'PROFILE' },
 						UpdateExpression: 'SET #status = :active, emailVerified = :yes, updatedAt = :at',
 						ConditionExpression: '#status = :invited AND enabled = :yes AND attribute_exists(organisationId)',
 						ExpressionAttributeNames: { '#status': 'status' },
@@ -573,7 +573,7 @@ export async function acceptInvite(credential: string, password: string, cookies
 				{
 					Update: {
 						TableName: tableName,
-						Key: { pk: \`USER#\${token.userId}\`, sk: 'MEMBERSHIP' },
+						Key: { pk: `USER#${token.userId}`, sk: 'MEMBERSHIP' },
 						UpdateExpression: 'SET #status = :active, updatedAt = :at',
 						ConditionExpression: '#status = :pending AND attribute_exists(organisationId)',
 						ExpressionAttributeNames: { '#status': 'status' },
