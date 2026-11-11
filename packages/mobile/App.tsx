@@ -35,6 +35,7 @@ import { registerForPushNotifications, type PushRegistration } from './src/notif
 import AnimalCare from './src/AnimalCare';
 import AvailabilitySettings from './src/AvailabilitySettings';
 import RescueMap from './src/RescueMap';
+import RescueAddress from './src/RescueAddress';
 import PublicReporter from './src/PublicReporter';
 import CarerOffers from './src/CarerOffers';
 import OrganisationChats from './src/OrganisationChats';
@@ -518,7 +519,8 @@ export default function App() {
                   <Text style={styles.dismissText}>×</Text>
                 </Pressable>
               </View>
-              <Text style={styles.location}>{selectedMapRescue.location || 'Location not recorded'}</Text>
+              <RescueAddress id={selectedMapRescue.id} latitude={selectedMapRescue.latitude}
+                 longitude={selectedMapRescue.longitude} location={selectedMapRescue.location} showDirections />
               <Text style={styles.injury} numberOfLines={2}>{selectedMapRescue.injury || 'Condition not recorded'}</Text>
               {selectedMapRescue.stageLabel ? <Text style={styles.stage}>{selectedMapRescue.stageLabel}</Text> : null}
               {selectedMapRescue.status === 'PENDING' ? available ? (
@@ -552,7 +554,8 @@ export default function App() {
                 <Text style={styles.animal}>{item.type}</Text>
                 <Text style={styles.status}>{item.status}</Text>
               </View>
-              <Text style={styles.location}>{item.location || 'Location not recorded'}</Text>
+              <RescueAddress id={item.id} latitude={item.latitude}
+                 longitude={item.longitude} location={item.location} showDirections />
               <Text style={styles.injury}>{item.injury || 'Condition not recorded'}</Text>
               {item.stageLabel ? <Text style={styles.stage}>{item.stageLabel}</Text> : null}
               {item.status === 'PENDING' ? (

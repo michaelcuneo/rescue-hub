@@ -272,6 +272,18 @@ export async function getRescues() {
   return request<{ items: Rescue[]; feed?: RescueFeedDiagnostics; truncated?: boolean }>('/api/mobile/rescues');
 }
 
+export type RescueAddressResult = {
+  address: string | null;
+  precision: 'ADDRESS' | 'NEARBY_ADDRESS' | 'STREET' | 'AREA' | 'UNAVAILABLE';
+  location: string;
+  coordinates: string;
+  directionsUrl: string | null;
+};
+
+export async function getRescueAddress(id: string): Promise<RescueAddressResult> {
+  return request<RescueAddressResult>(`/api/mobile/rescues/${encodeURIComponent(id)}/address`);
+}
+
 export async function correctReportedRescue(id: string, type: string, injury: string) {
   return request<{ rescue: Rescue }>(`/api/mobile/rescues/${encodeURIComponent(id)}/correction`, { method: 'PATCH', body: JSON.stringify({ type, injury }) });
 }

@@ -2,6 +2,7 @@
 	import { env } from '$env/dynamic/public';
 	import { australianAnimalNames } from '$lib/data/australian-animals';
 import { reportChannelLabel } from '../../../../core/report-channel';
+	import RescueAddress from './RescueAddress.svelte';
 		import type { OrganisationMembershipConfig } from '$lib/server/membership';
 	import {
 		Search,
@@ -454,7 +455,8 @@ import { reportChannelLabel } from '../../../../core/report-channel';
 						</span>
 						<span class="rescue-location">
 							<MapPin size={12} />
-							{item.location || 'Location not recorded'}
+							<RescueAddress id={item.id} latitude={item.latitude} longitude={item.longitude}
+								fallback={item.location} compact />
 						</span>
 						<span class="rescue-injury">{item.injury || 'Condition not recorded'}</span>
 						<span class="source-label">{reportChannelLabel(item)}</span>
@@ -511,8 +513,8 @@ import { reportChannelLabel } from '../../../../core/report-channel';
 			<div class="detail-location">
 				<MapPin size={15} />
 				<div>
-					<strong>{selected.location || 'Location not recorded'}</strong>
-					<span>{Number(selected.latitude).toFixed(5)}, {Number(selected.longitude).toFixed(5)}</span>
+					<RescueAddress id={selected.id} latitude={selected.latitude} longitude={selected.longitude}
+						fallback={selected.location} directions />
 				</div>
 			</div>
 
@@ -1079,19 +1081,9 @@ import { reportChannelLabel } from '../../../../core/report-channel';
 		background:var(--rh-t49, #f5f8f6);
 	}
 
-	.detail-location strong,
-	.detail-location span {
-		display: block;
-	}
-
-	.detail-location strong {
-		font-size: 13px;
-	}
-
-	.detail-location span {
-		margin-top: 2px;
-		color:var(--rh-t50, #7c8982);
-		font-size: 12px;
+	.detail-location :global(.rescue-address) {
+		flex: 1;
+		min-width: 0;
 	}
 
 	.condition {
