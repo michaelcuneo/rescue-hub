@@ -4,6 +4,7 @@ import { getDeviceMapPosition } from './map-location';
 import WebView, { type WebViewMessageEvent } from 'react-native-webview';
 import { type Rescue } from './api';
 import { pinForRescue, RESCUE_PIN_GROUPS, type RescuePinGroup } from './rescue-pins';
+import { createRescuePinCollection } from '../../core/rescue-pin-geojson';
 
 type Props = { rescues: Rescue[]; onSelect: (rescue: Rescue) => void };
 type MapConfiguration = { token: string; style: string; operatingAreasUrl: string };
@@ -25,7 +26,7 @@ function html(config: MapConfiguration) {
   const areas = JSON.stringify(config.operatingAreasUrl);
   return `<!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <link href="https://api.mapbox.com/mapbox-gl-js/v3.16.0/mapbox-gl.css" rel="stylesheet">
-<style>html,body,#map{padding:0;margin:0;width:100%;height:100%;overflow:hidden;background:#e2ebe5}.mapboxgl-ctrl-bottom-left,.mapboxgl-ctrl-bottom-right{display:none}.pin{position:relative;width:42px;height:42px;box-sizing:border-box;border-radius:50%;border:3px solid #fff;box-shadow:0 2px 8px #0004,0 0 0 1px #0002;display:grid;place-items:center;cursor:pointer;transition:transform 120ms,box-shadow 120ms}.pin span{color:#fff;font:900 11px system-ui;letter-spacing:-.03em}.pin.selected{transform:scale(1.12);box-shadow:0 3px 11px #0005,0 0 0 3px #ffffffa6}.pin .status-dot{position:absolute;right:-3px;bottom:-3px;width:12px;height:12px;box-sizing:border-box;border-radius:50%;border:2px solid #fff;background:#e9af34}.pin .status-dot.assigned{background:#276cd0}.user-location{width:18px;height:18px;box-sizing:border-box;border-radius:50%;background:#2679eb;border:3px solid white;box-shadow:0 0 0 9px #2679eb33,0 2px 8px #0004}.mapboxgl-popup-content{font:13px system-ui;color:#173d2c;padding:11px 13px;border-radius:10px}</style>
+<style>html,body,#map{padding:0;margin:0;width:100%;height:100%;overflow:hidden;background:#e2ebe5}.mapboxgl-ctrl-bottom-left,.mapboxgl-ctrl-bottom-right{display:none}.user-location{width:18px;height:18px;box-sizing:border-box;border-radius:50%;background:#2679eb;border:3px solid white;box-shadow:0 0 0 9px #2679eb33,0 2px 8px #0004}.mapboxgl-popup-content{font:13px system-ui;color:#173d2c;padding:11px 13px;border-radius:10px}</style>
 </head><body><div id="map"></div>
 <script src="https://api.mapbox.com/mapbox-gl-js/v3.16.0/mapbox-gl.js"></script>
 <script>
@@ -41,12 +42,12 @@ map.addControl(new mapboxgl.GeolocateControl({
   showUserLocation: false,
   showAccuracyCircle: false
 }), 'top-right');
-const markers = new window.Map();
-let records = [];
+let latestCollection = {type:'FeatureCollection',features:[]};
 let lastPayload = '';
 let hasFitted = false;
 let selectedId = null;
 let locationMarker = null;
+let pinsReady = false;
 window.showUserLocation = function(longitude, latitude) {
   if (!Number.isFinite(longitude) || !Number.isFinite(latitude)) return;
   if (locationMarker) locationMarker.remove();
@@ -54,45 +55,73 @@ window.showUserLocation = function(longitude, latitude) {
   dot.className='user-location';
   dot.setAttribute('aria-label', 'Your location');
   locationMarker = new mapboxgl.Marker({element: dot}).setLngLat([longitude, latitude]).addTo(map);
-  hasFitted = true; // Do not let a delayed rescue-feed fit override device centring.
+  hasFitted = true;
   map.flyTo({center:[longitude,latitude],zoom:Math.max(map.getZoom(),12)});
 };
-function display(items){
-  const nextPayload = JSON.stringify(items);
-  if (nextPayload === lastPayload) return;
-  lastPayload = nextPayload;
-  records = items.filter(x => Number.isFinite(x.latitude) && Number.isFinite(x.longitude) && Math.abs(x.latitude)<=90 && Math.abs(x.longitude)<=180);
-  markers.forEach(marker => marker.remove()); markers.clear();
-  const bounds = new mapboxgl.LngLatBounds();
-  for(const rescue of records){
-    const element=document.createElement('div');element.className='pin';
-    element.style.backgroundColor=rescue.color;
-    const symbol=document.createElement('span');
-    symbol.textContent=rescue.initials;
-    element.appendChild(symbol);
-    const dot=document.createElement('span');
-    dot.className='status-dot'+(rescue.status==='PENDING'?'':' assigned');
-    dot.setAttribute('aria-hidden','true');
-    element.appendChild(dot);
-    if(rescue.id===selectedId)element.classList.add('selected');
-    element.setAttribute('role','button');
-    element.setAttribute('tabindex','0');
-    element.setAttribute('aria-label',rescue.type+' rescue, '+rescue.status.toLowerCase());
-    const marker=new mapboxgl.Marker({element}).setLngLat([rescue.longitude,rescue.latitude]).addTo(map);
-    const select=()=>{
-      selectedId=rescue.id;
-      for(const entry of markers.values())entry.getElement().classList.toggle('selected',entry.getElement()===element);
-      map.flyTo({center:[rescue.longitude,rescue.latitude],zoom:Math.max(map.getZoom(),12)});
-      send({type:'select',id:rescue.id});
-    };
-    element.addEventListener('click',select);
-    element.addEventListener('keydown',event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();select();}});
-    markers.set(rescue.id,marker);bounds.extend([rescue.longitude,rescue.latitude]);
+/**
+ * All rescue geometry lives in a Mapbox GeoJSON source. The renderer now
+ * updates the marker positions with the map camera as a single operation.
+ * No DOM-marker CSS transforms, interpolation or pan-dependent offsets.
+ */
+function installPins(){
+  if(pinsReady || !map.isStyleLoaded())return;
+  if(!map.getSource('rescue-pins')){
+    map.addSource('rescue-pins',{type:'geojson',data:latestCollection});
   }
-  // Only fit once. Live polling must not reset the rescuer's current zoom/pan.
-  if(records.length && !hasFitted){map.fitBounds(bounds,{padding:55,maxZoom:12,duration:450});hasFitted=true;}
+  map.addLayer({id:'rescue-pins-selected',type:'circle',source:'rescue-pins',
+    filter:['==',['get','id'],selectedId||''],
+    paint:{'circle-radius':27,'circle-color':'#ffffff',
+      'circle-opacity':0.55,'circle-stroke-width':0}});
+  map.addLayer({id:'rescue-pins-base',type:'circle',source:'rescue-pins',
+    paint:{'circle-radius':23,'circle-color':'#ffffff',
+      'circle-stroke-width':1.4,'circle-stroke-color':'#ffffff'}});
+  map.addLayer({id:'rescue-pins-fill',type:'circle',source:'rescue-pins',
+    paint:{'circle-radius':19,'circle-color':['get','color'],
+      'circle-stroke-width':0}});
+  map.addLayer({id:'rescue-pins-status',type:'circle',source:'rescue-pins',
+    paint:{
+      'circle-radius':6,
+      'circle-color':['case',['==',['get','status'],'PENDING'],'#e9af34','#276cd0'],
+      'circle-stroke-color':'#ffffff','circle-stroke-width':2,
+      'circle-translate':[15,16]
+    }});
+  map.addLayer({id:'rescue-pins-label',type:'symbol',source:'rescue-pins',
+    layout:{'text-field':['get','initials'],'text-size':11,
+      'text-font':['Open Sans Bold','Arial Unicode MS Bold'],
+      'text-allow-overlap':true,'text-ignore-placement':true},
+    paint:{'text-color':'#ffffff','text-halo-width':0}});
+  map.on('click','rescue-pins-base',event=>{
+    const feature=event.features&&event.features[0];
+    if(!feature)return;
+    const id=String(feature.properties?.id??'');
+    const coordinates=feature.geometry?.coordinates;
+    if(!id || !coordinates || coordinates.length<2)return;
+    selectedId=id;
+    map.setFilter('rescue-pins-selected',['==',['get','id'],selectedId]);
+    map.flyTo({center:[coordinates[0],coordinates[1]],zoom:Math.max(map.getZoom(),12)});
+    send({type:'select',id});
+  });
+  map.on('mouseenter','rescue-pins-base',()=>map.getCanvas().style.cursor='pointer');
+  map.on('mouseleave','rescue-pins-base',()=>map.getCanvas().style.cursor='');
+  pinsReady=true;
 }
-window.receiveRescues = display;
+function display(collection){
+  if(!collection || collection.type!=='FeatureCollection' || !Array.isArray(collection.features))return;
+  const nextPayload=JSON.stringify(collection);
+  if(nextPayload===lastPayload)return;
+  lastPayload=nextPayload;
+  latestCollection=collection;
+  if(!pinsReady)return;
+  const source=map.getSource('rescue-pins');
+  if(source)source.setData(collection);
+  if(collection.features.length && !hasFitted){
+    const bounds=new mapboxgl.LngLatBounds();
+    for(const feature of collection.features)bounds.extend(feature.geometry.coordinates);
+    map.fitBounds(bounds,{padding:55,maxZoom:12,duration:450});
+    hasFitted=true;
+  }
+}
+window.receiveRescues=display;
 function installAreas(){
   fetch(${areas}).then(r => r.ok ? r.json() : Promise.reject(new Error('Boundaries unavailable'))).then(geo=>{
     if(map.getSource('operating-areas'))return;
@@ -105,7 +134,7 @@ function installAreas(){
       'line-width':['case',['==',['get','organisationId'],'native-animal-trust-fund'],2,0.8]}});
   }).catch(()=>{/* Basemap and rescue pins remain available when GIS is down. */});
 }
-map.on('load',()=>{installAreas();send({type:'ready'});});
+map.on('load',()=>{installAreas();installPins();display(latestCollection);send({type:'ready'});});
 map.on('error',e=>send({type:'error',message:e.error?.message||'Map error'}));
 })();
 </script></body></html>`;
@@ -120,10 +149,10 @@ export default function RescueMap({ rescues, onSelect }: Props) {
   // Explicitly instantiate with an empty extension until the library type fix ships.
   const map = useRef<WebView<{}>>(null);
   const source = useMemo(() => ({ html: html(MAP_CONFIGURATION), baseUrl: API_ORIGIN || 'https://api.mapbox.com' }), []);
-  const payload = useMemo(() => JSON.stringify(rescues.map(r => ({
+  const payload = useMemo(() => JSON.stringify(createRescuePinCollection(rescues.map(r => ({
     id:r.id, type:r.type, status:r.status, latitude:r.latitude, longitude:r.longitude,
     ...pinForRescue(r)
-  }))), [rescues]);
+  })))), [rescues]);
 
   useEffect(() => {
     if(ready) map.current?.injectJavaScript(`window.receiveRescues(${payload});true;`);
