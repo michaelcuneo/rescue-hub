@@ -883,7 +883,7 @@ export async function updateUserAccess(input: {
   const teamIds = [...new Set(input.teamIds.filter(Boolean))];
   const roles = [input.role];
   const changedRole = input.expectedRoles.length !== 1 || input.expectedRoles[0] !== input.role;
-  const expressions = 'SET roles = :roles, membershipTypeId = :membership, teamIds = :teams, updatedAt = :now';
+  const expressions = 'SET #roles = :roles, membershipTypeId = :membership, teamIds = :teams, updatedAt = :now';
   const args = {
     ':roles': roles, ':membership': input.membershipTypeId, ':teams': teamIds,
     ':now': now
@@ -897,8 +897,8 @@ export async function updateUserAccess(input: {
             Key: { pk: `USER#${input.userId}`, sk: 'PROFILE' },
             UpdateExpression: expressions +
               (changedRole ? ', authEpoch = if_not_exists(authEpoch, :zero) + :one' : ''),
-            ConditionExpression: 'attribute_exists(pk) AND roles = :expected AND #status <> :removed',
-            ExpressionAttributeNames: { '#status': 'status' },
+            ConditionExpression: 'attribute_exists(pk) AND #roles = :expected AND #status <> :removed',
+            ExpressionAttributeNames: { '#status': 'status', '#roles': 'roles' },
             ExpressionAttributeValues: {
               ...args, ':expected': input.expectedRoles, ':removed': 'REMOVED',
               ...(changedRole ? { ':zero': 0, ':one': 1 } : {})
@@ -911,6 +911,7 @@ export async function updateUserAccess(input: {
             Key: { pk: `USER#${input.userId}`, sk: 'MEMBERSHIP' },
             UpdateExpression: expressions,
             ConditionExpression: 'attribute_exists(pk)',
+            ExpressionAttributeNames: { '#roles': 'roles' },
             ExpressionAttributeValues: args
           }
         }
