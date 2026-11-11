@@ -1,5 +1,6 @@
 import { fail, redirect } from '@sveltejs/kit';
 import { acceptInvite, getInvitation } from '$lib/server/auth';
+import { validateInvitationPasswordConfirmation } from '../../../../core/invitation-password';
 import type { Actions, PageServerLoad } from './$types';
 
 const COOKIE = 'rescuehub_pending_invitation';
@@ -28,6 +29,9 @@ export const actions: Actions = {
   default: async ({ request, cookies }) => {
     const form = await request.formData();
     const password = String(form.get('password') ?? '');
+    const confirmation = String(form.get('confirmPassword') ?? '');
+    const confirmationError = validateInvitationPasswordConfirmation(password, confirmation);
+    if (confirmationError) return fail(400, { error: confirmationError });
     const credential = cookies.get(COOKIE);
     if (!credential) return fail(400, { error: 'Your invitation link has expired. Ask your organisation administrator to resend it.' });
     try {

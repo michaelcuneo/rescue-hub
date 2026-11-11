@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - deploy/rescue-demo-domain
+      - fix/confirm-invitation-password
       - fix/reinvite-removed-email-lookup
       - feature/invitation-delivery-tracking-and-email-correction
       - fix/chat-enter-send-and-removed-members
@@ -46,6 +47,8 @@ jobs:
         run: npm install --no-audit --no-fund
       - name: Single-use organisation invitation link tests
         run: node --experimental-strip-types --test packages/core/invitation-links.test.mjs
+      - name: Invitation password confirmation checks
+        run: node --experimental-strip-types --test packages/core/invitation-password.test.mjs
       - name: Public reporter signup and email verification validation tests
         run: node --experimental-strip-types --test packages/core/public-reporter-validation.test.mjs
       - name: Geographic rescue pin anchoring tests
