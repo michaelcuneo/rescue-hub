@@ -132,7 +132,8 @@ function installAreas(){
       'fill-opacity':['case',['==',['get','organisationId'],'native-animal-trust-fund'],0.16,0.035]}},map.getStyle().layers.find(x=>x.type==='symbol')?.id);
     map.addLayer({id:'operating-area-outline',type:'line',source:'operating-areas',paint:{
       'line-color':['case',['==',['get','organisationId'],'native-animal-trust-fund'],'#8a6200','#2d7148'],
-      'line-width':['case',['==',['get','organisationId'],'native-animal-trust-fund'],2,0.8]}});
+      'line-width':['case',['==',['get','organisationId'],'native-animal-trust-fund'],2,0.8]}},
+      map.getLayer('rescue-pins-selected')?'rescue-pins-selected':undefined);
   }).catch(()=>{/* Basemap and rescue pins remain available when GIS is down. */});
 }
 map.on('load',()=>{installAreas();installPins();display(latestCollection);send({type:'ready'});});
