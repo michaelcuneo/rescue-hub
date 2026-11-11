@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - deploy/rescue-demo-domain
+      - feature/desktop-account-settings-and-rescue-assignees
       - fix/chat-admin-layout-and-species-mobile-feed
       - feature/rescue-addresses-and-directions
       - fix/unified-public-phone-dispatch-and-topbar

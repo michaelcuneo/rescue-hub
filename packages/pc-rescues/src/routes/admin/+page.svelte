@@ -99,7 +99,8 @@
         rescue.breed ?? '',
         rescue.location ?? '',
         rescue.status,
-        rescue.assignedUserId ?? ''
+        rescue.assignedUserId ?? '',
+        assignedRescuerName(rescue.assignedUserId)
       ]
         .join(' ')
         .toLowerCase()
@@ -118,6 +119,12 @@
 
   const statusLabel = (status: string) =>
     status.charAt(0) + status.slice(1).toLowerCase();
+
+  const assignedRescuerName = (id?: string | null): string => {
+    if (!id) return 'Unassigned';
+    const person = data.users.find(user => user.id === id);
+    return person?.name?.trim() || person?.email || 'Assigned member unavailable';
+  };
 
   const organisationName = (id?: string) =>
     data.organisations.find((organisation) => organisation.id === id)?.displayName ??
@@ -405,7 +412,7 @@
                     </td>
                     <td>{rescue.location || 'Location not recorded'}</td>
                     <td><span class="rescue-status status-{rescue.status.toLowerCase()}">{statusLabel(rescue.status)}</span></td>
-                    <td>{rescue.assignedUserId || 'Unassigned'}</td>
+                    <td>{assignedRescuerName(rescue.assignedUserId)}</td>
                     <td>{formatDate(rescue.updatedAt)}</td>
                   </tr>
                 {/each}

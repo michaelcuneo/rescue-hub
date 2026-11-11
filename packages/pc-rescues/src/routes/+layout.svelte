@@ -8,7 +8,7 @@
 
   let { data, children } = $props();
   onMount(initialiseTheme);
-  const isWorkspace = $derived(['/', '/admin', '/documentation', '/chats'].includes(page.url.pathname));
+  const isWorkspace = $derived(['/', '/admin', '/documentation', '/chats', '/settings'].includes(page.url.pathname));
 </script>
 
 {#if isWorkspace}
