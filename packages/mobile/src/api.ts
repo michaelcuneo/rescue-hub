@@ -287,6 +287,13 @@ export async function getRescueAddress(id: string): Promise<RescueAddressResult>
 export async function correctReportedRescue(id: string, type: string, injury: string) {
   return request<{ rescue: Rescue }>(`/api/mobile/rescues/${encodeURIComponent(id)}/correction`, { method: 'PATCH', body: JSON.stringify({ type, injury }) });
 }
+export async function quickVetProgress(rescueId: string, kind: 'GOING_TO_VET' | 'HANDED_TO_VET', clinic: string, notes = '', animalId?: string) {
+  return request<{ animal: Animal; message: string }>(
+    `/api/mobile/rescues/${encodeURIComponent(rescueId)}/vet-progress`,
+    { method: 'POST', body: JSON.stringify({ kind, clinic, notes, ...(animalId ? { animalId } : {}) }) }
+  );
+}
+
 export async function confirmRescuePickup(id: string, notes = '') {
   return request<{ rescue: Rescue }>(`/api/mobile/rescues/${encodeURIComponent(id)}/pickup`, {
     method: 'POST', body: JSON.stringify({ notes })
@@ -378,7 +385,7 @@ export async function changeCareDelivery(animalId: string, destination: CareDeli
 export type Animal = {
   id: string; rescueId: string; species: string; description?: string;
   status: 'IN_RESCUE' | 'IN_TRANSIT' | 'AT_VET' | 'IN_CARE' | 'RELEASED' | 'EUTHANISED' | 'DECEASED';
-  currentCustodianUserId?: string; currentLocation?: string; pendingTransferId?: string; activeTransportRescueId?: string; reservedCarerUserId?: string;
+  currentCustodianUserId?: string; currentLocation?: string; physicalCustodianType?: 'RESCUER' | 'VET'; physicalCustodianName?: string; pendingTransferId?: string; activeTransportRescueId?: string; reservedCarerUserId?: string;
   pendingTransferToUserId?: string;
   vetStage?: 'AWAITING_ASSESSMENT' | 'ASSESSED_AWAITING_TRANSPORT';
   version?: number; createdAt: string; updatedAt: string;

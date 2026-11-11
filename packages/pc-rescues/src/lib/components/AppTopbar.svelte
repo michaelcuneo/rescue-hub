@@ -1,9 +1,14 @@
 <script lang="ts">
   import { page } from '$app/state';
-  import ThemeSwitcher from '$lib/components/ThemeSwitcher.svelte';
   import { ChevronDown, LogOut, Settings } from '@lucide/svelte';
 
-  type Viewer = { name: string; roles: string[] };
+  type Viewer = {
+    name: string;
+    roles: string[];
+    availabilityMode: 'ON' | 'OFF' | 'SCHEDULE';
+    isAvailableNow: boolean;
+    canReceiveRescueOffers: boolean;
+  };
   let { viewer }: { viewer: Viewer | null } = $props();
 
   const isAdministrator = $derived(Boolean(viewer?.roles.some(role =>
@@ -11,6 +16,16 @@
   const initials = $derived(viewer?.name.split(/\s+/).filter(Boolean).slice(0, 2)
     .map(part => part[0]?.toUpperCase()).join('') || '?');
   const path = $derived(page.url.pathname);
+  const availabilityLabel = $derived(!viewer?.canReceiveRescueOffers
+    ? 'Unavailable for rescue offers'
+    : viewer.availabilityMode === 'ON' ? 'Available now'
+    : viewer.availabilityMode === 'SCHEDULE'
+      ? `Following schedule — ${viewer.isAvailableNow ? 'currently available' : 'currently outside scheduled hours'}`
+      : 'Unavailable for rescue offers');
+  const availabilityColour = $derived(
+    viewer?.canReceiveRescueOffers && viewer.availabilityMode === 'ON' ? 'on'
+    : viewer?.canReceiveRescueOffers && viewer.availabilityMode === 'SCHEDULE' ? 'schedule' : 'off'
+  );
   let profileMenu = $state<HTMLDetailsElement | undefined>(undefined);
   function closeProfileMenu() {
     if (profileMenu) profileMenu.open = false;
@@ -53,14 +68,21 @@
   </nav>
 
   <div class="account-actions">
-    <ThemeSwitcher compact />
     {#if viewer}
       <details class="profile-menu" bind:this={profileMenu}>
-        <summary title={viewer.name} aria-label={`Account menu for ${viewer.name}`}>
-          <span class="profile-avatar" aria-hidden="true">{initials}</span>
+        <summary title={`${viewer.name} · ${availabilityLabel}`}
+          aria-label={`Account menu for ${viewer.name}. ${availabilityLabel}.`}>
+          <span class="avatar-wrap" aria-hidden="true">
+            <span class="profile-avatar">{initials}</span>
+            <span class="availability-dot" data-status={availabilityColour}></span>
+          </span>
           <ChevronDown size={14} aria-hidden="true" />
         </summary>
         <div class="profile-panel" aria-label="Account options">
+          <p class="availability-caption" role="status">
+            <span class="availability-dot inline" data-status={availabilityColour} aria-hidden="true"></span>
+            {availabilityLabel}
+          </p>
           <a href="/settings" aria-current={path.startsWith('/settings') ? 'page' : undefined}
             onclick={closeProfileMenu}>
             <Settings size={17} aria-hidden="true" /> Settings
@@ -129,11 +151,37 @@
   }
   .profile-menu summary:focus-visible, .profile-panel a:focus-visible,
   .profile-panel button:focus-visible { outline:3px solid var(--rh-focus); outline-offset:2px; }
+  .avatar-wrap { position:relative; display:inline-grid; place-items:center; }
   .profile-avatar {
     display:grid; place-items:center; width:32px; height:32px; border-radius:50%;
     background:var(--rh-primary); color:var(--rh-on-primary);
     font-weight:850; font-size:12px; letter-spacing:.01em;
   }
+  .availability-dot {
+    --status: #aa3037;
+    position:absolute; right:-3px; bottom:-2px; width:11px; height:11px;
+    border:2px solid var(--rh-surface); border-radius:50%;
+    background:var(--status);
+  }
+  .availability-dot[data-status='on'] { --status:#17854c; }
+  .availability-dot[data-status='schedule'] { --status:#b17a08; }
+  .availability-dot[data-status='off'] { --status:#b22932; }
+  .availability-dot:not(.inline)::after {
+    content:''; position:absolute; inset:-5px; border:2px solid var(--status);
+    border-radius:50%; animation:status-pulse 2.8s ease-out infinite;
+  }
+  @keyframes status-pulse {
+    0% { opacity:.75; transform:scale(.6); }
+    70%, 100% { opacity:0; transform:scale(1.65); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .availability-dot::after { animation:none !important; }
+  }
+  .availability-caption { display:flex; align-items:center; gap:9px;
+    padding:7px 11px 10px; font-size:12px; line-height:1.4;
+    font-weight:750; color:var(--rh-muted); }
+  .availability-dot.inline { position:relative; right:auto; bottom:auto;
+    flex:0 0 11px; border-color:var(--rh-surface); }
   .profile-panel {
     position:absolute; top:calc(100% + 9px); right:0; z-index:85;
     min-width:185px; padding:7px; border:1px solid var(--rh-border);

@@ -2,16 +2,15 @@ import { json } from '@sveltejs/kit';
 import { getRescue } from '$lib/server/graphql';
 import { correctReportedRescue, RescueCorrectionConflict } from '$lib/server/rescue-corrections';
 import type { RequestHandler } from './$types';
+import { canUpdateOwnRescue } from '../../../../../../../../core/field-rescue-progress';
 
 export const PATCH: RequestHandler = async ({ locals, params, request }) => {
   const user = locals.user;
-  if (!user?.organisationId || !user.enabled || user.status !== 'ACTIVE' ||
-      !user.roles.some(role => role === 'RESCUER' || role === 'CARER')) {
-    return json({ error: 'Assigned active rescuer access required.' }, { status: 403 });
-  }
+  if (!user?.organisationId || !user.enabled || user.status !== 'ACTIVE')
+    return json({ error: 'Sign in with an active organisation account.' }, { status: 403 });
   const rescue = await getRescue(params.id);
-  if (!rescue || rescue.organisationId !== user.organisationId || rescue.assignedUserId !== user.id)
-    return json({ error: 'Rescue not assigned to you.' }, { status: 404 });
+  if (!rescue || !canUpdateOwnRescue(user, rescue))
+    return json({ error: 'Only the assigned member may update this active rescue.' }, { status: 403 });
   const body = await request.json().catch(() => null) as Record<string, unknown> | null;
   if (!body || typeof body.type !== 'string' || typeof body.injury !== 'string')
     return json({ error: 'Animal identification and condition are required.' }, { status: 400 });

@@ -6,7 +6,7 @@ import RescueAddress from './RescueAddress';
 import {
   acceptAnimalTransfer, addAnimalNote, getAnimalHistory, getRescueAnimals, confirmRescuePickup, getCareDelivery, type CareDeliveryDestination,
   recordAnimalOutcome, registerAnimal, requestAnimalTransfer, startVetTransport, recordVetDropoff, recordVetAssessment, unclaimRescue,
-  correctAnimalIdentification, correctReportedRescue, getRescuerReporterContact, type Animal, type AnimalEvent, type Rescue
+  correctAnimalIdentification, correctReportedRescue, getRescuerReporterContact, quickVetProgress, type Animal, type AnimalEvent, type Rescue
 } from './api';
 
 type Props = { rescue: Rescue; userId: string; onBack: () => void; onUnclaim: () => void };
@@ -34,6 +34,9 @@ export default function AnimalCare({ rescue, userId, onBack, onUnclaim }: Props)
   const [recipientId, setRecipientId] = useState('');
   const [destination, setDestination] = useState('');
   const [vetLocation, setVetLocation] = useState('');
+  const [quickVetNotes, setQuickVetNotes] = useState('');
+  const [quickMessage, setQuickMessage] = useState('');
+  const [showAdvanced, setShowAdvanced] = useState(false);
   const [transferPurpose, setTransferPurpose] = useState<'CARE' | 'TRANSPORT'>('CARE');
   const [unclaimReason, setUnclaimReason] = useState('');
   const [outcome, setOutcome] = useState<(typeof outcomes)[number]>('RELEASED');
@@ -144,6 +147,30 @@ export default function AnimalCare({ rescue, userId, onBack, onUnclaim }: Props)
   }
 
   const isCustodian = selected?.currentCustodianUserId === userId;
+  const activeAnimal = selected ?? (animals.length === 1 ? animals[0] : null);
+  const canQuickProgress = rescue.assignedUserId === userId && collected && !rescue.transportAnimalId &&
+    (activeAnimal ? activeAnimal.currentCustodianUserId === userId &&
+      ['IN_RESCUE','IN_TRANSIT'].includes(activeAnimal.status) : animals.length === 0);
+  async function saveQuickVet(kind: 'GOING_TO_VET' | 'HANDED_TO_VET') {
+    if (kind === 'HANDED_TO_VET' && !vetLocation.trim()) {
+      setError('Enter the veterinary clinic or receiving person first.');
+      return;
+    }
+    if (busy) return;
+    setBusy(true);
+    setError('');
+    try {
+      const result = await quickVetProgress(rescue.id, kind, vetLocation.trim(),
+        quickVetNotes.trim(), activeAnimal?.id);
+      await refresh(result.animal.id);
+      setQuickMessage(result.message);
+      setQuickVetNotes('');
+    } catch (issue) {
+      setError(issue instanceof Error ? issue.message : 'Unable to save veterinary update.');
+    } finally {
+      setBusy(false);
+    }
+  }
   const isFinal = selected ? terminal.has(selected.status) : false;
 
   return (
@@ -209,6 +236,34 @@ export default function AnimalCare({ rescue, userId, onBack, onUnclaim }: Props)
           )}
         </View>
       ) : null}
+      {canQuickProgress ? <View style={styles.quickPanel}>
+        <Text style={styles.quickTitle}>What happens next?</Text>
+        <Text style={styles.muted}>You've collected the animal. Record the next step, without extra forms or user IDs.</Text>
+        <Text style={styles.fieldLabel}>Veterinary clinic <Text style={styles.optional}>(needed at drop-off)</Text></Text>
+        <KeyboardAwareTextInput style={styles.input} value={vetLocation} onChangeText={setVetLocation}
+          maxLength={250} accessibilityLabel="Veterinary clinic" placeholder="e.g. AREC, Broadmeadow" />
+        <Text style={styles.fieldLabel}>Notes <Text style={styles.optional}>(optional)</Text></Text>
+        <KeyboardAwareTextInput style={styles.input} value={quickVetNotes} onChangeText={setQuickVetNotes}
+          multiline maxLength={1000} accessibilityLabel="Optional veterinary handover notes"
+          placeholder="e.g. Animal stable, receptionist accepted" />
+        {activeAnimal?.status !== 'IN_TRANSIT' ?
+          <Pressable style={styles.button} disabled={busy} accessibilityRole="button"
+            onPress={() => void saveQuickVet('GOING_TO_VET')}>
+            <Text style={styles.buttonText}>Taking to vet</Text>
+          </Pressable> : <Text style={styles.warning}>Taking animal to vet — awaiting drop-off</Text>}
+        <Pressable style={styles.button} disabled={busy || !vetLocation.trim()}
+          accessibilityRole="button" accessibilityState={{disabled:busy || !vetLocation.trim()}}
+          onPress={() => Alert.alert('Confirm veterinary handover',
+            `Confirm the animal was physically received at ${vetLocation.trim()}? Its care record will remain open.`,
+            [{ text:'Not yet', style:'cancel' }, { text:'Handed to vet', onPress:() => void saveQuickVet('HANDED_TO_VET') }])}>
+          <Text style={styles.buttonText}>Handed to vet</Text>
+        </Pressable>
+      </View> : null}
+      {activeAnimal?.status === 'AT_VET' ? <View style={styles.quickPanel}>
+        <Text style={styles.quickTitle}>At veterinary clinic</Text>
+        <Text style={styles.muted}>The clinic has the animal. Its history stays active for veterinary updates and future carer pickup.</Text>
+      </View> : null}
+      {quickMessage ? <Text style={styles.success}>{quickMessage}</Text> : null}
       {error ? <Text style={styles.error}>{error}</Text> : null}
       {loading ? <ActivityIndicator /> : null}
 
@@ -233,7 +288,7 @@ export default function AnimalCare({ rescue, userId, onBack, onUnclaim }: Props)
             </Pressable>
           ))}
           {animals.length === 0 && !loading ? <Text style={styles.muted}>No animals registered yet.</Text> : null}
-          {rescue.assignedUserId === userId && animals.length === 0 && !loading ? (
+          {rescue.assignedUserId === userId && animals.length === 0 && !loading && !collected ? (
             <View style={styles.card}>
               <Text style={styles.section}>Release this rescue</Text>
               <Text style={styles.muted}>Can't attend? Return the case to qualified rescuers. Once an animal is registered, arrange a custody handover instead.</Text>
@@ -289,6 +344,11 @@ export default function AnimalCare({ rescue, userId, onBack, onUnclaim }: Props)
         </>
       ) : (
         <>
+          <Pressable style={styles.advancedToggle} accessibilityRole="button" accessibilityState={{expanded:showAdvanced}}
+            onPress={() => setShowAdvanced(value => !value)}>
+            <Text style={styles.advancedToggleText}>{showAdvanced ? 'Hide detailed care forms' : 'More options: detailed care records and transfers'}</Text>
+          </Pressable>
+          {showAdvanced ? <>
           <View style={styles.card}>
             <Text style={styles.section}>Correct the animal identification</Text>
             <Text style={styles.muted}>The public report remains unchanged; all corrections are recorded in the animal history.</Text>
@@ -301,7 +361,12 @@ export default function AnimalCare({ rescue, userId, onBack, onUnclaim }: Props)
           </View>
           <View style={styles.card}>
             <Text style={styles.section}>Current custody</Text>
-            <Text style={styles.muted}>Custodian: {isCustodian ? 'You' : selected.currentCustodianUserId || 'Unassigned'}</Text>
+            <Text style={styles.muted}>Physical location: {selected.physicalCustodianType === 'VET'
+              ? `Veterinary clinic — ${selected.physicalCustodianName || selected.currentLocation || 'not specified'}`
+              : isCustodian ? 'With you' : selected.currentLocation || 'With assigned custodian'}</Text>
+            {selected.physicalCustodianType === 'VET' ? <Text style={styles.muted}>
+              The clinic has the animal. The organisation remains responsible for follow-up until its next verified handover.
+            </Text> : null}
             <Text style={styles.muted}>Location: {selected.currentLocation || 'Not recorded'}</Text>
             <Text style={styles.muted}>Updated: {new Date(selected.updatedAt).toLocaleString()}</Text>
             {selected.vetStage === 'AWAITING_ASSESSMENT' ?
@@ -411,6 +476,7 @@ export default function AnimalCare({ rescue, userId, onBack, onUnclaim }: Props)
               </View>
             </>
           ) : null}
+          </> : null}
           {!isCustodian && selected.pendingTransferId && !isFinal ? (
             <View style={styles.card}>
               <Text style={styles.section}>Incoming handover</Text>
@@ -429,6 +495,11 @@ export default function AnimalCare({ rescue, userId, onBack, onUnclaim }: Props)
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#edf1ee' },
   content: { padding: 20, paddingBottom: 50, gap: 12 },
+  quickPanel: { padding:18, borderRadius:14, borderWidth:2, borderColor:'#98b9a7', backgroundColor:'#fff', gap:12 },
+  quickTitle: { color:'#173d2c', fontWeight:'800', fontSize:21, lineHeight:27 },
+  success: { color:'#145c3b', fontSize:14, fontWeight:'700', lineHeight:20, paddingVertical:8 },
+  advancedToggle: { borderWidth:1, borderColor:'#9caea3', borderRadius:10, padding:15, backgroundColor:'#fff' },
+  advancedToggleText: { color:'#173d2c', fontSize:14, fontWeight:'800' },
   heading: { color: '#17211d', fontSize: 26, fontWeight: '800' },
   section: { fontSize: 17, fontWeight: '800', color: '#17211d', marginBottom: 6 },
   bold: { color: '#17211d', fontWeight: '700', fontSize: 15 },

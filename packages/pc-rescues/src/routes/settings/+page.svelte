@@ -3,6 +3,7 @@
   import type { AvailabilityPolicy, Weekday } from '$lib/server/availability';
   import { Check, Clock3, Smartphone, UserRound, ShieldCheck } from '@lucide/svelte';
   import ThemeSwitcher from '$lib/components/ThemeSwitcher.svelte';
+  import { invalidateAll } from '$app/navigation';
 
   let { data }: { data: PageData } = $props();
   const days: Weekday[] = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
@@ -54,6 +55,8 @@
       policy = result.policy;
       status = result.status;
       feedback = message;
+      // Refresh the shared topbar's availability badge immediately after save.
+      await invalidateAll();
     } catch (issue) {
       error = issue instanceof Error ? issue.message : 'Unable to save rescue availability.';
     } finally {
@@ -78,7 +81,8 @@
   </header>
 
   <div class="settings-layout">
-    <section class="settings-panel" aria-labelledby="account-heading">
+    <div class="settings-aside">
+      <section class="settings-panel" aria-labelledby="account-heading">
       <div class="section-heading">
         <UserRound size={21} aria-hidden="true" />
         <h2 id="account-heading">Account and membership</h2>
@@ -103,6 +107,20 @@
       <ThemeSwitcher />
     </section>
 
+      {#if data.canManageAvailability}
+      <section class="settings-panel" aria-labelledby="device-heading">
+        <div class="section-heading">
+          <Smartphone size={21} aria-hidden="true" />
+          <h2 id="device-heading">Mobile notifications</h2>
+        </div>
+        <p>Push notifications are delivered to registered mobile devices. Desktop rescue offers are available through Operations while signed in.</p>
+        <strong>{data.registeredDevices === null ? 'Registration status unavailable' :
+          `${data.registeredDevices} registered mobile device${data.registeredDevices === 1 ? '' : 's'}`}</strong>
+        <p class="help">To register or repair push notifications, use Settings on your iOS or Android device.</p>
+      </section>
+      {/if}
+    </div>
+    <div class="settings-main">
     {#if data.canManageAvailability}
       <section class="settings-panel availability-panel" aria-labelledby="availability-heading">
         <div class="section-heading">
@@ -177,16 +195,6 @@
         </form>
       </section>
 
-      <section class="settings-panel" aria-labelledby="device-heading">
-        <div class="section-heading">
-          <Smartphone size={21} aria-hidden="true" />
-          <h2 id="device-heading">Mobile notifications</h2>
-        </div>
-        <p>Push notifications are delivered to registered mobile devices. Desktop rescue offers are available through Operations while signed in.</p>
-        <strong>{data.registeredDevices === null ? 'Registration status unavailable' :
-          `${data.registeredDevices} registered mobile device${data.registeredDevices === 1 ? '' : 's'}`}</strong>
-        <p class="help">To register or repair push notifications, use Settings on your iOS or Android device.</p>
-      </section>
     {:else}
       <section class="settings-panel" aria-labelledby="availability-disabled">
         <div class="section-heading">
@@ -196,6 +204,7 @@
         <p>Your account does not currently have an operational rescue membership. You can still use the areas available to your role; an organisation administrator can assign rescue membership and species teams if needed.</p>
       </section>
     {/if}
+    </div>
   </div>
 </main>
 
@@ -207,8 +216,9 @@
     letter-spacing:.1em; color:var(--rh-muted); }
   h1 { font-size:clamp(26px,3vw,34px); margin:4px 0 6px; }
   .heading p:last-child, .settings-panel > p { font-size:14px; color:var(--rh-muted); line-height:1.55; }
-  .settings-layout { display:grid; grid-template-columns:minmax(260px,1fr) minmax(320px,1.5fr);
-    gap:16px; align-items:start; }
+  .settings-layout { display:grid; grid-template-columns:minmax(290px, min(36%, 420px)) minmax(0,1fr);
+    gap:16px; align-items:start; max-width:1450px; }
+  .settings-aside, .settings-main { display:grid; align-content:start; gap:16px; min-width:0; }
   .settings-panel { min-width:0; display:grid; gap:14px; padding:22px;
     border:1px solid var(--rh-border); border-radius:16px; background:var(--rh-surface);
     box-shadow:var(--rh-shadow); }
@@ -220,7 +230,7 @@
   dt { color:var(--rh-muted); font-size:13px; }
   dd { margin:0; font-weight:700; font-size:13px; overflow-wrap:anywhere; }
   .help { color:var(--rh-muted); line-height:1.5; font-size:12px; }
-  .availability-panel { grid-column:2; grid-row:1 / span 3; }
+  .availability-panel { min-width:0; }
   .availability-current { display:flex; align-items:center; gap:9px; font-weight:750; }
   .status-dot { width:9px; height:9px; border-radius:50%; background:#b65c2f; }
   .status-dot.active { background:#258153; }
@@ -259,7 +269,7 @@
   button:focus-visible, input:focus-visible { outline:3px solid var(--rh-focus); outline-offset:2px; }
   @media(max-width:850px) {
     .settings-layout { grid-template-columns:1fr; }
-    .availability-panel { grid-column:auto; grid-row:auto; }
+    .settings-layout { grid-template-columns:minmax(0,1fr); }
   }
   @media(max-width:500px) {
     .settings-panel { padding:15px; }

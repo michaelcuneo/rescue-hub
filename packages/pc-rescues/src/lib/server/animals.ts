@@ -12,6 +12,7 @@ export type AnimalStatus = 'IN_RESCUE' | 'IN_TRANSIT' | 'AT_VET' | 'IN_CARE' | '
 export type AnimalRecord = {
   id: string; rescueId: string; organisationId: string; species: string; description?: string;
   status: AnimalStatus; currentCustodianUserId?: string; currentLocation?: string;
+  physicalCustodianType?: 'RESCUER' | 'VET'; physicalCustodianName?: string;
   vetStage?: 'AWAITING_ASSESSMENT' | 'ASSESSED_AWAITING_TRANSPORT';
   pendingTransferId?: string; activeTransportRescueId?: string; reservedCarerUserId?: string; version: number; createdAt: string; updatedAt: string;
 };
@@ -72,7 +73,7 @@ export async function listAnimalEvents(id: string) {
 }
 export async function createAnimal(input: {
   rescueId: string; organisationId: string; species: string; description?: string;
-  custodianUserId: string; location?: string;
+  custodianUserId: string; location?: string; quickRegistration?: boolean;
 }) {
   const id = crypto.randomUUID(), now = new Date().toISOString(), eventId = crypto.randomUUID();
   const animal: AnimalRecord = {
@@ -84,12 +85,16 @@ export async function createAnimal(input: {
   await db.send(new TransactWriteCommand({ TransactItems: [
     { Update: {
       TableName: table, Key: { pk: `RESCUE#${input.rescueId}`, sk: 'META' },
-      UpdateExpression: 'ADD animalCount :one',
-      ConditionExpression: 'organisationId = :org AND assignedUserId = :user AND #status = :assigned',
+      UpdateExpression: input.quickRegistration
+        ? 'SET quickAnimalId = :animal ADD animalCount :one'
+        : 'ADD animalCount :one',
+      ConditionExpression: 'organisationId = :org AND assignedUserId = :user AND #status = :assigned' +
+        (input.quickRegistration ? ' AND attribute_not_exists(quickAnimalId)' : ''),
       ExpressionAttributeNames: { '#status': 'status' },
       ExpressionAttributeValues: {
         ':org': input.organisationId, ':user': input.custodianUserId,
-        ':assigned': 'ASSIGNED', ':one': 1
+        ':assigned': 'ASSIGNED', ':one': 1,
+        ...(input.quickRegistration ? { ':animal': id } : {})
       }
     }},
     { Put: { TableName: table, Item: { ...key(id), ...animal, entity: 'animal',
@@ -203,7 +208,8 @@ export async function changeAnimalState(animal: AnimalRecord, actorUserId: strin
     values[':transit'] = 'IN_TRANSIT';
     values[':location'] = `En route to ${clinic}`;
     type = 'VET_TRANSPORT_STARTED';
-    update = 'SET #status = :transit, currentLocation = :location, updatedAt = :now, version = :next';
+    update = 'SET #status = :transit, currentLocation = :location, physicalCustodianType = :physical, updatedAt = :now, version = :next REMOVE physicalCustodianName';
+    values[':physical'] = 'RESCUER';
     extra = { destination: clinic, notes: input.notes ?? '' };
   } else if (input.kind === 'VET_DROPOFF' || input.kind === 'VET_ASSESSED') {
     if (actorUserId !== animal.currentCustodianUserId) {
@@ -220,8 +226,8 @@ export async function changeAnimalState(animal: AnimalRecord, actorUserId: strin
     values[':actor'] = actorUserId;
     if (input.kind === 'VET_DROPOFF') {
       type = 'VET_DROPOFF';
-      update = 'SET #status = :vet, vetStage = :stage, currentLocation = :location, updatedAt = :now, version = :next';
-      values = { ...values, ':vet': 'AT_VET', ':stage': 'AWAITING_ASSESSMENT', ':location': input.location!.trim() };
+      update = 'SET #status = :vet, vetStage = :stage, currentLocation = :location, physicalCustodianType = :physical, physicalCustodianName = :clinic, updatedAt = :now, version = :next';
+      values = { ...values, ':vet': 'AT_VET', ':stage': 'AWAITING_ASSESSMENT', ':location': input.location!.trim(), ':physical': 'VET', ':clinic': input.location!.trim() };
       extra = { location: input.location!.trim(), notes: input.notes ?? '' };
     } else {
       type = 'VET_ASSESSED';
