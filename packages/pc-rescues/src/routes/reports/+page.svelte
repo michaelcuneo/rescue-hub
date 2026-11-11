@@ -124,20 +124,20 @@
   </div>
 </main>
 <style>
-  main{max-width:1100px;margin:auto;padding:26px;font-family:Inter,system-ui,sans-serif;color:#17211d}
+  main{max-width:1100px;margin:auto;padding:26px;font-family:Inter,system-ui,sans-serif;color:var(--rh-t185, #17211d)}
   header{display:flex;align-items:center;justify-content:space-between;gap:20px}
   h1{font-size:30px;margin:6px 0}h2{font-size:20px;margin:4px 0}
-  p{line-height:1.5;color:#526458}a{color:#24583f;font-weight:700}
-  .eyebrow{font-size:11px;font-weight:900;letter-spacing:.1em;color:#718474;margin:0}
+  p{line-height:1.5;color:var(--rh-t225, #526458)}a{color:var(--rh-t192, #24583f);font-weight:700}
+  .eyebrow{font-size:11px;font-weight:900;letter-spacing:.1em;color:var(--rh-t226, #718474);margin:0}
   .reports{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));gap:12px}
-  article{padding:18px;background:white;border:1px solid #d9e1dc;border-radius:12px;display:grid;gap:9px}
+  article{padding:18px;background:var(--rh-t186, white);border:1px solid var(--rh-t178, #d9e1dc);border-radius:12px;display:grid;gap:9px}
   .record-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
-  .status{background:#fff4d6;padding:6px 9px;border-radius:99px;font-size:11px;font-weight:800}
-  .accepted{background:#dff4e4;color:#24583f}
+  .status{background:var(--rh-t227, #fff4d6);padding:6px 9px;border-radius:99px;font-size:11px;font-weight:800}
+  .accepted{background:var(--rh-t228, #dff4e4);color:var(--rh-t192, #24583f)}
   .location{font-size:12px;font-weight:800}
   .actions{display:flex;flex-wrap:wrap;align-items:center;gap:12px}
   button{padding:10px 13px;background:#173d2c;color:white;border:0;border-radius:9px;cursor:pointer;font-weight:800}
-  .routing{font-size:12px;font-weight:800;color:#173d2c}
+  .routing{font-size:12px;font-weight:800;color:var(--rh-t198, #173d2c)}
   button:disabled{opacity:.5}
-  .error{color:#a23f35;font-weight:800}.success{background:#e4f2e8;padding:10px;border-radius:10px;color:#24583f}
+  .error{color:var(--rh-t181, #a23f35);font-weight:800}.success{background:var(--rh-t229, #e4f2e8);padding:10px;border-radius:10px;color:var(--rh-t192, #24583f)}
 </style>

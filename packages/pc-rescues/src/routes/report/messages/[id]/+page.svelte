@@ -62,11 +62,11 @@
   </form>
 </main>
 <style>
-  :global(body){margin:0;background:#f1f5f2;font-family:system-ui,sans-serif;color:#173d2c}
-  main{max-width:740px;margin:0 auto;padding:28px 18px}nav a,a{color:#24583f;font-weight:800}h1{font-size:26px}
-  section{background:#fff;border:1px solid #dce5df;padding:18px;border-radius:12px;min-height:140px;display:grid;gap:10px}
-  article{padding:12px;border-radius:10px;background:#eef5f0}article time{font-size:12px;color:#66786b;margin-left:10px}
+  :global(body){margin:0;background:var(--rh-t230, #f1f5f2);font-family:system-ui,sans-serif;color:var(--rh-t198, #173d2c)}
+  main{max-width:740px;margin:0 auto;padding:28px 18px}nav a,a{color:var(--rh-t192, #24583f);font-weight:800}h1{font-size:26px}
+  section{background:var(--rh-t231, #fff);border:1px solid var(--rh-t221, #dce5df);padding:18px;border-radius:12px;min-height:140px;display:grid;gap:10px}
+  article{padding:12px;border-radius:10px;background:var(--rh-t232, #eef5f0)}article time{font-size:12px;color:var(--rh-t233, #66786b);margin-left:10px}
   article p{margin-bottom:0}form{display:grid;gap:8px;margin-top:18px}
-  textarea{font:inherit;padding:12px;border:1px solid #cbd9d0;border-radius:8px}button{background:#173d2c;color:white;border:0;border-radius:8px;padding:12px;font-weight:800}
-  button:disabled{opacity:.5}.error{color:#a23f35}
+  textarea{font:inherit;padding:12px;border:1px solid var(--rh-t217, #cbd9d0);border-radius:8px}button{background:#173d2c;color:white;border:0;border-radius:8px;padding:12px;font-weight:800}
+  button:disabled{opacity:.5}.error{color:var(--rh-t181, #a23f35)}
 </style>

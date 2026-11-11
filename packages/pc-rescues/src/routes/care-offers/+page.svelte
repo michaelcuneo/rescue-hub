@@ -215,17 +215,17 @@
   <button type="button" onclick={() => void refresh().catch(e => error = String(e))}>Refresh care offers</button>
 </main>
 <style>
-  main{max-width:850px;margin:auto;padding:28px 22px 90px;display:grid;gap:20px;color:#173d2c}
+  main{max-width:850px;margin:auto;padding:28px 22px 90px;display:grid;gap:20px;color:var(--rh-t198, #173d2c)}
   header{margin:4px 0 12px}h1{font-size:clamp(28px,4vw,43px);margin:8px 0}
-  h2{font-size:22px}h3{font-size:17px}p{line-height:1.6;color:#486152}
-  .eyebrow{font-size:11px;letter-spacing:1px;font-weight:800;color:#57806a}
+  h2{font-size:22px}h3{font-size:17px}p{line-height:1.6;color:var(--rh-t234, #486152)}
+  .eyebrow{font-size:11px;letter-spacing:1px;font-weight:800;color:var(--rh-t235, #57806a)}
   section{display:grid;gap:15px}
-  article{border:1px solid #d9e2dc;background:white;border-radius:15px;padding:20px;display:grid;gap:12px}
+  article{border:1px solid var(--rh-t236, #d9e2dc);background:var(--rh-t186, white);border-radius:15px;padding:20px;display:grid;gap:12px}
   .modes{display:flex;gap:8px;flex-wrap:wrap}.modes button.active{background:#173d2c;color:white}
-  button{padding:10px 15px;border:1px solid #adc6b5;border-radius:10px;background:white;color:#173d2c;font:inherit;cursor:pointer}
+  button{padding:10px 15px;border:1px solid var(--rh-t237, #adc6b5);border-radius:10px;background:var(--rh-t186, white);color:var(--rh-t198, #173d2c);font:inherit;cursor:pointer}
   button.primary{background:#173d2c;color:white;font-weight:750}
   button:disabled{opacity:.5;cursor:not-allowed}
-  label{font-weight:700}input{border:1px solid #adbcaf;padding:12px;border-radius:9px;font:inherit;width:100%}
+  label{font-weight:700}input{border:1px solid var(--rh-t238, #adbcaf);padding:12px;border-radius:9px;font:inherit;width:100%}
   ul{margin:0;padding:0;list-style:none;display:grid;gap:7px}li button{text-align:left;width:100%}
-  .error{color:#a23f35}.success{color:#1f7244;font-weight:700}
+  .error{color:var(--rh-t181, #a23f35)}.success{color:var(--rh-t239, #1f7244);font-weight:700}
 </style>

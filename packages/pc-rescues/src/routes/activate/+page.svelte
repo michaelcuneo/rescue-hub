@@ -47,26 +47,26 @@
 
 <style>
   :global(body){margin:0}
-  main{min-height:100vh;display:grid;place-items:center;box-sizing:border-box;padding:24px;background:#edf3ef;color:#1b3024;font-family:system-ui,-apple-system,sans-serif}
-  section{width:min(520px,100%);box-sizing:border-box;background:white;border:1px solid #dce7df;border-radius:20px;padding:clamp(24px,5vw,40px);box-shadow:0 18px 50px #132d1e0a}
+  main{min-height:100vh;display:grid;place-items:center;box-sizing:border-box;padding:24px;background:var(--rh-t193, #edf3ef);color:var(--rh-t194, #1b3024);font-family:system-ui,-apple-system,sans-serif}
+  section{width:min(520px,100%);box-sizing:border-box;background:var(--rh-t186, white);border:1px solid var(--rh-t195, #dce7df);border-radius:20px;padding:clamp(24px,5vw,40px);box-shadow:0 18px 50px #132d1e0a}
   .brand{display:flex;align-items:center;gap:10px;font-size:16px;font-weight:800}
   .mark{display:grid;place-items:center;width:36px;height:36px;border-radius:10px;background:#173d2c;color:white;font-size:14px}
-  .eyebrow{color:#587666;letter-spacing:.13em;font-size:11px;font-weight:800;margin:32px 0 8px}
+  .eyebrow{color:var(--rh-t196, #587666);letter-spacing:.13em;font-size:11px;font-weight:800;margin:32px 0 8px}
   h1{font-size:clamp(27px,5vw,36px);letter-spacing:-.035em;line-height:1.15;margin:0 0 14px}
-  .intro{font-size:15px;line-height:1.6;color:#536b5a}
-  .intro strong{color:#173d2c}
-  .account{margin:25px 0;border:1px solid #dfebe2;border-radius:13px;padding:18px;display:grid;gap:5px;background:#f6faf7}
-  .account span{font-size:10px;letter-spacing:.09em;color:#617a6b;font-weight:800;margin-top:7px}
+  .intro{font-size:15px;line-height:1.6;color:var(--rh-t197, #536b5a)}
+  .intro strong{color:var(--rh-t198, #173d2c)}
+  .account{margin:25px 0;border:1px solid var(--rh-t199, #dfebe2);border-radius:13px;padding:18px;display:grid;gap:5px;background:var(--rh-t200, #f6faf7)}
+  .account span{font-size:10px;letter-spacing:.09em;color:var(--rh-t201, #617a6b);font-weight:800;margin-top:7px}
   .account strong{font-size:14px;overflow-wrap:anywhere}
   form{display:grid;gap:11px;margin-top:22px}
   label{font-weight:800;font-size:14px}
   .password-row{display:flex;gap:8px}
-  input{min-width:0;flex:1;border:1px solid #b7cfc0;border-radius:9px;padding:13px;font:inherit}
+  input{min-width:0;flex:1;border:1px solid var(--rh-t202, #b7cfc0);border-radius:9px;padding:13px;font:inherit}
   input:focus-visible,button:focus-visible,a:focus-visible{outline:3px solid #f2ac45;outline-offset:2px}
   button{font:inherit;cursor:pointer}
-  .visibility{border:1px solid #bdcec3;background:white;border-radius:9px;padding:0 14px;font-weight:750}
-  .hint{font-size:12px;color:#5e7265;margin:0}
+  .visibility{border:1px solid var(--rh-t203, #bdcec3);background:var(--rh-t186, white);border-radius:9px;padding:0 14px;font-weight:750}
+  .hint{font-size:12px;color:var(--rh-t204, #5e7265);margin:0}
   .primary{display:block;margin-top:12px;width:100%;box-sizing:border-box;border:0;border-radius:10px;background:#173d2c;color:#fff;padding:15px 17px;font-size:14px;font-weight:800;text-align:center}
   .link{text-decoration:none}
-  .error{margin:0;color:#982e2e;background:#fff0ed;padding:12px;border-radius:9px;font-size:13px;line-height:1.5}
+  .error{margin:0;color:var(--rh-t205, #982e2e);background:var(--rh-t190, #fff0ed);padding:12px;border-radius:9px;font-size:13px;line-height:1.5}
 </style>
