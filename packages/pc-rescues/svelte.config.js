@@ -7,9 +7,17 @@ const config = {
   preprocess: sequence([vitePreprocess(), preprocessMeltUI()]),
   kit: {
     adapter: adapter(),
-    // Apple returns a signed OAuth code using cross-origin form_post.
-    // Trust Apple only; the callback independently validates one-time state.
-    csrf: { trustedOrigins: ['https://appleid.apple.com'] }
+    // Behind CloudFront/SST, the server URL can be derived from an internal
+    // host instead of the public HTTPS domain. SvelteKit's CSRF check compares
+    // the browser Origin against that URL for every HTML form POST. Trust only
+    // our own public website origin (and Apple's OAuth form_post callback).
+    // Never disable CSRF or use trustedOrigins: ['*'].
+    csrf: {
+      trustedOrigins: [
+        'https://rescue.michaelcuneo.com.au',
+        'https://appleid.apple.com'
+      ]
+    }
   }
 };
 
