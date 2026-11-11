@@ -169,31 +169,7 @@ h6 {
   --rh-rail-width: 365px;
   --rh-gutter: 16px;
   --rh-content-top: 84px;
-  color-scheme: light;
-}
-:root[data-theme='dark'] {
-  --rh-background: #11161c;
-  --rh-surface: #1c222b;
-  --rh-surface-soft: #252c36;
-  --rh-raised: #2d3743;
-  --rh-field: #171d25;
-  --rh-text: #f3f6f9;
-  --rh-muted: #c6d0da;
-  --rh-subtle: #afbfcd;
-  --rh-border: #424d5b;
-  --rh-border-strong: #586775;
-  --rh-primary: #257653;
-  --rh-primary-hover: #318662;
-  --rh-on-primary: #ffffff;
-  --rh-accent: #95e0b8;
-  --rh-accent-soft: #263a34;
-  --rh-nav-active: #303b46;
-  --rh-focus: #ffd38a;
-  --rh-danger-text: #ffb4a6;
-  --rh-map-background: #171d25;
-  --rh-shadow: 0 14px 40px rgb(0 0 0 / .3);
-  color-scheme: dark;
-  /* Compatibility aliases for older page styles, now using neutral roles. */
+  --rh-status-assigned: #c18a12;
   --rh-t1: var(--rh-surface-soft);
   --rh-t2: var(--rh-border-strong);
   --rh-t3: var(--rh-text);
@@ -442,6 +418,33 @@ h6 {
   --rh-t246: var(--rh-border-strong);
   --rh-t247: var(--rh-danger-text);
   --rh-t248: var(--rh-surface);
+  --rh-t33: var(--rh-status-assigned);
+  color-scheme: light;
+}
+:root[data-theme='dark'] {
+  --rh-background: #11161c;
+  --rh-surface: #1c222b;
+  --rh-surface-soft: #252c36;
+  --rh-raised: #2d3743;
+  --rh-field: #171d25;
+  --rh-text: #f3f6f9;
+  --rh-muted: #c6d0da;
+  --rh-subtle: #afbfcd;
+  --rh-border: #424d5b;
+  --rh-border-strong: #586775;
+  --rh-primary: #257653;
+  --rh-primary-hover: #318662;
+  --rh-on-primary: #ffffff;
+  --rh-accent: #95e0b8;
+  --rh-accent-soft: #263a34;
+  --rh-nav-active: #303b46;
+  --rh-focus: #ffd38a;
+  --rh-danger-text: #ffb4a6;
+  --rh-map-background: #171d25;
+  --rh-shadow: 0 14px 40px rgb(0 0 0 / .3);
+  --rh-status-assigned: #f8c65e;
+  color-scheme: dark;
+
 }
 body { background: var(--rh-background); color: var(--rh-text); }
 input, textarea, select { color: var(--rh-text); }
