@@ -1,6 +1,9 @@
 <script lang="ts">
   import AdminOperatingAreas from '$lib/components/AdminOperatingAreas.svelte';
   import type { PageData } from './$types';
+  import { page } from '$app/state';
+  import { goto } from '$app/navigation';
+  import { invitationEmailLabel, invitationExpired } from '../../../../core/invitation-delivery';
 
   let { data, form }: { data: PageData; form?: any } = $props();
 
@@ -17,12 +20,33 @@
   let rescueSearch = $state('');
 
   let peopleSearch = $state('');
-  let peopleFilter = $state<'all' | 'available' | 'admins' | 'disabled'>('all');
+  let peopleFilter = $state<'all' | 'invited' | 'available' | 'admins' | 'disabled'>('all');
   let showInvite = $state(false);
   let selectedPersonId = $state<string | null>(null);
   $effect(() => {
+    const target = page.url.searchParams.get('section');
+    if (target && ['overview','organisations','rescues','regions','people','audit'].includes(target))
+      section = target as Section;
+    else if (form?.action)
+      section = 'people';
+
     if (form?.action === 'removeUser' && form.success) selectedPersonId = null;
+    if (form?.action === 'inviteUser') {
+      section = 'people';
+      if (form.error) showInvite = true;
+      if (form.success) showInvite = false;
+    }
+    if (form?.action === 'correctInvitationEmail' || form?.action === 'resendInvitation') {
+      section = 'people';
+      if (form.userId) selectedPersonId = form.userId;
+    }
   });
+  function chooseSection(next: Section) {
+    section = next;
+    const url = new URL(page.url);
+    url.searchParams.set('section', next);
+    void goto(url.pathname + url.search, { replaceState: true, noScroll: true, keepFocus: true, invalidateAll: false });
+  }
   let inviteOrganisationId = $state('');
   let inviteRole = $state('RESCUER');
   let inviteMembershipTypeId = $state('active-rescuer');
@@ -39,6 +63,7 @@
     const query = peopleSearch.trim().toLowerCase();
     const matches = !query || [user.name, user.email, organisationName(user.organisationId), user.roles.join(' '), ...teamNames(user)].join(' ').toLowerCase().includes(query);
     const filterMatches = peopleFilter === 'all' ||
+      (peopleFilter === 'invited' && user.enabled && user.status === 'INVITED' && !user.roles.includes('PUBLIC_REPORTER')) ||
       (peopleFilter === 'available' && user.enabled && user.availabilityStatus === 'AVAILABLE') ||
       (peopleFilter === 'admins' && user.roles.some((role) => role.includes('ADMIN'))) ||
       (peopleFilter === 'disabled' && !user.enabled);
@@ -169,7 +194,7 @@
         <button
           class:active={section === item.id}
           type="button"
-          onclick={() => (section = item.id)}
+          onclick={() => chooseSection(item.id)}
         >
           <span class="nav-icon">{item.short}</span>
           <span>{item.label}</span>
@@ -460,15 +485,15 @@
           <div><span>Total people</span><strong>{data.users.length}</strong></div>
           <div><span>Available now</span><strong>{data.users.filter((user) => user.enabled && user.availabilityStatus === 'AVAILABLE').length}</strong></div>
           <div><span>Administrators</span><strong>{data.users.filter((user) => user.roles.some((role) => role.includes('ADMIN'))).length}</strong></div>
-          <div><span>Access disabled</span><strong>{data.users.filter((user) => !user.enabled).length}</strong></div>
+          <div><span>Awaiting invitations</span><strong>{data.users.filter((user) => user.status === 'INVITED' && !user.roles.includes('PUBLIC_REPORTER')).length}</strong></div>
         </div>
 
         {#if form?.error}
           <div class="people-feedback error" role="alert">{form.error}</div>
         {:else if form?.success}
           <div class="people-feedback success" role="status">
-            {['inviteUser', 'inviteDemoReviewer', 'resendInvitation'].includes(form.action)
-                ? 'Invitation email sent. The recipient can use the secure link to set a password and enter their organisation.'
+            {['inviteUser', 'inviteDemoReviewer', 'resendInvitation', 'correctInvitationEmail'].includes(form.action)
+                ? 'Invitation accepted for sending by the email service. Check the invitation status below for actual delivery.'
                 : form.action === 'removeUser'
                   ? 'Person removed from the active directory. Historical rescue records remain intact.'
                   : 'User updated.'}
@@ -482,7 +507,7 @@
             <label class="people-search"><span class="sr-only">Search people</span><input type="search" bind:value={peopleSearch} placeholder="Search people, organisations or teams…" /></label>
           </div>
           <div class="people-filters" aria-label="Filter people">
-            {#each [{ id: 'all', label: 'Everyone' }, { id: 'available', label: 'Available' }, { id: 'admins', label: 'Administrators' }, { id: 'disabled', label: 'Disabled' }] as filter}
+            {#each [{ id: 'all', label: 'Everyone' }, { id: 'invited', label: `Invited (${data.users.filter(user => user.status === 'INVITED' && !user.roles.includes('PUBLIC_REPORTER')).length})` }, { id: 'available', label: 'Available' }, { id: 'admins', label: 'Administrators' }, { id: 'disabled', label: 'Disabled' }] as filter}
               <button type="button" class:chosen={peopleFilter === filter.id} onclick={() => (peopleFilter = filter.id as typeof peopleFilter)}>{filter.label}</button>
             {/each}
           </div>
@@ -493,7 +518,14 @@
                 <span class="person-identity"><strong>{user.name || user.email}</strong><small>{user.email}</small><small>{organisationName(user.organisationId)}</small></span>
                 <span class="person-role"><strong>{user.roles.map((role) => role.replaceAll('_', ' ').toLowerCase()).join(' · ') || 'No role'}</strong><small>{membershipTypeName(user)}</small></span>
                 <span class="person-teams">{teamNames(user).slice(0, 2).join(' · ') || 'No dispatch teams'}{teamNames(user).length > 2 ? ` +${teamNames(user).length - 2}` : ''}</span>
-                <span class="person-status"><span class:available={user.enabled && user.availabilityStatus === 'AVAILABLE'} class="availability-state">{!user.enabled ? 'Disabled' : user.availabilityStatus === 'AVAILABLE' ? 'Available' : 'Offline'}</span></span>
+                <span class="person-status">
+                  <span class:available={user.enabled && user.availabilityStatus === 'AVAILABLE'} class="availability-state">
+                    {user.status === 'INVITED' ? 'Invited' : !user.enabled ? 'Disabled' : user.availabilityStatus === 'AVAILABLE' ? 'Available' : 'Offline'}
+                  </span>
+                  {#if user.status === 'INVITED' && !user.roles.includes('PUBLIC_REPORTER')}
+                    <small class="invitation-delivery">{invitationEmailLabel(user.invitationEmailStatus)}</small>
+                  {/if}
+                </span>
                 <span class="person-chevron" aria-hidden="true">›</span>
               </button>
             {:else}
@@ -507,7 +539,10 @@
         <div class="people-overlay" role="presentation">
           <div class="people-dialog" role="dialog" aria-modal="true" aria-labelledby="invite-title">
             <div class="dialog-heading"><div><p class="eyebrow">New team member</p><h2 id="invite-title">Invite a person</h2></div><button class="dialog-close" type="button" aria-label="Close invitation" onclick={() => (showInvite = false)}>×</button></div>
-            <form method="POST" action="?/inviteUser" class="person-form">
+            {#if form?.action === 'inviteUser' && form.error}
+                <p class="people-feedback error" role="alert">{form.error}</p>
+              {/if}
+              <form method="POST" action="?/inviteUser" class="person-form">
               {#if canChooseOrganisation}
                 <div class="reviewer-note"><strong>Reviewer permissions</strong><p>Invitations grant operational access according to the selected role. Do not invite read-only reviewers until a restricted reviewer role is available.</p></div>
               {/if}
@@ -532,11 +567,37 @@
         <div class="people-overlay" role="presentation">
           <div class="people-dialog person-detail" role="dialog" aria-modal="true" aria-labelledby="person-detail-title">
             <div class="dialog-heading"><div><p class="eyebrow">Person details</p><h2 id="person-detail-title">{selectedPerson.name || selectedPerson.email}</h2><p class="intro">{selectedPerson.email} · {organisationName(selectedPerson.organisationId)}</p></div><button class="dialog-close" type="button" aria-label="Close person details" onclick={() => (selectedPersonId = null)}>×</button></div>
+            {#if form?.error && form.userId === selectedPerson.id}
+              <p class="people-feedback error" role="alert">{form.error}</p>
+            {/if}
             <div class="person-detail-summary"><span class:available={selectedPerson.enabled && selectedPerson.availabilityStatus === 'AVAILABLE'} class="availability-state">{selectedPerson.enabled ? selectedPerson.availabilityStatus ?? 'Offline' : 'Disabled'}</span><span>{selectedPerson.roles.join(' · ')}</span><span>{selectedPerson.status}</span></div>
-            {#if selectedPerson.status === 'INVITED' && selectedPerson.enabled}
-              <div class="reviewer-note"><strong>Invitation pending</strong><p>They'll receive a link to set their password. No email address or invitation code needs to be entered again.</p>
-                <form method="POST" action="?/resendInvitation"><input type="hidden" name="userId" value={selectedPerson.id} /><button type="submit">Resend invitation email</button></form>
-              </div>
+            {#if selectedPerson.status === 'INVITED' && selectedPerson.enabled && !selectedPerson.roles.includes('PUBLIC_REPORTER')}
+              <section class="invitation-detail" aria-labelledby="pending-invite-heading">
+                <h3 id="pending-invite-heading">Invitation awaiting acceptance</h3>
+                <dl class="invitation-metadata">
+                  <div><dt>Email service status</dt><dd><strong>{invitationEmailLabel(selectedPerson.invitationEmailStatus)}</strong></dd></div>
+                  <div><dt>Last attempt</dt><dd>{selectedPerson.invitationEmailUpdatedAt ? formatDate(selectedPerson.invitationEmailUpdatedAt) : 'No send result recorded'}</dd></div>
+                  <div><dt>Invitation link</dt><dd>{selectedPerson.invitationIssuedAt
+                    ? invitationExpired(selectedPerson.invitationIssuedAt) ? 'Expired — resend needed' : 'Valid for up to seven days'
+                    : 'Status unavailable for older invitations'}</dd></div>
+                  {#if selectedPerson.invitationEmailDetail}
+                    <div><dt>Delivery details</dt><dd>{selectedPerson.invitationEmailDetail}</dd></div>
+                  {/if}
+                </dl>
+                <p class="permission-help">Accepted by SES means the email service accepted the send. Delivered means a receiving mail server accepted it—not that the person read it. Older invitations may show unknown until resent.</p>
+                <form method="POST" action="?/resendInvitation" class="invitation-resend">
+                  <input type="hidden" name="userId" value={selectedPerson.id} />
+                  <button type="submit">Resend invitation email</button>
+                </form>
+                <form method="POST" action="?/correctInvitationEmail" class="person-form invitation-correction">
+                  <input type="hidden" name="userId" value={selectedPerson.id} />
+                  <label><span>Correct the email address</span>
+                    <input name="email" type="email" value={selectedPerson.email} required autocomplete="off" />
+                  </label>
+                  <p class="permission-help">Saves the corrected address, invalidates the old invitation link and sends a new one. Existing role and species qualifications stay unchanged.</p>
+                  <button class="primary-action" type="submit">Save email and send new invitation</button>
+                </form>
+              </section>
             {/if}
             <form method="POST" action="?/updateMemberAccess" class="person-form">
               <input type="hidden" name="userId" value={selectedPerson.id} />
@@ -594,6 +655,16 @@
   .reviewer-note p { margin: 5px 0 0; line-height: 1.5; }
 
   .people-workspace { display: grid; gap: 22px; }
+  .invitation-delivery { display:block; margin-top:5px; font-size:11px; line-height:1.35; color:var(--rh-muted); overflow-wrap:anywhere; }
+  .invitation-detail { display:grid; gap:12px; border:1px solid var(--rh-border); border-radius:12px; padding:16px; background:var(--rh-surface-soft); color:var(--rh-text); }
+  .invitation-detail h3 { margin:0; font-size:17px; }
+  .invitation-metadata { display:grid; gap:8px; margin:0; }
+  .invitation-metadata div { display:grid; grid-template-columns:minmax(110px,35%) minmax(0,1fr); gap:10px; }
+  .invitation-metadata dt { color:var(--rh-muted); font-size:12px; }
+  .invitation-metadata dd { margin:0; font-size:13px; overflow-wrap:anywhere; }
+  .invitation-resend button, .invitation-correction button { min-height:42px; }
+  .invitation-correction input { width:100%; min-height:42px; }
+  @media(max-width:600px) { .invitation-metadata div { grid-template-columns:1fr; gap:2px; } }
   .people-head, .directory-toolbar, .dialog-heading { display: flex; align-items: center; justify-content: space-between; gap: 18px; }
   .people-head h2, .dialog-heading h2 { margin: 5px 0 8px; font-size: 27px; }
   .people-head .intro { max-width: 660px; }

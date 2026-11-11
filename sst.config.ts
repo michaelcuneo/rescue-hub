@@ -20,6 +20,7 @@ export default $config({
     const { api, graphql } = await import("./packages/infra/api");
     const { realtime, realtimeLink } = await import("./packages/infra/realtime");
     const { mailFrom } = await import("./packages/infra/config");
+    const { invitationEmailConfigurationSetName } = await import("./packages/infra/invitation-email");
     await import("./packages/infra/directory");
     await import("./packages/infra/demo");
 
@@ -36,6 +37,7 @@ export default $config({
       link: [graphql, realtimeLink, data, mailFrom],
       environment: {
         PUBLIC_MAPBOX_ACCESS_TOKEN: process.env.PUBLIC_MAPBOX_ACCESS_TOKEN ?? "",
+        RESCUE_HUB_SES_CONFIGURATION_SET: invitationEmailConfigurationSetName,
         // Trusted website origin for single-use organisation invitation links.
         RESCUE_HUB_PUBLIC_ORIGIN: process.env.RESCUE_HUB_PUBLIC_ORIGIN ?? ($app.stage === "demo" ? "https://rescue.michaelcuneo.com.au" : ""),
         // Server-side OAuth credentials; these are never PUBLIC_ variables.

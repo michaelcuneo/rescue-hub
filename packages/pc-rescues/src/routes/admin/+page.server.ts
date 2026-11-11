@@ -3,6 +3,7 @@ import { HUNTER_DEMO_ORGANISATION } from '$lib/server/demo';
 import {
 	hasAdministrativeRole,
 	hasCompletedBootstrap,
+  correctPendingInvitationEmail,
 	inviteUser,
 	listUsers,
 	removeUser,
@@ -177,8 +178,9 @@ export const actions: Actions = {
 			});
 			return { action: 'inviteUser', success: true };
 		} catch (error) {
-			return fail(500, {
+			return fail(400, {
 				action: 'inviteUser',
+                email,
 				error: error instanceof Error ? error.message : 'Unable to invite user.'
 			});
 		}
@@ -197,14 +199,33 @@ export const actions: Actions = {
 		}
 		try {
 			await sendOrganisationInvitation(target.id);
-			return { action: 'resendInvitation', success: true };
+			return { action: 'resendInvitation', userId, success: true };
 		} catch (error) {
 			return fail(400, {
 				action: 'resendInvitation',
+                userId,
 				error: error instanceof Error ? error.message : 'Unable to resend invitation.'
 			});
 		}
 	},
+  correctInvitationEmail: async ({ request, locals }) => {
+    const actor = await requireAdmin(locals);
+    const form = await request.formData();
+    const userId = requiredString(form, 'userId');
+    const email = requiredString(form, 'email').toLowerCase();
+    const target = (await listUsers()).find(user => user.id === userId);
+    if (!target || !canManageUser(actor, target))
+      return fail(403, { action: 'correctInvitationEmail', userId, error: 'You cannot manage this account.' });
+    if (target.status !== 'INVITED' || !target.enabled || target.roles.includes('PUBLIC_REPORTER'))
+      return fail(400, { action: 'correctInvitationEmail', userId, error: 'Only pending organisation invitations can have their email corrected.' });
+    try {
+      await correctPendingInvitationEmail(userId, email);
+      return { action: 'correctInvitationEmail', userId, success: true };
+    } catch (error) {
+      return fail(400, { action: 'correctInvitationEmail', userId,
+        error: error instanceof Error ? error.message : 'Could not correct invitation email.' });
+    }
+  },
 	updateMemberAccess: async ({ request, locals }) => {
 		const actor = await requireAdmin(locals);
 		const form = await request.formData();
