@@ -474,8 +474,8 @@
           <div class="people-feedback error" role="alert">{form.error}</div>
         {:else if form?.success}
           <div class="people-feedback success" role="status">
-            {form.action === 'inviteUser' ? 'Invitation created.' : 'User updated.'}
-            {#if form.devCode}<code>Development code: {form.devCode}</code>{/if}
+            {['inviteUser', 'inviteDemoReviewer', 'resendInvitation'].includes(form.action) ? 'Invitation email sent. The recipient can use the secure link to set a password and enter their organisation.' : 'User updated.'}
+            {#if form.action === 'resetPassword' && form.devCode}<code>Development reset code: {form.devCode}</code>{/if}
           </div>
         {/if}
 
@@ -529,6 +529,11 @@
           <div class="people-dialog person-detail" role="dialog" aria-modal="true" aria-labelledby="person-detail-title">
             <div class="dialog-heading"><div><p class="eyebrow">Person details</p><h2 id="person-detail-title">{selectedPerson.name || selectedPerson.email}</h2><p class="intro">{selectedPerson.email} · {organisationName(selectedPerson.organisationId)}</p></div><button class="dialog-close" type="button" aria-label="Close person details" onclick={() => (selectedPersonId = null)}>×</button></div>
             <div class="person-detail-summary"><span class:available={selectedPerson.enabled && selectedPerson.availabilityStatus === 'AVAILABLE'} class="availability-state">{selectedPerson.enabled ? selectedPerson.availabilityStatus ?? 'Offline' : 'Disabled'}</span><span>{selectedPerson.roles.join(' · ')}</span><span>{selectedPerson.status}</span></div>
+            {#if selectedPerson.status === 'INVITED' && selectedPerson.enabled}
+              <div class="reviewer-note"><strong>Invitation pending</strong><p>They'll receive a link to set their password. No email address or invitation code needs to be entered again.</p>
+                <form method="POST" action="?/resendInvitation"><input type="hidden" name="userId" value={selectedPerson.id} /><button type="submit">Resend invitation email</button></form>
+              </div>
+            {/if}
             <form method="POST" action="?/updateDispatchMembership" class="person-form">
               <input type="hidden" name="userId" value={selectedPerson.id} />
               <label><span>Membership type</span><select name="membershipTypeId">{#each membershipConfigFor(selectedPerson).membershipTypes as type}<option value={type.id} selected={type.id === selectedPerson.membershipTypeId}>{type.name}</option>{/each}</select></label>
