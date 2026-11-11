@@ -24,9 +24,35 @@ const CLEARANCE = 28;
 export function KeyboardAwareView({ children, style }: {
   children: ReactNode; style?: StyleProp<ViewStyle>;
 }) {
+  const container = useRef<ComponentRef<typeof KeyboardAvoidingView>>(null);
+  const [androidInset, setAndroidInset] = useState(0);
+  const top = useRef<number | null>(null);
+  const checkInset = useCallback(() => {
+    if (Platform.OS !== 'android') return;
+    requestAnimationFrame(() => {
+      container.current?.measureInWindow((_x, y, _w, height) => {
+        setAndroidInset(keyboardOverlap(y + height, top.current));
+      });
+    });
+  }, []);
+  useEffect(() => {
+    if (Platform.OS !== 'android') return;
+    const shown = Keyboard.addListener('keyboardDidShow', event => {
+      top.current = event.endCoordinates.screenY;
+      checkInset();
+    });
+    const hidden = Keyboard.addListener('keyboardDidHide', () => {
+      top.current = null;
+      setAndroidInset(0);
+    });
+    return () => { shown.remove(); hidden.remove(); };
+  }, [checkInset]);
   return <KeyboardAvoidingView
+    ref={container}
+    onLayout={checkInset}
     behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    style={[{ flex: 1, minHeight: 0 }, style]}>
+    style={[{ flex: 1, minHeight: 0 }, style,
+      Platform.OS === 'android' && androidInset > 0 ? { paddingBottom: androidInset } : null]}>
     {children}
   </KeyboardAvoidingView>;
 }
