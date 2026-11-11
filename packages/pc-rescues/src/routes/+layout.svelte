@@ -3,23 +3,26 @@
   import { onMount } from 'svelte';
   import { page } from '$app/state';
   import ThemeSwitcher from '$lib/components/ThemeSwitcher.svelte';
+  import AppTopbar from '$lib/components/AppTopbar.svelte';
   import { initialiseTheme } from '$lib/theme';
 
-  let { children } = $props();
+  let { data, children } = $props();
   onMount(initialiseTheme);
+  const isWorkspace = $derived(['/', '/admin', '/documentation'].includes(page.url.pathname));
 </script>
 
+{#if isWorkspace}
+  <AppTopbar viewer={data.viewer} demoMode={data.demoMode} />
+{/if}
 {@render children()}
 
-{#if !['/', '/admin', '/documentation', '/chats'].includes(page.url.pathname)}
+{#if !isWorkspace && page.url.pathname !== '/chats'}
   <div class="appearance-dock"><ThemeSwitcher compact /></div>
 {/if}
 
 <style>
   .appearance-dock {
-    position: fixed;
-    z-index: 80;
-    right: max(12px, env(safe-area-inset-right));
-    bottom: max(12px, env(safe-area-inset-bottom));
+    position:fixed; z-index:80; right:max(12px,env(safe-area-inset-right));
+    bottom:max(12px,env(safe-area-inset-bottom));
   }
 </style>
