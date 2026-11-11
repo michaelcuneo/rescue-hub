@@ -1,4 +1,4 @@
-import { canRescueForOrganisation, canTransportForOrganisation } from './care-delivery.ts';
+import { canRescueForOrganisation, canTransportForOrganisation } from './care-delivery';
 
 export type DesktopRescueViewer = {
   id: string;

@@ -36,6 +36,7 @@
 		demoMode?: boolean;
         membershipConfig: OrganisationMembershipConfig;
 		user: {
+			id: string;
 			name: string;
 			email: string;
 			roles: string[];
