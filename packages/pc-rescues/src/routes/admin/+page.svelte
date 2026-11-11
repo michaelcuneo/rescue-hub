@@ -154,14 +154,6 @@
 
 <div class="admin-shell">
   <aside class="sidebar">
-    <div class="brand">
-      <div class="brand-mark">RH</div>
-      <div>
-        <strong>Rescue Hub</strong>
-        <span>NSW Administration</span>
-      </div>
-    </div>
-
     <nav aria-label="Administration">
       {#each navigation as item}
         <button
@@ -174,11 +166,6 @@
         </button>
       {/each}
     </nav>
-    <a class="documentation-link" href="/documentation">
-      <span class="nav-icon" aria-hidden="true">DC</span>
-      <span>Documentation &amp; guides</span>
-    </a>
-
     <div class="sidebar-footer">
       <div class:online={data.backend.online} class="status-dot"></div>
       <div>
@@ -189,30 +176,6 @@
   </aside>
 
   <main>
-    <header class="topbar">
-      <div>
-        <p class="eyebrow">NSW wildlife rehabilitation</p>
-        <h1>
-          {navigation.find((item) => item.id === section)?.label ?? 'Overview'}
-        </h1>
-      </div>
-
-      <div class="admin-actions">
-        {#if canChooseOrganisation}
-          <a class="demo-launch" href="/demo/hunter">Open Hunter workspace</a>
-          <a class="demo-launch" href="/chats">Organisation chats</a>
-
-        {/if}
-      <div class="demo-identity">
-        <span class="avatar" aria-hidden="true">{data.currentUser.name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]?.toUpperCase()).join('') || '?'}</span>
-        <div>
-          <strong>{data.currentUser.name}</strong>
-          <span>{data.currentUser.roles.join(' · ')}</span>
-        </div>
-      </div>
-      </div>
-    </header>
-
     {#if !data.backend.online}
       <section class="backend-warning">
         <strong>Some Rescue Hub services are currently unavailable.</strong>
@@ -846,31 +809,6 @@
     padding: 0 0 32px;
   }
 
-  .topbar {
-    min-height: 92px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 16px;
-    margin-bottom: 16px;
-    padding: 12px 20px;
-    border: 1px solid var(--rh-border);
-    border-radius: 14px;
-    background: var(--rh-surface);
-    box-shadow: var(--rh-shadow);
-  }
-
-  .topbar h1,
-  .panel h2 {
-    margin: 0;
-    color:var(--ink);
-    letter-spacing: -0.035em;
-  }
-
-  .topbar h1 {
-    font-size: clamp(25px, 3vw, 34px);
-  }
-
   .eyebrow {
     margin: 0 0 5px;
     color:var(--rh-t85, #648074);
@@ -878,65 +816,6 @@
     font-weight: 800;
     text-transform: uppercase;
     letter-spacing: 0.13em;
-  }
-
-  .admin-actions {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-  }
-
-  .demo-launch {
-    display: inline-flex;
-    align-items: center;
-    min-height: 36px;
-    padding: 0 12px;
-    border-radius: 9px;
-    background:var(--forest);
-    color:white;
-    font-size: 12px;
-    font-weight: 800;
-    text-decoration: none;
-  }
-
-  .demo-identity {
-    display: flex;
-    gap: 10px;
-    align-items: center;
-  }
-
-  .demo-identity strong,
-  .demo-identity > div > span {
-    display: block;
-    text-align: right;
-  }
-
-  .demo-identity strong {
-    font-size: 15px;
-  }
-
-  .demo-identity > div > span {
-    margin-top: 2px;
-    color:var(--muted);
-    font-size: 13px;
-  }
-
-  .avatar {
-    order: 2;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex: 0 0 38px;
-    width: 38px;
-    height: 38px;
-    margin: 0;
-    padding: 0;
-    line-height: 1;
-    border-radius: 50%;
-    background:var(--rh-t86, #dce8df);
-    color:var(--forest);
-    font-size: 14px;
-    font-weight: 800;
   }
 
   .backend-warning {
@@ -1676,13 +1555,7 @@
       padding: 0 15px 28px;
     }
 
-    .topbar {
-      min-height: 88px;
-    }
 
-    .demo-identity div {
-      display: none;
-    }
 
     .table-heading {
       display: grid;
@@ -1753,6 +1626,5 @@
     .admin-shell { display:block; }
     .sidebar { height:auto; max-height:none; overflow:visible; margin-bottom:12px; }
     main { padding:0 0 28px; }
-    .topbar { padding:12px; }
   }
 </style>
