@@ -2,7 +2,8 @@ import { redirect } from '@sveltejs/kit';
 import { hasCompletedBootstrap, listUsers } from '$lib/server/auth';
 import { getHunterDemo, HUNTER_DEMO_ORGANISATION } from '$lib/server/demo';
 import { listAdminRescues } from '$lib/server/admin-data';
-import { getOrganisationMembershipConfig } from '$lib/server/membership';
+import { classifyDispatchCapability, getOrganisationMembershipConfig, memberCanReceiveCapability } from '$lib/server/membership';
+import { canSeeDesktopRescue } from '../../../core/desktop-dispatch-access';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ locals, cookies }) => {
@@ -22,27 +23,33 @@ export const load: PageServerLoad = async ({ locals, cookies }) => {
 		throw redirect(303, '/admin');
 	}
 
+	const viewer = demoMode ? {
+		...locals.user,
+		organisationId: HUNTER_DEMO_ORGANISATION,
+		roles: [...new Set([...locals.user.roles, 'DISPATCHER' as const])]
+	} : locals.user;
+	const canCoordinate = viewer.roles.some(role =>
+		['PLATFORM_ADMIN', 'AUTHORITY_ADMIN', 'ORG_ADMIN', 'DISPATCHER'].includes(role));
 	const [rescueResult, usersResult] = await Promise.allSettled([
 		listAdminRescues(),
-		listUsers()
+		canCoordinate ? listUsers() : Promise.resolve([])
 	]);
 	if (rescueResult.status === 'rejected') console.error('Unable to load rescue queue.', rescueResult.reason);
 	if (usersResult.status === 'rejected') console.error('Unable to load rescue people.', usersResult.reason);
 	const rescues = rescueResult.status === 'fulfilled' ? rescueResult.value : [];
 	const users = usersResult.status === 'fulfilled' ? usersResult.value : [];
 	const membershipConfig = await getOrganisationMembershipConfig(organisationId ?? HUNTER_DEMO_ORGANISATION);
+	const visibleRescues = rescues.filter((rescue) => canSeeDesktopRescue(
+		viewer, rescue,
+		memberCanReceiveCapability(
+			viewer.teamIds, membershipConfig,
+			classifyDispatchCapability(rescue.type, rescue.breed ?? '')
+		)
+	));
 	return {
         membershipConfig,
-		user: demoMode
-			? {
-					...locals.user,
-					organisationId: HUNTER_DEMO_ORGANISATION,
-					roles: [...new Set([...locals.user.roles, 'DISPATCHER' as const])]
-				}
-			: locals.user,
-		rescues: organisationId
-			? rescues.filter((rescue) => rescue.organisationId === organisationId)
-			: rescues,
+		user: viewer,
+		rescues: visibleRescues,
 		people: organisationId
 			? users.filter((user) => user.organisationId === organisationId)
 			: [],

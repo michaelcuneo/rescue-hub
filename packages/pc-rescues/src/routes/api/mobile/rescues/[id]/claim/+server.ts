@@ -4,7 +4,7 @@ import { getRescue } from '$lib/server/graphql';
 import { claimRescue, RescueAlreadyClaimedError } from '$lib/server/rescue-claims';
 import { classifyDispatchCapability, getOrganisationMembershipConfig, memberCanReceiveCapability } from '$lib/server/membership';
 import type { RequestHandler } from './$types';
-import { canTransportForOrganisation } from '../../../../../../../../core/care-delivery';
+import { canRescueForOrganisation, canTransportForOrganisation } from '../../../../../../../../core/care-delivery';
 
 export const POST: RequestHandler = async ({ locals, params }) => {
   const user = locals.user;
@@ -28,7 +28,7 @@ export const POST: RequestHandler = async ({ locals, params }) => {
     if (rescue.transportAnimalId) return json({ rescue: await claimRescue(rescue.id, user.organisationId, user.id) });
     const membership = await getOrganisationMembershipConfig(user.organisationId);
     const capability = classifyDispatchCapability(rescue.type, rescue.breed ?? '');
-    if (!memberCanReceiveCapability(user.teamIds, membership, capability)) {
+    if (!canRescueForOrganisation(user) || !memberCanReceiveCapability(user.teamIds, membership, capability)) {
       return json({ error: 'You are not qualified for this rescue.' }, { status: 403 });
     }
     return json({ rescue: await claimRescue(rescue.id, user.organisationId, user.id) });

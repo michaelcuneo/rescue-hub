@@ -36,6 +36,7 @@
 		demoMode?: boolean;
         membershipConfig: OrganisationMembershipConfig;
 		user: {
+			id: string;
 			name: string;
 			email: string;
 			roles: string[];
@@ -56,6 +57,11 @@
 	const userCanAdmin = $derived(
 		user.roles.some((role) =>
 			['PLATFORM_ADMIN', 'AUTHORITY_ADMIN', 'ORG_ADMIN'].includes(role)
+		)
+	);
+	const userCanDispatch = $derived(
+		user.roles.some((role) =>
+			['PLATFORM_ADMIN', 'AUTHORITY_ADMIN', 'ORG_ADMIN', 'DISPATCHER'].includes(role)
 		)
 	);
 
@@ -385,10 +391,12 @@
 				<p>Dispatch</p>
 				<h1>Rescue queue</h1>
 			</div>
-			<button class="new-rescue" type="button" onclick={openIntake}>
-				<Plus size={16} />
-				New rescue
-			</button>
+			{#if userCanDispatch}
+				<button class="new-rescue" type="button" onclick={openIntake}>
+					<Plus size={16} />
+					New rescue
+				</button>
+			{/if}
 		</div>
 
 		{#if dispatchNotice}
@@ -500,7 +508,7 @@
 		</section>
 	{/if}
 
-	{#if $intakeOpen}
+	{#if $intakeOpen && userCanDispatch}
 		<div class="intake-backdrop" role="presentation" onclick={closeIntake}></div>
 		<section class="intake" aria-label="Create rescue">
 			<header>

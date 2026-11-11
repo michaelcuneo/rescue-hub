@@ -867,6 +867,63 @@ export async function updateUserDispatchMembership(input: {
 	}));
 }
 
+/**
+ * Administrative role and operational participation form one consistent edit.
+ * Both DynamoDB records are updated in a single transaction and the session
+ * epoch advances whenever privileges change (revokes existing sessions).
+ */
+export async function updateUserAccess(input: {
+  userId: string;
+  expectedRoles: RescueHubRole[];
+  role: RescueHubRole;
+  membershipTypeId: string;
+  teamIds: string[];
+}) {
+  const now = new Date().toISOString();
+  const teamIds = [...new Set(input.teamIds.filter(Boolean))];
+  const roles = [input.role];
+  const changedRole = input.expectedRoles.length !== 1 || input.expectedRoles[0] !== input.role;
+  const expressions = 'SET #roles = :roles, membershipTypeId = :membership, teamIds = :teams, updatedAt = :now';
+  const args = {
+    ':roles': roles, ':membership': input.membershipTypeId, ':teams': teamIds,
+    ':now': now
+  };
+  try {
+    await db.send(new TransactWriteCommand({
+      TransactItems: [
+        {
+          Update: {
+            TableName: tableName,
+            Key: { pk: `USER#${input.userId}`, sk: 'PROFILE' },
+            UpdateExpression: expressions +
+              (changedRole ? ', authEpoch = if_not_exists(authEpoch, :zero) + :one' : ''),
+            ConditionExpression: 'attribute_exists(pk) AND #roles = :expected AND #status <> :removed',
+            ExpressionAttributeNames: { '#status': 'status', '#roles': 'roles' },
+            ExpressionAttributeValues: {
+              ...args, ':expected': input.expectedRoles, ':removed': 'REMOVED',
+              ...(changedRole ? { ':zero': 0, ':one': 1 } : {})
+            }
+          }
+        },
+        {
+          Update: {
+            TableName: tableName,
+            Key: { pk: `USER#${input.userId}`, sk: 'MEMBERSHIP' },
+            UpdateExpression: expressions,
+            ConditionExpression: 'attribute_exists(pk)',
+            ExpressionAttributeNames: { '#roles': 'roles' },
+            ExpressionAttributeValues: args
+          }
+        }
+      ]
+    }));
+  } catch (error) {
+    if (error instanceof Error && error.name === 'TransactionCanceledException')
+      throw new Error('The member has changed since this form was opened. Refresh and try again.');
+    throw error;
+  }
+}
+
 export async function saveUserAvailabilityPolicy(userId: string, policy: AvailabilityPolicy) {
 	const now = new Date().toISOString();
 	const current = await getUserRecord(userId);

@@ -41,12 +41,23 @@ export function canClaimAnimalCare(
     !reservedCarerUserId && !pendingTransferId;
 }
 
+/** Independent rescue requires active field membership AND an operational role.
+ * Legacy members without a membership type retain their existing eligibility.
+ * Teams are checked separately against the actual animal species.
+ */
+export function canRescueForOrganisation(user: {
+  enabled: boolean; status: string; roles: string[]; membershipTypeId?: string;
+}): boolean {
+  if (!user.enabled || user.status !== 'ACTIVE' || user.roles.includes('PUBLIC_REPORTER')) return false;
+  return (!user.membershipTypeId || user.membershipTypeId === 'active-rescuer') &&
+    user.roles.some(role => ['RESCUER', 'CARER', 'ORG_ADMIN'].includes(role));
+}
+
 export function canTransportForOrganisation(user: {
   enabled: boolean; status: string; roles: string[]; membershipTypeId?: string;
 }): boolean {
   if (!user.enabled || user.status !== 'ACTIVE' || user.roles.includes('PUBLIC_REPORTER')) return false;
-  return user.roles.some(role => ['RESCUER','CARER','ORG_ADMIN'].includes(role)) ||
-    user.membershipTypeId === 'transport-volunteer';
+  return canRescueForOrganisation(user) || user.membershipTypeId === 'transport-volunteer';
 }
 
 /** Receipt from the receiving carer completes an already collected transport.
