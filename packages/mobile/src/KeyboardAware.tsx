@@ -3,7 +3,7 @@ import {
   type ComponentRef, type ReactNode
 } from 'react';
 import {
-  Keyboard, KeyboardAvoidingView, Platform, ScrollView, TextInput,
+  Keyboard, KeyboardAvoidingView, Platform, ScrollView, TextInput, View,
   type ScrollViewProps, type StyleProp, type TextInputProps, type ViewStyle
 } from 'react-native';
 import { keyboardOverlap, keyboardScrollDelta } from '../../core/keyboard-geometry';
@@ -24,7 +24,7 @@ const CLEARANCE = 28;
 export function KeyboardAwareView({ children, style }: {
   children: ReactNode; style?: StyleProp<ViewStyle>;
 }) {
-  const container = useRef<ComponentRef<typeof KeyboardAvoidingView>>(null);
+  const container = useRef<ComponentRef<typeof View>>(null);
   const [androidInset, setAndroidInset] = useState(0);
   const top = useRef<number | null>(null);
   const checkInset = useCallback(() => {
@@ -47,14 +47,15 @@ export function KeyboardAwareView({ children, style }: {
     });
     return () => { shown.remove(); hidden.remove(); };
   }, [checkInset]);
-  return <KeyboardAvoidingView
-    ref={container}
-    onLayout={checkInset}
-    behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    style={[{ flex: 1, minHeight: 0 }, style,
-      Platform.OS === 'android' && androidInset > 0 ? { paddingBottom: androidInset } : null]}>
-    {children}
-  </KeyboardAvoidingView>;
+  return <View ref={container} onLayout={checkInset}
+    style={[{ flex: 1, minHeight: 0 }, style]}>
+    <KeyboardAvoidingView
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      style={[{ flex: 1, minHeight: 0 },
+        Platform.OS === 'android' && androidInset > 0 ? { paddingBottom: androidInset } : null]}>
+      {children}
+    </KeyboardAvoidingView>
+  </View>;
 }
 
 /**
