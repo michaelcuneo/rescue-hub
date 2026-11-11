@@ -57,6 +57,10 @@ export type RescueHubUser = {
 	availabilityPolicy?: AvailabilityPolicy;
 	createdAt: string;
 	updatedAt: string;
+  invitationEmailStatus?: 'NOT_SENT'|'SENDING'|'ACCEPTED'|'DELAYED'|'DELIVERED'|'BOUNCED'|'COMPLAINT'|'REJECTED'|'FAILED';
+  invitationEmailUpdatedAt?: string;
+  invitationIssuedAt?: string;
+  invitationEmailDetail?: string;
 };
 
 type CodePurpose = 'RESET_PASSWORD' | 'PUBLIC_SIGNUP';
@@ -116,7 +120,12 @@ function toUser(item: Record<string, unknown>): RescueHubUser {
 		availabilityStatus: effectiveAvailability({ availabilityStatus: ['AVAILABLE', 'BUSY', 'OFFLINE'].includes(String(item.availabilityStatus)) ? String(item.availabilityStatus) as RescueHubUser['availabilityStatus'] : 'OFFLINE', availabilityPolicy: item.availabilityPolicy }),
 		availabilityPolicy: readAvailabilityPolicy(item.availabilityPolicy) ?? undefined,
 		createdAt: String(item.createdAt),
-		updatedAt: String(item.updatedAt ?? item.createdAt)
+		updatedAt: String(item.updatedAt ?? item.createdAt),
+    invitationEmailStatus: typeof item.invitationEmailStatus === 'string'
+      ? item.invitationEmailStatus as RescueHubUser['invitationEmailStatus'] : undefined,
+    invitationEmailUpdatedAt: typeof item.invitationEmailUpdatedAt === 'string' ? item.invitationEmailUpdatedAt : undefined,
+    invitationIssuedAt: typeof item.invitationIssuedAt === 'string' ? item.invitationIssuedAt : undefined,
+    invitationEmailDetail: typeof item.invitationEmailDetail === 'string' ? item.invitationEmailDetail : undefined
 	};
 }
 
@@ -368,9 +377,11 @@ export async function sendOrganisationInvitation(userId: string) {
 	const sender = mailFrom();
 	if (!sender) throw new Error('Rescue Hub email delivery is not configured.');
 	const secret = randomBytes(32).toString('base64url');
+  const attemptId = randomUUID();
 	const url = makeInvitationUrl(origin, `${userId}.${secret}`);
 	const now = Math.floor(Date.now() / 1000);
 	const expiresAt = now + INVITATION_TTL_SECONDS;
+  const sentAt = new Date().toISOString();
 	const key = { pk: `USER#${userId}`, sk: 'INVITATION' };
 	const organisationId = String(profile.organisationId);
 	const organisation = await getOrganisation(organisationId).catch(() => null);
@@ -388,6 +399,16 @@ export async function sendOrganisationInvitation(userId: string) {
 			throw new Error('Please wait a minute before resending this invitation.');
 		throw error;
 	});
+  // Track attempts on the durable user profile, not on the expiring token record.
+  await db.send(new UpdateCommand({
+    TableName: tableName, Key: { pk: `USER#${userId}`, sk: 'PROFILE' },
+    UpdateExpression: 'SET invitationAttemptId=:attempt, invitationEmailStatus=:sending, invitationIssuedAt=:at, invitationEmailUpdatedAt=:at, invitationEmailDetail=:detail REMOVE invitationMessageId',
+    ConditionExpression: '#status=:invited AND enabled=:yes AND email=:email',
+    ExpressionAttributeNames: { '#status':'status' },
+    ExpressionAttributeValues: { ':attempt':attemptId, ':sending':'SENDING', ':at':sentAt, ':detail':'Sending invitation',
+      ':invited':'INVITED', ':yes':true, ':email':String(profile.email) }
+  }));
+
 	const text = `Hello ${String(profile.name)},
 
 You've been invited to join ${organisationName} on Rescue Hub using ${String(profile.email)}.
@@ -399,17 +420,86 @@ ${url}
 The link expires in 7 days and can only be used once. If you weren't expecting this invitation, ignore this email.
 
 Rescue Hub`;
-	await ses.send(new SendEmailCommand({
-		FromEmailAddress: sender,
-		Destination: { ToAddresses: [String(profile.email)] },
-		Content: {
-			Simple: {
-				Subject: { Data: `Join ${organisationName} on Rescue Hub`, Charset: 'UTF-8' },
-				Body: { Text: { Data: text, Charset: 'UTF-8' } }
-			}
-		}
-	}));
+  try {
+    const result = await ses.send(new SendEmailCommand({
+      FromEmailAddress: sender,
+      Destination: { ToAddresses: [String(profile.email)] },
+      ConfigurationSetName: process.env.RESCUE_HUB_SES_CONFIGURATION_SET || undefined,
+      EmailTags: [
+        { Name: 'rescueHubPurpose', Value: 'organisation-invitation' },
+        { Name: 'rescueHubUserId', Value: userId },
+        { Name: 'rescueHubAttempt', Value: attemptId }
+      ],
+      Content: {
+        Simple: {
+          Subject: { Data: `Join ${organisationName} on Rescue Hub`, Charset: 'UTF-8' },
+          Body: { Text: { Data: text, Charset: 'UTF-8' } }
+        }
+      }
+    }));
+    await db.send(new UpdateCommand({
+      TableName: tableName, Key: { pk: `USER#${userId}`, sk: 'PROFILE' },
+      UpdateExpression: 'SET invitationEmailStatus=:accepted, invitationEmailUpdatedAt=:at, invitationEmailDetail=:detail, invitationMessageId=:messageId',
+      ConditionExpression: 'invitationAttemptId=:attempt AND invitationEmailStatus=:sending',
+      ExpressionAttributeValues: { ':attempt':attemptId, ':sending':'SENDING', ':accepted':'ACCEPTED',
+        ':at':new Date().toISOString(), ':detail':'Accepted for sending by Amazon SES',
+        ':messageId': result.MessageId ?? 'not-reported' }
+    })).catch(error => {
+      if (!(error instanceof Error && error.name === 'ConditionalCheckFailedException')) throw error;
+    });
+  } catch (error) {
+    await db.send(new UpdateCommand({
+      TableName: tableName, Key: { pk: `USER#${userId}`, sk: 'PROFILE' },
+      UpdateExpression: 'SET invitationEmailStatus=:failed, invitationEmailUpdatedAt=:at, invitationEmailDetail=:detail',
+      ConditionExpression: 'invitationAttemptId=:attempt AND invitationEmailStatus=:sending',
+      ExpressionAttributeValues: { ':attempt':attemptId, ':sending':'SENDING', ':failed':'FAILED',
+        ':at':new Date().toISOString(), ':detail': 'Email service rejected or could not accept this invitation' }
+    })).catch(() => undefined);
+    throw error;
+  }
 	return { sent: true };
+}
+
+/** Correct a typo in a still-pending invite and atomically revoke old links.
+ * The old email lookup is replaced, so an unverified address cannot be reused
+ * to sign in or accept an invitation. Existing roles/team membership stay put.
+ */
+export async function correctPendingInvitationEmail(userId: string, proposedEmail: string) {
+  const email = normalizeEmail(proposedEmail);
+  if (!/^\\S+@\\S+\\.\\S+$/.test(email)) throw new Error('Enter a valid email address.');
+  const current = await getUserRecord(userId);
+  if (!current || current.status !== 'INVITED' || !current.enabled ||
+    !current.organisationId || current.roles?.includes('PUBLIC_REPORTER'))
+    throw new Error('Only pending organisation invitations may be corrected.');
+  const oldEmail = String(current.email);
+  if (email === oldEmail) throw new Error('That is already the invited email address. Use Resend invitation.');
+  const now = new Date().toISOString();
+  try {
+    await db.send(new TransactWriteCommand({
+      TransactItems: [
+        { Delete: { TableName: tableName, Key: { pk: `AUTH#EMAIL#${oldEmail}`, sk: 'USER' },
+          ConditionExpression: 'userId=:id', ExpressionAttributeValues: { ':id':userId } } },
+        { Put: { TableName: tableName,
+          Item: { pk: `AUTH#EMAIL#${email}`, sk: 'USER', entity:'auth_lookup', userId },
+          ConditionExpression: 'attribute_not_exists(pk)' } },
+        { Update: { TableName: tableName, Key: { pk: `USER#${userId}`, sk:'PROFILE' },
+          UpdateExpression:'SET email=:email, updatedAt=:now, invitationEmailStatus=:notSent, invitationEmailDetail=:detail REMOVE invitationAttemptId, invitationMessageId, invitationIssuedAt, invitationEmailUpdatedAt',
+          ConditionExpression: '#status=:invited AND enabled=:yes AND email=:old',
+          ExpressionAttributeNames: { '#status':'status' },
+          ExpressionAttributeValues: { ':email':email, ':now':now, ':notSent':'NOT_SENT',
+            ':detail':'Corrected email; ready to send', ':invited':'INVITED',
+            ':yes':true, ':old':oldEmail } } },
+        { Delete: { TableName: tableName, Key: { pk: `USER#${userId}`, sk:'INVITATION' } } }
+      ]
+    }));
+  } catch (error) {
+    if (error instanceof Error && error.name === 'TransactionCanceledException')
+      throw new Error('The corrected address is in use, or this invitation changed. Refresh and try again.');
+    throw error;
+  }
+  // Immediately send a fresh one-click invitation to the corrected address.
+  // If SES fails, the corrected email remains saved and Resend is available.
+  return sendOrganisationInvitation(userId);
 }
 
 /** Lookup requires possession of the actual secret, not merely the user id. */
@@ -521,7 +611,9 @@ export async function inviteUser(input: {
 		]
 	}));
 
-	const invitation = await sendOrganisationInvitation(userId);
+  // A failed SES send does not erase the invited account; admins can correct
+  // the address or resend without creating a second user record.
+  await sendOrganisationInvitation(userId);
 	return { user: await getUserById(userId), invitation };
 }
 
