@@ -11,7 +11,7 @@
   const initials = $derived(viewer?.name.split(/\s+/).filter(Boolean).slice(0, 2)
     .map(part => part[0]?.toUpperCase()).join('') || '?');
   const path = $derived(page.url.pathname);
-  let profileMenu: HTMLDetailsElement | undefined;
+  let profileMenu = $state<HTMLDetailsElement | undefined>(undefined);
   function closeProfileMenu() {
     if (profileMenu) profileMenu.open = false;
   }

@@ -7,8 +7,12 @@
   let { data }: { data: PageData } = $props();
   const days: Weekday[] = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
   const dayNames = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-  let policy = $state<AvailabilityPolicy>(structuredClone(data.availability));
-  let status = $state(data.availabilityStatus);
+  // Evaluate defaults in functions so updates to page data don't imply an
+  // automatic overwrite of a user's unsaved schedule edits.
+  const initialPolicy = () => structuredClone(data.availability);
+  const initialStatus = () => data.availabilityStatus;
+  let policy = $state<AvailabilityPolicy>(initialPolicy());
+  let status = $state(initialStatus());
   let saving = $state(false);
   let error = $state('');
   let feedback = $state('');
