@@ -1081,19 +1081,9 @@ import { reportChannelLabel } from '../../../../core/report-channel';
 		background:var(--rh-t49, #f5f8f6);
 	}
 
-	.detail-location strong,
-	.detail-location span {
-		display: block;
-	}
-
-	.detail-location strong {
-		font-size: 13px;
-	}
-
-	.detail-location span {
-		margin-top: 2px;
-		color:var(--rh-t50, #7c8982);
-		font-size: 12px;
+	.detail-location :global(.rescue-address) {
+		flex: 1;
+		min-width: 0;
 	}
 
 	.condition {
