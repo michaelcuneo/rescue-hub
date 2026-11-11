@@ -1,15 +1,12 @@
 <script lang="ts">
   import { page } from '$app/state';
-  import { ChevronDown } from '@lucide/svelte';
   import ThemeSwitcher from '$lib/components/ThemeSwitcher.svelte';
 
   type Viewer = { name: string; roles: string[] };
-  let { viewer, demoMode = false }: { viewer: Viewer | null; demoMode?: boolean } = $props();
+  let { viewer }: { viewer: Viewer | null } = $props();
 
   const isAdministrator = $derived(Boolean(viewer?.roles.some(role =>
     ['PLATFORM_ADMIN', 'AUTHORITY_ADMIN', 'ORG_ADMIN'].includes(role))));
-  const isAuthority = $derived(Boolean(viewer?.roles.some(role =>
-    ['PLATFORM_ADMIN', 'AUTHORITY_ADMIN'].includes(role))));
   const initials = $derived(viewer?.name.split(/\s+/).filter(Boolean).slice(0, 2)
     .map(part => part[0]?.toUpperCase()).join('') || '?');
   const path = $derived(page.url.pathname);
@@ -31,22 +28,13 @@
       <a href="/admin" aria-current={path.startsWith('/admin') ? 'page' : undefined}>Administration</a>
     {/if}
     <a href="/documentation" aria-current={path.startsWith('/documentation') ? 'page' : undefined}>Documentation</a>
+    {#if viewer && !viewer.roles.includes('PUBLIC_REPORTER')}
+      <a href="/chats" aria-current={path.startsWith('/chats') ? 'page' : undefined}>Chats</a>
+    {/if}
   </nav>
 
   <div class="account-actions">
     {#if viewer}
-      <details class="more-menu">
-        <summary>More <ChevronDown size={14} aria-hidden="true" /></summary>
-        <nav aria-label="Other tools">
-          <a href="/chats">Chats</a>
-          {#if viewer.roles.includes('CARER')}<a href="/care-offers">Care offers</a>{/if}
-          {#if isAuthority}
-            <a href="/reports">Public reports</a>
-            <a href="/demo/hunter">Hunter workspace</a>
-            {#if demoMode}<a href="/demo/exit">Leave Hunter workspace</a>{/if}
-          {/if}
-        </nav>
-      </details>
       <span class="person" title={viewer.name}><span class="person-mark">{initials}</span><span class="person-name">{viewer.name}</span></span>
     {/if}
     <ThemeSwitcher compact />
@@ -93,24 +81,12 @@
   .area-navigation a[aria-current='page'] { background:var(--rh-nav-active); color:var(--rh-text);
     box-shadow: 0 1px 4px rgb(0 0 0 / .08); }
   .account-actions { justify-self:end; display:flex; align-items:center; gap:8px; min-width:0; }
-  .sign-out, .more-menu summary {
+  .sign-out {
     display:inline-flex; justify-content:center; align-items:center; gap:6px; min-height:34px;
     border:1px solid var(--rh-border); border-radius:9px; padding:0 10px;
     background:var(--rh-surface-soft); color:var(--rh-text); font:inherit;
     text-decoration:none; cursor:pointer; white-space:nowrap;
   }
-  .more-menu { position:relative; }
-  .more-menu summary { list-style:none; }
-  .more-menu summary::-webkit-details-marker { display:none; }
-  .more-menu nav {
-    position:absolute; right:0; top:calc(100% + 10px); z-index:70;
-    min-width:190px; display:grid; gap:4px; padding:7px;
-    border:1px solid var(--rh-border); border-radius:11px;
-    background:var(--rh-surface); box-shadow:var(--rh-shadow);
-  }
-  .more-menu nav a { padding:10px 12px; border-radius:7px; color:var(--rh-text);
-    text-decoration:none; white-space:nowrap; }
-  .more-menu nav a:hover { background:var(--rh-surface-soft); }
   .person { display:flex; align-items:center; gap:7px; min-width:0; max-width:160px; }
   .person-mark { width:31px; height:31px; flex:0 0 31px; display:grid; place-items:center;
     border-radius:50%; background:var(--rh-raised); color:var(--rh-text); font-weight:800; }
@@ -135,10 +111,8 @@
     .account-actions { grid-column:3; grid-row:1; }
     .area-navigation { grid-column:1 / -1; grid-row:2; justify-self:stretch;
       justify-content:space-evenly; padding:2px; }
-    .area-navigation a { font-size:12px; padding:7px 8px; }
+    .area-navigation a { font-size:11px; padding:7px 8px; }
     .person, .sign-out { display:none; }
-    .more-menu summary { font-size:0; width:30px; padding:0; }
-    .more-menu summary :global(svg) { width:16px; height:16px; }
   }
   @media(max-width:420px) {
     .area-navigation a { font-size:10px; padding:7px 4px; }

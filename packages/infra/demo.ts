@@ -158,7 +158,7 @@ allDemoRescues.forEach((r, index) => {
     pk: S(`RESCUE#${id}`), sk: S("META"), entity: S("rescue"), id: S(id),
     organisationId: S(HUNTER_ORG), type: S(type), breed: S(breed), location: S(location),
     latitude: N(latitude), longitude: N(longitude), injury: S(injury), status: S(status),
-    demo: B(true), createdAt: S(createdAt), updatedAt: S(updatedAt),
+    demo: B(true), intakeSource: S("PHONE"), createdAt: S(createdAt), updatedAt: S(updatedAt),
     gsi1pk: S(`STATUS#${status}`), gsi1sk: S(`${updatedAt}#${id}`),
     gsi2pk: S("RESCUES"), gsi2sk: S(`${updatedAt}#${id}`),
   };

@@ -8,11 +8,11 @@
 
   let { data, children } = $props();
   onMount(initialiseTheme);
-  const isWorkspace = $derived(['/', '/admin', '/documentation'].includes(page.url.pathname));
+  const isWorkspace = $derived(['/', '/admin', '/documentation', '/chats'].includes(page.url.pathname));
 </script>
 
 {#if isWorkspace}
-  <AppTopbar viewer={data.viewer} demoMode={data.demoMode} />
+  <AppTopbar viewer={data.viewer} />
 {/if}
 {@render children()}
 

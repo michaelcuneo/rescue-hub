@@ -4,6 +4,7 @@ import { getHunterDemo, HUNTER_DEMO_ORGANISATION } from '$lib/server/demo';
 import type { RequestHandler } from './$types';
 import { canSeeDesktopRescue } from '../../../../../../core/desktop-dispatch-access';
 import { classifyDispatchCapability, getOrganisationMembershipConfig, memberCanReceiveCapability } from '$lib/server/membership';
+import { listPendingRoutingExceptions } from '$lib/server/pending-routing-exceptions';
 
 // Authenticated desktop snapshot. Subscriptions signal an invalidation; the
 // server enforces organisation boundaries when returning actual rescue data.
@@ -17,11 +18,13 @@ export const GET: RequestHandler = async ({ locals, cookies }) => {
     : user.organisationId;
   if (!organisationId) return json({ error: 'Organisation required.' }, { status: 403 });
   const viewer = { ...user, organisationId };
-  const [rescues, membership] = await Promise.all([
+  const [rescues, membership, routingExceptions] = await Promise.all([
     listAdminRescues(),
-    getOrganisationMembershipConfig(organisationId)
+    getOrganisationMembershipConfig(organisationId),
+    listPendingRoutingExceptions(user)
   ]);
   return json({
+    routingExceptions,
     items: rescues.filter(rescue => canSeeDesktopRescue(
       viewer, rescue,
       memberCanReceiveCapability(

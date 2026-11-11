@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { env } from '$env/dynamic/public';
 	import { australianAnimalNames } from '$lib/data/australian-animals';
+import { reportChannelLabel } from '../../../../core/report-channel';
 		import type { OrganisationMembershipConfig } from '$lib/server/membership';
 	import {
 		Search,
@@ -22,7 +23,8 @@
 		draftLocation,
 		intakeOpen,
 		mapRef,
-		selectedRescue
+		selectedRescue,
+		routingExceptions
 	} from '$lib/stores';
 	import type { RescueItem } from '$lib/stores';
 
@@ -73,6 +75,8 @@
 	let submitError = $state('');
 	let dispatchNotice = $state('');
 	let saving = $state(false);
+	let routeBusy = $state('');
+	let routeError = $state('');
 	let searchTimer: ReturnType<typeof setTimeout> | undefined;
 
 	const token = env.PUBLIC_MAPBOX_ACCESS_TOKEN ?? '';
@@ -100,6 +104,33 @@
 	);
 
 	const selected = $derived($selectedRescue);
+	const unmatchedReports = $derived(
+		tab === 'pending' && userCanDispatch ? $routingExceptions.filter(report => {
+			const query = search.trim().toLowerCase();
+			return !query || [report.animal, report.condition, report.areaLabel, report.routingReason]
+				.filter(Boolean).join(' ').toLowerCase().includes(query);
+		}) : []
+	);
+	async function retryPublicRouting(id: string) {
+		if (routeBusy) return;
+		routeBusy = id; routeError = '';
+		try {
+			const response = await fetch(`/api/dispatch/reports/${encodeURIComponent(id)}/convert`, { method: 'POST' });
+			const result = await response.json() as { rescue?: RescueItem; error?: string };
+			if (!response.ok || !result.rescue) throw new Error(result.error ?? 'Routing has not resolved yet.');
+			routingExceptions.update(items => items.filter(item => item.id !== id));
+			const routed = { ...result.rescue, color: 'd2222d', disabled: false, status: 'PENDING' };
+			data.update(current => ({
+				...current,
+				pending: [routed, ...current.pending.filter(item => item.id !== routed.id)]
+			}));
+			dispatchNotice = 'Public report GPS-routed into Pending. Eligible rescuers have been notified.';
+		} catch (error) {
+			routeError = error instanceof Error ? error.message : 'GPS routing is still unavailable.';
+		} finally {
+			routeBusy = '';
+		}
+	}
 
 	function assigneeName(userId?: string | null) {
 		if (!userId) return null;
@@ -376,7 +407,7 @@
 		<div class="tabs" role="tablist" aria-label="Rescue state">
 			<button class:active={tab === 'pending'} type="button" onclick={() => (tab = 'pending')}>
 				<span>Pending</span>
-				<strong>{$data.pending.length}</strong>
+				<strong>{$data.pending.length + (userCanDispatch ? $routingExceptions.length : 0)}</strong>
 			</button>
 			<button class:active={tab === 'assigned'} type="button" onclick={() => (tab = 'assigned')}>
 				<span>Assigned</span>
@@ -389,6 +420,25 @@
 		</div>
 
 		<div class="rescue-list">
+			{#if tab === 'pending' && unmatchedReports.length}
+				{#each unmatchedReports as report (report.id)}
+					<article class="rescue-card routing-exception" aria-label="Online public report awaiting GPS routing">
+						<span class="rescue-dot state-pending"></span>
+						<div class="rescue-content">
+							<span class="source-label">Online report · Routing exception</span>
+							<strong>{report.animal}</strong>
+							<span class="rescue-injury">{report.condition}</span>
+							<small class="rescue-injury">GPS {report.latitude.toFixed(5)}, {report.longitude.toFixed(5)}</small>
+							<small class="rescue-injury">Awaiting verified operating area; not yet dispatchable.</small>
+							<button class="retry-route" type="button" disabled={Boolean(routeBusy)}
+								onclick={() => void retryPublicRouting(report.id)}>
+								{routeBusy === report.id ? 'Checking GPS…' : 'Retry GPS routing'}
+							</button>
+						</div>
+					</article>
+				{/each}
+			{/if}
+			{#if routeError}<p role="alert" class="dispatch-notice">{routeError}</p>{/if}
 			{#each visibleItems as item (item.id)}
 				<button
 					type="button"
@@ -407,6 +457,7 @@
 							{item.location || 'Location not recorded'}
 						</span>
 						<span class="rescue-injury">{item.injury || 'Condition not recorded'}</span>
+						<span class="source-label">{reportChannelLabel(item)}</span>
 						{#if item.assignedUserId}
 							<span class="rescue-assignment">
 								<strong>{assigneeName(item.assignedUserId)}</strong>
@@ -421,7 +472,7 @@
 					<ChevronRight size={15} class="chevron" />
 				</button>
 			{:else}
-				<div class="empty-list">
+				<div class="empty-list" class:hide-empty={unmatchedReports.length > 0}>
 					<CircleCheck size={26} />
 					<strong>No {tab} rescues</strong>
 					<span>Nothing matches the current filter.</span>
@@ -430,7 +481,7 @@
 		</div>
 
 		<div class="queue-footer">
-			<span><i class="pending"></i>{$data.pending.length} awaiting rescue</span>
+			<span><i class="pending"></i>{$data.pending.length + (userCanDispatch ? $routingExceptions.length : 0)} awaiting dispatch</span>
 			<span><i class="assigned"></i>{$data.assigned.length} assigned</span>
 		</div>
 	</aside>
@@ -446,7 +497,7 @@
 				<X size={15} />
 			</button>
 
-			<p class="detail-kicker">Selected rescue</p>
+			<p class="detail-kicker">Selected rescue · {reportChannelLabel(selected)}</p>
 			<div class="detail-title">
 				<div>
 					<h2>{selected.type}</h2>
@@ -1440,4 +1491,18 @@
 		font-weight: 750; text-transform: uppercase; letter-spacing: .06em; }
 	.rescue-owner-summary strong { color: var(--rh-text); font-size: 14px; }
 	.rescue-owner-summary span { color: var(--rh-muted); font-size: 12px; }
+	.source-label { display: inline-block; width: fit-content; margin-top: 6px;
+		padding: 3px 7px; border: 1px solid var(--rh-border); border-radius: 7px;
+		color: var(--rh-text); background: var(--rh-surface-soft);
+		font-size: 11px; font-weight: 750; }
+	.routing-exception { display: flex; align-items: flex-start; padding: 12px;
+		gap: 10px; border: 1px solid var(--rh-border); border-radius: 10px;
+		background: var(--rh-surface); color: var(--rh-text); }
+	.routing-exception .rescue-content { display: grid; gap: 5px; }
+	.retry-route { width: fit-content; margin-top: 6px; padding: 8px 10px;
+		border: 1px solid var(--rh-border-strong); border-radius: 8px;
+		background: var(--rh-surface-soft); color: var(--rh-text);
+		cursor: pointer; font: inherit; font-weight: 700; }
+	.retry-route:disabled { opacity: .6; cursor: wait; }
+	.empty-list.hide-empty { display: none; }
 </style>

@@ -4,6 +4,7 @@ import { getHunterDemo, HUNTER_DEMO_ORGANISATION } from '$lib/server/demo';
 import { listAdminRescues } from '$lib/server/admin-data';
 import { classifyDispatchCapability, getOrganisationMembershipConfig, memberCanReceiveCapability } from '$lib/server/membership';
 import { canSeeDesktopRescue } from '../../../core/desktop-dispatch-access';
+import { listPendingRoutingExceptions } from '$lib/server/pending-routing-exceptions';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ locals, cookies }) => {
@@ -30,12 +31,14 @@ export const load: PageServerLoad = async ({ locals, cookies }) => {
 	} : locals.user;
 	const canCoordinate = viewer.roles.some(role =>
 		['PLATFORM_ADMIN', 'AUTHORITY_ADMIN', 'ORG_ADMIN', 'DISPATCHER'].includes(role));
-	const [rescueResult, usersResult] = await Promise.allSettled([
+	const [rescueResult, usersResult, exceptionsResult] = await Promise.allSettled([
 		listAdminRescues(),
-		canCoordinate ? listUsers() : Promise.resolve([])
+		canCoordinate ? listUsers() : Promise.resolve([]),
+		listPendingRoutingExceptions(locals.user)
 	]);
 	if (rescueResult.status === 'rejected') console.error('Unable to load rescue queue.', rescueResult.reason);
 	if (usersResult.status === 'rejected') console.error('Unable to load rescue people.', usersResult.reason);
+	if (exceptionsResult.status === 'rejected') console.error('Unable to load routing exceptions.', exceptionsResult.reason);
 	const rescues = rescueResult.status === 'fulfilled' ? rescueResult.value : [];
 	const users = usersResult.status === 'fulfilled' ? usersResult.value : [];
 	const membershipConfig = await getOrganisationMembershipConfig(organisationId ?? HUNTER_DEMO_ORGANISATION);
@@ -50,6 +53,7 @@ export const load: PageServerLoad = async ({ locals, cookies }) => {
         membershipConfig,
 		user: viewer,
 		rescues: visibleRescues,
+		routingExceptions: exceptionsResult.status === 'fulfilled' ? exceptionsResult.value : [],
 		people: organisationId
 			? users.filter((user) => user.organisationId === organisationId)
 			: [],
