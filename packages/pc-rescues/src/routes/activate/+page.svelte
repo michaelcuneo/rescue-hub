@@ -1,7 +1,22 @@
 <script lang="ts">
   import type { ActionData, PageData } from './$types';
+  import { validateInvitationPasswordConfirmation } from '../../../../core/invitation-password';
   let { data, form }: { data: PageData; form?: ActionData } = $props();
   let visible = $state(false);
+  let password = $state('');
+  let confirmation = $state('');
+  let confirmationTouched = $state(false);
+  let submissionAttempted = $state(false);
+  const confirmationError = $derived(validateInvitationPasswordConfirmation(password, confirmation));
+  const showConfirmationError = $derived(Boolean(confirmationError) && (confirmationTouched || submissionAttempted));
+
+  function confirmBeforeSubmit(event: SubmitEvent) {
+    submissionAttempted = true;
+    if (validateInvitationPasswordConfirmation(password, confirmation)) {
+      event.preventDefault();
+      confirmationTouched = true;
+    }
+  }
 </script>
 
 <svelte:head>
@@ -23,16 +38,28 @@
         <span>ORGANISATION</span>
         <strong>{data.invitation.organisationName}</strong>
       </div>
-      <form method="POST">
+      <form method="POST" onsubmit={confirmBeforeSubmit}>
         <label for="password">Make your new password</label>
         <div class="password-row">
           <input id="password" name="password" type={visible ? 'text' : 'password'}
-            autocomplete="new-password" minlength="10" maxlength="256" required
+            bind:value={password} autocomplete="new-password" minlength="10" maxlength="256" required
             aria-describedby="password-hint" />
           <button class="visibility" type="button" onclick={() => visible = !visible}
-            aria-label={visible ? 'Hide password' : 'Show password'}>{visible ? 'Hide' : 'Show'}</button>
+            aria-label={visible ? 'Hide both passwords' : 'Show both passwords'}>{visible ? 'Hide' : 'Show'}</button>
         </div>
         <p id="password-hint" class="hint">At least 10 characters. You can use a password manager.</p>
+
+        <label for="confirm-password">Enter your password again</label>
+        <input id="confirm-password" name="confirmPassword" type={visible ? 'text' : 'password'}
+          bind:value={confirmation} autocomplete="new-password" minlength="10" maxlength="256" required
+          onblur={() => confirmationTouched = true}
+          aria-invalid={showConfirmationError}
+          aria-describedby="password-confirm-hint" />
+        {#if showConfirmationError}
+          <p id="password-confirm-hint" class="error" role="alert">{confirmationError}</p>
+        {:else}
+          <p id="password-confirm-hint" class="hint">Both passwords must match exactly.</p>
+        {/if}
         {#if form?.error}<p role="alert" class="error">{form.error}</p>{/if}
         <button class="primary" type="submit">Set password and enter {data.invitation.organisationName}</button>
       </form>
@@ -66,6 +93,7 @@
   button{font:inherit;cursor:pointer}
   .visibility{border:1px solid var(--rh-t203, #bdcec3);background:var(--rh-t186, white);border-radius:9px;padding:0 14px;font-weight:750}
   .hint{font-size:12px;color:var(--rh-t204, #5e7265);margin:0}
+  input[aria-invalid='true']{border-color:var(--rh-t205, #982e2e);border-width:2px}
   .primary{display:block;margin-top:12px;width:100%;box-sizing:border-box;border:0;border-radius:10px;background:#173d2c;color:#fff;padding:15px 17px;font-size:14px;font-weight:800;text-align:center}
   .link{text-decoration:none}
   .error{margin:0;color:var(--rh-t205, #982e2e);background:var(--rh-t190, #fff0ed);padding:12px;border-radius:9px;font-size:13px;line-height:1.5}
