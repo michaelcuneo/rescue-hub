@@ -241,6 +241,11 @@ const hunterTeams = [
   ["reptile-non-venomous","Reptile — non-venomous","REPTILE_NON_VENOMOUS",false],
   ["reptile-venomous","Reptile — venomous","REPTILE_VENOMOUS",false],
   ["bat-flying-fox","Bat & flying fox team","BAT_FLYING_FOX",false],
+  ["amphibian","Native amphibian rescue team","AMPHIBIAN",false],
+  ["invasive","Authorised invasive species response","INVASIVE",false],
+  ["mammal","Native mammal rescue team","MAMMAL",false],
+  ["invertebrate","Invertebrate rescue team","INVERTEBRATE",false],
+  ["non-native","Introduced and domestic animal referral","NON_NATIVE",false],
   ["transport","Transport team","",true]
 ] as const;
 

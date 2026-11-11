@@ -259,7 +259,7 @@ export async function registerDevice(pushToken: string, platform: 'ios' | 'andro
 }
 
 export type RescueFeedDiagnostics = {
-  source: 'appsync' | 'dynamodb-fallback';
+  source: 'appsync' | 'dynamodb-fallback' | 'reconciled';
   organisationRescues: number;
   pendingRescues: number;
   qualifiedPending: number;

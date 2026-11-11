@@ -6,23 +6,15 @@ import {
 	QueryCommand
 } from '@aws-sdk/lib-dynamodb';
 import { Resource } from 'sst';
+import { australianAnimalGroups } from '$lib/data/australian-animals';
+import { classifySpeciesCapability, findCatalogueGroup, matchesSpeciesTeam, type SpeciesCapability } from '../../../../core/dispatch-species';
 
 const db = DynamoDBDocumentClient.from(new DynamoDBClient({}), {
 	marshallOptions: { removeUndefinedValues: true }
 });
 const tableName = Resource.RescueHubData.name;
 
-export type DispatchCapability =
-	| 'BIRD'
-	| 'MACROPOD'
-	| 'POSSUM_GLIDER'
-	| 'WOMBAT'
-	| 'REPTILE_NON_VENOMOUS'
-	| 'REPTILE_VENOMOUS'
-	| 'BAT_FLYING_FOX'
-	| 'RAPTOR'
-	| 'MARINE'
-	| 'OTHER';
+export type DispatchCapability = SpeciesCapability;
 
 export type MembershipTypeDefinition = {
 	id: string;
@@ -154,6 +146,46 @@ export const STANDARD_TEAMS: TeamDefinition[] = [
 		active: true
 	},
 	{
+		id: 'amphibian',
+		name: 'Native amphibian rescue',
+		description: 'Frogs and native amphibians; not invasive cane toads.',
+		capabilityCode: 'AMPHIBIAN',
+		receivesAllRescues: false,
+		active: true
+	},
+	{
+		id: 'invasive',
+		name: 'Authorised invasive species response',
+		description: 'Separate specialist pathway for cane toads and invasive wildlife reports; not general native rescue.',
+		capabilityCode: 'INVASIVE',
+		receivesAllRescues: false,
+		active: true
+	},
+	{
+		id: 'mammal',
+		name: 'Other native mammal rescue',
+		description: 'Native mammals not already covered by specialist macropod, possum or wombat teams.',
+		capabilityCode: 'MAMMAL',
+		receivesAllRescues: false,
+		active: true
+	},
+	{
+		id: 'invertebrate',
+		name: 'Invertebrate rescue',
+		description: 'Specialist invertebrate response.',
+		capabilityCode: 'INVERTEBRATE',
+		receivesAllRescues: false,
+		active: true
+	},
+	{
+		id: 'non-native',
+		name: 'Domestic and introduced animal triage',
+		description: 'Specialist referral for domestic and non-native animals, separate from native wildlife rehabilitation.',
+		capabilityCode: 'NON_NATIVE',
+		receivesAllRescues: false,
+		active: true
+	},
+	{
 		id: 'transport',
 		name: 'Transport',
 		description: 'Transport volunteers may be notified for any rescue requiring movement.',
@@ -202,32 +234,14 @@ export async function getOrganisationMembershipConfig(
 }
 
 export function classifyDispatchCapability(type: string, breed = ''): DispatchCapability {
-	const value = `${type} ${breed}`.toLowerCase();
-
-	if (/eagle|hawk|falcon|kite|owl|raptor/.test(value)) return 'RAPTOR';
-	if (/flying fox|flying-fox|microbat|\bbat\b/.test(value)) return 'BAT_FLYING_FOX';
-	if (/kangaroo|wallaby|pademelon|wallaroo/.test(value)) return 'MACROPOD';
-	if (/possum|glider/.test(value)) return 'POSSUM_GLIDER';
-	if (/wombat/.test(value)) return 'WOMBAT';
-	if (/brown snake|red[- ]bellied|tiger snake|death adder|taipan|venomous/.test(value)) {
-		return 'REPTILE_VENOMOUS';
-	}
-	if (/snake|lizard|blue[- ]?tongue|dragon|skink|gecko|python/.test(value)) {
-		return 'REPTILE_NON_VENOMOUS';
-	}
-	if (/turtle|sea snake|seal|dolphin|whale|marine/.test(value)) return 'MARINE';
-	if (/bird|magpie|lorikeet|kookaburra|pelican|frogmouth|duck|cockatoo|galah|ibis/.test(value)) {
-		return 'BIRD';
-	}
-
-	return 'OTHER';
+	const catalogueGroup = findCatalogueGroup(type, breed, australianAnimalGroups);
+	return classifySpeciesCapability(type, breed, catalogueGroup);
 }
 
-export function teamMatchesCapability(
-	team: TeamDefinition,
-	capability: DispatchCapability
-) {
-	return team.active && (team.receivesAllRescues || team.capabilityCode === capability);
+export function teamMatchesCapability(team: TeamDefinition, capability: DispatchCapability) {
+	// The transport group is NOT a universal species accreditation.
+	// Transport jobs have a separate transport membership/claim pathway.
+	return matchesSpeciesTeam(team, capability);
 }
 
 export function memberCanReceiveCapability(
