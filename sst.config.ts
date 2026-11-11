@@ -36,6 +36,8 @@ export default $config({
       link: [graphql, realtimeLink, data, mailFrom],
       environment: {
         PUBLIC_MAPBOX_ACCESS_TOKEN: process.env.PUBLIC_MAPBOX_ACCESS_TOKEN ?? "",
+        // Trusted website origin for single-use organisation invitation links.
+        RESCUE_HUB_PUBLIC_ORIGIN: process.env.RESCUE_HUB_PUBLIC_ORIGIN ?? ($app.stage === "demo" ? "https://rescue.michaelcuneo.com.au" : ""),
         // Server-side OAuth credentials; these are never PUBLIC_ variables.
         GOOGLE_OAUTH_CLIENT_ID: process.env.GOOGLE_OAUTH_CLIENT_ID ?? "",
         GOOGLE_OAUTH_CLIENT_SECRET: process.env.GOOGLE_OAUTH_CLIENT_SECRET ?? "",
