@@ -14,7 +14,7 @@ export function invitationEmailLabel(status:InvitationEmailStatus|null|undefined
   }
 }
 export function deliveryEventState(eventType:string):InvitationEmailStatus|null {
-  const k=eventType.toUpperCase();
+  const k=eventType.toUpperCase().replace(/[\s-]+/g,'_');
   switch(k) {
     case 'DELIVERY':return 'DELIVERED';
     case 'BOUNCE':return 'BOUNCED';

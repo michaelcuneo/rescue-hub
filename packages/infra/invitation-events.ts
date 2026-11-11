@@ -1,4 +1,4 @@
-import type { EventBridgeEvent } from 'aws-lambda';
+type EventBridgeEvent<T> = { detail: T };
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, GetCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
 import { Resource } from 'sst';
@@ -10,7 +10,7 @@ const firstTag=(detail:SesDetail,name:string)=>detail.mail?.tags?.[name]?.[0] ??
 /** SES EventBridge events are trusted only after matching user, active attempt,
  * original email and SES message ID. Never log the secure invitation URL.
  */
-export async function handler(event:EventBridgeEvent<string,SesDetail>) {
+export async function handler(event:EventBridgeEvent<SesDetail>) {
   const detail=event.detail;
   const state=deliveryEventState(detail?.eventType??'');
   if (!state || firstTag(detail,'rescueHubPurpose')!=='organisation-invitation')return;
