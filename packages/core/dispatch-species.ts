@@ -66,3 +66,11 @@ export function findCatalogueGroup(
   }
   return '';
 }
+
+/** A transport team is not proof of animal-handling accreditation. */
+export function matchesSpeciesTeam(
+  team: { active: boolean; receivesAllRescues: boolean; capabilityCode?: SpeciesCapability },
+  capability: SpeciesCapability
+): boolean {
+  return team.active && !team.receivesAllRescues && team.capabilityCode === capability;
+}

@@ -7,7 +7,7 @@ import {
 } from '@aws-sdk/lib-dynamodb';
 import { Resource } from 'sst';
 import { australianAnimalGroups } from '$lib/data/australian-animals';
-import { classifySpeciesCapability, findCatalogueGroup, type SpeciesCapability } from '../../../../core/dispatch-species';
+import { classifySpeciesCapability, findCatalogueGroup, matchesSpeciesTeam, type SpeciesCapability } from '../../../../core/dispatch-species';
 
 const db = DynamoDBDocumentClient.from(new DynamoDBClient({}), {
 	marshallOptions: { removeUndefinedValues: true }
@@ -241,7 +241,7 @@ export function classifyDispatchCapability(type: string, breed = ''): DispatchCa
 export function teamMatchesCapability(team: TeamDefinition, capability: DispatchCapability) {
 	// The transport group is NOT a universal species accreditation.
 	// Transport jobs have a separate transport membership/claim pathway.
-	return team.active && !team.receivesAllRescues && team.capabilityCode === capability;
+	return matchesSpeciesTeam(team, capability);
 }
 
 export function memberCanReceiveCapability(

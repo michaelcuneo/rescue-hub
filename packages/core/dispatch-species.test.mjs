@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { classifySpeciesCapability, findCatalogueGroup } from './dispatch-species.ts';
+import { classifySpeciesCapability, findCatalogueGroup, matchesSpeciesTeam } from './dispatch-species.ts';
 
 test('cane toad is invasive amphibian, not a reptile or generic rescue', () => {
   assert.equal(classifySpeciesCapability('Cane toad', '', 'Amphibians'), 'INVASIVE');
@@ -26,4 +26,11 @@ test('specific breed matches a catalogued animal despite generic type', () => {
   const catalogue = { Amphibians:['Cane toad','Green tree frog'], Reptiles:['Water dragon'] };
   assert.equal(findCatalogueGroup('Reptiles','Cane toad',catalogue),'Amphibians');
   assert.equal(findCatalogueGroup('Cane toad','',catalogue),'Amphibians');
+});
+
+test('transport and generic teams cannot accept invasive or unclassified species by default', () => {
+  assert.equal(matchesSpeciesTeam({ active:true, receivesAllRescues:true }, 'INVASIVE'), false);
+  assert.equal(matchesSpeciesTeam({ active:true, receivesAllRescues:false, capabilityCode:'REPTILE_NON_VENOMOUS' }, 'INVASIVE'), false);
+  assert.equal(matchesSpeciesTeam({ active:true, receivesAllRescues:false, capabilityCode:'INVASIVE' }, 'INVASIVE'), true);
+  assert.equal(matchesSpeciesTeam({ active:false, receivesAllRescues:false, capabilityCode:'INVASIVE' }, 'INVASIVE'), false);
 });
