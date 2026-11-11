@@ -125,7 +125,7 @@
     --dispatch-areas-width: clamp(240px, 22vw, 285px);
     position: relative;
     min-height: 100dvh;
-    background:var(--rh-t183, #edf2ee);
+    background:var(--rh-background);
   }
 
   @media (max-width: 900px) {

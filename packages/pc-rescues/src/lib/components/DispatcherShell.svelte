@@ -1,8 +1,7 @@
 <script lang="ts">
 	import { env } from '$env/dynamic/public';
 	import { australianAnimalNames } from '$lib/data/australian-animals';
-	import ThemeSwitcher from '$lib/components/ThemeSwitcher.svelte';
-	import type { OrganisationMembershipConfig } from '$lib/server/membership';
+		import type { OrganisationMembershipConfig } from '$lib/server/membership';
 	import {
 		Search,
 		Plus,
@@ -44,21 +43,6 @@
 		};
 	} = $props();
 
-	const userInitials = $derived(
-		user.name
-			.split(/\s+/)
-			.filter(Boolean)
-			.slice(0, 2)
-			.map((part) => part[0]?.toUpperCase() ?? '')
-			.join('') || '?'
-	);
-
-	const userRole = $derived(user.roles[0]?.replaceAll('_', ' ') ?? 'Member');
-	const userCanAdmin = $derived(
-		user.roles.some((role) =>
-			['PLATFORM_ADMIN', 'AUTHORITY_ADMIN', 'ORG_ADMIN'].includes(role)
-		)
-	);
 	const userCanDispatch = $derived(
 		user.roles.some((role) =>
 			['PLATFORM_ADMIN', 'AUTHORITY_ADMIN', 'ORG_ADMIN', 'DISPATCHER'].includes(role)
@@ -334,63 +318,13 @@
 </script>
 
 <div class="dispatcher-shell">
-	<header class="topbar">
-		<div class="organisation">
-			<div class="logo">RH</div>
-			<div>
-				<strong>Hunter Wildlife Rescue</strong>
-				<span>Newcastle / Hunter</span>
-			</div>
-		</div>
-
-		<div class="topbar-actions">
-			<span class:offline={!backendOnline} class="backend-state">
-				<i></i>{backendOnline ? 'Connected' : 'Unavailable'}
-			</span>
-
-			<button
-				type="button"
-				class:available={$available}
-				class="availability"
-				onclick={() => ($available = !$available)}
-			>
-				<Radio size={14} />
-				{$available ? 'Available' : 'Unavailable'}
-			</button>
-
-			<ThemeSwitcher compact />
-			<div class="user">
-				<span>{userInitials}</span>
-				<div>
-					<strong>{user.name}</strong>
-					<small>{userRole}</small>
-				</div>
-			</div>
-			<a class="session-link" href="/documentation">Guides</a>
-			<a class="session-link" href="/chats">Chats</a>
-			{#if user.roles.includes('CARER')}
-				<a class="session-link" href="/care-offers">Care offers</a>
-			{/if}
-			{#if demoMode || user.roles.some((role) => ['PLATFORM_ADMIN', 'AUTHORITY_ADMIN'].includes(role))}
-				<a class="session-link" href="/reports">Public reports</a>
-			{/if}
-			{#if demoMode}
-				<a class="session-link" href="/demo/exit">Leave Hunter workspace</a>
-			{:else if userCanAdmin}
-				<a class="session-link" href="/admin">Admin</a>
-			{/if}
-			<form method="POST" action="/logout" class="logout-form">
-				<button class="session-link" type="submit">Sign out</button>
-			</form>
-		</div>
-	</header>
-
 	<aside class="queue">
 		<div class="queue-heading">
 			<div>
 				<p>Dispatch</p>
 				<h1>Rescue queue</h1>
 			</div>
+			<span class:offline={!backendOnline} class="queue-connection" title={backendOnline ? 'Connected to Rescue Hub' : 'Backend unavailable'}>{backendOnline ? 'Connected' : 'Offline'}</span>
 			{#if userCanDispatch}
 				<button class="new-rescue" type="button" onclick={openIntake}>
 					<Plus size={16} />
@@ -399,6 +333,12 @@
 			{/if}
 		</div>
 
+		{#if user.roles.some(role => ['RESCUER', 'CARER'].includes(role))}
+			<button type="button" class:available={$available} class="queue-duty"
+				aria-pressed={$available} onclick={() => ($available = !$available)}>
+				<Radio size={15} aria-hidden="true" /> {$available ? 'Available for rescue' : 'Unavailable for rescue'}
+			</button>
+		{/if}
 		{#if dispatchNotice}
 			<p role="status" class="dispatch-notice">{dispatchNotice}</p>
 		{/if}
@@ -644,161 +584,45 @@
 			Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 	}
 
-	.topbar,
 	.queue,
 	.detail-card,
 	.intake {
 		pointer-events: auto;
 	}
 
-	.topbar {
-		position: absolute;
-		top: 14px;
-		left: 16px;
-		right: 16px;
-		height: 58px;
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		gap: 16px;
-		padding: 8px 10px 8px 12px;
-		border:1px solid rgb(27 62 45 / 0.12);
-		border-radius: 14px;
-		background:rgb(255 255 255 / 0.94);
-		box-shadow: 0 10px 34px rgb(26 54 41 / 0.12);
-		backdrop-filter: blur(14px);
+	.queue-connection {
+		font-size: 11px;
+		color: var(--rh-muted);
+		white-space: nowrap;
 	}
-
-	.organisation,
-	.topbar-actions,
-	.user {
-		display: flex;
-		align-items: center;
-	}
-
-	.organisation {
-		gap: 10px;
-		min-width: 0;
-	}
-
-	.logo {
-		width: 38px;
-		height: 38px;
-		display: grid;
-		place-items: center;
-		border-radius: 10px;
-		background:#173d2c;
-		color:#dff15d;
-		font-size: 14px;
-		font-weight: 900;
-	}
-
-	.organisation strong,
-	.organisation span,
-	.user strong,
-	.user small {
-		display: block;
-	}
-
-	.organisation strong {
-		font-size: 15px;
-	}
-
-	.organisation span {
-		margin-top: 2px;
-		color:var(--rh-t11, #718078);
-		font-size: 12px;
-	}
-
-	.topbar-actions {
-		gap: 8px;
-	}
-
-	.backend-state,
-	.availability {
-		display: inline-flex;
-		align-items: center;
-		gap: 6px;
-		height: 34px;
-		padding: 0 10px;
-		border:1px solid var(--rh-t12, #d9e2dc);
-		border-radius: 9px;
-		background:var(--rh-t13, #f7faf8);
-		font-size: 12px;
-		font-weight: 800;
-	}
-
-	.backend-state i {
+	.queue-connection::before {
+		content: '';
+		display: inline-block;
 		width: 7px;
 		height: 7px;
+		margin-right: 6px;
 		border-radius: 50%;
-		background:#45a663;
-		box-shadow: 0 0 0 3px rgb(69 166 99 / 0.12);
+		background: #238453;
 	}
-
-	.backend-state.offline i {
-		background:#c89a33;
-		box-shadow: 0 0 0 3px rgb(200 154 51 / 0.12);
-	}
-
-	.availability {
-		border-color:var(--rh-t14, #d6dfda);
-		color:var(--rh-t15, #5b6861);
-		cursor: pointer;
-	}
-
-	.availability.available {
-		border-color:var(--rh-t16, #b9d7c4);
-		background:var(--rh-t17, #eef8f1);
-		color:var(--rh-t18, #286740);
-	}
-
-	.user {
-		gap: 8px;
-		padding-left: 4px;
-	}
-
-	.session-link {
-		display: inline-flex;
+	.queue-connection.offline::before { background: #c58433; }
+	.queue-duty {
+		display: flex;
 		align-items: center;
 		justify-content: center;
-		height: 34px;
-		padding: 0 9px;
-		border:1px solid var(--rh-t12, #d9e2dc);
+		gap: 8px;
+		margin: 0 16px 10px;
+		min-height: 34px;
+		padding: 8px 10px;
+		border: 1px solid var(--rh-border);
 		border-radius: 9px;
-		background:var(--rh-t5, #fff);
-		color:var(--rh-t19, #3f5549);
+		background: var(--rh-surface-soft);
+		color: var(--rh-text);
 		font-size: 12px;
-		font-weight: 800;
-		text-decoration: none;
+		font-weight: 750;
 		cursor: pointer;
 	}
-
-	.logout-form {
-		margin: 0;
-	}
-
-	.user > span {
-		width: 34px;
-		height: 34px;
-		display: grid;
-		place-items: center;
-		border-radius: 50%;
-		background:var(--rh-t20, #dfe9e2);
-		color:var(--rh-t3, #173d2c);
-		font-size: 12px;
-		font-weight: 900;
-	}
-
-	.user strong {
-		font-size: 13px;
-	}
-
-	.user small {
-		margin-top: 1px;
-		color:var(--rh-t21, #7b8780);
-		font-size: 12px;
-	}
+	.queue-duty.available { color: var(--rh-text); background: var(--rh-accent-soft); }
+	.queue-duty :global(svg) { color: var(--rh-accent); }
 
 	.queue {
 		position: absolute;
@@ -1513,30 +1337,12 @@
 	}
 
 	@media (max-width: 900px) {
-		.user div {
-			display: none;
-		}
-
-		.backend-state {
-			display: none;
-		}
-
 		.queue {
 			width: var(--dispatch-queue-width, 330px);
 		}
 	}
 
 	@media (max-width: 700px) {
-		.topbar {
-			left: 10px;
-			right: 10px;
-		}
-
-		.organisation span,
-		.availability {
-			display: none;
-		}
-
 		.queue {
 			top: auto;
 			right: 10px;
@@ -1556,5 +1362,30 @@
 			bottom: 10px;
 			width: calc(100vw - 20px);
 		}
+	}
+
+	/* Neutral panel materials: no translucent white or green-on-green surfaces. */
+	.dispatcher-shell { color: var(--rh-text); }
+	.queue, .detail-card, .intake {
+		background: var(--rh-surface);
+		color: var(--rh-text);
+		border: 1px solid var(--rh-border);
+		box-shadow: var(--rh-shadow);
+	}
+	.intake > header { background: var(--rh-surface); color: var(--rh-text); }
+	.queue-footer, .queue-search, .tabs, .detail-location, .detail-status {
+		background: var(--rh-surface-soft);
+	}
+	.rescue-card { color: var(--rh-text); }
+	.rescue-card:hover, .rescue-card.selected, .tabs button.active {
+		background: var(--rh-raised);
+		border-color: var(--rh-border-strong);
+		color: var(--rh-text);
+	}
+	.new-rescue, .detail-actions .primary, .intake footer .create {
+		background: var(--rh-primary); color: var(--rh-on-primary); border-color: var(--rh-primary);
+	}
+	.new-rescue:hover, .detail-actions .primary:hover, .intake footer .create:hover {
+		background: var(--rh-primary-hover);
 	}
 </style>
