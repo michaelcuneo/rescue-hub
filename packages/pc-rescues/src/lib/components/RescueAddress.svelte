@@ -12,8 +12,6 @@
     address: string | null; precision: AddressPrecision;
     location: string; coordinates: string; directionsUrl: string | null;
   };
-  const resolved = new Map<string, Lookup>();
-  const inflight = new Map<string, Promise<Lookup | null>>();
   let address = $state<Lookup | null>(null);
   let loading = $state(true);
   const key = $derived(`${id}:${latitude}:${longitude}`);
@@ -21,25 +19,19 @@
   const gps = $derived(formatRescueCoordinates({ latitude, longitude }));
 
   async function lookup(id: string, key: string): Promise<Lookup | null> {
-    if (resolved.has(key)) return resolved.get(key)!;
-    if (inflight.has(key)) return inflight.get(key)!;
-    const request = fetch(`/api/mobile/rescues/${encodeURIComponent(id)}/address`, {
+    return fetch(`/api/mobile/rescues/${encodeURIComponent(id)}/address`, {
       cache: 'no-store'
     }).then(async response => {
       if (!response.ok) return null;
-      const result = await response.json() as Lookup;
-      resolved.set(key, result);
-      return result;
-    }).catch(() => null).finally(() => inflight.delete(key));
-    inflight.set(key, request);
-    return request;
+      return await response.json() as Lookup;
+    }).catch(() => null);
   }
 
   $effect(() => {
     let disposed = false;
     const lookupKey = key, lookupId = id;
-    address = resolved.get(lookupKey) ?? null;
-    loading = !address;
+    address = null;
+    loading = true;
     void lookup(lookupId, lookupKey).then(result => {
       if (disposed) return;
       address = result;

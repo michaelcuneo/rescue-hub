@@ -11,45 +11,27 @@ type Props = {
   location?: string | null; showDirections?: boolean; compact?: boolean;
 };
 
-// Temporary in-memory lookup cache, deliberately not persisted; coordinate
-// navigation remains available even while Mapbox reverse geocoding is offline.
-const resolved = new Map<string, RescueAddressResult>();
-const inFlight = new Map<string, Promise<RescueAddressResult | null>>();
-const keyFor = (id: string, latitude: number, longitude: number) =>
-  `${id}:${latitude.toFixed(6)}:${longitude.toFixed(6)}`;
-
-async function fetchAddress(id: string, key: string) {
-  if (resolved.has(key)) return resolved.get(key)!;
-  if (inFlight.has(key)) return inFlight.get(key)!;
-  const request = getRescueAddress(id).then(value => {
-    if (resolved.size >= 250) resolved.delete(resolved.keys().next().value!);
-    resolved.set(key, value);
-    return value;
-  }).catch(() => null).finally(() => inFlight.delete(key));
-  inFlight.set(key, request);
-  return request;
-}
+// Mapbox temporary results remain only in mounted view state, never cached.
 
 export default function RescueAddress({
   id, latitude, longitude, location, compact = false, showDirections = false
 }: Props) {
-  const key = keyFor(id, latitude, longitude);
-  const [value, setValue] = useState<RescueAddressResult | null>(resolved.get(key) ?? null);
-  const [loading, setLoading] = useState(!resolved.has(key));
+  const [value, setValue] = useState<RescueAddressResult | null>(null);
+  const [loading, setLoading] = useState(true);
   const fallback = locationFallback(location);
   const directions = rescueDirectionsUrl({ latitude, longitude });
 
   useEffect(() => {
     let active = true;
-    setValue(resolved.get(key) ?? null);
-    setLoading(!resolved.has(key));
-    void fetchAddress(id, key).then(result => {
+    setValue(null);
+    setLoading(true);
+    void getRescueAddress(id).catch(() => null).then(result => {
       if (!active) return;
       setValue(result);
       setLoading(false);
     });
     return () => { active = false; };
-  }, [id, key]);
+  }, [id, latitude, longitude]);
 
   return <View style={styles.wrapper}>
     <Text style={styles.address} accessibilityLabel="Mapped rescue location">
