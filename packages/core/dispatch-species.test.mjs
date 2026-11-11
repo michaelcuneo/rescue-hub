@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { classifySpeciesCapability, findCatalogueGroup, matchesSpeciesTeam } from './dispatch-species.ts';
+import { australianAnimalGroups } from '../pc-rescues/src/lib/data/australian-animals.ts';
 
 test('cane toad is invasive amphibian, not a reptile or generic rescue', () => {
   assert.equal(classifySpeciesCapability('Cane toad', '', 'Amphibians'), 'INVASIVE');
@@ -33,4 +34,14 @@ test('transport and generic teams cannot accept invasive or unclassified species
   assert.equal(matchesSpeciesTeam({ active:true, receivesAllRescues:false, capabilityCode:'REPTILE_NON_VENOMOUS' }, 'INVASIVE'), false);
   assert.equal(matchesSpeciesTeam({ active:true, receivesAllRescues:false, capabilityCode:'INVASIVE' }, 'INVASIVE'), true);
   assert.equal(matchesSpeciesTeam({ active:false, receivesAllRescues:false, capabilityCode:'INVASIVE' }, 'INVASIVE'), false);
+});
+
+test('every named Australian animal in the intake catalogue has a dispatch category', () => {
+  for (const [group, animals] of Object.entries(australianAnimalGroups)) {
+    for (const species of animals) {
+      const matchedGroup = findCatalogueGroup(species, '', australianAnimalGroups);
+      assert.equal(matchedGroup, group, species);
+      assert.notEqual(classifySpeciesCapability(species, '', matchedGroup), 'OTHER', species);
+    }
+  }
 });
