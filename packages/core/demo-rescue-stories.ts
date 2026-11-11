@@ -353,6 +353,19 @@ export type DemoBuiltStory = {
 
 const HUNTER_ORG = 'native-animal-trust-fund';
 const DISPATCHER_ID = 'demo-hunter-alex-mercer';
+const DEMO_NAMES: Record<string,string> = {
+  'demo-hunter-priya-shah': 'Priya Shah',
+  'demo-hunter-alex-mercer': 'Alex Mercer',
+  'demo-hunter-jordan-blake': 'Jordan Blake',
+  'demo-hunter-sam-nguyen': 'Sam Nguyen',
+  'demo-hunter-casey-morgan': 'Casey Morgan',
+  'demo-hunter-taylor-brooks': 'Taylor Brooks',
+  'demo-hunter-riley-chen': 'Riley Chen',
+  'demo-hunter-jamie-foster': 'Jamie Foster',
+  'demo-hunter-erin-walsh': 'Erin Walsh',
+  'demo-hunter-dana-price': 'Dana Price'
+};
+const demoName = (userId: string) => DEMO_NAMES[userId] ?? 'Rescue Hub volunteer';
 const isoAt = (start: string, hours: number) =>
   new Date(Date.parse(start) + hours * 3_600_000).toISOString();
 const stableUuid = (prefix: 'a' | 'b', incidentNumber: string, ordinal = 0) =>
@@ -396,7 +409,7 @@ export function buildHunterDemoStory(rescue: DemoStoryCase): DemoBuiltStory | nu
     id: animalId, rescueId: rescue.id, organisationId: HUNTER_ORG,
     species: rescue.breed || rescue.type,
     description: `Fictional ${rescue.type.toLowerCase()} record — ${rescue.location}. Source report: ${rescue.breed}.`,
-    status: story.status, currentCustodianUserId: custodianId,
+    status: story.status, currentCustodianUserId: custodianId, currentCustodianName: demoName(custodianId),
     currentLocation: location, version: 1 + story.beats.length,
     createdAt: animalCreatedAt, updatedAt,
     gsi2pk: `RESCUE_ANIMALS#${rescue.id}`, gsi2sk: `${animalCreatedAt}#${animalId}`,
@@ -411,13 +424,14 @@ export function buildHunterDemoStory(rescue: DemoStoryCase): DemoBuiltStory | nu
       pk: `ANIMAL#${animalId}`, sk: `EVENT#${at}#${stableUuid('b', number, ordinal)}`,
       id: stableUuid('b', number, ordinal), entity: 'animal_event', animalId,
       organisationId: HUNTER_ORG, type, notes, actorUserId,
+      actorName: demoName(actorUserId),
       createdAt: at, occurredAt: at, demo: true
     });
 
   let ordinal = 1;
   const events: DemoStoryItem[] = [
     { ...baseEvent(ordinal++, animalCreatedAt, 'ANIMAL_REGISTERED',
-      'Animal registered in Rescue Hub by the assigned responder.', rescue.assignedUserId),
+      `Animal collected and registered by ${demoName(rescue.assignedUserId)}. Record linked to the original dispatch assignment.`, rescue.assignedUserId),
       source: 'DIRECT' }
   ];
 
@@ -427,6 +441,7 @@ export function buildHunterDemoStory(rescue: DemoStoryCase): DemoBuiltStory | nu
       events.push({
         ...baseEvent(ordinal++, at, 'PHONE_UPDATE', beat.notes, DISPATCHER_ID),
         source: 'PHONE', callerName: beat.callerName!, callerRole: beat.callerRole!,
+        recordedByName: demoName(DISPATCHER_ID),
         callbackPermitted: false, requestTransport: false,
         ...(beat.finalOutcome ? { finalOutcome: beat.finalOutcome } : {})
       });

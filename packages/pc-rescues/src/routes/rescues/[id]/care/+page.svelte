@@ -3,8 +3,8 @@
   import { env } from '$env/dynamic/public';
   import type { PageData } from './$types';
   let { data }: { data: PageData } = $props();
-  type Animal = { id: string; species: string; status: string; currentCustodianUserId?: string; currentLocation?: string; pendingTransferId?: string; activeTransportRescueId?: string };
-  type Event = { id: string; type: string; notes?: string; actorUserId?: string; createdAt: string; occurredAt?: string; reportedByName?: string; source?: string };
+  type Animal = { id: string; species: string; status: string; currentCustodianUserId?: string; currentCustodianName?: string; currentLocation?: string; pendingTransferId?: string; activeTransportRescueId?: string };
+  type Event = { id: string; type: string; notes?: string; actorUserId?: string; actorName?: string; createdAt: string; occurredAt?: string; reportedByName?: string; source?: string };
   let animals = $state<Animal[]>([]);
   let selected = $state<Animal | null>(null);
   let events = $state<Event[]>([]);
@@ -15,7 +15,7 @@
   let correctedSpecies = $state('');
   let correctedDescription = $state('');
   let note = $state('');
-  type PhoneEvent = { id: string; callerName: string; callerRole: string; notes: string; finalOutcome?: string; callbackPermitted?: boolean; callbackPhone?: string; createdAt: string; actorUserId: string; transportRescueId?: string };
+  type PhoneEvent = { id: string; callerName: string; callerRole: string; notes: string; finalOutcome?: string; callbackPermitted?: boolean; callbackPhone?: string; createdAt: string; actorUserId: string; recordedByName?: string; transportRescueId?: string };
   let phoneEvents = $state<PhoneEvent[]>([]);
   let phoneCaller = $state('');
   let phoneRole = $state('VET');
@@ -214,7 +214,7 @@
     <section class="panel">
       {#if selected}
         <div class="record-head"><div><p class="eyebrow">PERMANENT ANIMAL RECORD</p><h2>{selected.species}</h2></div><span class="tag">{selected.status.replaceAll('_', ' ')}</span></div>
-        <dl><div><dt>Custodian</dt><dd>{isCustodian ? 'You' : selected.currentCustodianUserId || 'Not recorded'}</dd></div><div><dt>Location</dt><dd>{selected.currentLocation || 'Not recorded'}</dd></div></dl>
+        <dl><div><dt>Custodian</dt><dd>{isCustodian ? 'You' : selected.currentCustodianName || selected.currentCustodianUserId || 'Not recorded'}</dd></div><div><dt>Location</dt><dd>{selected.currentLocation || 'Not recorded'}</dd></div></dl>
         {#if selected.pendingTransferId}<p class="notice">Custody handover awaiting acknowledgement.</p>{/if}
         {#if !final && (isCustodian || canCoordinate)}
           <form onsubmit={(e) => { e.preventDefault(); void submit(async () => {
@@ -297,7 +297,7 @@
         <ol class="timeline" aria-label="Animal phone update history">
           {#each phoneEvents as call (call.id)}
             <li><strong>Phone call: {call.callerName} ({call.callerRole.toLowerCase()})</strong>
-              <small>{new Date(call.createdAt).toLocaleString('en-AU')} · Recorded by {call.actorUserId}</small>
+              <small>{new Date(call.createdAt).toLocaleString('en-AU')} · Recorded by {call.recordedByName || call.actorUserId}</small>
               <p>{call.notes}</p>
               {#if call.finalOutcome}<p><strong>Veterinary-reported final outcome: {call.finalOutcome.replaceAll('_',' ')}</strong></p>{/if}
               {#if call.transportRescueId}<p><strong>Transport offered to volunteers</strong> · <a href="/rescues/{call.transportRescueId}/care">View transport job</a></p>{/if}
@@ -308,7 +308,7 @@
         <h3>Care timeline</h3>
         <ol class="timeline">
           {#each events.filter(event => event.type !== 'PHONE_UPDATE') as event (event.id)}
-            <li><strong>{event.type.replaceAll('_', ' ')}</strong><small>{new Date(event.occurredAt || event.createdAt).toLocaleString()}</small>{#if event.notes}<p>{event.notes}</p>{/if}{#if event.source}<small>Source: {event.source} · {event.reportedByName || 'Not specified'}</small>{/if}</li>
+            <li><strong>{event.type.replaceAll('_', ' ')}</strong><small>{new Date(event.occurredAt || event.createdAt).toLocaleString('en-AU')}{#if event.actorName} · {event.actorName}{/if}</small>{#if event.notes}<p>{event.notes}</p>{/if}{#if event.source}<small>Source: {event.source} · {event.reportedByName || 'Not specified'}</small>{/if}</li>
           {/each}
         </ol>
         {#if !final}
