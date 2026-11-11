@@ -21,6 +21,26 @@ The backend is SST-native on AWS:
 
 Amplify is not part of the backend architecture.
 
+## User-facing documentation centre
+
+The SvelteKit application serves a responsive documentation centre at
+`/documentation`, linked from both Administration and the dispatcher header.
+
+- **Public overview and project status:** Share `/documentation` or
+  `/documentation?guide=readiness` with stakeholders. No login is required.
+- **Staff guides:** Administrators, dispatchers, rescuers, carers, transport
+  volunteers, communications and animal records. These guides are accessible
+  only to authenticated, active Rescue Hub staff accounts.
+- **Administrator guidance:** Restricted to platform, authority and
+  organisation administrators.
+- Content is maintained in
+  `packages/pc-rescues/src/lib/documentation/guides.ts`. The page includes
+  a role guide index, section navigation and explicit readiness limitations.
+
+The guide explains *current implementation*, not blanket production approval:
+the live AWS stage, native push delivery, device behaviours, GIS boundaries
+and official NPWS/DCCEEW exports need their own verification.
+
 ## Product documentation
 
 The product direction is documented here:
