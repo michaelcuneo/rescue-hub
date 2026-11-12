@@ -1,6 +1,6 @@
 import ReporterConversation from './ReporterConversation';
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Linking, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import * as Location from 'expo-location';
 import { KeyboardAwareScrollView, KeyboardAwareTextInput } from './KeyboardAware';
 import RescueAddress from './RescueAddress';
@@ -18,6 +18,7 @@ const terminal = new Set<string>(outcomes);
 
 export default function AnimalCare({ rescue, userId, roles, onBack, onUnclaim }: Props) {
   const [conversationOpen, setConversationOpen] = useState(false);
+  const [pickerMode, setPickerMode] = useState<'destination' | 'carer' | null>(null);
   const [nextStep, setNextStep] = useState<'VET' | 'CARER' | 'SELF' | 'RELEASE'>('VET');
   const [guideAnimalId, setGuideAnimalId] = useState<string | null>(null);
   const [guideStatus, setGuideStatus] = useState<string | null>(null);
@@ -257,6 +258,37 @@ export default function AnimalCare({ rescue, userId, roles, onBack, onUnclaim }:
 
   return (
     <KeyboardAwareScrollView style={styles.root} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      <Modal visible={pickerMode !== null} transparent animationType="fade"
+        onRequestClose={() => setPickerMode(null)}>
+        <View style={styles.modalScrim}>
+          <View style={styles.modalCard}>
+            <Text style={styles.quickTitle}>{pickerMode === 'carer' ? 'Receiving carer' : 'What happens next?'}</Text>
+            <ScrollView style={{ maxHeight: 360 }}>
+              {pickerMode === 'destination' ? ([
+                { value: 'VET', label: 'Take to veterinary clinic' },
+                { value: 'CARER', label: 'Transfer to another carer' },
+                ...(roles.includes('CARER') ? [{ value: 'SELF', label: 'Care for it myself' }] : []),
+                { value: 'RELEASE', label: 'Release into the wild / relocate' }
+              ] as const).map(option => (
+                <Pressable key={option.value} style={styles.modalOption} accessibilityRole="button"
+                  onPress={() => { setNextStep(option.value); setPickerMode(null); }}>
+                  <Text style={styles.dropdownText}>{option.label}</Text>
+                </Pressable>
+              )) : carers.map(carer => (
+                <Pressable key={carer.id} style={styles.modalOption} accessibilityRole="button"
+                  onPress={() => { setCarerId(carer.id); setPickerMode(null); }}>
+                  <Text style={styles.dropdownText}>{carer.name}</Text>
+                </Pressable>
+              ))}
+              {pickerMode === 'carer' && !carers.length ? <Text style={styles.muted}>No eligible carers are currently available.</Text> : null}
+            </ScrollView>
+            <Pressable style={styles.secondaryButton} accessibilityRole="button"
+              onPress={() => setPickerMode(null)}>
+              <Text style={styles.secondaryButtonText}>Cancel</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
       <Pressable onPress={selected ? () => { setSelected(null); setEvents([]); setError(''); } : onBack}>
         <Text style={styles.link}>‹ {selected ? 'All animals' : 'Rescues'}</Text>
       </Pressable>
@@ -332,13 +364,7 @@ export default function AnimalCare({ rescue, userId, roles, onBack, onUnclaim }:
               {animals.length > 1 && !guideAnimalId ? <Text style={styles.warning}>This incident has multiple animals. Select one from the list below before recording its destination.</Text> : null}
               <Text style={styles.fieldLabel}>Next step</Text>
               <Pressable style={styles.dropdown} accessibilityRole="button" accessibilityLabel="Choose next step"
-                onPress={() => Alert.alert('What happens next?', undefined, [
-                  { text: 'Take to veterinary clinic', onPress: () => setNextStep('VET') },
-                  { text: 'Transfer to a carer', onPress: () => setNextStep('CARER') },
-                  ...(roles.includes('CARER') ? [{ text: 'Care for it myself', onPress: () => setNextStep('SELF') }] : []),
-                  { text: 'Release into wild / relocate', onPress: () => setNextStep('RELEASE') },
-                  { text: 'Cancel', style: 'cancel' as const }
-                ])}>
+                onPress={() => setPickerMode('destination')}>
                 <Text style={styles.dropdownText}>{({
                   VET: 'Take to veterinary clinic', CARER: 'Transfer to a carer',
                   SELF: 'Care for it myself', RELEASE: 'Release into wild / relocate'
@@ -352,11 +378,7 @@ export default function AnimalCare({ rescue, userId, roles, onBack, onUnclaim }:
               {nextStep === 'CARER' && <>
                 <Text style={styles.fieldLabel}>Receiving carer *</Text>
                 <Pressable style={styles.dropdown} accessibilityRole="button"
-                  onPress={() => Alert.alert('Choose a carer', undefined, [
-                    ...carers.map(carer => ({
-                      text: carer.name, onPress: () => setCarerId(carer.id)
-                    })), { text: 'Cancel', style: 'cancel' }
-                  ])}>
+                  onPress={() => setPickerMode('carer')}>
                   <Text style={styles.dropdownText}>{carers.find(c => c.id === carerId)?.name ?? 'Select registered carer'}  ▾</Text>
                 </Pressable>
                 <Text style={styles.fieldLabel}>Handover location (optional)</Text>
@@ -449,7 +471,7 @@ export default function AnimalCare({ rescue, userId, roles, onBack, onUnclaim }:
             <Text style={styles.secondaryButtonText}>Release uncollected claim</Text>
           </Pressable>
         ) : null}
-      </>      ) : (
+      </> : (
         <>
           <Pressable style={styles.advancedToggle} accessibilityRole="button" accessibilityState={{expanded:showAdvanced}}
             onPress={() => setShowAdvanced(value => !value)}>
@@ -602,6 +624,9 @@ export default function AnimalCare({ rescue, userId, roles, onBack, onUnclaim }:
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#edf1ee' },
   content: { padding: 20, paddingBottom: 50, gap: 12 },
+  modalScrim: { flex:1, backgroundColor:'rgba(0,0,0,0.45)', justifyContent:'center', padding:20 },
+  modalCard: { backgroundColor:'#fff', borderRadius:16, padding:18, gap:14 },
+  modalOption: { minHeight:50, borderBottomWidth:1, borderColor:'#d9e1dc', justifyContent:'center', paddingVertical:12 },
   dropdown: { backgroundColor:'#f9fbf9', borderWidth:1, borderColor:'#9caea3', borderRadius:10, minHeight:48, padding:12, justifyContent:'center' },
   dropdownText: { color:'#17211d', fontSize:15, fontWeight:'700' },
   secondaryButton: { borderWidth:1, borderColor:'#9caea3', borderRadius:10, padding:12, alignItems:'center', backgroundColor:'#fff' },
