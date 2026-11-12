@@ -11,6 +11,7 @@ import {
 	sendOrganisationInvitation,
 	setUserEnabled,
 	updateUserAccess,
+	updateMemberPositionTitle,
 	type RescueHubRole,
 	type RescueHubUser
 } from '$lib/server/auth';
@@ -224,6 +225,25 @@ export const actions: Actions = {
     } catch (error) {
       return fail(400, { action: 'correctInvitationEmail', userId,
         error: error instanceof Error ? error.message : 'Could not correct invitation email.' });
+    }
+  },
+  updateMemberPosition: async ({ request, locals }) => {
+    const actor = await requireAdmin(locals);
+    const form = await request.formData();
+    const userId = requiredString(form, 'userId');
+    const rawPosition = form.get('positionTitle');
+    const positionTitle = typeof rawPosition === 'string' ? rawPosition.trim() : '';
+    const target = (await listUsers()).find(person => person.id === userId);
+    if (!target || !canManageUser(actor, target) || !target.organisationId)
+      return fail(403, { action: 'updateMemberPosition', userId, error: 'You cannot edit that member.' });
+    if (positionTitle.length > 100)
+      return fail(400, { action: 'updateMemberPosition', userId, error: 'Position must be 100 characters or fewer.' });
+    try {
+      await updateMemberPositionTitle(userId, target.organisationId, positionTitle);
+      return { action: 'updateMemberPosition', userId, success: true };
+    } catch (error) {
+      return fail(409, { action: 'updateMemberPosition', userId,
+        error: error instanceof Error ? error.message : 'Position could not be saved.' });
     }
   },
 	updateMemberAccess: async ({ request, locals }) => {
