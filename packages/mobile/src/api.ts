@@ -340,8 +340,11 @@ export async function getChatChannels(organisationId?: string) {
     '/api/mobile/chats' + chatQuery(organisationId)
   );
 }
-export async function getChatMembers(organisationId?: string) {
-  return request<{ members: ChatMember[] }>('/api/mobile/chats/members' + chatQuery(organisationId));
+export async function getChatMembers(organisationId?: string, channelId?: string) {
+  const query = chatQuery(organisationId);
+  const params = new URLSearchParams(query);
+  if (channelId) params.set('channelId', channelId);
+  return request<{ members: ChatMember[] }>('/api/mobile/chats/members' + (params.size ? `?${params.toString()}` : ''));
 }
 export async function openDirectChat(recipientUserId: string, organisationId?: string) {
   return request<{ channelId: string }>('/api/mobile/chats/direct' + chatQuery(organisationId), {
