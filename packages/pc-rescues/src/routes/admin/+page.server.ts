@@ -173,8 +173,6 @@ export const actions: Actions = {
         positionIds.some(id => !membership.positions.some(position => position.id === id && position.active))) {
       return fail(400, { action: 'inviteUser', error: 'Invalid operational membership, training areas, or organisation positions.' });
     }
-    if (canTransport && !requestedRoles.some(role => ['RESCUER', 'CARER', 'DISPATCHER', 'ORG_ADMIN'].includes(role)))
-      return fail(400, { action: 'inviteUser', error: 'To authorise transport, select an eligible operational access role.' });
 
 		try {
 			await inviteUser({
@@ -324,8 +322,6 @@ export const actions: Actions = {
     if (roles.some(role => !mayAssignStaffRole(actor, role))) {
       return fail(403, { action: 'updateMemberAccess', error: 'You cannot grant one of the selected access roles.' });
     }
-    if (canTransport && !roles.some(role => ['RESCUER', 'CARER', 'DISPATCHER', 'ORG_ADMIN'].includes(role)))
-      return fail(400, { action: 'updateMemberAccess', error: 'Select an eligible operational role before enabling transport.' });
 		if (!target.organisationId) {
 			return fail(400, { action: 'updateMemberAccess', error: 'The account must belong to an organisation.' });
 		}
