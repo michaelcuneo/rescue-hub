@@ -61,7 +61,7 @@
 
   const visiblePeople = $derived(data.users.filter((user) => {
     const query = peopleSearch.trim().toLowerCase();
-    const matches = !query || [user.name, user.email, organisationName(user.organisationId), user.roles.join(' '), ...teamNames(user)].join(' ').toLowerCase().includes(query);
+    const matches = !query || [user.name, user.email, user.positionTitle ?? '', organisationName(user.organisationId), user.roles.join(' '), ...teamNames(user)].join(' ').toLowerCase().includes(query);
     const filterMatches = peopleFilter === 'all' ||
       (peopleFilter === 'invited' && user.enabled && user.status === 'INVITED' && !user.roles.includes('PUBLIC_REPORTER')) ||
       (peopleFilter === 'available' && user.enabled && user.availabilityStatus === 'AVAILABLE') ||
@@ -599,6 +599,17 @@
                 </form>
               </section>
             {/if}
+            <form method="POST" action="?/updateMemberPosition" class="person-form">
+              <input type="hidden" name="userId" value={selectedPerson.id} />
+              <div class="access-group">
+                <label><span>Organisation position / function — shown in Chats</span>
+                  <input name="positionTitle" maxlength="100" value={selectedPerson.positionTitle ?? ''}
+                    placeholder="e.g. Director, Raptor Manager, Transport Coordinator" />
+                </label>
+                <p class="permission-help">A descriptive title displayed alongside your member's actual access role, membership and teams. This does not change permissions.</p>
+              </div>
+              <div class="dialog-actions"><button class="primary-action" type="submit">Save position</button></div>
+            </form>
             <form method="POST" action="?/updateMemberAccess" class="person-form">
               <input type="hidden" name="userId" value={selectedPerson.id} />
               <div class="access-group">
