@@ -457,7 +457,7 @@ export async function getEligibleCarers() {
 }
 export async function recordAnimalOutcome(
   id: string, status: 'RELEASED' | 'EUTHANISED' | 'DECEASED', notes: string,
-  release?: { location: string; latitude?: number; longitude?: number }
+  release?: { location: string; latitude?: number; longitude?: number; releaseReason?: 'RELOCATION' }
 ) {
   return request<{ animal: Animal }>(`/api/mobile/animals/${encodeURIComponent(id)}/events`, {
     method: 'POST', body: JSON.stringify({ kind: 'OUTCOME', status, notes, ...(release ?? {}) })
