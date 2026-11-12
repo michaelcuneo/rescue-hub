@@ -24,6 +24,7 @@ export default function AnimalCare({ rescue, userId, roles, onBack, onUnclaim }:
   const [guideStatus, setGuideStatus] = useState<string | null>(null);
   const [carers, setCarers] = useState<{ id: string; name: string }[]>([]);
   const [carerId, setCarerId] = useState('');
+  const [transferRequested, setTransferRequested] = useState(false);
   const [releaseLocation, setReleaseLocation] = useState('');
   const [releaseCoords, setReleaseCoords] = useState<{ latitude: number; longitude: number } | null>(null);
   const [releaseNotes, setReleaseNotes] = useState('');
@@ -213,6 +214,7 @@ export default function AnimalCare({ rescue, userId, roles, onBack, onUnclaim }:
       } else if (nextStep === 'CARER') {
         if (!carerId) throw new Error('Choose the receiving carer.');
         await requestAnimalTransfer(animalId, carerId, destination.trim(), quickVetNotes.trim(), 'CARE');
+        setTransferRequested(true);
         setQuickMessage('Handover requested. You retain custody until the carer accepts.');
       } else if (nextStep === 'SELF') {
         if (!roles.includes('CARER')) throw new Error('You need an active carer role to start personal care.');
@@ -308,6 +310,18 @@ export default function AnimalCare({ rescue, userId, roles, onBack, onUnclaim }:
       ) : null}
       {rescue.transportAnimalId ? <View style={styles.card}>
         <Text style={styles.section}>Transport pickup job</Text>
+        {rescue.assignedUserId === userId && rescue.status === 'ASSIGNED' && !collected ? (
+          <Pressable style={styles.button} accessibilityRole="button" disabled={busy}
+            onPress={() => Alert.alert('Confirm collection at vet?',
+              'Only confirm after physically receiving the registered animal from the clinic.',
+              [{ text: 'Not yet', style: 'cancel' },
+               { text: 'Confirm pickup', onPress: () => void run(async () => {
+                 await confirmRescuePickup(rescue.id, collectionNotes);
+                 setCollected(true);
+               }) }])}>
+            <Text style={styles.buttonText}>Confirm collection from vet</Text>
+          </Pressable>
+        ) : collected ? <Text style={styles.success}>Collected from vet. Follow the delivery instructions.</Text> : null}
         <Text style={styles.muted}>This animal already has a permanent record. Claiming transport reserves the pickup, but does not transfer custody. Once you physically collect it at the vet, confirm pickup and deliver it to the nominated carer.</Text>
         {deliveryInfo ? <>
           <Text style={styles.body}>Deliver to: {deliveryInfo.address} ({deliveryInfo.mode.replace(/_/g,' ').toLowerCase()})\nGPS: {deliveryInfo.latitude.toFixed(5)}, {deliveryInfo.longitude.toFixed(5)}</Text>
@@ -406,7 +420,8 @@ export default function AnimalCare({ rescue, userId, roles, onBack, onUnclaim }:
                 <KeyboardAwareTextInput style={styles.input} value={quickVetNotes} onChangeText={setQuickVetNotes}
                   maxLength={1000} multiline placeholder="Observations or handover notes" />
               </>}
-              {effectiveStatus === 'AT_VET' ? <Text style={styles.success}>At veterinary clinic. Awaiting assessment or collection instructions.</Text> :
+              {transferRequested || guideAnimal?.pendingTransferId ? <Text style={styles.success}>Handover requested. Awaiting the receiving carer's acceptance.</Text> :
+                effectiveStatus === 'AT_VET' ? <Text style={styles.success}>At veterinary clinic. Awaiting assessment or collection instructions.</Text> :
                 effectiveStatus === 'IN_CARE' ? <Text style={styles.success}>In your care. Continue in the animal care record.</Text> :
                 effectiveStatus === 'RELEASED' ? <Text style={styles.success}>Released into the wild. Outcome is recorded.</Text> :
                 <Pressable style={styles.button} disabled={busy || !guideAnimalId && animals.length !== 1 ||
@@ -598,8 +613,20 @@ export default function AnimalCare({ rescue, userId, roles, onBack, onUnclaim }:
                   ))}
                 </View>
                 <Text style={styles.warning}>Final outcomes close this animal's active care record.</Text>
+                {outcome === 'RELEASED' ? <>
+                  <Text style={styles.fieldLabel}>Actual release location *</Text>
+                  <KeyboardAwareTextInput style={styles.input} value={releaseLocation}
+                    onChangeText={value => { setReleaseLocation(value); setReleaseCoords(null); }}
+                    placeholder="Release address or GPS coordinates" maxLength={250} />
+                  <Pressable style={styles.secondaryButton} accessibilityRole="button"
+                    onPress={() => void useReleaseGps()}>
+                    <Text style={styles.secondaryButtonText}>Use current GPS position</Text>
+                  </Pressable>
+                </> : null}
                 <KeyboardAwareTextInput style={styles.input} placeholder="Outcome notes *" multiline value={notes} onChangeText={setNotes} />
-                <Pressable style={styles.button} disabled={busy || !notes.trim()} onPress={() => void run(() => recordAnimalOutcome(selected.id, outcome, notes.trim()), selected.id)}>
+                <Pressable style={styles.button} disabled={busy || !notes.trim() || (outcome === 'RELEASED' && !releaseLocation.trim())}
+                  onPress={() => void run(() => recordAnimalOutcome(selected.id, outcome, notes.trim(),
+                    outcome === 'RELEASED' ? { location: releaseLocation.trim(), ...(releaseCoords ?? {}) } : undefined), selected.id)}>
                   <Text style={styles.buttonText}>Confirm final outcome</Text>
                 </Pressable>
               </View>
