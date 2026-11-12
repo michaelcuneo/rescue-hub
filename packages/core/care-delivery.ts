@@ -64,7 +64,7 @@ export function canTransportForOrganisation(user: {
 }): boolean {
   if (!user.enabled || user.status !== 'ACTIVE' ||
       user.roles.includes('PUBLIC_REPORTER') || user.canTransport !== true) return false;
-  return user.roles.some(role => ['RESCUER', 'CARER', 'DISPATCHER', 'ORG_ADMIN'].includes(role));
+  return true;
 }
 
 /** Receipt from the receiving carer completes an already collected transport.
