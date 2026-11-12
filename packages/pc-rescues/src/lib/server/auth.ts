@@ -53,6 +53,7 @@ export type RescueHubUser = {
 	organisationId?: string;
 	roles: RescueHubRole[];
 	membershipTypeId?: string;
+	positionTitle?: string;
 	teamIds: string[];
 	availabilityStatus: 'AVAILABLE' | 'BUSY' | 'OFFLINE';
 	availabilityPolicy?: AvailabilityPolicy;
@@ -117,6 +118,7 @@ function toUser(item: Record<string, unknown>): RescueHubUser {
 		organisationId: item.organisationId ? String(item.organisationId) : undefined,
 		roles: Array.isArray(item.roles) ? item.roles.map(String) as RescueHubRole[] : [],
 		membershipTypeId: item.membershipTypeId ? String(item.membershipTypeId) : undefined,
+		positionTitle: typeof item.positionTitle === 'string' ? item.positionTitle : undefined,
 		teamIds: Array.isArray(item.teamIds) ? item.teamIds.map(String) : [],
 		availabilityStatus: effectiveAvailability({ availabilityStatus: ['AVAILABLE', 'BUSY', 'OFFLINE'].includes(String(item.availabilityStatus)) ? String(item.availabilityStatus) as RescueHubUser['availabilityStatus'] : 'OFFLINE', availabilityPolicy: item.availabilityPolicy }),
 		availabilityPolicy: readAvailabilityPolicy(item.availabilityPolicy) ?? undefined,
@@ -964,6 +966,26 @@ export async function listUsers() {
 		ExpressionAttributeValues: { ':pk': 'USERS' }
 	}));
 	return (result.Items ?? []).filter(item => item.status !== 'REMOVED').map(item => toUser(item));
+}
+
+/** Optional public-facing function within an organisation; never an access grant. */
+export async function updateMemberPositionTitle(
+  userId: string, organisationId: string, positionTitle: string
+) {
+  const title = positionTitle.trim();
+  if (title.length > 100 || /[\\u0000-\\u001f\\u007f]/.test(title))
+    throw new Error('Position or function must be 100 readable characters or fewer.');
+  const now = new Date().toISOString();
+  await db.send(new UpdateCommand({
+    TableName: tableName,
+    Key: { pk: `USER#${userId}`, sk: 'PROFILE' },
+    UpdateExpression: 'SET positionTitle = :title, updatedAt = :now',
+    ConditionExpression: 'attribute_exists(pk) AND organisationId = :org AND #status <> :removed',
+    ExpressionAttributeNames: { '#status': 'status' },
+    ExpressionAttributeValues: {
+      ':title': title, ':now': now, ':org': organisationId, ':removed': 'REMOVED'
+    }
+  }));
 }
 
 export async function updateUserDispatchMembership(input: {
