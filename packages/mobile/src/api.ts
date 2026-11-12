@@ -18,7 +18,7 @@ export type User = {
   availabilityPolicy?: AvailabilityPolicy;
 };
 
-export type AvailabilityMode = 'ON' | 'OFF' | 'SCHEDULE';
+export type AvailabilityMode = 'ON' | 'OFF' | 'BUSY' | 'SCHEDULE';
 export type Weekday = 'MON' | 'TUE' | 'WED' | 'THU' | 'FRI' | 'SAT' | 'SUN';
 export type AvailabilityWindow = { start: string; end: string };
 export type AvailabilityPolicy = {
