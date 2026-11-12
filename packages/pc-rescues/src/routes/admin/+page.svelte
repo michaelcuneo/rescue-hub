@@ -593,7 +593,7 @@
               <fieldset class="capability-picker"><legend>Trained species and specialist teams <small>All unchecked. Assign only training the member actually holds. Training alone never grants rescue access.</small></legend><div class="capability-grid">{#each inviteMembershipConfig.teams.filter(team => team.active && team.id !== 'transport' && !team.receivesAllRescues) as team}<label class="capability-option"><input type="checkbox" name="teamIds" value={team.id} /><span><strong>{team.name}</strong><small>{team.description}</small></span></label>{/each}</div></fieldset>
               <fieldset class="access-group">
                 <legend>Transport authorisation</legend>
-                <label class="capability-option"><input type="checkbox" name="canTransport" value="on" /><span><strong>Can transport animals</strong><small>Unchecked by default. Only enable for volunteers who can and are authorised to transport. A carer or trained rescuer is not automatically a driver.</small></span></label>
+                <label class="capability-option"><input type="checkbox" name="canTransport" value="on" /><span><strong>Can transport animals</strong><small>Unchecked by default. Enable for a transport-only volunteer or a trained rescuer/carer who can transport. Not required for carer or management roles.</small></span></label>
               </fieldset>
               <fieldset class="capability-picker">
                 <legend>Committee and management positions <small>Independent of training and system permissions. Select any positions this person holds.</small></legend>
