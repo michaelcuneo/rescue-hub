@@ -1,21 +1,32 @@
 import ReporterConversation from './ReporterConversation';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
+import * as Location from 'expo-location';
 import { KeyboardAwareScrollView, KeyboardAwareTextInput } from './KeyboardAware';
 import RescueAddress from './RescueAddress';
 import {
   acceptAnimalTransfer, addAnimalNote, getAnimalHistory, getRescueAnimals, confirmRescuePickup, getCareDelivery, type CareDeliveryDestination,
   recordAnimalOutcome, registerAnimal, requestAnimalTransfer, startVetTransport, recordVetDropoff, recordVetAssessment, unclaimRescue,
-  correctAnimalIdentification, correctReportedRescue, getRescuerReporterContact, quickVetProgress, type Animal, type AnimalEvent, type Rescue
+  correctAnimalIdentification, correctReportedRescue, getRescuerReporterContact, quickVetProgress,
+  getEligibleCarers, startPersonalCare, type Animal, type AnimalEvent, type Rescue
 } from './api';
 
-type Props = { rescue: Rescue; userId: string; onBack: () => void; onUnclaim: () => void };
+type Props = { rescue: Rescue; userId: string; roles: string[]; onBack: () => void; onUnclaim: () => void };
 const eventTypes = ['OBSERVATION', 'VET_ASSESSMENT', 'TREATMENT', 'FEEDING', 'WEIGHT', 'REVIEW'] as const;
 const outcomes = ['RELEASED', 'EUTHANISED', 'DECEASED'] as const;
 const terminal = new Set<string>(outcomes);
 
-export default function AnimalCare({ rescue, userId, onBack, onUnclaim }: Props) {
+export default function AnimalCare({ rescue, userId, roles, onBack, onUnclaim }: Props) {
   const [conversationOpen, setConversationOpen] = useState(false);
+  const [nextStep, setNextStep] = useState<'VET' | 'CARER' | 'SELF' | 'RELEASE'>('VET');
+  const [guideAnimalId, setGuideAnimalId] = useState<string | null>(null);
+  const [guideStatus, setGuideStatus] = useState<string | null>(null);
+  const [carers, setCarers] = useState<{ id: string; name: string }[]>([]);
+  const [carerId, setCarerId] = useState('');
+  const [releaseLocation, setReleaseLocation] = useState('');
+  const [releaseCoords, setReleaseCoords] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [releaseNotes, setReleaseNotes] = useState('');
+
   const [deliveryInfo, setDeliveryInfo] = useState<(CareDeliveryDestination & { carerUserId: string }) | null>(null);
   const [collected, setCollected] = useState(Boolean(rescue.pickedUpAt));
   const [collectionNotes, setCollectionNotes] = useState('');
@@ -146,6 +157,11 @@ export default function AnimalCare({ rescue, userId, onBack, onUnclaim }: Props)
     return <ReporterConversation reportId={rescue.id.slice('public-report-'.length)} onBack={() => setConversationOpen(false)} />;
   }
 
+  useEffect(() => {
+    if (nextStep !== 'CARER' || !collected || rescue.transportAnimalId) return;
+    getEligibleCarers().then(result => setCarers(result.carers))
+      .catch(error => setError(error instanceof Error ? error.message : 'Could not load carers.'));
+  }, [nextStep, collected, rescue.transportAnimalId]);
   const isCustodian = selected?.currentCustodianUserId === userId;
   const activeAnimal = selected ?? (animals.length === 1 ? animals[0] : null);
   const canQuickProgress = rescue.assignedUserId === userId && collected && !rescue.transportAnimalId &&
@@ -171,7 +187,73 @@ export default function AnimalCare({ rescue, userId, onBack, onUnclaim }: Props)
       setBusy(false);
     }
   }
+  const guideAnimal = animals.find(animal => animal.id === guideAnimalId) ?? activeAnimal;
+  const effectiveStatus = guideStatus ?? guideAnimal?.status ?? 'IN_RESCUE';
   const isFinal = selected ? terminal.has(selected.status) : false;
+
+  async function nextAction() {
+    const animalId = guideAnimalId ?? guideAnimal?.id;
+    if (!animalId) { setError('Animal registration is still loading. Refresh this rescue and try again.'); return; }
+    if (busy) return;
+    setBusy(true);
+    setError('');
+    try {
+      if (nextStep === 'VET') {
+        if (!vetLocation.trim()) throw new Error('Enter the veterinary clinic or destination.');
+        if (effectiveStatus === 'IN_TRANSIT') {
+          await recordVetDropoff(animalId, vetLocation.trim(), quickVetNotes.trim());
+          setGuideStatus('AT_VET');
+          setQuickMessage('Veterinary handover recorded. The animal remains in the care system.');
+        } else {
+          await startVetTransport(animalId, vetLocation.trim(), quickVetNotes.trim());
+          setGuideStatus('IN_TRANSIT');
+          setQuickMessage('Travelling to the vet. Confirm the handover when the clinic receives the animal.');
+        }
+      } else if (nextStep === 'CARER') {
+        if (!carerId) throw new Error('Choose the receiving carer.');
+        await requestAnimalTransfer(animalId, carerId, destination.trim(), quickVetNotes.trim(), 'CARE');
+        setQuickMessage('Handover requested. You retain custody until the carer accepts.');
+      } else if (nextStep === 'SELF') {
+        if (!roles.includes('CARER')) throw new Error('You need an active carer role to start personal care.');
+        await startPersonalCare(animalId, quickVetNotes.trim());
+        setGuideStatus('IN_CARE');
+        setQuickMessage('Animal added to your care records.');
+      } else {
+        if (!releaseLocation.trim()) throw new Error('Record where the animal was actually released.');
+        if (!releaseNotes.trim()) throw new Error('Add a brief reason for the release or relocation.');
+        await recordAnimalOutcome(animalId, 'RELEASED', releaseNotes.trim(), {
+          location: releaseLocation.trim(), ...(releaseCoords ?? {})
+        });
+        setGuideStatus('RELEASED');
+        setQuickMessage('Wildlife release recorded. The original rescue and release locations are preserved.');
+      }
+      await refresh();
+    } catch (issue) {
+      setError(issue instanceof Error ? issue.message : 'Unable to save next step.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function useReleaseGps() {
+    setBusy(true);
+    setError('');
+    try {
+      const permission = await Location.requestForegroundPermissionsAsync();
+      if (!permission.granted) throw new Error('Location permission was denied. You can enter the release location manually.');
+      const position = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+      const coordinates = {
+        latitude: position.coords.latitude, longitude: position.coords.longitude
+      };
+      setReleaseCoords(coordinates);
+      setReleaseLocation(`${coordinates.latitude.toFixed(6)}, ${coordinates.longitude.toFixed(6)}`);
+    } catch (issue) {
+      setError(issue instanceof Error ? issue.message : 'Unable to get current GPS position.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
 
   return (
     <KeyboardAwareScrollView style={styles.root} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
@@ -212,137 +294,162 @@ export default function AnimalCare({ rescue, userId, onBack, onUnclaim }: Props)
           }}><Text style={styles.link}>Refresh carer delivery location</Text></Pressable>
         </> : null}
       </View> : null}
-      {rescue.status === 'ASSIGNED' && rescue.assignedUserId === userId ? (
-        <View style={styles.card}>
-          <Text style={styles.section}>Physical collection</Text>
-          {collected ? (
-            <Text style={styles.muted}>Animal collected. The job pin is now removed from the operational map; the animal's permanent record stays accessible.</Text>
+      {error ? <Text style={styles.error} accessibilityRole="alert">{error}</Text> : null}
+      {loading ? <ActivityIndicator /> : null}
+      {rescue.status === 'ASSIGNED' && rescue.assignedUserId === userId && !rescue.transportAnimalId && !selected ? (
+        <View style={styles.quickPanel}>
+          <Text style={styles.quickTitle}>{collected ? 'What happens next?' : 'Pick up animal'}</Text>
+          {!collected ? (
+            <>
+              <Text style={styles.muted}>Confirm physical collection. The animal is registered automatically, and the rescue pin disappears.</Text>
+              {animals.length === 0 ? <>
+                <Text style={styles.fieldLabel}>Animal species / type *</Text>
+                <KeyboardAwareTextInput style={styles.input} value={species} onChangeText={setSpecies}
+                  maxLength={120} placeholder="Animal species or type" accessibilityLabel="Animal species or type" />
+                <Text style={styles.fieldLabel}>Identifying details (optional)</Text>
+                <KeyboardAwareTextInput style={styles.input} value={description} onChangeText={setDescription}
+                  maxLength={2000} multiline placeholder="Size, markings, observed injury" accessibilityLabel="Identifying details" />
+              </> : <Text style={styles.muted}>Existing registered animal: {animals.map(a => a.species).join(', ')}</Text>}
+              <KeyboardAwareTextInput style={styles.input} value={collectionNotes} onChangeText={setCollectionNotes}
+                maxLength={1000} multiline placeholder="Pickup notes (optional)" accessibilityLabel="Pickup notes" />
+              <Pressable style={styles.button} disabled={busy || (animals.length === 0 && !species.trim())}
+                accessibilityRole="button" onPress={() => Alert.alert(
+                  'Confirm animal pickup?', 'This records physical collection and registers the first animal. The operational map pin will be removed.',
+                  [{ text: 'Cancel', style: 'cancel' }, { text: 'Pick up animal', onPress: () => void run(async () => {
+                    const result = await confirmRescuePickup(rescue.id, collectionNotes,
+                      animals.length ? undefined : { species: species.trim(), description: description.trim() });
+                    setGuideAnimalId(result.animal?.id ?? animals[0]?.id ?? null);
+                    setGuideStatus(result.animal?.status ?? animals[0]?.status ?? 'IN_RESCUE');
+                    setCollected(true);
+                  }) }]
+                )}>
+                <Text style={styles.buttonText}>{busy ? 'Saving…' : 'Confirm pickup & register'}</Text>
+              </Pressable>
+            </>
           ) : (
             <>
-              <Text style={styles.muted}>Claiming the job did not collect the animal. Confirm only after physically picking up the animal. This removes its pin from the map, not its care record.</Text>
-              <KeyboardAwareTextInput style={[styles.input,styles.multilineInput]} value={collectionNotes} onChangeText={setCollectionNotes}
-                multiline maxLength={1000} placeholder="Collection notes (optional)" accessibilityLabel="Animal collection notes" />
-              <Pressable style={styles.button} disabled={busy} accessibilityRole="button"
-                onPress={() => Alert.alert('Confirm physical collection?', 'The animal will disappear from the operational map but remain in your care records.', [
-                  { text: 'Not yet', style: 'cancel' },
-                  { text: 'Confirm collected', onPress: () => void run(async () => {
-                    await confirmRescuePickup(rescue.id, collectionNotes);
-                    setCollected(true);
-                  }) }
+              <Text style={styles.muted}>The animal is collected and stays in the permanent history. Choose its next destination.</Text>
+              {animals.length > 1 && !guideAnimalId ? <Text style={styles.warning}>This incident has multiple animals. Select one from the list below before recording its destination.</Text> : null}
+              <Text style={styles.fieldLabel}>Next step</Text>
+              <Pressable style={styles.dropdown} accessibilityRole="button" accessibilityLabel="Choose next step"
+                onPress={() => Alert.alert('What happens next?', undefined, [
+                  { text: 'Take to veterinary clinic', onPress: () => setNextStep('VET') },
+                  { text: 'Transfer to a carer', onPress: () => setNextStep('CARER') },
+                  ...(roles.includes('CARER') ? [{ text: 'Care for it myself', onPress: () => setNextStep('SELF') }] : []),
+                  { text: 'Release into wild / relocate', onPress: () => setNextStep('RELEASE') },
+                  { text: 'Cancel', style: 'cancel' as const }
                 ])}>
-                <Text style={styles.buttonText}>Animal picked up</Text>
+                <Text style={styles.dropdownText}>{({
+                  VET: 'Take to veterinary clinic', CARER: 'Transfer to a carer',
+                  SELF: 'Care for it myself', RELEASE: 'Release into wild / relocate'
+                })[nextStep]}  ▾</Text>
               </Pressable>
+              {nextStep === 'VET' && effectiveStatus !== 'AT_VET' && <>
+                <Text style={styles.fieldLabel}>Veterinary destination *</Text>
+                <KeyboardAwareTextInput style={styles.input} value={vetLocation} onChangeText={setVetLocation}
+                  maxLength={250} placeholder="e.g. AREC, Broadmeadow" accessibilityLabel="Veterinary destination" />
+              </>}
+              {nextStep === 'CARER' && <>
+                <Text style={styles.fieldLabel}>Receiving carer *</Text>
+                <Pressable style={styles.dropdown} accessibilityRole="button"
+                  onPress={() => Alert.alert('Choose a carer', undefined, [
+                    ...carers.map(carer => ({
+                      text: carer.name, onPress: () => setCarerId(carer.id)
+                    })), { text: 'Cancel', style: 'cancel' }
+                  ])}>
+                  <Text style={styles.dropdownText}>{carers.find(c => c.id === carerId)?.name ?? 'Select registered carer'}  ▾</Text>
+                </Pressable>
+                <Text style={styles.fieldLabel}>Handover location (optional)</Text>
+                <KeyboardAwareTextInput style={styles.input} value={destination} onChangeText={setDestination}
+                  maxLength={250} placeholder="Where the carer will receive the animal" />
+              </>}
+              {nextStep === 'RELEASE' && <>
+                <Text style={styles.fieldLabel}>Actual release / relocation location *</Text>
+                <KeyboardAwareTextInput style={styles.input} value={releaseLocation}
+                  onChangeText={value => { setReleaseLocation(value); setReleaseCoords(null); }}
+                  maxLength={250} placeholder="GPS coordinates or specific place" accessibilityLabel="Actual wildlife release location" />
+                <Pressable style={styles.secondaryButton} accessibilityRole="button" disabled={busy}
+                  onPress={() => void useReleaseGps()}>
+                  <Text style={styles.secondaryButtonText}>Use current GPS location</Text>
+                </Pressable>
+                <Text style={styles.muted}>This is recorded separately from the original incident location.</Text>
+                <Text style={styles.fieldLabel}>Reason / release notes *</Text>
+                <KeyboardAwareTextInput style={[styles.input,styles.multilineInput]} value={releaseNotes}
+                  onChangeText={setReleaseNotes} maxLength={4000} multiline
+                  placeholder="e.g. Healthy brown snake relocated to suitable habitat"
+                  accessibilityLabel="Reason for wildlife release" />
+              </>}
+              {nextStep !== 'RELEASE' && effectiveStatus !== 'AT_VET' && <>
+                <Text style={styles.fieldLabel}>Notes (optional)</Text>
+                <KeyboardAwareTextInput style={styles.input} value={quickVetNotes} onChangeText={setQuickVetNotes}
+                  maxLength={1000} multiline placeholder="Observations or handover notes" />
+              </>}
+              {effectiveStatus === 'AT_VET' ? <Text style={styles.success}>At veterinary clinic. Awaiting assessment or collection instructions.</Text> :
+                effectiveStatus === 'IN_CARE' ? <Text style={styles.success}>In your care. Continue in the animal care record.</Text> :
+                effectiveStatus === 'RELEASED' ? <Text style={styles.success}>Released into the wild. Outcome is recorded.</Text> :
+                <Pressable style={styles.button} disabled={busy || !guideAnimalId && animals.length !== 1 ||
+                  nextStep === 'VET' && !vetLocation.trim() ||
+                  nextStep === 'CARER' && !carerId ||
+                  nextStep === 'RELEASE' && (!releaseLocation.trim() || !releaseNotes.trim())}
+                  accessibilityRole="button" onPress={() => {
+                    if (nextStep === 'RELEASE') Alert.alert('Confirm wildlife release?',
+                      'Confirm the animal was physically released at the recorded location. This is a final outcome.',
+                      [{ text: 'Not yet', style: 'cancel' }, { text: 'Confirm release', onPress: () => void nextAction() }]);
+                    else void nextAction();
+                  }}>
+                  <Text style={styles.buttonText}>{busy ? 'Saving…' :
+                    nextStep === 'VET' ? effectiveStatus === 'IN_TRANSIT' ? 'Confirm vet handover' : 'Start vet transport' :
+                    nextStep === 'CARER' ? 'Request carer handover' :
+                    nextStep === 'SELF' ? 'Start my care record' : 'Confirm wildlife release'}</Text>
+                </Pressable>}
+              {quickMessage ? <Text style={styles.success}>{quickMessage}</Text> : null}
             </>
           )}
         </View>
       ) : null}
-      {canQuickProgress ? <View style={styles.quickPanel}>
-        <Text style={styles.quickTitle}>What happens next?</Text>
-        <Text style={styles.muted}>You've collected the animal. Record the next step, without extra forms or user IDs.</Text>
-        <Text style={styles.fieldLabel}>Veterinary clinic <Text style={styles.optional}>(needed at drop-off)</Text></Text>
-        <KeyboardAwareTextInput style={styles.input} value={vetLocation} onChangeText={setVetLocation}
-          maxLength={250} accessibilityLabel="Veterinary clinic" placeholder="e.g. AREC, Broadmeadow" />
-        <Text style={styles.fieldLabel}>Notes <Text style={styles.optional}>(optional)</Text></Text>
-        <KeyboardAwareTextInput style={styles.input} value={quickVetNotes} onChangeText={setQuickVetNotes}
-          multiline maxLength={1000} accessibilityLabel="Optional veterinary handover notes"
-          placeholder="e.g. Animal stable, receptionist accepted" />
-        {activeAnimal?.status !== 'IN_TRANSIT' ?
-          <Pressable style={styles.button} disabled={busy} accessibilityRole="button"
-            onPress={() => void saveQuickVet('GOING_TO_VET')}>
-            <Text style={styles.buttonText}>Taking to vet</Text>
-          </Pressable> : <Text style={styles.warning}>Taking animal to vet — awaiting drop-off</Text>}
-        <Pressable style={styles.button} disabled={busy || !vetLocation.trim()}
-          accessibilityRole="button" accessibilityState={{disabled:busy || !vetLocation.trim()}}
-          onPress={() => Alert.alert('Confirm veterinary handover',
-            `Confirm the animal was physically received at ${vetLocation.trim()}? Its care record will remain open.`,
-            [{ text:'Not yet', style:'cancel' }, { text:'Handed to vet', onPress:() => void saveQuickVet('HANDED_TO_VET') }])}>
-          <Text style={styles.buttonText}>Handed to vet</Text>
-        </Pressable>
-      </View> : null}
-      {activeAnimal?.status === 'AT_VET' ? <View style={styles.quickPanel}>
-        <Text style={styles.quickTitle}>At veterinary clinic</Text>
-        <Text style={styles.muted}>The clinic has the animal. Its history stays active for veterinary updates and future carer pickup.</Text>
-      </View> : null}
-      {quickMessage ? <Text style={styles.success}>{quickMessage}</Text> : null}
-      {error ? <Text style={styles.error}>{error}</Text> : null}
-      {loading ? <ActivityIndicator /> : null}
-
-      {!selected ? (
-        <>
-          {rescue.assignedUserId === userId && rescue.status === 'ASSIGNED' ? <View style={styles.card}>
-            <Text style={styles.section}>Correct the public observation</Text>
-            <Text style={styles.muted}>The reporter's original information is retained. Correct what you found at the scene.</Text>
-            <KeyboardAwareTextInput style={styles.input} value={incidentSpecies} onChangeText={setIncidentSpecies} maxLength={120} accessibilityLabel="Verified animal identification" placeholder="Confirmed animal" />
-            <KeyboardAwareTextInput style={[styles.input,styles.multilineInput]} value={incidentCondition} onChangeText={setIncidentCondition} maxLength={2000} multiline accessibilityLabel="Verified condition" placeholder="Observed injury or condition" />
-            <Pressable style={styles.button} disabled={busy || incidentSpecies.trim().length < 2}
-              onPress={() => void run(() => correctReportedRescue(rescue.id, incidentSpecies, incidentCondition))}>
-              <Text style={styles.buttonText}>{busy ? 'Saving…' : 'Save verified observation'}</Text>
+      {!selected ? <>
+        <Text style={styles.section}>Animals in this rescue ({animals.length})</Text>
+        {animals.map(animal => (
+          <Pressable key={animal.id} style={styles.card} onPress={() => {
+            if (collected && rescue.assignedUserId === userId && animals.length > 1) {
+              setGuideAnimalId(animal.id); setGuideStatus(animal.status);
+            } else void openAnimal(animal.id);
+          }}>
+            <Text style={styles.bold}>{animal.species}</Text>
+            <Text style={styles.muted}>{animal.status.replace(/_/g, ' ')}</Text>
+            <Text style={styles.link}>{animals.length > 1 && collected ? 'Select for next step ›' : 'View care history ›'}</Text>
+          </Pressable>
+        ))}
+        {collected ? (
+          <Pressable style={styles.advancedToggle} accessibilityRole="button"
+            onPress={() => setShowAdvanced(value => !value)}>
+            <Text style={styles.advancedToggleText}>{showAdvanced ? 'Hide detailed animal registration' : 'Additional animal / correction'}</Text>
+          </Pressable>
+        ) : null}
+        {showAdvanced && collected && rescue.assignedUserId === userId && !rescue.transportAnimalId ? (
+          <View style={styles.card}>
+            <Text style={styles.section}>Register an additional animal</Text>
+            <KeyboardAwareTextInput style={styles.input} value={species} onChangeText={setSpecies}
+              placeholder="Animal species or type" maxLength={120} />
+            <KeyboardAwareTextInput style={styles.input} value={description} onChangeText={setDescription}
+              placeholder="Identifying details" multiline maxLength={2000} />
+            <Pressable style={styles.button} disabled={busy || !species.trim()} onPress={() => void run(async () => {
+              const registered = await registerAnimal(rescue.id, species.trim(), description.trim());
+              setGuideAnimalId(registered.animal.id); setGuideStatus(registered.animal.status);
+              setSpecies(''); setDescription('');
+            })}>
+              <Text style={styles.buttonText}>Add another animal</Text>
             </Pressable>
-          </View> : null}
-          <Text style={styles.section}>Animals in this rescue ({animals.length})</Text>
-          {animals.map((animal) => (
-            <Pressable key={animal.id} style={styles.card} onPress={() => void openAnimal(animal.id)}>
-              <Text style={styles.bold}>{animal.species}</Text>
-              <Text style={styles.muted}>{animal.status.replace(/_/g, ' ')} · {animal.currentLocation || 'Location not recorded'}</Text>
-              <Text style={styles.link}>View care history ›</Text>
-            </Pressable>
-          ))}
-          {animals.length === 0 && !loading ? <Text style={styles.muted}>No animals registered yet.</Text> : null}
-          {rescue.assignedUserId === userId && animals.length === 0 && !loading && !collected ? (
-            <View style={styles.card}>
-              <Text style={styles.section}>Release this rescue</Text>
-              <Text style={styles.muted}>Can't attend? Return the case to qualified rescuers. Once an animal is registered, arrange a custody handover instead.</Text>
-              <KeyboardAwareTextInput style={styles.input} value={unclaimReason} onChangeText={setUnclaimReason}
-                maxLength={500} multiline placeholder="Reason (optional)" />
-              <Pressable disabled={busy} style={styles.releaseButton}
-                accessibilityRole="button" onPress={() => Alert.alert(
-                  'Release rescue claim?',
-                  'This rescue will become available for another qualified volunteer.',
-                  [{ text:'Keep rescue', style:'cancel' }, { text:'Release claim', style:'destructive', onPress: () => { void releaseClaim(); } }]
-                )}>
-                <Text style={styles.releaseText}>{busy ? 'Updating…' : 'Release claim'}</Text>
-              </Pressable>
-            </View>
-          ) : null}
-          {rescue.assignedUserId === userId && !rescue.transportAnimalId && (
-            <View style={styles.card}>
-              <Text style={styles.section}>Register an animal</Text>
-              <Text style={styles.muted}>Record each animal you collect separately. These details follow the animal through rescue, vet care and handovers.</Text>
-              <Text style={styles.fieldLabel}>Animal species / type <Text style={styles.required}>*</Text></Text>
-              <KeyboardAwareTextInput
-                style={styles.input}
-                value={species}
-                onChangeText={setSpecies}
-                placeholder="e.g. Eastern blue-tongue lizard"
-                accessibilityLabel="Animal species or type, required"
-                accessibilityHint="The kind of animal you collected. Prefilled from the rescue; edit it if needed."
-                autoCapitalize="sentences"
-                maxLength={120}
-              />
-              <Text style={styles.fieldHelp}>Prefilled from the rescue report. Correct it if the animal is a different species.</Text>
-              <Text style={styles.fieldLabel}>Identifying details <Text style={styles.optional}>(optional)</Text></Text>
-              <KeyboardAwareTextInput
-                style={[styles.input, styles.multilineInput]}
-                value={description}
-                onChangeText={setDescription}
-                placeholder="e.g. Approx. 35 cm, pale blue tail, netting marks on left leg"
-                accessibilityLabel="Identifying details, optional"
-                accessibilityHint="Size, colour, distinctive markings, condition or injuries that identify this animal."
-                multiline
-                textAlignVertical="top"
-                maxLength={2000}
-              />
-              <Text style={styles.fieldHelp}>Include approximate size, colours, distinguishing marks or visible injuries.</Text>
-              <Pressable style={styles.button} disabled={busy || !species.trim()} onPress={() => void run(async () => {
-                await registerAnimal(rescue.id, species.trim(), description.trim());
-                setSpecies(rescue.type ?? ''); setDescription('');
-              })}>
-                <Text style={styles.buttonText}>{busy ? 'Saving…' : 'Register animal'}</Text>
-              </Pressable>
-            </View>
-          )}
-        </>
-      ) : (
+          </View>
+        ) : null}
+        {!collected && rescue.assignedUserId === userId && animals.length === 0 ? (
+          <Pressable style={styles.secondaryButton} accessibilityRole="button"
+            onPress={() => Alert.alert('Release rescue claim?', 'Return this uncollected rescue to the available queue.',
+              [{ text: 'Keep rescue', style: 'cancel' }, { text: 'Release claim', style: 'destructive', onPress: () => void releaseClaim() }])}>
+            <Text style={styles.secondaryButtonText}>Release uncollected claim</Text>
+          </Pressable>
+        ) : null}
+      </>      ) : (
         <>
           <Pressable style={styles.advancedToggle} accessibilityRole="button" accessibilityState={{expanded:showAdvanced}}
             onPress={() => setShowAdvanced(value => !value)}>
@@ -495,6 +602,10 @@ export default function AnimalCare({ rescue, userId, onBack, onUnclaim }: Props)
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#edf1ee' },
   content: { padding: 20, paddingBottom: 50, gap: 12 },
+  dropdown: { backgroundColor:'#f9fbf9', borderWidth:1, borderColor:'#9caea3', borderRadius:10, minHeight:48, padding:12, justifyContent:'center' },
+  dropdownText: { color:'#17211d', fontSize:15, fontWeight:'700' },
+  secondaryButton: { borderWidth:1, borderColor:'#9caea3', borderRadius:10, padding:12, alignItems:'center', backgroundColor:'#fff' },
+  secondaryButtonText: { color:'#173d2c', fontSize:14, fontWeight:'700' },
   quickPanel: { padding:18, borderRadius:14, borderWidth:2, borderColor:'#98b9a7', backgroundColor:'#fff', gap:12 },
   quickTitle: { color:'#173d2c', fontWeight:'800', fontSize:21, lineHeight:27 },
   success: { color:'#145c3b', fontSize:14, fontWeight:'700', lineHeight:20, paddingVertical:8 },
