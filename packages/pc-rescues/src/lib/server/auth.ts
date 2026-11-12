@@ -56,7 +56,7 @@ export type RescueHubUser = {
 	positionTitle?: string;
   positionIds?: string[];
 	teamIds: string[];
-  canTransport: boolean;
+  canTransport?: boolean;
 	availabilityStatus: 'AVAILABLE' | 'BUSY' | 'OFFLINE';
 	availabilityPolicy?: AvailabilityPolicy;
 	createdAt: string;
