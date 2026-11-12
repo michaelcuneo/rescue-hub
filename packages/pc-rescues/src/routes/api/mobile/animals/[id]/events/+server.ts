@@ -52,6 +52,11 @@ export const POST: RequestHandler = async ({ locals, params, request }) => {
       // nominated recipient can accept, enforced by the atomic custody update.
       return json({ animal: await changeAnimalState(animal, user.id, { kind: 'ACCEPT_TRANSFER' }) });
     }
+    if (body.kind === 'SELF_CARE') {
+      if (!user.roles.includes('CARER'))
+        return json({ error: 'You must have an active carer role to take the animal into your own care.' }, { status: 403 });
+      return json({ animal: await changeAnimalState(animal, user.id, { kind: 'SELF_CARE', notes }) });
+    }
     if (body.kind === 'VET_TRANSPORT_STARTED') {
       if (typeof body.location !== 'string' || !body.location.trim() || body.location.length > 250)
         return json({ error: 'Veterinary destination is required.' }, { status: 400 });
@@ -68,7 +73,22 @@ export const POST: RequestHandler = async ({ locals, params, request }) => {
     }
     if (body.kind === 'OUTCOME') {
       if (!finalStatuses.has(String(body.status))) return json({ error: 'Invalid final outcome.' }, { status: 400 });
-      return json({ animal: await changeAnimalState(animal, user.id, { kind: 'OUTCOME', status: body.status as 'RELEASED', notes }) });
+      const location = typeof body.location === 'string' ? body.location.trim() : '';
+      const latitude = body.latitude, longitude = body.longitude;
+      if (body.status === 'RELEASED' && (!location || location.length > 250))
+        return json({ error: 'A release location is required.' }, { status: 400 });
+      if (latitude !== undefined || longitude !== undefined) {
+        if (typeof latitude !== 'number' || typeof longitude !== 'number' ||
+            !Number.isFinite(latitude) || latitude < -90 || latitude > 90 ||
+            !Number.isFinite(longitude) || longitude < -180 || longitude > 180)
+          return json({ error: 'Invalid release GPS coordinates.' }, { status: 400 });
+      }
+      return json({ animal: await changeAnimalState(animal, user.id, {
+        kind: 'OUTCOME', status: body.status as 'RELEASED', notes, location,
+        releaseReason: body.releaseReason === 'RELOCATION' ? 'RELOCATION' : undefined,
+        latitude: typeof latitude === 'number' ? latitude : undefined,
+        longitude: typeof longitude === 'number' ? longitude : undefined
+      }) });
     }
     return json({ error: 'Unknown event kind.' }, { status: 400 });
   } catch (error) {

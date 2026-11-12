@@ -294,9 +294,11 @@ export async function quickVetProgress(rescueId: string, kind: 'GOING_TO_VET' | 
   );
 }
 
-export async function confirmRescuePickup(id: string, notes = '') {
-  return request<{ rescue: Rescue }>(`/api/mobile/rescues/${encodeURIComponent(id)}/pickup`, {
-    method: 'POST', body: JSON.stringify({ notes })
+export async function confirmRescuePickup(
+  id: string, notes = '', registration?: { species: string; description?: string }
+) {
+  return request<{ rescue: Rescue; animal?: Animal }>(`/api/mobile/rescues/${encodeURIComponent(id)}/pickup`, {
+    method: 'POST', body: JSON.stringify({ notes, ...(registration ?? {}) })
   });
 }
 export async function claimRescue(id: string) {
@@ -445,8 +447,19 @@ export async function recordVetAssessment(id: string, notes = '') {
   });
 }
 
-export async function recordAnimalOutcome(id: string, status: 'RELEASED' | 'EUTHANISED' | 'DECEASED', notes: string) {
+export async function startPersonalCare(id: string, notes = '') {
   return request<{ animal: Animal }>(`/api/mobile/animals/${encodeURIComponent(id)}/events`, {
-    method: 'POST', body: JSON.stringify({ kind: 'OUTCOME', status, notes })
+    method: 'POST', body: JSON.stringify({ kind: 'SELF_CARE', notes })
+  });
+}
+export async function getEligibleCarers() {
+  return request<{ carers: { id: string; name: string }[] }>('/api/mobile/carers');
+}
+export async function recordAnimalOutcome(
+  id: string, status: 'RELEASED' | 'EUTHANISED' | 'DECEASED', notes: string,
+  release?: { location: string; latitude?: number; longitude?: number; releaseReason?: 'RELOCATION' }
+) {
+  return request<{ animal: Animal }>(`/api/mobile/animals/${encodeURIComponent(id)}/events`, {
+    method: 'POST', body: JSON.stringify({ kind: 'OUTCOME', status, notes, ...(release ?? {}) })
   });
 }
