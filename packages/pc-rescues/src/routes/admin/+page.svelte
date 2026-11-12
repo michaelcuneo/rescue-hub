@@ -49,16 +49,9 @@
     void goto(url.pathname + url.search, { replaceState: true, noScroll: true, keepFocus: true, invalidateAll: false });
   }
   let inviteOrganisationId = $state('');
-  let inviteRole = $state('RESCUER');
-  let inviteMembershipTypeId = $state('active-rescuer');
-
-  function selectInvitationRole(role: string) {
-    inviteRole = role;
-    // Suggested defaults, not permission grants: teams and membership are
-    // always validated when the invitation is submitted.
-    inviteMembershipTypeId = role === 'RESCUER' || role === 'CARER'
-      ? 'active-rescuer' : 'support-member';
-  }
+  // New invitations start with no permissions, species teams, transport or positions.
+  // Administrators deliberately select each independent responsibility.
+  let inviteMembershipTypeId = $state('');
 
   const visiblePeople = $derived(data.users.filter((user) => {
     const query = peopleSearch.trim().toLowerCase();
@@ -584,15 +577,28 @@
               {/if}
               <div class="form-pair"><label><span>Name</span><input name="name" required placeholder="Jane Smith" /></label><label><span>Email</span><input name="email" type="email" required placeholder="jane@example.org" /></label></div>
               <label><span>Organisation</span><select name="organisationId" bind:value={inviteOrganisationId} disabled={!canChooseOrganisation} required>{#each data.organisations as organisation}<option value={organisation.id}>{organisation.displayName}</option>{/each}</select>{#if !canChooseOrganisation}<input type="hidden" name="organisationId" value={inviteOrganisationId} />{/if}</label>
+              <fieldset class="access-group">
+                <legend>System permissions — select all that apply</legend>
+                <p class="permission-help">All unchecked by default. These control access to Rescue Hub features, not committee titles or animal training.</p>
+                <div class="capability-grid">{#each roleOptions.filter(option => data.assignableRoles.includes(option.id)) as role}<label class="capability-option"><input type="checkbox" name="roles" value={role.id} /><span><strong>{role.label}</strong></span></label>{/each}</div>
+              </fieldset>
               <div class="access-group">
-                <label><span>Account role — what they can do</span><select name="role" required bind:value={inviteRole} onchange={(event) => selectInvitationRole(event.currentTarget.value)}>{#each roleOptions.filter(option => data.assignableRoles.includes(option.id)) as role}<option value={role.id}>{role.label}</option>{/each}</select></label>
-                <p class="permission-help">Choose one access role. Platform administration is available only to existing platform administrators.</p>
+                <label><span>Operational membership (optional)</span>
+                  <select name="membershipTypeId" bind:value={inviteMembershipTypeId}>
+                    <option value="">None — select only if appropriate</option>
+                    {#each inviteMembershipConfig.membershipTypes.filter(type => type.active) as type}<option value={type.id}>{type.name}</option>{/each}
+                  </select></label>
+                <p class="permission-help">Participation is independent of system permissions and organisation management titles. New members are not automatically trained rescuers.</p>
               </div>
-              <div class="access-group">
-                <label><span>Operational membership — how they participate</span><select name="membershipTypeId" required bind:value={inviteMembershipTypeId}>{#each inviteMembershipConfig.membershipTypes.filter(type => type.active) as type}<option value={type.id}>{type.name}</option>{/each}</select></label>
-                <p class="permission-help">Membership controls field participation, not administrative rights. Choose Active rescuer for qualified rescue work, Transport volunteer for pickup work, or Support member for administration only.</p>
-              </div>
-              <fieldset class="capability-picker"><legend>Species and dispatch teams <small>Only active field rescuers receive matching species rescue offers. Transport volunteers can receive eligible transport offers.</small></legend><div class="capability-grid">{#each inviteMembershipConfig.teams.filter(team => team.active) as team}<label class="capability-option"><input type="checkbox" name="teamIds" value={team.id} /><span><strong>{team.name}</strong><small>{team.receivesAllRescues ? 'Transport team — eligibility is also checked by membership' : team.description}</small></span></label>{/each}</div></fieldset>
+              <fieldset class="capability-picker"><legend>Trained species and specialist teams <small>All unchecked. Assign only training the member actually holds. Training alone never grants rescue access.</small></legend><div class="capability-grid">{#each inviteMembershipConfig.teams.filter(team => team.active && team.id !== 'transport' && !team.receivesAllRescues) as team}<label class="capability-option"><input type="checkbox" name="teamIds" value={team.id} /><span><strong>{team.name}</strong><small>{team.description}</small></span></label>{/each}</div></fieldset>
+              <fieldset class="access-group">
+                <legend>Transport authorisation</legend>
+                <label class="capability-option"><input type="checkbox" name="canTransport" value="on" /><span><strong>Can transport animals</strong><small>Unchecked by default. Only enable for volunteers who can and are authorised to transport. A carer or trained rescuer is not automatically a driver.</small></span></label>
+              </fieldset>
+              <fieldset class="capability-picker">
+                <legend>Committee and management positions <small>Independent of training and system permissions. Select any positions this person holds.</small></legend>
+                <div class="capability-grid">{#each (inviteMembershipConfig.positions ?? []).filter(position => position.active) as position}<label class="capability-option"><input type="checkbox" name="positionIds" value={position.id} /><span><strong>{position.name}</strong></span></label>{:else}<p class="permission-help">No positions defined yet. Add President, Secretary, Raptor Leader and others in People → Organisation positions.</p>{/each}</div>
+              </fieldset>
               <div class="dialog-actions"><button type="button" onclick={() => (showInvite = false)}>Cancel</button><button class="primary-action" type="submit">Send invitation</button></div>
             </form>
           </div>
@@ -669,16 +675,24 @@
             </form>
             <form method="POST" action="?/updateMemberAccess" class="person-form">
               <input type="hidden" name="userId" value={selectedPerson.id} />
+              <fieldset class="access-group" disabled={selectedPerson.id === data.currentUser.id}>
+                <legend>System permissions — select all that apply</legend>
+                <p class="permission-help">Grant only necessary privileges. Changing permissions signs this member out of existing sessions. Management positions do not grant permissions.</p>
+                <div class="capability-grid">{#each roleOptions.filter(option => data.assignableRoles.includes(option.id)) as role}<label class="capability-option"><input type="checkbox" name="roles" value={role.id} checked={selectedPerson.roles.includes(role.id)} /><span><strong>{role.label}</strong></span></label>{/each}</div>
+              </fieldset>
               <div class="access-group">
-                <label><span>Account role — permissions</span><select name="role" required disabled={selectedPerson.id === data.currentUser.id}>{#each roleOptions.filter(option => data.assignableRoles.includes(option.id)) as role}<option value={role.id} selected={selectedPerson.roles.includes(role.id)}>{role.label}</option>{/each}</select></label>
-                <p class="permission-help">Controls access to platform, administration, dispatch and animal-care features. A platform administrator can change Chris to Platform administrator here. Changing roles signs the member out of existing sessions.</p>
+                <label><span>Operational membership (optional)</span><select name="membershipTypeId" disabled={selectedPerson.id === data.currentUser.id}>
+                  <option value="" selected={!selectedPerson.membershipTypeId}>None</option>
+                  {#each membershipConfigFor(selectedPerson).membershipTypes.filter(type => type.active) as type}<option value={type.id} selected={type.id === selectedPerson.membershipTypeId}>{type.name}</option>{/each}
+                </select></label>
+                <p class="permission-help">Field participation is separate from access permissions, trained species and management positions.</p>
               </div>
-              <div class="access-group">
-                <label><span>Operational membership — field participation</span><select name="membershipTypeId" required disabled={selectedPerson.id === data.currentUser.id}>{#each membershipConfigFor(selectedPerson).membershipTypes.filter(type => type.active) as type}<option value={type.id} selected={type.id === selectedPerson.membershipTypeId}>{type.name}</option>{/each}</select></label>
-                <p class="permission-help">This does not grant administrator access. Active rescuer + suitable species teams enables rescue offers; Transport volunteer enables transport work.</p>
-              </div>
-              <fieldset class="capability-picker"><legend>Species and dispatch teams <small>Only matching pending cases appear for active field rescuers.</small></legend><div class="capability-grid">{#each membershipConfigFor(selectedPerson).teams.filter(team => team.active) as team}<label class="capability-option"><input type="checkbox" name="teamIds" value={team.id} checked={(selectedPerson.teamIds ?? []).includes(team.id)} disabled={selectedPerson.id === data.currentUser.id} /><span><strong>{team.name}</strong><small>{team.description}</small></span></label>{/each}</div></fieldset>
-              <div class="dialog-actions"><button class="primary-action" type="submit" disabled={selectedPerson.id === data.currentUser.id}>Save access & eligibility</button></div>
+              <fieldset class="capability-picker" disabled={selectedPerson.id === data.currentUser.id}><legend>Trained species and specialist teams <small>Check only verified training and qualifications. Unchecked areas are not assigned.</small></legend><div class="capability-grid">{#each membershipConfigFor(selectedPerson).teams.filter(team => team.active && team.id !== 'transport' && !team.receivesAllRescues) as team}<label class="capability-option"><input type="checkbox" name="teamIds" value={team.id} checked={(selectedPerson.teamIds ?? []).includes(team.id)} /><span><strong>{team.name}</strong><small>{team.description}</small></span></label>{/each}</div></fieldset>
+              <fieldset class="access-group" disabled={selectedPerson.id === data.currentUser.id}>
+                <legend>Transport authorisation</legend>
+                <label class="capability-option"><input type="checkbox" name="canTransport" value="on" checked={selectedPerson.canTransport === true} /><span><strong>Can transport animals</strong><small>Independent of being a carer, rescuer or specialist. Untick if they cannot transport.</small></span></label>
+              </fieldset>
+              <div class="dialog-actions"><button class="primary-action" type="submit" disabled={selectedPerson.id === data.currentUser.id}>Save permissions & qualifications</button></div>
             </form>
             <div class="account-management"><h3>Account access</h3><p>These actions affect sign-in access, not dispatch availability.</p><div class="account-actions"><form method="POST" action={selectedPerson.enabled ? '?/disableUser' : '?/enableUser'}><input type="hidden" name="userId" value={selectedPerson.id} /><button type="submit">{selectedPerson.enabled ? 'Disable access' : 'Enable access'}</button></form><form method="POST" action="?/resetPassword"><input type="hidden" name="userId" value={selectedPerson.id} /><button type="submit">Reset password</button></form><form method="POST" action="?/removeUser" onsubmit={(event) => { if (!confirm('Remove this person from Rescue Hub? This cannot be undone.')) event.preventDefault(); }}><input type="hidden" name="userId" value={selectedPerson.id} /><button class="danger" type="submit">Remove person</button></form></div></div>
           </div>
