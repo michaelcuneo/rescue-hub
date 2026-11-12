@@ -4,10 +4,8 @@
 	import { env } from '$env/dynamic/public';
 	import { get } from 'svelte/store';
 	import { Map, Marker, controls } from '@beyonk/svelte-mapbox';
-	import { coords, mapRef, data, selectedRescue, intakeOpen, draftLocation } from '$lib/stores';
+	import { mapRef, data, selectedRescue, intakeOpen, draftLocation } from '$lib/stores';
 	import Type from '$lib/components/Type.svelte';
-	import Avatar from './Avatar.svelte';
-	import Michael from '$lib/images/michael.jpg';
 	import { shouldShowRescuePin } from '../../../../core/case-map-visibility';
 
 	type AreaSelection = {
@@ -27,13 +25,6 @@
 			loadedLayers?: number[];
 			failedLayers?: Array<{ layerId: number; name: string; error: string }>;
 		};
-	};
-
-	let user: User = {
-		id: '37c7eeca-748e-4c19-9e4a-15649b34e40e',
-		name: 'Michael Cuneo',
-		email: 'me@michaelcuneo.com.au',
-		avatar: 'https://place-hold.it/40x40?text=M&fontsize=16'
 	};
 
 	let center: [number, number] = $state([151.66, -32.95]);
@@ -259,10 +250,6 @@
 		style={$resolvedTheme === 'dark' ? 'mapbox://styles/mapbox/dark-v11' : 'mapbox://styles/michaelcuneo/ckzzecgy7005j14qvpzd53fgn'}
 		onready={handleMapReady}
 	>
-		<Marker lat={$coords[1]} lng={$coords[0]} label={user.name}>
-			<Avatar src={Michael} initials="MC" />
-		</Marker>
-
 		{#each $data.pending.filter(shouldShowRescuePin) as item}
 			<Marker lat={item.latitude} lng={item.longitude} label={item.type}>
 				<Type
