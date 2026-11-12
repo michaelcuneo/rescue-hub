@@ -56,6 +56,7 @@ export type RescueHubUser = {
 	positionTitle?: string;
   positionIds?: string[];
 	teamIds: string[];
+  canTransport: boolean;
 	availabilityStatus: 'AVAILABLE' | 'BUSY' | 'OFFLINE';
 	availabilityPolicy?: AvailabilityPolicy;
 	createdAt: string;
@@ -122,6 +123,7 @@ function toUser(item: Record<string, unknown>): RescueHubUser {
 		positionTitle: typeof item.positionTitle === 'string' ? item.positionTitle : undefined,
     positionIds: Array.isArray(item.positionIds) ? item.positionIds.map(String) : [],
 		teamIds: Array.isArray(item.teamIds) ? item.teamIds.map(String) : [],
+    canTransport: item.canTransport === true,
 		availabilityStatus: effectiveAvailability({ availabilityStatus: ['AVAILABLE', 'BUSY', 'OFFLINE'].includes(String(item.availabilityStatus)) ? String(item.availabilityStatus) as RescueHubUser['availabilityStatus'] : 'OFFLINE', availabilityPolicy: item.availabilityPolicy }),
 		availabilityPolicy: readAvailabilityPolicy(item.availabilityPolicy) ?? undefined,
 		createdAt: String(item.createdAt),
@@ -542,18 +544,25 @@ export async function inviteUser(input: {
 	roles: RescueHubRole[];
 	membershipTypeId?: string;
 	teamIds?: string[];
+  canTransport?: boolean;
+  positionIds?: string[];
 }) {
 	const email = normalizeEmail(input.email);
 	const name = input.name.trim();
 	const organisationId = input.organisationId.trim();
 	const roles = [...new Set(input.roles)];
-	const membershipTypeId = input.membershipTypeId?.trim() || 'active-rescuer';
+	const membershipTypeId = input.membershipTypeId?.trim() || '';
 	const teamIds = [...new Set(input.teamIds ?? [])];
+  const positionIds = [...new Set(input.positionIds ?? [])];
+  const canTransport = input.canTransport === true;
 
 	if (!/^\S+@\S+\.\S+$/.test(email)) throw new Error('Enter a valid email address.');
 	if (!name || name.length > 100) throw new Error('Enter a name.');
 	if (!organisationId) throw new Error('Choose an organisation.');
-	if (!roles.length) throw new Error('Choose at least one role.');
+  if (roles.includes('PUBLIC_REPORTER')) throw new Error('Public reporter permissions cannot be granted to organisation staff.');
+  if (canTransport && !roles.some(role => ['RESCUER', 'CARER', 'DISPATCHER', 'ORG_ADMIN'].includes(role)))
+    throw new Error('Select a transport-capable access role before authorising transport.');
+  if (positionIds.length > 20) throw new Error('Choose no more than 20 organisation positions.');
 
   const existingId = await lookupUserIdByEmail(email);
   const existing = existingId ? await getUserById(existingId) : null;
@@ -612,6 +621,8 @@ export async function inviteUser(input: {
 						roles,
 						membershipTypeId,
 						teamIds,
+            positionIds,
+            canTransport,
 						availabilityStatus: 'OFFLINE',
 						createdAt: now,
 						updatedAt: now,
@@ -634,6 +645,8 @@ export async function inviteUser(input: {
 						roles,
 						membershipTypeId,
 						teamIds,
+            positionIds,
+            canTransport,
 						availabilityStatus: 'OFFLINE',
 						status: 'PENDING',
 						createdAt: now,
@@ -1045,18 +1058,24 @@ export async function updateUserDispatchMembership(input: {
 export async function updateUserAccess(input: {
   userId: string;
   expectedRoles: RescueHubRole[];
-  role: RescueHubRole;
+  roles: RescueHubRole[];
   membershipTypeId: string;
   teamIds: string[];
+  canTransport: boolean;
 }) {
   const now = new Date().toISOString();
   const teamIds = [...new Set(input.teamIds.filter(Boolean))];
-  const roles = [input.role];
-  const changedRole = input.expectedRoles.length !== 1 || input.expectedRoles[0] !== input.role;
-  const expressions = 'SET #roles = :roles, membershipTypeId = :membership, teamIds = :teams, updatedAt = :now';
+  const roles = [...new Set(input.roles)];
+  if (roles.includes('PUBLIC_REPORTER'))
+    throw new Error('Public reporters cannot be assigned organisation roles.');
+  if (input.canTransport && !roles.some(role => ['RESCUER', 'CARER', 'DISPATCHER', 'ORG_ADMIN'].includes(role)))
+    throw new Error('Select a transport-capable role before authorising transport.');
+  const changedRole = roles.length !== input.expectedRoles.length ||
+    roles.some(role => !input.expectedRoles.includes(role));
+  const expressions = 'SET #roles = :roles, membershipTypeId = :membership, teamIds = :teams, canTransport = :transport, updatedAt = :now';
   const args = {
     ':roles': roles, ':membership': input.membershipTypeId, ':teams': teamIds,
-    ':now': now
+    ':transport': input.canTransport, ':now': now
   };
   try {
     await db.send(new TransactWriteCommand({
