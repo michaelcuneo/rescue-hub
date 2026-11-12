@@ -82,7 +82,7 @@ export default function OrganisationChats({ userId, initialChannelId, onOpenAnim
   useEffect(() => {
     let active = true;
     const init = async () => {
-      try { await Promise.all([refreshChannels(), refreshMembers()]); } catch (e) {
+      try { await refreshChannels(); await refreshMembers(); } catch (e) {
         if (active) setError(e instanceof Error ? e.message : 'Unable to load chat channels.');
       } finally { if (active) setLoading(false); }
     };
