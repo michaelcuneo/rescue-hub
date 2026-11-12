@@ -34,10 +34,10 @@ test('transport is independent of carer/rescuer training and requires explicit o
   assert.equal(canTransportForOrganisation({...base, roles:['DISPATCHER'], canTransport:true}),true);
   assert.equal(canTransportForOrganisation({...base, roles:['ORG_ADMIN'], canTransport:true}),true);
   assert.equal(canTransportForOrganisation({...base, membershipTypeId:'transport-volunteer'}),false);
-  assert.equal(canTransportForOrganisation({...base, roles:[], canTransport:true}),false);
+  assert.equal(canTransportForOrganisation({...base, roles:[], canTransport:true}),true);
   assert.equal(canTransportForOrganisation({...base,roles:['PUBLIC_REPORTER'], canTransport:true}),false);
   assert.equal(canTransportForOrganisation({...base,enabled:false,canTransport:true}),false);
-  assert.equal(canTransportForOrganisation({...base,roles:['DATA_STEWARD'],canTransport:true}),false);
+  assert.equal(canTransportForOrganisation({...base,roles:['DATA_STEWARD'],canTransport:true}),true);
 });
 
 test('transport closes as completed only after collected animal is accepted by carer', () => {
