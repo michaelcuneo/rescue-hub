@@ -32,10 +32,12 @@ export type TeamDefinition = {
 	active: boolean;
 };
 
+export type OrganisationPosition = { id: string; name: string; active: boolean };
 export type OrganisationMembershipConfig = {
 	organisationId: string;
 	membershipTypes: MembershipTypeDefinition[];
 	teams: TeamDefinition[];
+  positions: OrganisationPosition[];
 	source: 'STANDARD_DEFAULTS' | 'ORGANISATION';
 };
 
@@ -225,11 +227,15 @@ export async function getOrganisationMembershipConfig(
 			active: item.active !== false
 		}));
 
+  const positions = (result.Items ?? [])
+    .filter(item => String(item.sk ?? '').startsWith('POSITION#'))
+    .map(item => ({ id: String(item.id), name: String(item.name), active: item.active !== false }));
 	return {
 		organisationId,
+		positions,
 		membershipTypes: membershipTypes.length ? membershipTypes : STANDARD_MEMBERSHIP_TYPES,
 		teams: teams.length ? teams : STANDARD_TEAMS,
-		source: membershipTypes.length || teams.length ? 'ORGANISATION' : 'STANDARD_DEFAULTS'
+		source: membershipTypes.length || teams.length || positions.length ? 'ORGANISATION' : 'STANDARD_DEFAULTS'
 	};
 }
 
@@ -311,4 +317,32 @@ export async function saveOrganisationMembershipConfig(
 			}))
 		)
 	]);
+}
+
+/** Manage organisation-specific governance/committee titles, not login roles. */
+export async function addOrganisationPosition(organisationId: string, nameInput: string) {
+  const name = nameInput.trim();
+  if (!name || name.length > 80 || /[\\u0000-\\u001f\\u007f]/.test(name))
+    throw new Error('Enter a position name of up to 80 readable characters.');
+  const id = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 72);
+  if (!id) throw new Error('Position must contain letters or numbers.');
+  await db.send(new PutCommand({
+    TableName: tableName, Item: {
+      pk: `ORG#${organisationId}`, sk: `POSITION#${id}`,
+      entity: 'organisation_position', id, name, active: true, updatedAt: new Date().toISOString()
+    },
+    ConditionExpression: 'attribute_not_exists(pk)'
+  }));
+  return { id, name, active: true };
+}
+
+export async function deactivateOrganisationPosition(organisationId: string, positionId: string) {
+  if (!/^[a-z0-9-]{1,72}$/.test(positionId)) throw new Error('Invalid position ID.');
+  const { UpdateCommand } = await import('@aws-sdk/lib-dynamodb');
+  await db.send(new UpdateCommand({
+    TableName: tableName, Key: { pk: `ORG#${organisationId}`, sk: `POSITION#${positionId}` },
+    UpdateExpression: 'SET active = :inactive, updatedAt = :now',
+    ConditionExpression: 'attribute_exists(pk)',
+    ExpressionAttributeValues: { ':inactive': false, ':now': new Date().toISOString() }
+  }));
 }
