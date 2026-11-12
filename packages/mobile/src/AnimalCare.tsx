@@ -225,7 +225,7 @@ export default function AnimalCare({ rescue, userId, roles, onBack, onUnclaim }:
         if (!releaseLocation.trim()) throw new Error('Record where the animal was actually released.');
         if (!releaseNotes.trim()) throw new Error('Add a brief reason for the release or relocation.');
         await recordAnimalOutcome(animalId, 'RELEASED', releaseNotes.trim(), {
-          location: releaseLocation.trim(), ...(releaseCoords ?? {})
+          location: releaseLocation.trim(), releaseReason: 'RELOCATION', ...(releaseCoords ?? {})
         });
         setGuideStatus('RELEASED');
         setQuickMessage('Wildlife release recorded. The original rescue and release locations are preserved.');
