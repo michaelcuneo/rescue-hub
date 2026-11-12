@@ -14,7 +14,7 @@ export const load: PageServerLoad = async ({ locals }) => {
   // themselves into an organisation's species rescue queue.
   const canManageAvailability = Boolean(
     user.organisationId &&
-    user.roles.some(role => ['RESCUER', 'CARER', 'ORG_ADMIN', 'DISPATCHER'].includes(role))
+    (user.canTransport === true || user.roles.some(role => ['RESCUER', 'CARER', 'ORG_ADMIN', 'DISPATCHER'].includes(role)))
   );
   const [membership, devices] = await Promise.all([
     user.organisationId
