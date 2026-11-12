@@ -129,7 +129,7 @@ export default function AvailabilitySettings({ onBack, onSave, onSignOut, pushSt
         <Text style={[styles.modeText,policy.mode!=='SCHEDULE'&&styles.modeTextActive]}>Override</Text>
       </Pressable>
     </View>
-    {policy.mode!=='SCHEDULE' ? <View style={styles.override}>
+    {(policy.mode==='ON' || policy.mode==='OFF') ? <View style={styles.override}>
       <View style={styles.overrideDescription}>
         <Text style={styles.overrideTitle}>{policy.mode==='ON' ? 'Available for rescues' : 'Unavailable for rescues'}</Text>
         <Text style={styles.helpOverride}>Manually control rescue notifications until you return to your schedule.</Text>
