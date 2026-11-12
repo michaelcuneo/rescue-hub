@@ -1,5 +1,6 @@
 import { json } from '@sveltejs/kit';
 import { getRescue } from '$lib/server/graphql';
+import { getAnimal } from '$lib/server/animals';
 import { confirmRescuePickup, RescuePickupConflict } from '$lib/server/rescue-pickup';
 import type { RequestHandler } from './$types';
 import { canTransportForOrganisation } from '../../../../../../../../core/care-delivery';
@@ -25,11 +26,16 @@ export const POST: RequestHandler = async ({ locals, params, request }) => {
   if (body.description !== undefined && (typeof body.description !== 'string' || body.description.length > 2000))
     return json({ error: 'Invalid animal description.' }, { status: 400 });
   try {
-    return json({ rescue: await confirmRescuePickup(
+    const updated = await confirmRescuePickup(
       rescue, user.id, String(body.notes ?? ''),
       !rescue.transportAnimalId && typeof body.species === 'string'
         ? { species: body.species, description: String(body.description ?? '') } : undefined
-    ) });
+    );
+    return json({
+      rescue: updated,
+      animal: !rescue.transportAnimalId && typeof updated.quickAnimalId === 'string'
+        ? await getAnimal(updated.quickAnimalId) : undefined
+    });
   } catch (error) {
     if (error instanceof RescuePickupConflict) return json({ error: error.message }, { status: 409 });
     console.error('Physical collection could not be recorded:', error);
