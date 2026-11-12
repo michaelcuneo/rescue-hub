@@ -1,5 +1,5 @@
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
-import { DynamoDBDocumentClient, GetCommand, PutCommand, QueryCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
+import { DynamoDBDocumentClient, GetCommand, PutCommand, QueryCommand, TransactWriteCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
 import { Resource } from 'sst';
 import { getOrganisationMembershipConfig } from './membership';
 import { publishRescueChange } from './realtime';
@@ -188,18 +188,23 @@ export async function openDirectChat(
     const createdAt = new Date().toISOString();
     const participants = [user.id, recipient.id].sort();
     try {
-      await db.send(new PutCommand({
-        TableName: table, Item: {
-          ...key, entity: 'direct_chat', organisationId, channelId,
-          participants, createdAt,
-          // The descriptor lives under the organisation/channel partition; no
-          // untrusted user-provided channel ids or message recipients.
-          gsi2pk: `DIRECT_CHATS#${organisationId}`,
-          gsi2sk: `${createdAt}#${channelId}`
-        }, ConditionExpression: 'attribute_not_exists(pk)'
+      await db.send(new TransactWriteCommand({
+        TransactItems: [
+          { Put: { TableName: table, Item: {
+            ...key, entity: 'direct_chat', organisationId, channelId,
+            participants, createdAt
+          }, ConditionExpression: 'attribute_not_exists(pk)' } },
+          ...participants.map(memberId => ({ Put: {
+            TableName: table, Item: {
+              pk: `USER#${memberId}`, sk: `DIRECT_CHAT#${organisationId}#${channelId}`,
+              organisationId, channelId, participants, createdAt,
+              entity: 'private_chat_membership'
+            }, ConditionExpression: 'attribute_not_exists(pk)'
+          } }))
+        ]
       }));
     } catch (error) {
-      if (!(error instanceof Error && error.name === 'ConditionalCheckFailedException')) throw error;
+      if (!(error instanceof Error && ['ConditionalCheckFailedException', 'TransactionCanceledException'].includes(error.name))) throw error;
     }
   }
   const saved = await db.send(new GetCommand({ TableName: table, Key: key, ConsistentRead: true }));
@@ -280,16 +285,18 @@ export async function listMyChannels(user: RescueHubUser, selectedOrganisationId
 }
 
 async function listDirectChatSummaries(user: RescueHubUser, organisationId: string): Promise<ChatSummary[]> {
-  // Query GSI rather than scanning all organisation messages. The complete
-  // list is paginated (do not silently drop old private conversations).
+  // Strongly consistent per-user pointers avoid cross-tenant scans and the
+  // eventual-consistency gap after first opening a new conversation.
   const descriptors: Record<string, unknown>[] = [];
   let cursor: Record<string, unknown> | undefined;
   do {
     const page = await db.send(new QueryCommand({
-      TableName: table, IndexName: 'gsi2',
-      KeyConditionExpression: 'gsi2pk = :pk',
-      ExpressionAttributeValues: { ':pk': `DIRECT_CHATS#${organisationId}` },
-      ExclusiveStartKey: cursor, Limit: DM_DIRECTORY_LIMIT
+      TableName: table,
+      KeyConditionExpression: 'pk = :pk AND begins_with(sk, :prefix)',
+      ExpressionAttributeValues: {
+        ':pk': `USER#${user.id}`, ':prefix': `DIRECT_CHAT#${organisationId}#`
+      },
+      ConsistentRead: true, ExclusiveStartKey: cursor, Limit: DM_DIRECTORY_LIMIT
     }));
     descriptors.push(...(page.Items ?? []));
     cursor = page.LastEvaluatedKey;
