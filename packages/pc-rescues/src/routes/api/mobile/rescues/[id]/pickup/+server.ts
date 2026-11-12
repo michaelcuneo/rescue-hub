@@ -16,11 +16,20 @@ export const POST: RequestHandler = async ({ locals, params, request }) => {
   const canPickup = rescue.transportAnimalId ? canTransportForOrganisation(user) :
     user.roles.some(role => ['RESCUER', 'CARER', 'ORG_ADMIN'].includes(role));
   if (!canPickup) return json({ error: 'This account is not eligible to collect the animal.' }, { status: 403 });
-  const body = await request.json().catch(() => ({})) as { notes?: unknown };
+  const body = await request.json().catch(() => ({})) as { notes?: unknown; species?: unknown; description?: unknown };
   if (body.notes !== undefined && typeof body.notes !== 'string')
     return json({ error: 'Pickup notes must be text.' }, { status: 400 });
+  if (!rescue.transportAnimalId && body.species !== undefined &&
+      (typeof body.species !== 'string' || !body.species.trim() || body.species.length > 120))
+    return json({ error: 'A valid species is required.' }, { status: 400 });
+  if (body.description !== undefined && (typeof body.description !== 'string' || body.description.length > 2000))
+    return json({ error: 'Invalid animal description.' }, { status: 400 });
   try {
-    return json({ rescue: await confirmRescuePickup(rescue, user.id, String(body.notes ?? '')) });
+    return json({ rescue: await confirmRescuePickup(
+      rescue, user.id, String(body.notes ?? ''),
+      !rescue.transportAnimalId && typeof body.species === 'string'
+        ? { species: body.species, description: String(body.description ?? '') } : undefined
+    ) });
   } catch (error) {
     if (error instanceof RescuePickupConflict) return json({ error: error.message }, { status: 409 });
     console.error('Physical collection could not be recorded:', error);
