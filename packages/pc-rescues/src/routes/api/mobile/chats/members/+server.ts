@@ -6,7 +6,8 @@ export const GET: RequestHandler = async ({ locals, url }) => {
   if (!locals.user) return json({ error: 'Sign in to access members.' }, { status: 401 });
   try {
     return json({ members: await listChatDirectory(locals.user,
-      url.searchParams.get('organisationId') || undefined) },
+      url.searchParams.get('organisationId') || undefined,
+      url.searchParams.get('channelId') || undefined) },
       { headers: { 'cache-control': 'private, no-store' } });
   } catch (error) {
     if (error instanceof ChatAccessError) return json({ error: error.message }, { status: 403 });
