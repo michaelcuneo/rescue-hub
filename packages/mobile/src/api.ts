@@ -297,7 +297,7 @@ export async function quickVetProgress(rescueId: string, kind: 'GOING_TO_VET' | 
 export async function confirmRescuePickup(
   id: string, notes = '', registration?: { species: string; description?: string }
 ) {
-  return request<{ rescue: Rescue }>(`/api/mobile/rescues/${encodeURIComponent(id)}/pickup`, {
+  return request<{ rescue: Rescue; animal?: Animal }>(`/api/mobile/rescues/${encodeURIComponent(id)}/pickup`, {
     method: 'POST', body: JSON.stringify({ notes, ...(registration ?? {}) })
   });
 }
