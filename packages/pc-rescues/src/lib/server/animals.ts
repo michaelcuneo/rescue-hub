@@ -163,7 +163,7 @@ export async function getPendingAnimalTransfer(animal: AnimalRecord) {
 
 export async function changeAnimalState(animal: AnimalRecord, actorUserId: string, input: {
   kind: 'TRANSFER' | 'ACCEPT_TRANSFER' | 'OUTCOME' | 'SELF_CARE' | 'VET_TRANSPORT_STARTED' | 'VET_DROPOFF' | 'VET_ASSESSED';
-  recipientUserId?: string; location?: string; latitude?: number; longitude?: number; status?: AnimalStatus; notes?: string; purpose?: 'CARE' | 'TRANSPORT';
+  recipientUserId?: string; location?: string; latitude?: number; longitude?: number; releaseReason?: 'RELOCATION'; status?: AnimalStatus; notes?: string; purpose?: 'CARE' | 'TRANSPORT';
 }) {
   if (terminal.has(animal.status)) throw new AnimalConflict('Animal already has a final outcome.');
   const now = new Date().toISOString(), eventId = crypto.randomUUID();
@@ -272,7 +272,7 @@ export async function changeAnimalState(animal: AnimalRecord, actorUserId: strin
     values[':care'] = input.status;
     if (input.status === 'RELEASED') values[':location'] = input.location!.trim();
     extra = { outcome: input.status, location: input.location ?? '', notes: input.notes,
-      ...(input.status === 'RELEASED' ? { releaseReason: 'RELOCATION',
+      ...(input.status === 'RELEASED' ? { ...(input.releaseReason ? { releaseReason: input.releaseReason } : {}),
         originalRescueId: animal.rescueId,
         ...(input.latitude !== undefined ? { latitude: input.latitude, longitude: input.longitude } : {}) } : {}) };
   }
