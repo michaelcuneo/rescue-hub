@@ -21,7 +21,7 @@ const END_TIME = /^([01]\d|2[0-3]):([0-5]\d)$|^24:00$/;
 
 export function defaultAvailabilityPolicy(status: 'AVAILABLE' | 'BUSY' | 'OFFLINE' = 'OFFLINE'): AvailabilityPolicy {
   return {
-    mode: status === 'AVAILABLE' ? 'ON' : 'OFF',
+    mode: status === 'AVAILABLE' ? 'ON' : status === 'BUSY' ? 'BUSY' : 'OFF',
     timezone: 'Australia/Sydney',
     week: Object.fromEntries(DAYS.map((day, index) => [
       day, { enabled: index < 5, windows: [{ start: '09:00', end: '17:00' }] }
