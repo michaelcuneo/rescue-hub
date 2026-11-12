@@ -556,7 +556,7 @@
                 <span class="person-teams">{teamNames(user).slice(0, 2).join(' · ') || 'No dispatch teams'}{teamNames(user).length > 2 ? ` +${teamNames(user).length - 2}` : ''}</span>
                 <span class="person-status">
                   <span class:available={user.enabled && user.availabilityStatus === 'AVAILABLE'} class="availability-state">
-                    {user.status === 'INVITED' ? 'Invited' : !user.enabled ? 'Disabled' : user.availabilityStatus === 'AVAILABLE' ? 'Available' : 'Offline'}
+                    {user.status === 'INVITED' ? 'Invited' : !user.enabled ? 'Disabled' : user.availabilityStatus === 'AVAILABLE' ? 'Available' : user.availabilityStatus === 'BUSY' ? 'Busy' : 'Offline'}
                   </span>
                   {#if user.status === 'INVITED' && !user.roles.includes('PUBLIC_REPORTER')}
                     <small class="invitation-delivery">{invitationEmailLabel(user.invitationEmailStatus)}</small>
