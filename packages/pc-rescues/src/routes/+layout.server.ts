@@ -1,5 +1,6 @@
 import { getHunterDemo } from '$lib/server/demo';
 import { effectiveAvailability } from '$lib/server/availability';
+import { canRescueForOrganisation, canTransportForOrganisation } from '../../../../core/care-delivery';
 import type { LayoutServerLoad } from './$types';
 
 export const load: LayoutServerLoad = ({ locals, cookies }) => {
@@ -12,8 +13,9 @@ export const load: LayoutServerLoad = ({ locals, cookies }) => {
       availabilityMode: active.availabilityPolicy?.mode ??
         (active.availabilityStatus === 'AVAILABLE' ? 'ON' : 'OFF'),
       isAvailableNow: effectiveAvailability(active) === 'AVAILABLE',
-      canReceiveRescueOffers: Boolean(active.organisationId && (active.canTransport === true || active.roles.some(role =>
-        ['RESCUER', 'CARER', 'ORG_ADMIN', 'DISPATCHER'].includes(role))))
+      canReceiveRescueOffers: Boolean(active.organisationId &&
+        (canTransportForOrganisation(active) ||
+         (canRescueForOrganisation(active) && active.teamIds.some(id => id !== 'transport')))))
     } : null,
     demoMode: getHunterDemo(cookies, user)
   };
