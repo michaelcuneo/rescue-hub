@@ -45,7 +45,6 @@ export type ChatDirectoryMember = {
 const dmRecordKey = (organisationId: string, channelId: string) => ({
   pk: `ORG#${organisationId}#CHAT#${channelId}`, sk: 'DIRECT'
 });
-const DM_INDEX = 'DM#';
 const DM_DIRECTORY_LIMIT = 200;
 const channelPk = (organisationId: string, channelId: string) =>
   `ORG#${organisationId}#CHAT#${channelId}`;
