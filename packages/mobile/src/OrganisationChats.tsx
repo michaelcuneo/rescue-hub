@@ -198,9 +198,11 @@ export default function OrganisationChats({ userId, initialChannelId, onOpenAnim
                 {item.latest ? `${item.latest.senderName}: ${item.latest.text}` : item.description}
               </Text>
             </View>
-            {item.recipientUserId ? <View style={[styles.presence, item.recipientAvailability==='AVAILABLE' ? styles.available :
-              item.recipientAvailability==='BUSY' ? styles.busyPresence : styles.offline]}
-              accessibilityLabel={item.recipientAvailability ?? 'OFFLINE'} /> : null}
+            {item.recipientUserId ? <View style={styles.statusRow}>
+              <View style={[styles.presence, item.recipientAvailability==='AVAILABLE' ? styles.available :
+                item.recipientAvailability==='BUSY' ? styles.busyPresence : styles.offline]} />
+              <Text style={styles.statusText}>{(item.recipientAvailability ?? 'OFFLINE').toLowerCase()}</Text>
+            </View> : null}
             {item.unread ? <View style={styles.unread} accessibilityLabel="Unread messages" /> : null}
           </Pressable>} /> :
         <>
@@ -218,8 +220,11 @@ export default function OrganisationChats({ userId, initialChannelId, onOpenAnim
                 <Text style={styles.channelName}>{item.name}</Text>
                 <Text style={styles.preview} numberOfLines={2}>{item.labels.join(' · ') || 'Organisation member'}</Text>
               </View>
-              <View style={[styles.presence,item.availability==='AVAILABLE' ? styles.available :
-                item.availability==='BUSY' ? styles.busyPresence : styles.offline]} accessibilityLabel={item.availability} />
+              <View style={styles.statusRow}>
+                <View style={[styles.presence,item.availability==='AVAILABLE' ? styles.available :
+                  item.availability==='BUSY' ? styles.busyPresence : styles.offline]} />
+                <Text style={styles.statusText}>{item.availability.toLowerCase()}</Text>
+              </View>
             </Pressable>} />
         </>
       }
@@ -312,6 +317,8 @@ const styles=StyleSheet.create({
   tabActive:{backgroundColor:'#173d2c'},tabText:{color:'#173d2c',fontWeight:'800'},tabTextActive:{color:'#fff'},
   search:{marginHorizontal:16,marginBottom:9,minHeight:44,borderRadius:10,paddingHorizontal:12,backgroundColor:'#fff',borderWidth:1,borderColor:'#d4e1d7',color:'#172c20'},
   directoryHelp:{marginHorizontal:17,marginBottom:12,color:'#68766d',fontSize:12,lineHeight:17},
+  statusRow:{flexDirection:'row',alignItems:'center',gap:5},
+  statusText:{fontSize:10,color:'#68766d',textTransform:'capitalize'},
   presence:{width:12,height:12,borderRadius:6,borderWidth:1,borderColor:'#e0e8e2'},
   available:{backgroundColor:'#17854c'},busyPresence:{backgroundColor:'#bd7121'},offline:{backgroundColor:'#819088'},
   busyNotice:{backgroundColor:'#fff0d7',color:'#684719',padding:12,fontSize:12},
