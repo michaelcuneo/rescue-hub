@@ -159,7 +159,7 @@
   onMount(() => {
     let disposed = false;
     let stop: (() => void) | null = null;
-    void Promise.all([refreshChannels(), refreshMembers()]).catch(e => { if (!disposed) error = String(e); })
+    void refreshChannels().then(refreshMembers).catch(e => { if (!disposed) error = String(e); })
       .finally(() => loading = false);
     void fetch('/api/realtime', { cache: 'no-store' }).then(async response => {
       if (!response.ok) return;
