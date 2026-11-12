@@ -458,6 +458,7 @@ export default function App() {
     if (activeRescue) return <SafeAreaView style={styles.root}><AnimalCare
     rescue={activeRescue}
     userId={session.user.id}
+    roles={session.user.roles ?? []}
     onBack={() => { setActiveRescue(null); void refresh(); }}
     onUnclaim={() => {
       setActiveRescue(null);

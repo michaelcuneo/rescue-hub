@@ -162,8 +162,8 @@ export async function getPendingAnimalTransfer(animal: AnimalRecord) {
 }
 
 export async function changeAnimalState(animal: AnimalRecord, actorUserId: string, input: {
-  kind: 'TRANSFER' | 'ACCEPT_TRANSFER' | 'OUTCOME' | 'VET_TRANSPORT_STARTED' | 'VET_DROPOFF' | 'VET_ASSESSED';
-  recipientUserId?: string; location?: string; status?: AnimalStatus; notes?: string; purpose?: 'CARE' | 'TRANSPORT';
+  kind: 'TRANSFER' | 'ACCEPT_TRANSFER' | 'OUTCOME' | 'SELF_CARE' | 'VET_TRANSPORT_STARTED' | 'VET_DROPOFF' | 'VET_ASSESSED';
+  recipientUserId?: string; location?: string; latitude?: number; longitude?: number; releaseReason?: 'RELOCATION'; status?: AnimalStatus; notes?: string; purpose?: 'CARE' | 'TRANSPORT';
 }) {
   if (terminal.has(animal.status)) throw new AnimalConflict('Animal already has a final outcome.');
   const now = new Date().toISOString(), eventId = crypto.randomUUID();
@@ -194,6 +194,18 @@ export async function changeAnimalState(animal: AnimalRecord, actorUserId: strin
     update = 'SET currentCustodianUserId = :user, currentLocation = :location, #status = :care, gsi1pk = :custodianKey, updatedAt = :now, version = :next REMOVE pendingTransferId, vetStage, activeTransportRescueId, reservedCarerUserId';
     values = { ...values, ':user': actorUserId, ':location': String(transfer.destination ?? ''), ':care': transfer.purpose === 'TRANSPORT' ? 'IN_TRANSIT' : 'IN_CARE', ':custodianKey': `CUSTODIAN#${animal.organisationId}#${actorUserId}` };
     extra = { transferId: animal.pendingTransferId, fromUserId: transfer.fromUserId, toUserId: actorUserId };
+  } else if (input.kind === 'SELF_CARE') {
+    if (actorUserId !== animal.currentCustodianUserId || animal.pendingTransferId ||
+        !['IN_RESCUE', 'IN_TRANSIT'].includes(animal.status))
+      throw new AnimalConflict('Only the collecting custodian can start personal care.');
+    const parent = await getRescue(animal.rescueId);
+    if (!parent?.pickedUpAt) throw new AnimalConflict('Confirm physical collection first.');
+    condition += ' AND currentCustodianUserId = :actor AND attribute_not_exists(pendingTransferId)';
+    values[':actor'] = actorUserId;
+    values[':care'] = 'IN_CARE';
+    type = 'CARE_STARTED';
+    update = 'SET #status = :care, updatedAt = :now, version = :next';
+    extra = { notes: input.notes ?? '', location: animal.currentLocation ?? '' };
   } else if (input.kind === 'VET_TRANSPORT_STARTED') {
     if (actorUserId !== animal.currentCustodianUserId || animal.pendingTransferId)
       throw new AnimalConflict('Only the current custodian can record veterinary transport.');
@@ -240,12 +252,29 @@ export async function changeAnimalState(animal: AnimalRecord, actorUserId: strin
     if (!input.status || !terminal.has(input.status)) throw new AnimalConflict('An explicit final outcome is required.');
     if (actorUserId !== animal.currentCustodianUserId) throw new AnimalConflict('Only current custodian can record outcome.');
     if (!input.notes?.trim()) throw new AnimalConflict('Outcome notes are required.');
+    if (input.status === 'RELEASED') {
+      if (!input.location?.trim() || input.location.length > 250)
+        throw new AnimalConflict('Record the actual release location.');
+      if ((input.latitude === undefined) !== (input.longitude === undefined) ||
+          (input.latitude !== undefined && (!Number.isFinite(input.latitude) || input.latitude < -90 || input.latitude > 90 ||
+          !Number.isFinite(input.longitude) || input.longitude! < -180 || input.longitude! > 180)))
+        throw new AnimalConflict('Release coordinates must be valid GPS coordinates.');
+      const originalRescue = await getRescue(animal.rescueId);
+      if (!originalRescue?.pickedUpAt)
+        throw new AnimalConflict('Confirm physical collection before releasing the animal.');
+    }
     condition += ' AND currentCustodianUserId = :actor AND attribute_not_exists(pendingTransferId)';
     values[':actor'] = actorUserId;
     type = 'FINAL_OUTCOME';
-    update = 'SET #status = :care, updatedAt = :now, version = :next REMOVE activeTransportRescueId';
+    update = input.status === 'RELEASED'
+      ? 'SET #status = :care, currentLocation = :location, updatedAt = :now, version = :next REMOVE activeTransportRescueId'
+      : 'SET #status = :care, updatedAt = :now, version = :next REMOVE activeTransportRescueId';
     values[':care'] = input.status;
-    extra = { outcome: input.status, location: input.location ?? '', notes: input.notes };
+    if (input.status === 'RELEASED') values[':location'] = input.location!.trim();
+    extra = { outcome: input.status, location: input.location ?? '', notes: input.notes,
+      ...(input.status === 'RELEASED' ? { ...(input.releaseReason ? { releaseReason: input.releaseReason } : {}),
+        originalRescueId: animal.rescueId,
+        ...(input.latitude !== undefined ? { latitude: input.latitude, longitude: input.longitude } : {}) } : {}) };
   }
   const event = {
     pk: `ANIMAL#${animal.id}`, sk: `EVENT#${now}#${eventId}`,

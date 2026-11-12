@@ -17,11 +17,18 @@ export class RescuePickupConflict extends Error {}
  * Physical transport pickup transfers custody to the collector atomically;
  * a later acknowledged handover to a carer remains necessary.
  */
-export async function confirmRescuePickup(rescue: Rescue, rescuerUserId: string, notes = ''): Promise<Rescue> {
+export async function confirmRescuePickup(
+  rescue: Rescue, rescuerUserId: string, notes = '',
+  registration?: { species: string; description?: string }
+): Promise<Rescue> {
   if (rescue.status !== 'ASSIGNED' || rescue.assignedUserId !== rescuerUserId || rescue.pickedUpAt)
     throw new RescuePickupConflict('Only the assigned rescuer can confirm collection of an uncollected animal.');
   const now = new Date().toISOString(), eventId = crypto.randomUUID();
   const cleanNotes = notes.trim();
+  const species = registration?.species.trim() ?? '';
+  const description = registration?.description?.trim() ?? '';
+  if (registration && (!species || species.length > 120 || description.length > 2000))
+    throw new RescuePickupConflict('Enter a valid animal species and identifying details.');
   if (cleanNotes.length > 1000) throw new RescuePickupConflict('Collection notes exceed 1000 characters.');
   const changes: NonNullable<TransactWriteCommandInput['TransactItems']> = [
       { Update: {
@@ -46,6 +53,39 @@ export async function confirmRescuePickup(rescue: Rescue, rescuerUserId: string,
         ConditionExpression: 'attribute_not_exists(pk)'
       }}
     ];
+  // Registration and physical collection are one atomic action for the first
+  // animal. Do not create a second animal on a transport collection or where
+  // a rescue already has registered animals.
+  if (!rescue.transportAnimalId && registration) {
+    const animalId = crypto.randomUUID(), animalEventId = crypto.randomUUID();
+    changes[0] = { Update: {
+      TableName: table, Key: { pk: `RESCUE#${rescue.id}`, sk: 'META' },
+      UpdateExpression: 'SET pickedUpAt = :now, updatedAt = :now, quickAnimalId = :animal ADD animalCount :one',
+      ConditionExpression: 'organisationId = :org AND #status = :assigned AND assignedUserId = :user AND attribute_not_exists(pickedUpAt) AND attribute_not_exists(quickAnimalId) AND (attribute_not_exists(animalCount) OR animalCount = :zero)',
+      ExpressionAttributeNames: { '#status': 'status' },
+      ExpressionAttributeValues: {
+        ':org': rescue.organisationId, ':assigned': 'ASSIGNED', ':user': rescuerUserId,
+        ':now': now, ':animal': animalId, ':one': 1, ':zero': 0
+      }
+    }};
+    changes.push(
+      { Put: { TableName: table, Item: {
+        pk: `ANIMAL#${animalId}`, sk: 'META', entity: 'animal', id: animalId,
+        rescueId: rescue.id, organisationId: rescue.organisationId, species, description,
+        status: 'IN_RESCUE', currentCustodianUserId: rescuerUserId,
+        currentLocation: rescue.location ?? '', version: 1, createdAt: now, updatedAt: now,
+        gsi2pk: `RESCUE_ANIMALS#${rescue.id}`, gsi2sk: `${now}#${animalId}`,
+        gsi1pk: `CUSTODIAN#${rescue.organisationId}#${rescuerUserId}`,
+        gsi1sk: `${now}#${animalId}`
+      }, ConditionExpression: 'attribute_not_exists(pk)' }},
+      { Put: { TableName: table, Item: {
+        pk: `ANIMAL#${animalId}`, sk: `EVENT#${now}#${animalEventId}`,
+        entity: 'animal_event', id: animalEventId, animalId,
+        organisationId: rescue.organisationId, type: 'ANIMAL_REGISTERED',
+        actorUserId: rescuerUserId, createdAt: now, sourceRescueId: rescue.id
+      }, ConditionExpression: 'attribute_not_exists(pk)' }}
+    );
+  }
   if (rescue.transportAnimalId) {
     const animal = await getAnimal(rescue.transportAnimalId);
     if (!animal || animal.organisationId !== rescue.organisationId ||

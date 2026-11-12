@@ -18,6 +18,7 @@ export type Rescue = {
   intakeSource?: 'PHONE' | 'ONLINE' | null;
   assignedUserId?: string | null;
   pickedUpAt?: string | null;
+  quickAnimalId?: string | null;
   transportAnimalId?: string | null;
   awaitingCarer?: boolean | null;
   transportSourceRescueId?: string | null;
