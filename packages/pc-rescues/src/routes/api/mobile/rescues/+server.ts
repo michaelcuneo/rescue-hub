@@ -64,7 +64,7 @@ export const GET: RequestHandler = async ({ locals }) => {
       classifyDispatchCapability(rescue.type, rescue.breed ?? '')
     ))
   );
-  const canBrowse = user.enabled && user.status === 'ACTIVE' && (permittedRole || user.membershipTypeId === 'transport-volunteer');
+  const canBrowse = user.enabled && user.status === 'ACTIVE' && permittedRole;
 
   // Current custody (not historical claimant) governs ongoing care visibility.
   // After every registered animal has been accepted by another custodian,

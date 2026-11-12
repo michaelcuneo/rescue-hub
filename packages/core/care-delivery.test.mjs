@@ -25,13 +25,19 @@ test('care can only be claimed once, when at vet ready for transport', () => {
   assert.equal(canClaimAnimalCare('AT_VET','ASSESSED_AWAITING_TRANSPORT',undefined,'transfer'),false);
   assert.equal(canClaimAnimalCare('IN_CARE','ASSESSED_AWAITING_TRANSPORT'),false);
 });
-test('transport can be claimed by eligible organisation members regardless of species team', () => {
-  const base={enabled:true,status:'ACTIVE',roles:['CARER']};
-  assert.equal(canTransportForOrganisation(base),true);
-  assert.equal(canTransportForOrganisation({...base,roles:[],membershipTypeId:'transport-volunteer'}),true);
-  assert.equal(canTransportForOrganisation({...base,roles:['PUBLIC_REPORTER']}),false);
-  assert.equal(canTransportForOrganisation({...base,enabled:false}),false);
-  assert.equal(canTransportForOrganisation({...base,roles:['DATA_STEWARD']}),false);
+test('transport is independent of carer/rescuer training and requires explicit opt-in', () => {
+  const base={enabled:true,status:'ACTIVE',roles:['CARER'], membershipTypeId:'active-rescuer'};
+  assert.equal(canTransportForOrganisation(base),false);
+  assert.equal(canTransportForOrganisation({...base, canTransport:false}),false);
+  assert.equal(canTransportForOrganisation({...base, canTransport:true}),true);
+  assert.equal(canTransportForOrganisation({...base, roles:['RESCUER'], canTransport:true}),true);
+  assert.equal(canTransportForOrganisation({...base, roles:['DISPATCHER'], canTransport:true}),true);
+  assert.equal(canTransportForOrganisation({...base, roles:['ORG_ADMIN'], canTransport:true}),true);
+  assert.equal(canTransportForOrganisation({...base, membershipTypeId:'transport-volunteer'}),false);
+  assert.equal(canTransportForOrganisation({...base, roles:[], canTransport:true}),true);
+  assert.equal(canTransportForOrganisation({...base,roles:['PUBLIC_REPORTER'], canTransport:true}),false);
+  assert.equal(canTransportForOrganisation({...base,enabled:false,canTransport:true}),false);
+  assert.equal(canTransportForOrganisation({...base,roles:['DATA_STEWARD'],canTransport:true}),true);
 });
 
 test('transport closes as completed only after collected animal is accepted by carer', () => {
@@ -45,6 +51,9 @@ test('only active field rescuers handle species cases; carers can still be carer
   const { canRescueForOrganisation } = await import('./care-delivery.ts');
   const active = { enabled: true, status: 'ACTIVE', roles: ['CARER'], membershipTypeId: 'active-rescuer' };
   assert.equal(canRescueForOrganisation(active), true);
+  assert.equal(canRescueForOrganisation({ ...active, membershipTypeId: undefined }), false);
+  assert.equal(canRescueForOrganisation({ ...active, membershipTypeId: '' }), false);
+  assert.equal(canRescueForOrganisation({ ...active, roles: ['RESCUER', 'CARER'] }), true);
   assert.equal(canRescueForOrganisation({ ...active, membershipTypeId: 'carer' }), false);
   assert.equal(canRescueForOrganisation({ ...active, membershipTypeId: 'transport-volunteer' }), false);
   assert.equal(canRescueForOrganisation({ ...active, roles: ['DATA_STEWARD'] }), false);

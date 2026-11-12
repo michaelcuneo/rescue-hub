@@ -147,9 +147,11 @@ export const actions: Actions = {
 		const name = requiredString(form, 'name');
 		const email = requiredString(form, 'email').toLowerCase();
 		const requestedOrganisationId = requiredString(form, 'organisationId');
-		const requestedRole = requiredString(form, 'role') as RescueHubRole;
-		const membershipTypeId = requiredString(form, 'membershipTypeId') || 'active-rescuer';
-		const teamIds = form.getAll('teamIds').map(String).filter(Boolean);
+    const requestedRoles = [...new Set(form.getAll('roles').map(String))] as RescueHubRole[];
+    const membershipTypeId = requiredString(form, 'membershipTypeId');
+    const teamIds = [...new Set(form.getAll('teamIds').map(String).filter(Boolean))];
+    const positionIds = [...new Set(form.getAll('positionIds').map(String).filter(Boolean))];
+    const canTransport = form.get('canTransport') === 'on';
 
 		const organisationId = isAuthorityAdmin(actor)
 			? requestedOrganisationId
@@ -162,23 +164,26 @@ export const actions: Actions = {
 			});
 		}
 
-		if (!mayAssignStaffRole(actor, requestedRole)) {
-			return fail(403, { action: 'inviteUser', error: 'You cannot grant that access role.' });
-		}
+    if (requestedRoles.some(role => !mayAssignStaffRole(actor, role))) {
+      return fail(403, { action: 'inviteUser', error: 'You cannot grant one of the selected access roles.' });
+    }
 		const membership = await getOrganisationMembershipConfig(organisationId);
-		if (!membership.membershipTypes.some(type => type.id === membershipTypeId && type.active) ||
-				teamIds.some(id => !membership.teams.some(team => team.id === id && team.active))) {
-			return fail(400, { action: 'inviteUser', error: 'Choose active membership and dispatch teams for the selected organisation.' });
-		}
+    if ((membershipTypeId && !membership.membershipTypes.some(type => type.id === membershipTypeId && type.active)) ||
+        teamIds.some(id => !membership.teams.some(team => team.id === id && team.active)) ||
+        positionIds.some(id => !membership.positions.some(position => position.id === id && position.active))) {
+      return fail(400, { action: 'inviteUser', error: 'Invalid operational membership, training areas, or organisation positions.' });
+    }
 
 		try {
 			await inviteUser({
 				name,
 				email,
 				organisationId,
-				roles: [requestedRole],
-				membershipTypeId,
-				teamIds
+        roles: requestedRoles,
+        membershipTypeId,
+        teamIds,
+        positionIds,
+        canTransport
 			});
 			return { action: 'inviteUser', success: true };
 		} catch (error) {
@@ -302,9 +307,10 @@ export const actions: Actions = {
 		const actor = await requireAdmin(locals);
 		const form = await request.formData();
 		const userId = requiredString(form, 'userId');
-		const role = requiredString(form, 'role') as RescueHubRole;
-		const membershipTypeId = requiredString(form, 'membershipTypeId');
-		const teamIds = form.getAll('teamIds').map(String).filter(Boolean);
+    const roles = [...new Set(form.getAll('roles').map(String))] as RescueHubRole[];
+    const membershipTypeId = requiredString(form, 'membershipTypeId');
+    const teamIds = [...new Set(form.getAll('teamIds').map(String).filter(Boolean))];
+    const canTransport = form.get('canTransport') === 'on';
 		// Read the current account on the server: never trust roles sent by the browser.
 		const target = (await listUsers()).find(user => user.id === userId);
 		if (!target || !canManageUser(actor, target)) {
@@ -313,14 +319,14 @@ export const actions: Actions = {
 		if (actor.id === target.id) {
 			return fail(400, { action: 'updateMemberAccess', error: 'Change another administrator\'s account rather than your own access level.' });
 		}
-		if (!mayAssignStaffRole(actor, role)) {
-			return fail(403, { action: 'updateMemberAccess', error: 'Only a platform administrator can grant platform administrator access.' });
-		}
+    if (roles.some(role => !mayAssignStaffRole(actor, role))) {
+      return fail(403, { action: 'updateMemberAccess', error: 'You cannot grant one of the selected access roles.' });
+    }
 		if (!target.organisationId) {
 			return fail(400, { action: 'updateMemberAccess', error: 'The account must belong to an organisation.' });
 		}
 		const config = await getOrganisationMembershipConfig(target.organisationId);
-		if (!config.membershipTypes.some(type => type.id === membershipTypeId && type.active)) {
+		if (membershipTypeId && !config.membershipTypes.some(type => type.id === membershipTypeId && type.active)) {
 			return fail(400, { action: 'updateMemberAccess', error: 'Select an active operational membership.' });
 		}
 		if (teamIds.some(id => !config.teams.some(team => team.id === id && team.active))) {
@@ -328,8 +334,8 @@ export const actions: Actions = {
 		}
 		try {
 			await updateUserAccess({
-				userId, expectedRoles: target.roles, role,
-				membershipTypeId, teamIds
+        userId, expectedRoles: target.roles, roles,
+        membershipTypeId, teamIds, canTransport
 			});
 			return { action: 'updateMemberAccess', success: true };
 		} catch (error) {

@@ -14,6 +14,7 @@ export type User = {
   roles?: string[];
   membershipTypeId?: string;
   teamIds: string[];
+  canTransport?: boolean;
   availabilityStatus: 'AVAILABLE' | 'BUSY' | 'OFFLINE';
   availabilityPolicy?: AvailabilityPolicy;
 };

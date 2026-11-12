@@ -3,14 +3,14 @@ import { saveUserAvailabilityPolicy } from '$lib/server/auth';
 import { defaultAvailabilityPolicy, effectiveAvailability, validateAvailabilityPolicy } from '$lib/server/availability';
 import type { RequestHandler } from './$types';
 
-function canManageRescuerFeatures(user: { organisationId?: string; enabled: boolean; status: string; roles: string[] } | null | undefined): user is NonNullable<typeof user> {
+function canManageRescuerFeatures(user: { organisationId?: string; enabled: boolean; status: string; roles: string[]; canTransport?: boolean } | null | undefined): user is NonNullable<typeof user> {
   return Boolean(user?.organisationId && user.enabled && user.status === 'ACTIVE' &&
-    user.roles.some(role => ['RESCUER', 'CARER', 'ORG_ADMIN', 'DISPATCHER'].includes(role)));
+    !user.roles.includes('PUBLIC_REPORTER'));
 }
 
 
 export const GET: RequestHandler = async ({ locals }) => {
-	if (!canManageRescuerFeatures(locals.user)) return json({ error: 'Rescue organisation membership required.' }, { status: 403 });
+	if (!canManageRescuerFeatures(locals.user)) return json({ error: 'Active organisation membership required.' }, { status: 403 });
 	const policy = locals.user.availabilityPolicy ?? defaultAvailabilityPolicy(locals.user.availabilityStatus);
 	return json({ policy, status: effectiveAvailability({ availabilityPolicy: policy }) }, { headers: { 'cache-control': 'no-store' } });
 };

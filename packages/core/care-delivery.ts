@@ -41,23 +41,30 @@ export function canClaimAnimalCare(
     !reservedCarerUserId && !pendingTransferId;
 }
 
-/** Independent rescue requires active field membership AND an operational role.
- * Legacy members without a membership type retain their existing eligibility.
- * Teams are checked separately against the actual animal species.
+/** Rescue eligibility requires an explicitly assigned active-rescuer
+ * membership, a suitable system role and matching species qualifications.
+ * A blank membership is never interpreted as being trained for field rescue.
  */
 export function canRescueForOrganisation(user: {
   enabled: boolean; status: string; roles: string[]; membershipTypeId?: string;
 }): boolean {
   if (!user.enabled || user.status !== 'ACTIVE' || user.roles.includes('PUBLIC_REPORTER')) return false;
-  return (!user.membershipTypeId || user.membershipTypeId === 'active-rescuer') &&
+  return user.membershipTypeId === 'active-rescuer' &&
     user.roles.some(role => ['RESCUER', 'CARER', 'ORG_ADMIN'].includes(role));
 }
 
+/** Transport eligibility is independent of species training and carer status.
+ * It is assigned deliberately by an administrator, never inferred from being
+ * a rescuer, carer, or member of the Transport team.
+ * Missing legacy flags are deliberately treated as not authorised.
+ */
 export function canTransportForOrganisation(user: {
-  enabled: boolean; status: string; roles: string[]; membershipTypeId?: string;
+  enabled: boolean; status: string; roles: string[];
+  canTransport?: boolean; membershipTypeId?: string;
 }): boolean {
-  if (!user.enabled || user.status !== 'ACTIVE' || user.roles.includes('PUBLIC_REPORTER')) return false;
-  return canRescueForOrganisation(user) || user.membershipTypeId === 'transport-volunteer';
+  if (!user.enabled || user.status !== 'ACTIVE' ||
+      user.roles.includes('PUBLIC_REPORTER') || user.canTransport !== true) return false;
+  return true;
 }
 
 /** Receipt from the receiving carer completes an already collected transport.

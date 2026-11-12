@@ -36,6 +36,17 @@ test('disabled users, public reporters, and removed volunteers cannot access cha
     {...user, roles:['PUBLIC_REPORTER']},{...user,organisationId:undefined}])
     assert.equal(canAccessChat(subject,channel),false);
 });
+test('transport permission grants Transport chat, not wildlife species training', () => {
+  const transport = { ...user, roles: [], teamIds: [], canTransport: true };
+  const directory = visibleChatChannels(transport, [
+    ...teams, { id: 'transport', name: 'Transport', active: true, receivesAllRescues: true }
+  ]).map(channel => channel.id);
+  assert.ok(directory.includes('team-transport'));
+  assert.ok(directory.includes('qa'));
+  assert.ok(!directory.includes('reptiles'));
+  assert.ok(!directory.includes('administration'));
+});
+
 test('message validation prevents empty, oversized, control character payloads', () => {
   assert.equal(validateChatText('  Hello Reptiles!  '),'Hello Reptiles!');
   for(const input of ['', ' ', 10, 'x'.repeat(2001), 'contains\u0000null'])

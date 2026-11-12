@@ -59,6 +59,7 @@ async function listOrganisationUsers(organisationId: string): Promise<RescueHubU
 		organisationId: item.organisationId ? String(item.organisationId) : undefined,
 		roles: Array.isArray(item.roles) ? item.roles.map(String) as RescueHubUser['roles'] : [],
 		membershipTypeId: item.membershipTypeId ? String(item.membershipTypeId) : undefined,
+    canTransport: item.canTransport === true,
 		teamIds: Array.isArray(item.teamIds) ? item.teamIds.map(String) : [],
 		availabilityStatus: effectiveAvailability({ availabilityStatus: ['AVAILABLE', 'BUSY', 'OFFLINE'].includes(String(item.availabilityStatus)) ? String(item.availabilityStatus) as RescueHubUser['availabilityStatus'] : 'OFFLINE', availabilityPolicy: item.availabilityPolicy }),
 		availabilityPolicy: readAvailabilityPolicy(item.availabilityPolicy) ?? undefined,

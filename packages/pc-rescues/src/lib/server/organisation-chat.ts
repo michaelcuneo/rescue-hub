@@ -164,6 +164,7 @@ export async function listChatDirectory(
     labels: [...new Set([
       ...(person.positionIds ?? []).map(id => config.positions.find(item => item.id === id && item.active)?.name)
         .filter((name): name is string => Boolean(name)),
+      ...(person.canTransport ? ['Transport authorised'] : []),
       ...displayMemberLabels(person, membershipNames, teamNames)
     ])]
   })).sort((a, b) => {

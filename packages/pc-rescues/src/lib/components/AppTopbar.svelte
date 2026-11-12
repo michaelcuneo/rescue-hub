@@ -16,17 +16,18 @@
   const initials = $derived(viewer?.name.split(/\s+/).filter(Boolean).slice(0, 2)
     .map(part => part[0]?.toUpperCase()).join('') || '?');
   const path = $derived(page.url.pathname);
-  const availabilityLabel = $derived(!viewer?.canReceiveRescueOffers
-    ? 'Unavailable for rescue offers'
-    : viewer.availabilityMode === 'BUSY' ? 'Busy · do not disturb'
-    : viewer.availabilityMode === 'ON' ? 'Available now'
-    : viewer.availabilityMode === 'SCHEDULE'
+  const availabilityLabel = $derived(
+    viewer?.availabilityMode === 'BUSY' ? 'Busy · do not disturb'
+    : viewer?.availabilityMode === 'ON'
+      ? viewer.canReceiveRescueOffers ? 'Available now' : 'Available to message'
+    : viewer?.availabilityMode === 'SCHEDULE'
       ? `Following schedule — ${viewer.isAvailableNow ? 'currently available' : 'currently outside scheduled hours'}`
-      : 'Unavailable for rescue offers');
+    : 'Unavailable'
+  );
   const availabilityColour = $derived(
-    viewer?.canReceiveRescueOffers && viewer.availabilityMode === 'BUSY' ? 'busy'
-    : viewer?.canReceiveRescueOffers && viewer.availabilityMode === 'ON' ? 'on'
-    : viewer?.canReceiveRescueOffers && viewer.availabilityMode === 'SCHEDULE' ? 'schedule' : 'off'
+    viewer?.availabilityMode === 'BUSY' ? 'busy'
+    : viewer?.availabilityMode === 'ON' ? 'on'
+    : viewer?.availabilityMode === 'SCHEDULE' ? 'schedule' : 'off'
   );
   let profileMenu = $state<HTMLDetailsElement | undefined>(undefined);
   function closeProfileMenu() {
