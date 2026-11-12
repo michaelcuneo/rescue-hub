@@ -20,6 +20,8 @@
   };
   let members = $state<Member[]>([]);
   let searchMembers = $state('');
+  let channelMembers = $state<Member[]>([]);
+  let showChannelMembers = $state(false);
   let listMode = $state<'channels' | 'people'>('channels');
   const membersVisible = $derived(members.filter(member => member.id !== data.userId &&
     [member.name, ...member.labels].join(' ').toLowerCase().includes(searchMembers.toLowerCase()))
@@ -74,6 +76,14 @@
     if (scope !== organisationId) return;
     members = result.members;
   }
+  async function refreshChannelMembers(id = selectedId) {
+    if (!id) return;
+    const params = new URLSearchParams();
+    if (organisationId) params.set('organisationId', organisationId);
+    params.set('channelId', id);
+    const result = await api<{ members: Member[] }>(`/api/mobile/chats/members?${params.toString()}`);
+    if (id === selectedId) channelMembers = result.members;
+  }
   async function openDirect(recipientId: string) {
     busy = true; error = '';
     try {
@@ -104,14 +114,14 @@
   async function selectOrganisation(id: string) {
     if (id === organisationId) return;
     organisationId = id;
-    selectedId = ''; messages = []; cursor = null; draft = ''; error = ''; loading = true;
+    selectedId = ''; messages = []; channelMembers = []; showChannelMembers = false; cursor = null; draft = ''; error = ''; loading = true;
     try { await Promise.all([refreshChannels(), refreshMembers()]); }
     catch (e) { error = e instanceof Error ? e.message : 'Could not load organisation chats.'; }
     finally { loading = false; }
   }
   async function selectChannel(id: string) {
-    selectedId = id; messages = []; cursor = null; error = '';
-    try { await refreshMessages(id); } catch (e) {
+    selectedId = id; messages = []; cursor = null; channelMembers = []; showChannelMembers = false; error = '';
+    try { await Promise.all([refreshMessages(id), refreshChannelMembers(id)]); } catch (e) {
       error = e instanceof Error ? e.message : 'Chat unavailable.';
     }
   }
@@ -157,13 +167,13 @@
       if (disposed) return;
       stop = subscribeRescueChanges(config, { onChange: () => {
         void Promise.all([refreshChannels(), refreshMembers()]).catch(() => {});
-        if (selectedId) void refreshMessages(selectedId).catch(() => {});
+        if (selectedId) { void refreshMessages(selectedId).catch(() => {}); void refreshChannelMembers(selectedId).catch(() => {}); }
       } });
     }).catch(() => {});
     const interval = setInterval(() => {
       if (disposed) return;
       void Promise.all([refreshChannels(), refreshMembers()]).catch(() => {});
-      if (selectedId) void refreshMessages(selectedId).catch(() => {});
+      if (selectedId) { void refreshMessages(selectedId).catch(() => {}); void refreshChannelMembers(selectedId).catch(() => {}); }
     }, 15000);
     return () => { disposed = true; stop?.(); clearInterval(interval); };
   });
@@ -225,17 +235,36 @@
     <section class:hide-mobile={!selectedId} class="conversation" aria-label="Messages">
       {#if selectedId}
         <div class="conversation-header">
-          <button class="mobile-back" onclick={() => selectedId = ''} aria-label="Back to channels">‹</button>
+          <button class="mobile-back" onclick={() => { selectedId = ''; showChannelMembers = false; }} aria-label="Back to channels">‹</button>
           <div><h2>{selected?.name ?? 'Channel'}</h2>
             <small>{selected?.recipientUserId ? `${selectedRecipient?.labels.join(' · ') || 'Organisation member'} · ${(selectedRecipient?.availability ?? selected?.recipientAvailability ?? 'OFFLINE').toLowerCase()}` : selected?.description ?? ''}</small>
           </div>
+          <button class="members-trigger" onclick={() => showChannelMembers = !showChannelMembers}
+            aria-expanded={showChannelMembers} aria-label="Show people in this channel">
+            People ({channelMembers.length})
+          </button>
         </div>
+        {#if showChannelMembers}
+          <div class="channel-people" aria-label="Channel members">
+            {#each channelMembers as member (member.id)}
+              <button disabled={member.id === data.userId || busy}
+                onclick={() => void openDirect(member.id)} title={member.labels.join(' · ')}>
+                <span class="presence" data-status={member.availability} aria-label={member.availability}></span>
+                <strong>{member.name}</strong>
+                <small>{member.labels.join(' · ')}</small>
+              </button>
+            {:else}<p class="muted">No active members.</p>{/each}
+          </div>
+        {/if}
         {#if error}<p role="alert" class="error">{error}</p>{/if}
         {#if cursor}<button class="older" onclick={() => void loadOlder()} disabled={busy}>Load earlier messages</button>{/if}
         <div class="messages" bind:this={messagePanel}>
           {#each messages as item (item.id)}
             <article class:mine={item.senderUserId === data.userId}>
-              {#if item.senderUserId !== data.userId}<strong>{item.senderName}</strong>{/if}
+              {#if item.senderUserId !== data.userId}
+                <button class="sender-name" onclick={() => void openDirect(item.senderUserId)}
+                  title="Start a private conversation with {item.senderName}">{item.senderName}</button>
+              {/if}
               <p>{item.text}</p>
               <time datetime={item.createdAt}>{new Date(item.createdAt).toLocaleString('en-AU', { hour: 'numeric', minute: '2-digit', day:'numeric', month:'short' })}</time>
               {#if item.animalId}<p class="animal-ref">Animal reference: {item.animalId}</p>{/if}
@@ -278,6 +307,11 @@
   .presence{flex-shrink:0;width:11px;height:11px;border-radius:50%;background:#7c8580;border:1px solid var(--rh-border)}
   .presence[data-status='AVAILABLE']{background:#17854c}
   .presence[data-status='BUSY']{background:#bd7121}
+  .members-trigger{margin-left:auto;background:var(--rh-surface-soft);border:1px solid var(--rh-border);border-radius:9px;padding:9px 13px;color:var(--rh-text);cursor:pointer;font-weight:700;white-space:nowrap}
+  .channel-people{display:flex;flex-wrap:wrap;gap:8px;padding:10px 16px;background:var(--rh-surface-soft);border-bottom:1px solid var(--rh-border);max-height:150px;overflow:auto}
+  .channel-people button{display:flex;align-items:center;gap:7px;border:1px solid var(--rh-border);background:var(--rh-surface);color:var(--rh-text);border-radius:9px;padding:8px 10px;cursor:pointer}
+  .channel-people small{font-size:11px;color:var(--rh-muted)}
+  .sender-name{display:block;border:0;padding:0;background:none;color:var(--rh-primary);font:inherit;font-size:12px;font-weight:800;cursor:pointer;text-decoration:underline;text-underline-offset:2px}
   .busy-explanation{padding:10px 20px;margin:0;border-top:1px solid var(--rh-border);color:var(--rh-text);background:var(--rh-surface-soft);font-size:12px}
   aside{overflow-y:auto;border-right:1px solid var(--rh-t163, #e2e9e4);padding:14px 9px}
   aside h2{font-size:14px;padding:4px 12px 10px;color:var(--rh-t164, #6d7a70)}
