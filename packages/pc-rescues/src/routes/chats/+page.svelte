@@ -27,8 +27,7 @@
     [member.name, ...member.labels].join(' ').toLowerCase().includes(searchMembers.toLowerCase()))
     .sort((a,b) => ({ AVAILABLE: 0, BUSY: 1, OFFLINE: 2 })[a.availability] -
       ({ AVAILABLE: 0, BUSY: 1, OFFLINE: 2 })[b.availability] || a.name.localeCompare(b.name)));
-  const selectedRecipient = $derived(members.find(member => member.id === selected?.recipientUserId));
-  const busyRecipient = $derived(selected?.recipientAvailability === 'BUSY' || selectedRecipient?.availability === 'BUSY');
+
 
   let organisations = $state<Organisation[]>([]);
   let organisationId = $state('');
@@ -42,6 +41,8 @@
   let loading = $state(true);
   let messagePanel = $state<HTMLElement | undefined>(undefined);
   const selected = $derived(channels.find(channel => channel.id === selectedId));
+  const selectedRecipient = $derived(members.find(member => member.id === selected?.recipientUserId));
+  const busyRecipient = $derived(selected?.recipientAvailability === 'BUSY' || selectedRecipient?.availability === 'BUSY');
 
   async function api<T>(url: string, method = 'GET', body?: Record<string, unknown>): Promise<T> {
     const response = await fetch(url, {
@@ -315,7 +316,6 @@
   .sender-name{display:block;border:0;padding:0;background:none;color:var(--rh-primary);font:inherit;font-size:12px;font-weight:800;cursor:pointer;text-decoration:underline;text-underline-offset:2px}
   .busy-explanation{padding:10px 20px;margin:0;border-top:1px solid var(--rh-border);color:var(--rh-text);background:var(--rh-surface-soft);font-size:12px}
   aside{overflow-y:auto;border-right:1px solid var(--rh-t163, #e2e9e4);padding:14px 9px}
-  aside h2{font-size:14px;padding:4px 12px 10px;color:var(--rh-t164, #6d7a70)}
   aside button{display:flex;align-items:center;gap:12px;padding:12px;width:100%;border:0;background:var(--rh-t6, white);border-radius:12px;text-align:left;cursor:pointer;color:inherit}
   aside button:hover,aside button.active{background:var(--rh-t165, #eff6f1)}
   .avatar{height:42px;width:42px;border-radius:50%;display:grid;place-items:center;background:var(--rh-t166, #dcebe0);font-size:18px;font-weight:800}
@@ -330,7 +330,7 @@
   .messages{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:12px;padding:24px}
   article{align-self:flex-start;background:var(--rh-surface-soft);border-radius:14px 14px 14px 4px;max-width:min(82%,610px);padding:11px 15px;overflow-wrap:anywhere}
   article.mine{align-self:flex-end;background:var(--rh-raised);border-radius:14px 14px 4px 14px}
-  article strong{font-size:12px;color:var(--rh-t171, #286343)}article p{margin:5px 0 3px;white-space:pre-wrap;line-height:1.5;font-size:14px}
+  article p{margin:5px 0 3px;white-space:pre-wrap;line-height:1.5;font-size:14px}
   article time{font-size:11px;color:var(--rh-t172, #7d8b81);display:block;text-align:right}
   .animal-ref{color:var(--rh-t173, #3c6950);font-size:11px}
   form{border-top:1px solid var(--rh-t163, #e2e9e4);padding:12px;display:flex;align-items:end;gap:9px}
