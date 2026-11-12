@@ -9,7 +9,8 @@ import { canRescueForOrganisation, canTransportForOrganisation } from '../../../
 export const POST: RequestHandler = async ({ locals, params }) => {
   const user = locals.user;
   if (!user?.organisationId) return json({ error: 'Authentication required.' }, { status: 401 });
-  if (!canTransportForOrganisation(user) || effectiveAvailability(user) !== 'AVAILABLE') {
+  if (!user.enabled || user.status !== 'ACTIVE' || user.roles.includes('PUBLIC_REPORTER') ||
+      effectiveAvailability(user) !== 'AVAILABLE') {
     return json({ error: 'An active, available rescuer account is required.' }, { status: 403 });
   }
 
@@ -25,7 +26,11 @@ export const POST: RequestHandler = async ({ locals, params }) => {
       return json({ error: 'A wildlife carer must claim the animal before transport is available.' }, { status: 409 });
     }
     // Transport work is independent of species rescue accreditation.
-    if (rescue.transportAnimalId) return json({ rescue: await claimRescue(rescue.id, user.organisationId, user.id) });
+    if (rescue.transportAnimalId) {
+      if (!canTransportForOrganisation(user))
+        return json({ error: 'Transport must be explicitly authorised by your administrator.' }, { status: 403 });
+      return json({ rescue: await claimRescue(rescue.id, user.organisationId, user.id) });
+    }
     const membership = await getOrganisationMembershipConfig(user.organisationId);
     const capability = classifyDispatchCapability(rescue.type, rescue.breed ?? '');
     if (!canRescueForOrganisation(user) || !memberCanReceiveCapability(user.teamIds, membership, capability)) {
