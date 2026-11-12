@@ -476,7 +476,7 @@
             <h2>People & access</h2>
             <p class="intro">Manage organisation membership, dispatch capabilities and account access.</p>
           </div>
-          <button class="primary-action" type="button" onclick={() => { inviteOrganisationId = data.currentUser.organisationId ?? data.organisations[0]?.id ?? ''; selectInvitationRole('RESCUER'); showInvite = true; }}>+ Invite person</button>
+          <button class="primary-action" type="button" onclick={() => { inviteOrganisationId = data.currentUser.organisationId ?? data.organisations[0]?.id ?? ''; inviteMembershipTypeId = ''; showInvite = true; }}>+ Invite person</button>
         </div>
 
         <div class="people-stats" aria-label="People summary">
