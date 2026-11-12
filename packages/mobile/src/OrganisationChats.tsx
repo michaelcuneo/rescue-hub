@@ -14,6 +14,8 @@ export default function OrganisationChats({ userId, initialChannelId, onOpenAnim
   const [members, setMembers] = useState<ChatMember[]>([]);
   const [directoryMode, setDirectoryMode] = useState<'chats' | 'people'>('chats');
   const [search, setSearch] = useState('');
+  const [channelMembers, setChannelMembers] = useState<ChatMember[]>([]);
+  const [showChannelPeople, setShowChannelPeople] = useState(false);
   const [organisations, setOrganisations] = useState<ChatOrganisation[]>([]);
   const [organisationId, setOrganisationId] = useState('');
   const organisationRef = useRef('');
@@ -62,6 +64,12 @@ export default function OrganisationChats({ userId, initialChannelId, onOpenAnim
       setError(error instanceof Error ? error.message : 'Unable to open private conversation.');
     } finally { setBusy(false); }
   };
+  const refreshChannelMembers = useCallback(async (channelId: string) => {
+    const scope = organisationRef.current;
+    const result = await getChatMembers(scope || undefined, channelId);
+    if (selectedRef.current !== channelId || scope !== organisationRef.current) return;
+    setChannelMembers(result.members);
+  }, []);
   const refreshMessages = useCallback(async (channelId: string) => {
     const scope = organisationRef.current;
     const result = await getChannelMessages(channelId, undefined, scope || undefined);
@@ -84,22 +92,23 @@ export default function OrganisationChats({ userId, initialChannelId, onOpenAnim
       if (!active) return;
       stop = subscribeRescueChanges(config, { onChange: () => {
         void Promise.all([refreshChannels(), refreshMembers()]).catch(() => {});
-        if (selectedRef.current) void refreshMessages(selectedRef.current).catch(() => {});
+        if (selectedRef.current) { void refreshMessages(selectedRef.current).catch(() => {}); void refreshChannelMembers(selectedRef.current).catch(() => {}); }
       } });
     }).catch(() => {});
     const poll = setInterval(() => {
       if (!active) return;
       void refreshChannels().catch(() => {});
-      if (selectedRef.current) void refreshMessages(selectedRef.current).catch(() => {});
+      if (selectedRef.current) { void refreshMessages(selectedRef.current).catch(() => {}); void refreshChannelMembers(selectedRef.current).catch(() => {}); }
     }, 15000);
     return () => { active = false; stop?.(); clearInterval(poll); };
-  }, [refreshChannels, refreshMembers, refreshMessages]);
+  }, [refreshChannels, refreshMembers, refreshMessages, refreshChannelMembers]);
 
   useEffect(() => {
     if (!selected) return;
-    setMessages([]); setCursor(null); setError('');
+    setMessages([]); setCursor(null); setChannelMembers([]); setShowChannelPeople(false); setError('');
+    void refreshChannelMembers(selected).catch(() => {});
     void refreshMessages(selected).catch(e => setError(e instanceof Error ? e.message : 'Cannot read channel.'));
-  }, [selected, refreshMessages]);
+  }, [selected, refreshMessages, refreshChannelMembers]);
 
   const older = async () => {
     if (!selected || !cursor || loadingOlder) return;
@@ -138,6 +147,7 @@ export default function OrganisationChats({ userId, initialChannelId, onOpenAnim
     selectedRef.current = null;
     setSelected(null);
     setMessages([]);
+    setChannelMembers([]); setShowChannelPeople(false);
     setCursor(null);
     setDraft('');
     setError('');
@@ -222,7 +232,25 @@ export default function OrganisationChats({ userId, initialChannelId, onOpenAnim
           <Text style={styles.channelName}>{activeChannel?.name ?? 'Channel'}</Text>
           <Text numberOfLines={1} style={styles.subtitle}>{recipient ? `${recipient.labels.join(' · ')} · ${recipient.availability.toLowerCase()}` : activeChannel?.description ?? ''}</Text>
         </View>
+        <Pressable accessibilityRole="button" accessibilityState={{expanded:showChannelPeople}}
+          onPress={() => setShowChannelPeople(value => !value)}>
+          <Text style={styles.memberButton}>People ({channelMembers.length})</Text>
+        </Pressable>
       </View>
+      {showChannelPeople ? <View style={styles.peoplePanel}>
+        <ScrollView horizontal contentContainerStyle={styles.peopleRow}>
+          {channelMembers.map(member => <Pressable key={member.id} accessibilityRole="button"
+            disabled={busy || member.id === userId} style={styles.personChip}
+            onPress={() => void openMember(member.id)}>
+            <View style={[styles.presence, member.availability==='AVAILABLE' ? styles.available :
+              member.availability==='BUSY' ? styles.busyPresence : styles.offline]} />
+            <View style={{flexShrink:1}}>
+              <Text style={styles.chipText}>{member.name}</Text>
+              <Text style={styles.chipLabel} numberOfLines={1}>{member.labels.join(' · ')}</Text>
+            </View>
+          </Pressable>)}
+        </ScrollView>
+      </View> : null}
       {error ? <Text style={styles.error} accessibilityRole="alert">{error}</Text> : null}
       {cursor ? <Pressable accessibilityRole="button" onPress={() => void older()} disabled={loadingOlder}>
         <Text style={styles.loadMore}>{loadingOlder ? 'Loading…' : 'View earlier messages'}</Text>
@@ -234,7 +262,10 @@ export default function OrganisationChats({ userId, initialChannelId, onOpenAnim
         renderItem={({ item }) => {
           const mine = item.senderUserId === userId;
           return <View style={[styles.bubble, mine ? styles.myBubble : styles.otherBubble]}>
-            {!mine ? <Text style={styles.author}>{item.senderName}</Text> : null}
+            {!mine ? <Pressable accessibilityRole="button" accessibilityLabel={`Start private chat with ${item.senderName}`}
+              onPress={() => void openMember(item.senderUserId)}>
+              <Text style={styles.author}>{item.senderName}</Text>
+            </Pressable> : null}
             <Text style={mine ? styles.myText : styles.messageText}>{item.text}</Text>
             <Text style={[styles.timestamp, mine && styles.myTime]}>{new Date(item.createdAt).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' })}</Text>
             {item.animalId && onOpenAnimal ? <Pressable accessibilityRole="button"
@@ -270,6 +301,12 @@ const styles=StyleSheet.create({
   organisationTextSelected:{fontSize:12,color:'#fff',fontWeight:'700'},
   title:{fontSize:29,fontWeight:'800',color:'#173d2c'},
   subtitle:{fontSize:12,color:'#718077',marginTop:3},
+  memberButton:{color:'#24583f',fontWeight:'700',fontSize:12,paddingHorizontal:7},
+  peoplePanel:{backgroundColor:'#eff4ef',borderBottomWidth:1,borderBottomColor:'#d9e1dc'},
+  peopleRow:{gap:7,padding:9},
+  personChip:{backgroundColor:'#fff',borderRadius:9,borderWidth:1,borderColor:'#d9e1dc',padding:8,minWidth:105,maxWidth:205,flexDirection:'row',alignItems:'center',gap:7},
+  chipText:{fontSize:12,color:'#173d2c',fontWeight:'700'},
+  chipLabel:{fontSize:10,color:'#68766d',flexShrink:1},
   directoryTabs:{flexDirection:'row',gap:8,paddingHorizontal:16,paddingBottom:12},
   tab:{flex:1,minHeight:44,borderRadius:10,borderWidth:1,borderColor:'#d4e1d7',alignItems:'center',justifyContent:'center',backgroundColor:'#fff'},
   tabActive:{backgroundColor:'#173d2c'},tabText:{color:'#173d2c',fontWeight:'800'},tabTextActive:{color:'#fff'},
