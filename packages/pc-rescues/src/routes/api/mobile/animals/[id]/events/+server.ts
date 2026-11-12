@@ -85,6 +85,7 @@ export const POST: RequestHandler = async ({ locals, params, request }) => {
       }
       return json({ animal: await changeAnimalState(animal, user.id, {
         kind: 'OUTCOME', status: body.status as 'RELEASED', notes, location,
+        releaseReason: body.releaseReason === 'RELOCATION' ? 'RELOCATION' : undefined,
         latitude: typeof latitude === 'number' ? latitude : undefined,
         longitude: typeof longitude === 'number' ? longitude : undefined
       }) });
