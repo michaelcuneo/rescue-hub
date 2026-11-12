@@ -39,7 +39,7 @@ export default function AvailabilitySettings({ onBack, onSave, onSignOut, pushSt
       setPolicy(saved.policy);
       onSave(saved.policy, saved.status);
       setMessage(mode === 'SCHEDULE' ? 'Following your weekly schedule.' :
-        saved.status === 'AVAILABLE' ? 'You are available now.' : 'You are unavailable now.');
+        saved.status === 'AVAILABLE' ? 'You are available now.' : saved.status === 'BUSY' ? 'Busy: private messages paused.' : 'You are unavailable now.');
     } catch(e) {
       setError(e instanceof Error ? e.message : 'Unable to change availability.');
     } finally {
@@ -109,15 +109,23 @@ export default function AvailabilitySettings({ onBack, onSave, onSignOut, pushSt
     <Text style={styles.label}>AVAILABILITY MODE</Text>
     <View style={styles.modes}>
       <Pressable accessibilityRole="button" disabled={busy}
+        accessibilityState={{ selected:policy.mode==='BUSY' }}
+        style={[styles.mode,policy.mode==='BUSY' && styles.modeActive]}
+        onPress={()=>void changeMode('BUSY')}>
+        <Text style={[styles.modeText,policy.mode==='BUSY' && styles.modeTextActive]}>Busy · do not disturb</Text>
+      </Pressable>
+    </View>
+    <View style={styles.modes}>
+      <Pressable accessibilityRole="button" disabled={busy}
         accessibilityState={{selected:policy.mode==='SCHEDULE'}}
         style={[styles.mode,policy.mode==='SCHEDULE'&&styles.modeActive]}
         onPress={()=>void changeMode('SCHEDULE')}>
         <Text style={[styles.modeText,policy.mode==='SCHEDULE'&&styles.modeTextActive]}>Follow schedule</Text>
       </Pressable>
       <Pressable accessibilityRole="button" disabled={busy}
-        accessibilityState={{selected:policy.mode!=='SCHEDULE'}}
-        style={[styles.mode,policy.mode!=='SCHEDULE'&&styles.modeActive]}
-        onPress={()=>void changeMode(policy.mode==='SCHEDULE' ? 'ON' : policy.mode)}>
+        accessibilityState={{selected:policy.mode!=='SCHEDULE' && policy.mode!=='BUSY'}}
+        style={[styles.mode,policy.mode!=='SCHEDULE' && policy.mode!=='BUSY'&&styles.modeActive]}
+        onPress={()=>void changeMode(policy.mode==='SCHEDULE' || policy.mode==='BUSY' ? 'ON' : policy.mode)}>
         <Text style={[styles.modeText,policy.mode!=='SCHEDULE'&&styles.modeTextActive]}>Override</Text>
       </Pressable>
     </View>
