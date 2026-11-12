@@ -10,6 +10,7 @@ export type ChatTeam = {
 export type ChatViewer = {
   enabled: boolean; status: string; roles: string[]; teamIds: string[];
   organisationId?: string;
+  canTransport?: boolean;
 };
 export type ChatChannel = {
   id: string; name: string; description: string;
@@ -84,7 +85,8 @@ export function canAccessChat(user: ChatViewer, channel: ChatChannel): boolean {
   const admin = user.roles.some(role => ADMIN_ROLES.has(role));
   if (channel.audience === 'ADMIN') return admin;
   if (channel.audience === 'ORG') return true;
-  return admin || channel.teamIds.some(team => user.teamIds.includes(team));
+  return admin || channel.teamIds.some(team => user.teamIds.includes(team) ||
+    (team === 'transport' && user.canTransport === true));
 }
 export function visibleChatChannels(user: ChatViewer, teams: ChatTeam[]): ChatChannel[] {
   return buildChatChannels(teams).filter(channel => canAccessChat(user, channel));
