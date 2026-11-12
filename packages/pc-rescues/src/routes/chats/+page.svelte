@@ -210,7 +210,7 @@
               <small>{channel.latest ? `${channel.latest.senderName}: ${channel.latest.text}` : channel.description}</small>
             </span>
             {#if channel.recipientUserId}
-              <span class="presence" data-status={channel.recipientAvailability ?? 'OFFLINE'} aria-label={channel.recipientAvailability ?? 'Offline'} title={channel.recipientAvailability ?? 'Offline'}></span>
+              <span class="presence-label"><span class="presence" data-status={channel.recipientAvailability ?? 'OFFLINE'} aria-hidden="true"></span>{(channel.recipientAvailability ?? 'OFFLINE').toLowerCase()}</span>
             {/if}
             {#if channel.unread}<span class="dot" aria-label="Unread messages"></span>{/if}
           </button>
@@ -227,7 +227,7 @@
               <strong>{member.name}</strong>
               <small>{member.labels.join(' · ') || 'Organisation member'}</small>
             </span>
-            <span class="presence" data-status={member.availability} title={member.availability} aria-label={member.availability}></span>
+            <span class="presence-label"><span class="presence" data-status={member.availability} aria-hidden="true"></span>{member.availability.toLowerCase()}</span>
           </button>
         {:else}<p class="muted">No matching members.</p>{/each}
       {/if}
@@ -304,6 +304,7 @@
   .chat-list-tabs button.active-tab{background:var(--rh-nav-active);color:var(--rh-text)}
   .member-search{width:calc(100% - 16px);margin:0 8px 10px;min-height:42px;padding:9px 12px;border:1px solid var(--rh-border);border-radius:10px;background:var(--rh-surface);color:var(--rh-text);font:inherit}
   .directory-hint{font-size:11px;line-height:1.5;color:var(--rh-muted);padding:0 12px 10px}
+  .presence-label{display:flex;align-items:center;gap:5px;flex-shrink:0;font-size:10px;color:var(--rh-muted);text-transform:capitalize}
   .presence{flex-shrink:0;width:11px;height:11px;border-radius:50%;background:#7c8580;border:1px solid var(--rh-border)}
   .presence[data-status='AVAILABLE']{background:#17854c}
   .presence[data-status='BUSY']{background:#bd7121}
