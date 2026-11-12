@@ -13,8 +13,7 @@ export const load: PageServerLoad = async ({ locals }) => {
   // Platform-only administrators can inspect their account but cannot opt
   // themselves into an organisation's species rescue queue.
   const canManageAvailability = Boolean(
-    user.organisationId &&
-    (user.canTransport === true || user.roles.some(role => ['RESCUER', 'CARER', 'ORG_ADMIN', 'DISPATCHER'].includes(role)))
+    user.organisationId && !user.roles.includes('PUBLIC_REPORTER')
   );
   const [membership, devices] = await Promise.all([
     user.organisationId
