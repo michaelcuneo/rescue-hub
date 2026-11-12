@@ -162,7 +162,11 @@ export async function listChatDirectory(
     id: person.id, name: person.name,
     availability: effectiveAvailability(person),
     ...(person.positionTitle ? { positionTitle: person.positionTitle } : {}),
-    labels: displayMemberLabels(person, membershipNames, teamNames)
+    labels: [...new Set([
+      ...(person.positionIds ?? []).map(id => config.positions.find(item => item.id === id && item.active)?.name)
+        .filter((name): name is string => Boolean(name)),
+      ...displayMemberLabels(person, membershipNames, teamNames)
+    ])]
   })).sort((a, b) => {
     const rank = { AVAILABLE: 0, BUSY: 1, OFFLINE: 2 };
     return rank[a.availability] - rank[b.availability] || a.name.localeCompare(b.name);
