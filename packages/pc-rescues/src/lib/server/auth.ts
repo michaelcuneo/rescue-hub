@@ -1098,7 +1098,7 @@ export async function setUserAvailability(userId: string, availabilityStatus: Re
 	const current = await getUserRecord(userId);
 	if (!current) throw new Error('Account not found.');
 	const old = readAvailabilityPolicy(current.availabilityPolicy) ?? defaultAvailabilityPolicy(availabilityStatus);
-	const policy = { ...old, mode: availabilityStatus === 'AVAILABLE' ? 'ON' as const : 'OFF' as const };
+	const policy = { ...old, mode: availabilityStatus === 'AVAILABLE' ? 'ON' as const : availabilityStatus === 'BUSY' ? 'BUSY' as const : 'OFF' as const };
 	await saveUserAvailabilityPolicy(userId, policy);
 }
 
