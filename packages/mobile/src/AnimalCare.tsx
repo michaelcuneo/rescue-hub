@@ -273,7 +273,7 @@ export default function AnimalCare({ rescue, userId, roles, onBack, onUnclaim }:
                 { value: 'RELEASE', label: 'Release into the wild / relocate' }
               ] as const).map(option => (
                 <Pressable key={option.value} style={styles.modalOption} accessibilityRole="button"
-                  onPress={() => { setNextStep(option.value); setPickerMode(null); }}>
+                  onPress={() => { setNextStep(option.value as 'VET' | 'CARER' | 'SELF' | 'RELEASE'); setPickerMode(null); }}>
                   <Text style={styles.dropdownText}>{option.label}</Text>
                 </Pressable>
               )) : carers.map(carer => (
