@@ -1,8 +1,12 @@
 name: Rescue Hub realtime type and Svelte validation
 
 on:
+  pull_request:
+    branches:
+      - deploy/rescue-demo-domain
   push:
     branches:
+      - feature/explicit-member-roles-training-transport
       - feature/guided-animal-pickup-demo-base
       - deploy/rescue-demo-domain
       - fix/confirm-invitation-password
