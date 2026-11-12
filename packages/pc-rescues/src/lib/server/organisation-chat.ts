@@ -319,14 +319,15 @@ async function listDirectChatSummaries(user: RescueHubUser, organisationId: stri
         }))
       ]);
       const message = latest.Items?.[0] as (ChatMessage & { sk?: string }) | undefined;
-      return { ...channel, recipientUserId: otherId,
+      const chat: ChatSummary = { ...channel, recipientUserId: otherId,
         recipientAvailability: other ? effectiveAvailability(other) : 'OFFLINE' as const,
         ...(message ? { latest: {
           text: message.text, createdAt: message.createdAt, senderName: message.senderName
         }} : {}),
         unread: Boolean(message && message.sk && message.sk > (typeof marker.Item?.lastSeenKey === 'string' ? marker.Item.lastSeenKey : '') &&
           message.senderUserId !== user.id)
-      } satisfies ChatSummary;
+      };
+      return chat;
     } catch (error) {
       if (error instanceof ChatAccessError) return null;
       throw error;
