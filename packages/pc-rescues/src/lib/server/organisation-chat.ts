@@ -132,17 +132,32 @@ async function activeDirectRecipient(
 }
 
 export async function listChatDirectory(
-  user: RescueHubUser, selectedOrganisationId?: string
+  user: RescueHubUser, selectedOrganisationId?: string, channelId?: string
 ): Promise<ChatDirectoryMember[]> {
   const org = await resolveChatOrganisation(user, selectedOrganisationId);
   const [people, config] = await Promise.all([
     listUsers(), getOrganisationMembershipConfig(org)
   ]);
+  let scopedChannel: ChatChannel | null = null;
+  let directParticipants: string[] | null = null;
+  if (channelId) {
+    const authorised = await requireChannel(user, channelId, org);
+    scopedChannel = authorised.channel;
+    if (isDirectChatChannelId(channelId)) {
+      const row = await db.send(new GetCommand({
+        TableName: table, Key: dmRecordKey(org, channelId), ConsistentRead: true
+      }));
+      directParticipants = Array.isArray(row.Item?.participants) ? row.Item.participants : [];
+    }
+  }
   const membershipNames = new Map(config.membershipTypes.filter(item => item.active).map(item => [item.id, item.name]));
   const teamNames = new Map(config.teams.filter(item => item.active).map(item => [item.id, item.name]));
   return people.filter(person =>
     person.organisationId === org && person.enabled && person.status === 'ACTIVE' &&
-    !person.roles.includes('PUBLIC_REPORTER')
+    !person.roles.includes('PUBLIC_REPORTER') &&
+    (!scopedChannel || (directParticipants
+      ? directParticipants.includes(person.id)
+      : canAccessChat(person, scopedChannel)))
   ).map(person => ({
     id: person.id, name: person.name,
     availability: effectiveAvailability(person),
@@ -159,6 +174,8 @@ export async function openDirectChat(
   user: RescueHubUser, recipientId: string, selectedOrganisationId?: string
 ): Promise<{ channelId: string }> {
   const organisationId = await resolveChatOrganisation(user, selectedOrganisationId);
+  if (user.organisationId !== organisationId)
+    throw new ChatAccessError('Private chats require membership in the selected organisation.');
   const recipient = await activeDirectRecipient(user, recipientId, organisationId);
   const channelId = directChannelId(organisationId, user.id, recipient.id);
   const key = dmRecordKey(organisationId, channelId);
