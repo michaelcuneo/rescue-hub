@@ -12,8 +12,8 @@ export const load: LayoutServerLoad = ({ locals, cookies }) => {
       availabilityMode: active.availabilityPolicy?.mode ??
         (active.availabilityStatus === 'AVAILABLE' ? 'ON' : 'OFF'),
       isAvailableNow: effectiveAvailability(active) === 'AVAILABLE',
-      canReceiveRescueOffers: Boolean(active.organisationId && active.roles.some(role =>
-        ['RESCUER', 'CARER', 'ORG_ADMIN', 'DISPATCHER'].includes(role)))
+      canReceiveRescueOffers: Boolean(active.organisationId && (active.canTransport === true || active.roles.some(role =>
+        ['RESCUER', 'CARER', 'ORG_ADMIN', 'DISPATCHER'].includes(role))))
     } : null,
     demoMode: getHunterDemo(cookies, user)
   };
