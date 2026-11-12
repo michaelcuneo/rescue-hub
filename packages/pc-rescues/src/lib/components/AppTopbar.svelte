@@ -5,7 +5,7 @@
   type Viewer = {
     name: string;
     roles: string[];
-    availabilityMode: 'ON' | 'OFF' | 'SCHEDULE';
+    availabilityMode: 'ON' | 'OFF' | 'BUSY' | 'SCHEDULE';
     isAvailableNow: boolean;
     canReceiveRescueOffers: boolean;
   };
@@ -18,12 +18,14 @@
   const path = $derived(page.url.pathname);
   const availabilityLabel = $derived(!viewer?.canReceiveRescueOffers
     ? 'Unavailable for rescue offers'
+    : viewer.availabilityMode === 'BUSY' ? 'Busy · do not disturb'
     : viewer.availabilityMode === 'ON' ? 'Available now'
     : viewer.availabilityMode === 'SCHEDULE'
       ? `Following schedule — ${viewer.isAvailableNow ? 'currently available' : 'currently outside scheduled hours'}`
       : 'Unavailable for rescue offers');
   const availabilityColour = $derived(
-    viewer?.canReceiveRescueOffers && viewer.availabilityMode === 'ON' ? 'on'
+    viewer?.canReceiveRescueOffers && viewer.availabilityMode === 'BUSY' ? 'busy'
+    : viewer?.canReceiveRescueOffers && viewer.availabilityMode === 'ON' ? 'on'
     : viewer?.canReceiveRescueOffers && viewer.availabilityMode === 'SCHEDULE' ? 'schedule' : 'off'
   );
   let profileMenu = $state<HTMLDetailsElement | undefined>(undefined);
@@ -164,6 +166,7 @@
     background:var(--status);
   }
   .availability-dot[data-status='on'] { --status:#17854c; }
+  .availability-dot[data-status='busy'] { --status:#bd7121; }
   .availability-dot[data-status='schedule'] { --status:#b17a08; }
   .availability-dot[data-status='off'] { --status:#b22932; }
   .availability-dot:not(.inline)::after {
