@@ -1,6 +1,6 @@
 import { getHunterDemo } from '$lib/server/demo';
 import { effectiveAvailability } from '$lib/server/availability';
-import { canRescueForOrganisation, canTransportForOrganisation } from '../../../../core/care-delivery';
+import { canRescueForOrganisation, canTransportForOrganisation } from '../../../core/care-delivery';
 import type { LayoutServerLoad } from './$types';
 
 export const load: LayoutServerLoad = ({ locals, cookies }) => {
