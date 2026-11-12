@@ -165,7 +165,8 @@
   const membershipConfigFor = (user: { organisationId?: string }) =>
     (user.organisationId ? data.membershipConfigs[user.organisationId] : undefined) ?? {
       membershipTypes: data.standardMembershipTypes,
-      teams: data.standardTeams
+      teams: data.standardTeams,
+      positions: [] as { id: string; name: string; active: boolean }[]
     };
 
   const membershipTypeName = (user: { organisationId?: string; membershipTypeId?: string }) =>
