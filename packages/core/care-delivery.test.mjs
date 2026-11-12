@@ -51,6 +51,9 @@ test('only active field rescuers handle species cases; carers can still be carer
   const { canRescueForOrganisation } = await import('./care-delivery.ts');
   const active = { enabled: true, status: 'ACTIVE', roles: ['CARER'], membershipTypeId: 'active-rescuer' };
   assert.equal(canRescueForOrganisation(active), true);
+  assert.equal(canRescueForOrganisation({ ...active, membershipTypeId: undefined }), false);
+  assert.equal(canRescueForOrganisation({ ...active, membershipTypeId: '' }), false);
+  assert.equal(canRescueForOrganisation({ ...active, roles: ['RESCUER', 'CARER'] }), true);
   assert.equal(canRescueForOrganisation({ ...active, membershipTypeId: 'carer' }), false);
   assert.equal(canRescueForOrganisation({ ...active, membershipTypeId: 'transport-volunteer' }), false);
   assert.equal(canRescueForOrganisation({ ...active, roles: ['DATA_STEWARD'] }), false);
