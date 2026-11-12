@@ -11,6 +11,8 @@ import {
 	sendOrganisationInvitation,
 	setUserEnabled,
 	updateUserAccess,
+	updateMemberPositionTitle,
+  updateMemberPositionAssignments,
 	type RescueHubRole,
 	type RescueHubUser
 } from '$lib/server/auth';
@@ -21,6 +23,8 @@ import {
 } from '$lib/server/admin-data';
 import {
 	getOrganisationMembershipConfig,
+  addOrganisationPosition,
+  deactivateOrganisationPosition,
 	STANDARD_MEMBERSHIP_TYPES,
 	STANDARD_TEAMS
 } from '$lib/server/membership';
@@ -224,6 +228,74 @@ export const actions: Actions = {
     } catch (error) {
       return fail(400, { action: 'correctInvitationEmail', userId,
         error: error instanceof Error ? error.message : 'Could not correct invitation email.' });
+    }
+  },
+  addOrganisationPosition: async ({ request, locals }) => {
+    const actor = await requireAdmin(locals);
+    const form = await request.formData();
+    const organisationId = requiredString(form, 'organisationId');
+    const positionName = requiredString(form, 'positionName');
+    if (!organisationId || !(isAuthorityAdmin(actor) || actor.organisationId === organisationId))
+      return fail(403, { action: 'addOrganisationPosition', error: 'Cannot manage this organisation.' });
+    try {
+      await addOrganisationPosition(organisationId, positionName);
+      return { action: 'addOrganisationPosition', success: true };
+    } catch (error) {
+      return fail(400, { action: 'addOrganisationPosition',
+        error: error instanceof Error ? error.message : 'Position could not be added.' });
+    }
+  },
+  deactivateOrganisationPosition: async ({ request, locals }) => {
+    const actor = await requireAdmin(locals);
+    const form = await request.formData();
+    const organisationId = requiredString(form, 'organisationId');
+    const positionId = requiredString(form, 'positionId');
+    if (!organisationId || !(isAuthorityAdmin(actor) || actor.organisationId === organisationId))
+      return fail(403, { action: 'deactivateOrganisationPosition', error: 'Cannot manage this organisation.' });
+    try {
+      await deactivateOrganisationPosition(organisationId, positionId);
+      return { action: 'deactivateOrganisationPosition', success: true };
+    } catch (error) {
+      return fail(400, { action: 'deactivateOrganisationPosition',
+        error: error instanceof Error ? error.message : 'Position could not be disabled.' });
+    }
+  },
+  assignMemberPositions: async ({ request, locals }) => {
+    const actor = await requireAdmin(locals);
+    const form = await request.formData();
+    const userId = requiredString(form, 'userId');
+    const target = (await listUsers()).find(person => person.id === userId);
+    if (!target || !canManageUser(actor, target) || !target.organisationId)
+      return fail(403, { action: 'assignMemberPositions', userId, error: 'Cannot edit this member.' });
+    const ids = form.getAll('positionIds').map(String);
+    const config = await getOrganisationMembershipConfig(target.organisationId);
+    if (ids.some(id => !config.positions.some(position => position.active && position.id === id)))
+      return fail(400, { action: 'assignMemberPositions', userId, error: 'Invalid organisation position.' });
+    try {
+      await updateMemberPositionAssignments(userId, target.organisationId, ids);
+      return { action: 'assignMemberPositions', userId, success: true };
+    } catch (error) {
+      return fail(400, { action: 'assignMemberPositions', userId,
+        error: error instanceof Error ? error.message : 'Positions could not be updated.' });
+    }
+  },
+  updateMemberPosition: async ({ request, locals }) => {
+    const actor = await requireAdmin(locals);
+    const form = await request.formData();
+    const userId = requiredString(form, 'userId');
+    const rawPosition = form.get('positionTitle');
+    const positionTitle = typeof rawPosition === 'string' ? rawPosition.trim() : '';
+    const target = (await listUsers()).find(person => person.id === userId);
+    if (!target || !canManageUser(actor, target) || !target.organisationId)
+      return fail(403, { action: 'updateMemberPosition', userId, error: 'You cannot edit that member.' });
+    if (positionTitle.length > 100)
+      return fail(400, { action: 'updateMemberPosition', userId, error: 'Position must be 100 characters or fewer.' });
+    try {
+      await updateMemberPositionTitle(userId, target.organisationId, positionTitle);
+      return { action: 'updateMemberPosition', userId, success: true };
+    } catch (error) {
+      return fail(409, { action: 'updateMemberPosition', userId,
+        error: error instanceof Error ? error.message : 'Position could not be saved.' });
     }
   },
 	updateMemberAccess: async ({ request, locals }) => {

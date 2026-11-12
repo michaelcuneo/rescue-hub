@@ -20,6 +20,7 @@
   let rescueSearch = $state('');
 
   let peopleSearch = $state('');
+  let positionOrganisationId = $state('');
   let peopleFilter = $state<'all' | 'invited' | 'available' | 'admins' | 'disabled'>('all');
   let showInvite = $state(false);
   let selectedPersonId = $state<string | null>(null);
@@ -61,7 +62,9 @@
 
   const visiblePeople = $derived(data.users.filter((user) => {
     const query = peopleSearch.trim().toLowerCase();
-    const matches = !query || [user.name, user.email, organisationName(user.organisationId), user.roles.join(' '), ...teamNames(user)].join(' ').toLowerCase().includes(query);
+    const positions = membershipConfigFor(user).positions ?? [];
+    const titleNames = (user.positionIds ?? []).map(id => positions.find(position => position.id === id)?.name ?? '');
+    const matches = !query || [user.name, user.email, user.positionTitle ?? '', ...titleNames, organisationName(user.organisationId), user.roles.join(' '), ...teamNames(user)].join(' ').toLowerCase().includes(query);
     const filterMatches = peopleFilter === 'all' ||
       (peopleFilter === 'invited' && user.enabled && user.status === 'INVITED' && !user.roles.includes('PUBLIC_REPORTER')) ||
       (peopleFilter === 'available' && user.enabled && user.availabilityStatus === 'AVAILABLE') ||
@@ -83,7 +86,8 @@
   const inviteMembershipConfig = $derived(
     data.membershipConfigs[inviteOrganisationId || data.currentUser.organisationId || ''] ?? {
       membershipTypes: data.standardMembershipTypes,
-      teams: data.standardTeams
+      teams: data.standardTeams,
+      positions: [] as { id: string; name: string; active: boolean }[]
     }
   );
 
@@ -161,7 +165,8 @@
   const membershipConfigFor = (user: { organisationId?: string }) =>
     (user.organisationId ? data.membershipConfigs[user.organisationId] : undefined) ?? {
       membershipTypes: data.standardMembershipTypes,
-      teams: data.standardTeams
+      teams: data.standardTeams,
+      positions: [] as { id: string; name: string; active: boolean }[]
     };
 
   const membershipTypeName = (user: { organisationId?: string; membershipTypeId?: string }) =>
@@ -503,7 +508,38 @@
 
         <div class="people-directory panel">
           <div class="directory-toolbar">
-            <div><h3>People directory</h3><p>{visiblePeople.length} of {data.users.length} people</p></div>
+            <div class="access-group">
+            <h3>Organisation positions</h3>
+            <p class="permission-help">Add committee and management positions such as President, Secretary, Raptor Leader or Transport Coordinator. These are shown beside members in Chats; they do not change permissions.</p>
+            <form method="POST" action="?/addOrganisationPosition" class="position-create">
+              <label><span>Organisation</span>
+                <select name="organisationId" bind:value={positionOrganisationId} required>
+                  {#each data.organisations as organisation}
+                    <option value={organisation.id}>{organisation.displayName}</option>
+                  {/each}
+                </select>
+              </label>
+              <label><span>New position</span>
+                <input name="positionName" maxlength="80" required placeholder="e.g. Raptor Leader" />
+              </label>
+              <button class="primary-action" type="submit">Add position</button>
+            </form>
+            {#each data.organisations.filter(org => org.id === positionOrganisationId || (!positionOrganisationId && org.id === data.currentUser.organisationId)) as organisation}
+              <div class="position-list">
+                {#each (data.membershipConfigs[organisation.id]?.positions ?? []).filter(position => position.active) as position (position.id)}
+                  <form method="POST" action="?/deactivateOrganisationPosition" class="position-row">
+                    <input type="hidden" name="organisationId" value={organisation.id} />
+                    <input type="hidden" name="positionId" value={position.id} />
+                    <span>{position.name}</span>
+                    <button type="submit" aria-label={`Disable ${position.name}`}>Disable</button>
+                  </form>
+                {:else}
+                  <p class="permission-help">No organisation positions added yet.</p>
+                {/each}
+              </div>
+            {/each}
+          </div>
+          <div><h3>People directory</h3><p>{visiblePeople.length} of {data.users.length} people</p></div>
             <label class="people-search"><span class="sr-only">Search people</span><input type="search" bind:value={peopleSearch} placeholder="Search people, organisations or teams…" /></label>
           </div>
           <div class="people-filters" aria-label="Filter people">
@@ -520,7 +556,7 @@
                 <span class="person-teams">{teamNames(user).slice(0, 2).join(' · ') || 'No dispatch teams'}{teamNames(user).length > 2 ? ` +${teamNames(user).length - 2}` : ''}</span>
                 <span class="person-status">
                   <span class:available={user.enabled && user.availabilityStatus === 'AVAILABLE'} class="availability-state">
-                    {user.status === 'INVITED' ? 'Invited' : !user.enabled ? 'Disabled' : user.availabilityStatus === 'AVAILABLE' ? 'Available' : 'Offline'}
+                    {user.status === 'INVITED' ? 'Invited' : !user.enabled ? 'Disabled' : user.availabilityStatus === 'AVAILABLE' ? 'Available' : user.availabilityStatus === 'BUSY' ? 'Busy' : 'Offline'}
                   </span>
                   {#if user.status === 'INVITED' && !user.roles.includes('PUBLIC_REPORTER')}
                     <small class="invitation-delivery">{invitationEmailLabel(user.invitationEmailStatus)}</small>
@@ -599,6 +635,38 @@
                 </form>
               </section>
             {/if}
+            <form method="POST" action="?/assignMemberPositions" class="person-form">
+              <input type="hidden" name="userId" value={selectedPerson.id} />
+              <div class="access-group">
+                <strong>Organisation management and committee positions</strong>
+                <p class="permission-help">Select the positions this person holds. These appear in Chats and do not grant system access.</p>
+                <div class="capability-grid">
+                  {#each (membershipConfigFor(selectedPerson).positions ?? []).filter(position => position.active) as position}
+                    <label class="capability-option">
+                      <input type="checkbox" name="positionIds" value={position.id}
+                        checked={(selectedPerson.positionIds ?? []).includes(position.id)} />
+                      <span><strong>{position.name}</strong></span>
+                    </label>
+                  {:else}
+                    <p class="permission-help">No management positions defined yet. Create them in the People directory.</p>
+                  {/each}
+                </div>
+                <div class="dialog-actions">
+                  <button class="primary-action" type="submit">Save management positions</button>
+                </div>
+              </div>
+            </form>
+            <form method="POST" action="?/updateMemberPosition" class="person-form">
+              <input type="hidden" name="userId" value={selectedPerson.id} />
+              <div class="access-group">
+                <label><span>Organisation position / function — shown in Chats</span>
+                  <input name="positionTitle" maxlength="100" value={selectedPerson.positionTitle ?? ''}
+                    placeholder="e.g. Director, Raptor Manager, Transport Coordinator" />
+                </label>
+                <p class="permission-help">A descriptive title displayed alongside your member's actual access role, membership and teams. This does not change permissions.</p>
+              </div>
+              <div class="dialog-actions"><button class="primary-action" type="submit">Save position</button></div>
+            </form>
             <form method="POST" action="?/updateMemberAccess" class="person-form">
               <input type="hidden" name="userId" value={selectedPerson.id} />
               <div class="access-group">
@@ -655,6 +723,13 @@
   .reviewer-note p { margin: 5px 0 0; line-height: 1.5; }
 
   .people-workspace { display: grid; gap: 22px; }
+  .position-create { display:flex;flex-wrap:wrap;align-items:flex-end;gap:10px }
+  .position-create label { display:grid;gap:5px;flex:1 1 170px }
+  .position-create input,.position-create select { min-height:42px;border:1px solid var(--rh-border);border-radius:9px;background:var(--rh-field);color:var(--rh-text);padding:9px 12px;font:inherit }
+  .position-create button { min-height:42px }
+  .position-list { display:flex;gap:8px;flex-wrap:wrap }
+  .position-row { display:flex;gap:9px;align-items:center;background:var(--rh-surface-soft);border:1px solid var(--rh-border);border-radius:9px;padding:8px 12px }
+  .position-row button { border:0;background:transparent;color:var(--rh-danger-text);cursor:pointer;font:inherit;text-decoration:underline }
   .invitation-delivery { display:block; margin-top:5px; font-size:11px; line-height:1.35; color:var(--rh-muted); overflow-wrap:anywhere; }
   .invitation-detail { display:grid; gap:12px; border:1px solid var(--rh-border); border-radius:12px; padding:16px; background:var(--rh-surface-soft); color:var(--rh-text); }
   .invitation-detail h3 { margin:0; font-size:17px; }

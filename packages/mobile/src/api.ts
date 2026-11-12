@@ -18,7 +18,7 @@ export type User = {
   availabilityPolicy?: AvailabilityPolicy;
 };
 
-export type AvailabilityMode = 'ON' | 'OFF' | 'SCHEDULE';
+export type AvailabilityMode = 'ON' | 'OFF' | 'BUSY' | 'SCHEDULE';
 export type Weekday = 'MON' | 'TUE' | 'WED' | 'THU' | 'FRI' | 'SAT' | 'SUN';
 export type AvailabilityWindow = { start: string; end: string };
 export type AvailabilityPolicy = {
@@ -315,6 +315,7 @@ export async function unclaimRescue(id: string, reason = '') {
 export type ChatChannel = {
   id: string; name: string; description: string;
   audience: 'ADMIN' | 'ORG' | 'TEAM'; teamIds: string[];
+  recipientUserId?: string; recipientAvailability?: 'AVAILABLE' | 'BUSY' | 'OFFLINE';
   latest?: { text: string; senderName: string; createdAt: string };
   unread: boolean;
 };
@@ -324,6 +325,10 @@ export type ChatMessage = {
   kind?: 'MESSAGE' | 'SYSTEM';
 };
 export type ChatOrganisation = { id: string; name: string };
+export type ChatMember = {
+  id: string; name: string; availability: 'AVAILABLE' | 'BUSY' | 'OFFLINE';
+  labels: string[]; positionTitle?: string;
+};
 const chatQuery = (organisationId?: string, before?: string) => {
   const params = new URLSearchParams();
   if (organisationId) params.set('organisationId', organisationId);
@@ -334,6 +339,17 @@ export async function getChatChannels(organisationId?: string) {
   return request<{ channels: ChatChannel[]; organisations: ChatOrganisation[]; organisationId: string }>(
     '/api/mobile/chats' + chatQuery(organisationId)
   );
+}
+export async function getChatMembers(organisationId?: string, channelId?: string) {
+  const query = chatQuery(organisationId);
+  const params = new URLSearchParams(query);
+  if (channelId) params.set('channelId', channelId);
+  return request<{ members: ChatMember[] }>('/api/mobile/chats/members' + (params.size ? `?${params.toString()}` : ''));
+}
+export async function openDirectChat(recipientUserId: string, organisationId?: string) {
+  return request<{ channelId: string }>('/api/mobile/chats/direct' + chatQuery(organisationId), {
+    method: 'POST', body: JSON.stringify({ recipientUserId })
+  });
 }
 export async function getChannelMessages(channelId: string, before?: string, organisationId?: string) {
   return request<{ items: ChatMessage[]; nextCursor: string | null }>(

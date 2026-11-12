@@ -5,7 +5,7 @@
  */
 export const DAYS = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'] as const;
 export type Weekday = (typeof DAYS)[number];
-export type AvailabilityMode = 'ON' | 'OFF' | 'SCHEDULE';
+export type AvailabilityMode = 'ON' | 'OFF' | 'BUSY' | 'SCHEDULE';
 export type AvailabilityWindow = { start: string; end: string };
 export type AvailabilityDay = { enabled: boolean; windows: AvailabilityWindow[] };
 export type AvailabilityPolicy = {
@@ -21,7 +21,7 @@ const END_TIME = /^([01]\d|2[0-3]):([0-5]\d)$|^24:00$/;
 
 export function defaultAvailabilityPolicy(status: 'AVAILABLE' | 'BUSY' | 'OFFLINE' = 'OFFLINE'): AvailabilityPolicy {
   return {
-    mode: status === 'AVAILABLE' ? 'ON' : 'OFF',
+    mode: status === 'AVAILABLE' ? 'ON' : status === 'BUSY' ? 'BUSY' : 'OFF',
     timezone: 'Australia/Sydney',
     week: Object.fromEntries(DAYS.map((day, index) => [
       day, { enabled: index < 5, windows: [{ start: '09:00', end: '17:00' }] }
@@ -37,8 +37,8 @@ function minutes(time: string) {
 export function validateAvailabilityPolicy(raw: unknown): AvailabilityPolicy {
   if (!raw || typeof raw !== 'object') throw new Error('Availability settings are required.');
   const value = raw as Record<string, unknown>;
-  if (!['ON', 'OFF', 'SCHEDULE'].includes(String(value.mode))) {
-    throw new Error('Choose ON, OFF or SCHEDULE.');
+  if (!['ON', 'OFF', 'BUSY', 'SCHEDULE'].includes(String(value.mode))) {
+    throw new Error('Choose ON, OFF, BUSY or SCHEDULE.');
   }
   if (typeof value.timezone !== 'string' || !value.timezone || value.timezone.length > MAX_TIMEZONE_LENGTH) {
     throw new Error('Choose a valid timezone.');
@@ -109,6 +109,7 @@ export function effectiveAvailability(
   if (!policy) return 'OFFLINE';
   if (policy.mode === 'ON') return 'AVAILABLE';
   if (policy.mode === 'OFF') return 'OFFLINE';
+  if (policy.mode === 'BUSY') return 'BUSY';
 
   const values = Object.fromEntries(
     new Intl.DateTimeFormat('en-US', {

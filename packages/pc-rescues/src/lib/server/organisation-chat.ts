@@ -1,9 +1,11 @@
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
-import { DynamoDBDocumentClient, GetCommand, PutCommand, QueryCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
+import { DynamoDBDocumentClient, GetCommand, PutCommand, QueryCommand, TransactWriteCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
 import { Resource } from 'sst';
 import { getOrganisationMembershipConfig } from './membership';
 import { publishRescueChange } from './realtime';
-import { listUsers, type RescueHubUser } from './auth';
+import { getUserById, listUsers, type RescueHubUser } from './auth';
+import { effectiveAvailability } from './availability';
+import { canDirectChat, directChannelId, displayMemberLabels, isDirectChatChannelId } from '../../../../core/chat-direct';
 import { listAdminOrganisations } from './admin-data';
 import {
   buildChatChannels, canAccessChat, canSelectChatOrganisation, isPlatformOversightUser,
@@ -30,10 +32,20 @@ export type ChatMessage = {
   kind?: 'MESSAGE' | 'SYSTEM';
 };
 export type ChatSummary = ChatChannel & {
+  recipientUserId?: string;
+  recipientAvailability?: 'AVAILABLE' | 'BUSY' | 'OFFLINE';
   latest?: { text: string; createdAt: string; senderName: string };
   unread: boolean;
 };
 
+export type ChatDirectoryMember = {
+  id: string; name: string; availability: 'AVAILABLE' | 'BUSY' | 'OFFLINE';
+  positionTitle?: string; labels: string[];
+};
+const dmRecordKey = (organisationId: string, channelId: string) => ({
+  pk: `ORG#${organisationId}#CHAT#${channelId}`, sk: 'DIRECT'
+});
+const DM_DIRECTORY_LIMIT = 200;
 const channelPk = (organisationId: string, channelId: string) =>
   `ORG#${organisationId}#CHAT#${channelId}`;
 
@@ -109,11 +121,129 @@ export async function listChatOrganisations(user: RescueHubUser):
 }
 
 
+async function activeDirectRecipient(
+  viewer: RescueHubUser, recipientId: string, organisationId: string
+): Promise<RescueHubUser> {
+  const recipient = await getUserById(recipientId);
+  if (!recipient || !canDirectChat({ ...viewer, organisationId }, recipient))
+    throw new ChatAccessError('The selected member is not available for private chat.');
+  return recipient;
+}
+
+export async function listChatDirectory(
+  user: RescueHubUser, selectedOrganisationId?: string, channelId?: string
+): Promise<ChatDirectoryMember[]> {
+  const org = await resolveChatOrganisation(user, selectedOrganisationId);
+  const [people, config] = await Promise.all([
+    listUsers(), getOrganisationMembershipConfig(org)
+  ]);
+  let scopedChannel: ChatChannel | null = null;
+  let directParticipants: string[] | null = null;
+  if (channelId) {
+    const authorised = await requireChannel(user, channelId, org);
+    scopedChannel = authorised.channel;
+    if (isDirectChatChannelId(channelId)) {
+      const row = await db.send(new GetCommand({
+        TableName: table, Key: dmRecordKey(org, channelId), ConsistentRead: true
+      }));
+      directParticipants = Array.isArray(row.Item?.participants) ? row.Item.participants : [];
+    }
+  }
+  const membershipNames = new Map(config.membershipTypes.filter(item => item.active).map(item => [item.id, item.name]));
+  const teamNames = new Map(config.teams.filter(item => item.active).map(item => [item.id, item.name]));
+  return people.filter(person =>
+    person.organisationId === org && person.enabled && person.status === 'ACTIVE' &&
+    !person.roles.includes('PUBLIC_REPORTER') &&
+    (!scopedChannel || (directParticipants
+      ? directParticipants.includes(person.id)
+      : canAccessChat(person, scopedChannel)))
+  ).map(person => ({
+    id: person.id, name: person.name,
+    availability: effectiveAvailability(person),
+    ...(person.positionTitle ? { positionTitle: person.positionTitle } : {}),
+    labels: [...new Set([
+      ...(person.positionIds ?? []).map(id => config.positions.find(item => item.id === id && item.active)?.name)
+        .filter((name): name is string => Boolean(name)),
+      ...displayMemberLabels(person, membershipNames, teamNames)
+    ])]
+  })).sort((a, b) => {
+    const rank = { AVAILABLE: 0, BUSY: 1, OFFLINE: 2 };
+    return rank[a.availability] - rank[b.availability] || a.name.localeCompare(b.name);
+  });
+}
+
+/** Open an existing direct conversation, or conditionally create it once. */
+export async function openDirectChat(
+  user: RescueHubUser, recipientId: string, selectedOrganisationId?: string
+): Promise<{ channelId: string }> {
+  const organisationId = await resolveChatOrganisation(user, selectedOrganisationId);
+  if (user.organisationId !== organisationId)
+    throw new ChatAccessError('Private chats require membership in the selected organisation.');
+  const recipient = await activeDirectRecipient(user, recipientId, organisationId);
+  const channelId = directChannelId(organisationId, user.id, recipient.id);
+  const key = dmRecordKey(organisationId, channelId);
+  const existing = await db.send(new GetCommand({ TableName: table, Key: key }));
+  if (!existing.Item) {
+    const createdAt = new Date().toISOString();
+    const participants = [user.id, recipient.id].sort();
+    try {
+      await db.send(new TransactWriteCommand({
+        TransactItems: [
+          { Put: { TableName: table, Item: {
+            ...key, entity: 'direct_chat', organisationId, channelId,
+            participants, createdAt
+          }, ConditionExpression: 'attribute_not_exists(pk)' } },
+          ...participants.map(memberId => ({ Put: {
+            TableName: table, Item: {
+              pk: `USER#${memberId}`, sk: `DIRECT_CHAT#${organisationId}#${channelId}`,
+              organisationId, channelId, participants, createdAt,
+              entity: 'private_chat_membership'
+            }, ConditionExpression: 'attribute_not_exists(pk)'
+          } }))
+        ]
+      }));
+    } catch (error) {
+      if (!(error instanceof Error && ['ConditionalCheckFailedException', 'TransactionCanceledException'].includes(error.name))) throw error;
+    }
+  }
+  const saved = await db.send(new GetCommand({ TableName: table, Key: key, ConsistentRead: true }));
+  const participants = saved.Item?.participants;
+  if (!Array.isArray(participants) || !participants.includes(user.id) || !participants.includes(recipient.id))
+    throw new ChatAccessError('Private chat membership could not be verified.');
+  return { channelId };
+}
+
+async function directChannelAccess(
+  user: RescueHubUser, channelId: string, organisationId: string
+): Promise<{ channel: ChatChannel; organisationId: string }> {
+  if (!isDirectChatChannelId(channelId)) throw new ChatAccessError('Invalid direct conversation.');
+  const descriptor = await db.send(new GetCommand({
+    TableName: table, Key: dmRecordKey(organisationId, channelId), ConsistentRead: true
+  }));
+  const members = descriptor.Item?.participants;
+  if (!Array.isArray(members) || members.length !== 2 ||
+      !members.includes(user.id) || descriptor.Item?.organisationId !== organisationId) {
+    throw new ChatAccessError('This private conversation is not available to your account.');
+  }
+  const otherId = members.find((id: unknown) => id !== user.id);
+  if (typeof otherId !== 'string') throw new ChatAccessError('Invalid private chat.');
+  const other = await activeDirectRecipient(user, otherId, organisationId);
+  // Do not let a descriptor be reassigned to an unrelated pair.
+  if (directChannelId(organisationId, user.id, other.id) !== channelId)
+    throw new ChatAccessError('Invalid private chat membership.');
+  return { organisationId, channel: {
+    id: channelId, name: other.name, description: 'Private conversation',
+    audience: 'ORG', teamIds: []
+  } };
+}
+
 export async function requireChannel(
   user: RescueHubUser, channelId: string, selectedOrganisationId?: string
 ): Promise<{ channel: ChatChannel; organisationId: string }> {
   if (!isValidChatChannelId(channelId)) throw new ChatAccessError('Invalid chat channel.');
   const organisationId = await resolveChatOrganisation(user, selectedOrganisationId);
+  if (isDirectChatChannelId(channelId))
+    return directChannelAccess(user, channelId, organisationId);
   const config = await getOrganisationMembershipConfig(organisationId);
   const channel = buildChatChannels(config.teams).find(item => item.id === channelId);
   if (!channel || !canAccessChat({ ...user, organisationId }, channel))
@@ -121,13 +251,12 @@ export async function requireChannel(
   return { channel, organisationId };
 }
 
-/** Strictly scoped to an explicitly authorised organisation. No full-table scan. */
 export async function listMyChannels(user: RescueHubUser, selectedOrganisationId?: string): Promise<ChatSummary[]> {
   const organisationId = await resolveChatOrganisation(user, selectedOrganisationId);
   const config = await getOrganisationMembershipConfig(organisationId);
   const allowed = buildChatChannels(config.teams)
     .filter(c => canAccessChat({ ...user, organisationId }, c));
-  return Promise.all(allowed.map(async channel => {
+  const regular = await Promise.all(allowed.map(async channel => {
     const pk = channelPk(organisationId, channel.id);
     const [latest, marker] = await Promise.all([
       db.send(new QueryCommand({
@@ -150,6 +279,59 @@ export async function listMyChannels(user: RescueHubUser, selectedOrganisationId
         message.senderUserId !== user.id)
     };
   }));
+  const directs = await listDirectChatSummaries(user, organisationId);
+  return [...regular, ...directs];
+}
+
+async function listDirectChatSummaries(user: RescueHubUser, organisationId: string): Promise<ChatSummary[]> {
+  // Strongly consistent per-user pointers avoid cross-tenant scans and the
+  // eventual-consistency gap after first opening a new conversation.
+  const descriptors: Record<string, unknown>[] = [];
+  let cursor: Record<string, unknown> | undefined;
+  do {
+    const page = await db.send(new QueryCommand({
+      TableName: table,
+      KeyConditionExpression: 'pk = :pk AND begins_with(sk, :prefix)',
+      ExpressionAttributeValues: {
+        ':pk': `USER#${user.id}`, ':prefix': `DIRECT_CHAT#${organisationId}#`
+      },
+      ConsistentRead: true, ExclusiveStartKey: cursor, Limit: DM_DIRECTORY_LIMIT
+    }));
+    descriptors.push(...(page.Items ?? []));
+    cursor = page.LastEvaluatedKey;
+  } while (cursor);
+  const mine = descriptors.filter(item => Array.isArray(item.participants) && item.participants.includes(user.id));
+  return Promise.all(mine.map(async item => {
+    const channelId = String(item.channelId);
+    try {
+      const { channel } = await directChannelAccess(user, channelId, organisationId);
+      const otherId = (item.participants as string[]).find(id => id !== user.id)!;
+      const other = await getUserById(otherId);
+      const [latest, marker] = await Promise.all([
+        db.send(new QueryCommand({
+          TableName: table, KeyConditionExpression: 'pk = :pk AND begins_with(sk, :prefix)',
+          ExpressionAttributeValues: { ':pk': channelPk(organisationId, channelId), ':prefix': CHAT_PREFIX },
+          ScanIndexForward: false, Limit: 1
+        })),
+        db.send(new GetCommand({
+          TableName: table, Key: { pk: `USER#${user.id}`, sk: `CHAT_READ#${organisationId}#${channelId}` }
+        }))
+      ]);
+      const message = latest.Items?.[0] as (ChatMessage & { sk?: string }) | undefined;
+      const chat: ChatSummary = { ...channel, recipientUserId: otherId,
+        recipientAvailability: other ? effectiveAvailability(other) : 'OFFLINE' as const,
+        ...(message ? { latest: {
+          text: message.text, createdAt: message.createdAt, senderName: message.senderName
+        }} : {}),
+        unread: Boolean(message && message.sk && message.sk > (typeof marker.Item?.lastSeenKey === 'string' ? marker.Item.lastSeenKey : '') &&
+          message.senderUserId !== user.id)
+      };
+      return chat;
+    } catch (error) {
+      if (error instanceof ChatAccessError) return null;
+      throw error;
+    }
+  })).then(chats => chats.filter((chat): chat is ChatSummary => chat !== null));
 }
 
 export async function readChatPage(
@@ -193,6 +375,19 @@ export async function postChatMessage(
   selectedOrganisationId?: string
 ): Promise<ChatMessage> {
   const { organisationId } = await requireChannel(user, channelId, selectedOrganisationId);
+  // Busy is a deliberate do-not-disturb state for private messages.
+  // Existing group channels remain available; direct sends are blocked.
+  if (isDirectChatChannelId(channelId)) {
+    const descriptor = await db.send(new GetCommand({
+      TableName: table, Key: dmRecordKey(organisationId, channelId), ConsistentRead: true
+    }));
+    const otherId = Array.isArray(descriptor.Item?.participants)
+      ? descriptor.Item.participants.find((id: unknown) => id !== user.id) : undefined;
+    if (typeof otherId !== 'string') throw new ChatAccessError('Private chat recipient unavailable.');
+    const recipient = await activeDirectRecipient(user, otherId, organisationId);
+    if (effectiveAvailability(recipient) === 'BUSY')
+      throw new ChatAccessError('This member is busy. Wait until they are available before messaging.');
+  }
   const text = validateChatText(input.text);
   const animalId = input.animalId;
   if (animalId !== undefined &&

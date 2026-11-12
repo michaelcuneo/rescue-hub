@@ -53,6 +53,8 @@ export type RescueHubUser = {
 	organisationId?: string;
 	roles: RescueHubRole[];
 	membershipTypeId?: string;
+	positionTitle?: string;
+  positionIds?: string[];
 	teamIds: string[];
 	availabilityStatus: 'AVAILABLE' | 'BUSY' | 'OFFLINE';
 	availabilityPolicy?: AvailabilityPolicy;
@@ -117,6 +119,8 @@ function toUser(item: Record<string, unknown>): RescueHubUser {
 		organisationId: item.organisationId ? String(item.organisationId) : undefined,
 		roles: Array.isArray(item.roles) ? item.roles.map(String) as RescueHubRole[] : [],
 		membershipTypeId: item.membershipTypeId ? String(item.membershipTypeId) : undefined,
+		positionTitle: typeof item.positionTitle === 'string' ? item.positionTitle : undefined,
+    positionIds: Array.isArray(item.positionIds) ? item.positionIds.map(String) : [],
 		teamIds: Array.isArray(item.teamIds) ? item.teamIds.map(String) : [],
 		availabilityStatus: effectiveAvailability({ availabilityStatus: ['AVAILABLE', 'BUSY', 'OFFLINE'].includes(String(item.availabilityStatus)) ? String(item.availabilityStatus) as RescueHubUser['availabilityStatus'] : 'OFFLINE', availabilityPolicy: item.availabilityPolicy }),
 		availabilityPolicy: readAvailabilityPolicy(item.availabilityPolicy) ?? undefined,
@@ -966,6 +970,44 @@ export async function listUsers() {
 	return (result.Items ?? []).filter(item => item.status !== 'REMOVED').map(item => toUser(item));
 }
 
+/** Position assignments only affect directory labels; never access roles. */
+export async function updateMemberPositionAssignments(
+  userId: string, organisationId: string, positionIds: string[]
+) {
+  if (positionIds.length > 20 || positionIds.some(id => !/^[a-z0-9-]{1,72}$/.test(id)))
+    throw new Error('Invalid organisation positions.');
+  await db.send(new UpdateCommand({
+    TableName: tableName, Key: { pk: `USER#${userId}`, sk: 'PROFILE' },
+    UpdateExpression: 'SET positionIds = :positions, updatedAt = :now',
+    ConditionExpression: 'attribute_exists(pk) AND organisationId = :org AND #status <> :removed',
+    ExpressionAttributeNames: { '#status': 'status' },
+    ExpressionAttributeValues: {
+      ':positions': [...new Set(positionIds)], ':org': organisationId, ':removed': 'REMOVED',
+      ':now': new Date().toISOString()
+    }
+  }));
+}
+
+/** Optional public-facing function within an organisation; never an access grant. */
+export async function updateMemberPositionTitle(
+  userId: string, organisationId: string, positionTitle: string
+) {
+  const title = positionTitle.trim();
+  if (title.length > 100 || /[\\u0000-\\u001f\\u007f]/.test(title))
+    throw new Error('Position or function must be 100 readable characters or fewer.');
+  const now = new Date().toISOString();
+  await db.send(new UpdateCommand({
+    TableName: tableName,
+    Key: { pk: `USER#${userId}`, sk: 'PROFILE' },
+    UpdateExpression: 'SET positionTitle = :title, updatedAt = :now',
+    ConditionExpression: 'attribute_exists(pk) AND organisationId = :org AND #status <> :removed',
+    ExpressionAttributeNames: { '#status': 'status' },
+    ExpressionAttributeValues: {
+      ':title': title, ':now': now, ':org': organisationId, ':removed': 'REMOVED'
+    }
+  }));
+}
+
 export async function updateUserDispatchMembership(input: {
 	userId: string;
 	membershipTypeId: string;
@@ -1076,7 +1118,7 @@ export async function setUserAvailability(userId: string, availabilityStatus: Re
 	const current = await getUserRecord(userId);
 	if (!current) throw new Error('Account not found.');
 	const old = readAvailabilityPolicy(current.availabilityPolicy) ?? defaultAvailabilityPolicy(availabilityStatus);
-	const policy = { ...old, mode: availabilityStatus === 'AVAILABLE' ? 'ON' as const : 'OFF' as const };
+	const policy = { ...old, mode: availabilityStatus === 'AVAILABLE' ? 'ON' as const : availabilityStatus === 'BUSY' ? 'BUSY' as const : 'OFF' as const };
 	await saveUserAvailabilityPolicy(userId, policy);
 }
 

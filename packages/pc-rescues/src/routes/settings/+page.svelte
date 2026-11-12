@@ -68,7 +68,7 @@
     if (saving || policy.mode === mode) return;
     void save({ ...policy, mode }, mode === 'SCHEDULE'
       ? 'Your weekly schedule is now active.'
-      : mode === 'ON' ? 'You are available for rescue offers.' : 'You are unavailable for rescue offers.');
+      : mode === 'ON' ? 'You are available for rescue offers.' : mode === 'BUSY' ? 'Your status is busy; private messages are paused.' : 'You are unavailable for rescue offers.');
   }
 </script>
 
@@ -140,6 +140,8 @@
               onclick={() => setMode('SCHEDULE')}>Follow schedule</button>
             <button type="button" class:chosen={policy.mode === 'ON'} aria-pressed={policy.mode === 'ON'}
               onclick={() => setMode('ON')}>Available now</button>
+            <button type="button" class:chosen={policy.mode === 'BUSY'} aria-pressed={policy.mode === 'BUSY'}
+              onclick={() => setMode('BUSY')}>Busy · do not disturb</button>
             <button type="button" class:chosen={policy.mode === 'OFF'} aria-pressed={policy.mode === 'OFF'}
               onclick={() => setMode('OFF')}>Unavailable</button>
           </div>

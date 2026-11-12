@@ -3,13 +3,19 @@ import { ActivityIndicator, FlatList, ScrollView, Pressable,
   SafeAreaView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { KeyboardAwareView, KeyboardAwareTextInput } from './KeyboardAware';
 import { getChatChannels, getChannelMessages, markChannelRead,
-  sendChannelMessage, type ChatChannel, type ChatMessage, type ChatOrganisation } from './api';
+  sendChannelMessage, getChatMembers, openDirectChat,
+  type ChatMember, type ChatChannel, type ChatMessage, type ChatOrganisation } from './api';
 import { subscribeRescueChanges } from '../../core/realtime-client';
 import { getRealtimeConfig } from './api';
 
 type Props = { userId: string; initialChannelId?: string; onOpenAnimal?: (animalId: string) => void };
 export default function OrganisationChats({ userId, initialChannelId, onOpenAnimal }: Props) {
   const [channels, setChannels] = useState<ChatChannel[]>([]);
+  const [members, setMembers] = useState<ChatMember[]>([]);
+  const [directoryMode, setDirectoryMode] = useState<'chats' | 'people'>('chats');
+  const [search, setSearch] = useState('');
+  const [channelMembers, setChannelMembers] = useState<ChatMember[]>([]);
+  const [showChannelPeople, setShowChannelPeople] = useState(false);
   const [organisations, setOrganisations] = useState<ChatOrganisation[]>([]);
   const [organisationId, setOrganisationId] = useState('');
   const organisationRef = useRef('');
@@ -40,6 +46,30 @@ export default function OrganisationChats({ userId, initialChannelId, onOpenAnim
       setSelected(null);
     }
   }, []);
+  const refreshMembers = useCallback(async () => {
+    const scope = organisationRef.current;
+    const result = await getChatMembers(scope || undefined);
+    if (scope !== organisationRef.current) return;
+    setMembers(result.members);
+  }, []);
+  const openMember = async (memberId: string) => {
+    if (busy) return;
+    setBusy(true); setError('');
+    try {
+      const response = await openDirectChat(memberId, organisationRef.current || undefined);
+      await refreshChannels();
+      selectedRef.current = response.channelId;
+      setSelected(response.channelId);
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Unable to open private conversation.');
+    } finally { setBusy(false); }
+  };
+  const refreshChannelMembers = useCallback(async (channelId: string) => {
+    const scope = organisationRef.current;
+    const result = await getChatMembers(scope || undefined, channelId);
+    if (selectedRef.current !== channelId || scope !== organisationRef.current) return;
+    setChannelMembers(result.members);
+  }, []);
   const refreshMessages = useCallback(async (channelId: string) => {
     const scope = organisationRef.current;
     const result = await getChannelMessages(channelId, undefined, scope || undefined);
@@ -52,7 +82,7 @@ export default function OrganisationChats({ userId, initialChannelId, onOpenAnim
   useEffect(() => {
     let active = true;
     const init = async () => {
-      try { await refreshChannels(); } catch (e) {
+      try { await refreshChannels(); await refreshMembers(); } catch (e) {
         if (active) setError(e instanceof Error ? e.message : 'Unable to load chat channels.');
       } finally { if (active) setLoading(false); }
     };
@@ -61,23 +91,24 @@ export default function OrganisationChats({ userId, initialChannelId, onOpenAnim
     void getRealtimeConfig().then(config => {
       if (!active) return;
       stop = subscribeRescueChanges(config, { onChange: () => {
-        void refreshChannels().catch(() => {});
-        if (selectedRef.current) void refreshMessages(selectedRef.current).catch(() => {});
+        void Promise.all([refreshChannels(), refreshMembers()]).catch(() => {});
+        if (selectedRef.current) { void refreshMessages(selectedRef.current).catch(() => {}); void refreshChannelMembers(selectedRef.current).catch(() => {}); }
       } });
     }).catch(() => {});
     const poll = setInterval(() => {
       if (!active) return;
       void refreshChannels().catch(() => {});
-      if (selectedRef.current) void refreshMessages(selectedRef.current).catch(() => {});
+      if (selectedRef.current) { void refreshMessages(selectedRef.current).catch(() => {}); void refreshChannelMembers(selectedRef.current).catch(() => {}); }
     }, 15000);
     return () => { active = false; stop?.(); clearInterval(poll); };
-  }, [refreshChannels, refreshMessages]);
+  }, [refreshChannels, refreshMembers, refreshMessages, refreshChannelMembers]);
 
   useEffect(() => {
     if (!selected) return;
-    setMessages([]); setCursor(null); setError('');
+    setMessages([]); setCursor(null); setChannelMembers([]); setShowChannelPeople(false); setError('');
+    void refreshChannelMembers(selected).catch(() => {});
     void refreshMessages(selected).catch(e => setError(e instanceof Error ? e.message : 'Cannot read channel.'));
-  }, [selected, refreshMessages]);
+  }, [selected, refreshMessages, refreshChannelMembers]);
 
   const older = async () => {
     if (!selected || !cursor || loadingOlder) return;
@@ -92,17 +123,23 @@ export default function OrganisationChats({ userId, initialChannelId, onOpenAnim
     finally { setLoadingOlder(false); }
   };
   const send = async () => {
-    if (!selected || !draft.trim() || busy) return;
+    if (!selected || !draft.trim() || busy || busyRecipient) return;
     setBusy(true); setError('');
     try {
       await sendChannelMessage(selected, draft.trim(), undefined, organisationRef.current || undefined);
       setDraft('');
-      await Promise.all([refreshMessages(selected), refreshChannels()]);
+      await Promise.all([refreshMessages(selected), refreshChannels(), refreshMembers()]);
       requestAnimationFrame(() => listRef.current?.scrollToEnd({ animated: true }));
     } catch (e) { setError(e instanceof Error ? e.message : 'Unable to send message.'); }
     finally { setBusy(false); }
   };
   const activeChannel = channels.find(channel => channel.id === selected);
+  const recipient = members.find(member => member.id === activeChannel?.recipientUserId);
+  const busyRecipient = activeChannel?.recipientAvailability === 'BUSY' || recipient?.availability === 'BUSY';
+  const listedMembers = members.filter(member => member.id !== userId &&
+    [member.name, ...member.labels].join(' ').toLowerCase().includes(search.toLowerCase()))
+    .sort((a,b) => ({ AVAILABLE:0, BUSY:1, OFFLINE:2 })[a.availability] -
+      ({ AVAILABLE:0, BUSY:1, OFFLINE:2 })[b.availability] || a.name.localeCompare(b.name));
   const changeOrganisation = (id: string) => {
     if (id === organisationRef.current) return;
     organisationRef.current = id;
@@ -110,11 +147,12 @@ export default function OrganisationChats({ userId, initialChannelId, onOpenAnim
     selectedRef.current = null;
     setSelected(null);
     setMessages([]);
+    setChannelMembers([]); setShowChannelPeople(false);
     setCursor(null);
     setDraft('');
     setError('');
     setLoading(true);
-    void refreshChannels().catch(e => setError(e instanceof Error ? e.message : 'Unable to open organisation chats.'))
+    void Promise.all([refreshChannels(), refreshMembers()]).catch(e => setError(e instanceof Error ? e.message : 'Unable to open organisation chats.'))
       .finally(() => setLoading(false));
   };
 
@@ -136,21 +174,60 @@ export default function OrganisationChats({ userId, initialChannelId, onOpenAnim
       </View>
       {loading ? <ActivityIndicator /> : null}
       {error ? <Text style={styles.error} accessibilityRole="alert">{error}</Text> : null}
-      <FlatList data={channels} keyExtractor={item => item.id}
-        contentContainerStyle={styles.channelList}
-        ListEmptyComponent={!loading ? <Text style={styles.subtitle}>No channels available for your membership.</Text> : undefined}
-        renderItem={({ item }) => <Pressable accessibilityRole="button"
-          accessibilityLabel={item.name + (item.unread ? ', new messages' : '')}
-          style={styles.channel} onPress={() => setSelected(item.id)}>
-          <View style={styles.avatar}><Text style={styles.avatarText}>{item.name.slice(0, 1).toUpperCase()}</Text></View>
-          <View style={styles.channelBody}>
-            <Text style={styles.channelName}>{item.name}</Text>
-            <Text style={styles.preview} numberOfLines={1}>
-              {item.latest ? `${item.latest.senderName}: ${item.latest.text}` : item.description}
-            </Text>
-          </View>
-          {item.unread ? <View style={styles.unread} accessibilityLabel="Unread messages" /> : null}
-        </Pressable>} />
+      <View style={styles.directoryTabs}>
+        <Pressable accessibilityRole="button" accessibilityState={{ selected:directoryMode==='chats' }}
+          style={[styles.tab,directoryMode==='chats' && styles.tabActive]} onPress={() => setDirectoryMode('chats')}>
+          <Text style={[styles.tabText,directoryMode==='chats' && styles.tabTextActive]}>Conversations</Text>
+        </Pressable>
+        <Pressable accessibilityRole="button" accessibilityState={{ selected:directoryMode==='people' }}
+          style={[styles.tab,directoryMode==='people' && styles.tabActive]} onPress={() => setDirectoryMode('people')}>
+          <Text style={[styles.tabText,directoryMode==='people' && styles.tabTextActive]}>People</Text>
+        </Pressable>
+      </View>
+      {directoryMode === 'chats' ?
+        <FlatList data={channels} keyExtractor={item => item.id}
+          contentContainerStyle={styles.channelList}
+          ListEmptyComponent={!loading ? <Text style={styles.subtitle}>No conversations yet. Open People to message a member.</Text> : undefined}
+          renderItem={({ item }) => <Pressable accessibilityRole="button"
+            accessibilityLabel={item.name + (item.unread ? ', new messages' : '')}
+            style={styles.channel} onPress={() => setSelected(item.id)}>
+            <View style={styles.avatar}><Text style={styles.avatarText}>{item.name.slice(0, 1).toUpperCase()}</Text></View>
+            <View style={styles.channelBody}>
+              <Text style={styles.channelName}>{item.name}</Text>
+              <Text style={styles.preview} numberOfLines={1}>
+                {item.latest ? `${item.latest.senderName}: ${item.latest.text}` : item.description}
+              </Text>
+            </View>
+            {item.recipientUserId ? <View style={styles.statusRow}>
+              <View style={[styles.presence, item.recipientAvailability==='AVAILABLE' ? styles.available :
+                item.recipientAvailability==='BUSY' ? styles.busyPresence : styles.offline]} />
+              <Text style={styles.statusText}>{(item.recipientAvailability ?? 'OFFLINE').toLowerCase()}</Text>
+            </View> : null}
+            {item.unread ? <View style={styles.unread} accessibilityLabel="Unread messages" /> : null}
+          </Pressable>} /> :
+        <>
+          <TextInput style={styles.search} value={search} onChangeText={setSearch}
+            placeholder="Search name, role or team" accessibilityLabel="Search members" />
+          <Text style={styles.directoryHelp}>Availability reflects rescue schedules. Busy members cannot receive new private messages.</Text>
+          <FlatList data={listedMembers} keyExtractor={member => member.id}
+            contentContainerStyle={styles.channelList}
+            ListEmptyComponent={<Text style={styles.subtitle}>No matching members.</Text>}
+            renderItem={({ item }) => <Pressable accessibilityRole="button" disabled={busy}
+              accessibilityLabel={`${item.name}, ${item.availability.toLowerCase()}, ${item.labels.join(', ')}`}
+              style={styles.channel} onPress={() => void openMember(item.id)}>
+              <View style={styles.avatar}><Text style={styles.avatarText}>{item.name.slice(0,1).toUpperCase()}</Text></View>
+              <View style={styles.channelBody}>
+                <Text style={styles.channelName}>{item.name}</Text>
+                <Text style={styles.preview} numberOfLines={2}>{item.labels.join(' · ') || 'Organisation member'}</Text>
+              </View>
+              <View style={styles.statusRow}>
+                <View style={[styles.presence,item.availability==='AVAILABLE' ? styles.available :
+                  item.availability==='BUSY' ? styles.busyPresence : styles.offline]} />
+                <Text style={styles.statusText}>{item.availability.toLowerCase()}</Text>
+              </View>
+            </Pressable>} />
+        </>
+      }
     </> : <>
       <View style={styles.toolbar}>
         <Pressable accessibilityRole="button" accessibilityLabel="Back to chats" onPress={() => setSelected(null)}>
@@ -158,9 +235,27 @@ export default function OrganisationChats({ userId, initialChannelId, onOpenAnim
         </Pressable>
         <View style={styles.channelBody}>
           <Text style={styles.channelName}>{activeChannel?.name ?? 'Channel'}</Text>
-          <Text numberOfLines={1} style={styles.subtitle}>{activeChannel?.description ?? ''}</Text>
+          <Text numberOfLines={1} style={styles.subtitle}>{recipient ? `${recipient.labels.join(' · ')} · ${recipient.availability.toLowerCase()}` : activeChannel?.description ?? ''}</Text>
         </View>
+        <Pressable accessibilityRole="button" accessibilityState={{expanded:showChannelPeople}}
+          onPress={() => setShowChannelPeople(value => !value)}>
+          <Text style={styles.memberButton}>People ({channelMembers.length})</Text>
+        </Pressable>
       </View>
+      {showChannelPeople ? <View style={styles.peoplePanel}>
+        <ScrollView horizontal contentContainerStyle={styles.peopleRow}>
+          {channelMembers.map(member => <Pressable key={member.id} accessibilityRole="button"
+            disabled={busy || member.id === userId} style={styles.personChip}
+            onPress={() => void openMember(member.id)}>
+            <View style={[styles.presence, member.availability==='AVAILABLE' ? styles.available :
+              member.availability==='BUSY' ? styles.busyPresence : styles.offline]} />
+            <View style={{flexShrink:1}}>
+              <Text style={styles.chipText}>{member.name}</Text>
+              <Text style={styles.chipLabel} numberOfLines={1}>{member.labels.join(' · ')}</Text>
+            </View>
+          </Pressable>)}
+        </ScrollView>
+      </View> : null}
       {error ? <Text style={styles.error} accessibilityRole="alert">{error}</Text> : null}
       {cursor ? <Pressable accessibilityRole="button" onPress={() => void older()} disabled={loadingOlder}>
         <Text style={styles.loadMore}>{loadingOlder ? 'Loading…' : 'View earlier messages'}</Text>
@@ -172,7 +267,10 @@ export default function OrganisationChats({ userId, initialChannelId, onOpenAnim
         renderItem={({ item }) => {
           const mine = item.senderUserId === userId;
           return <View style={[styles.bubble, mine ? styles.myBubble : styles.otherBubble]}>
-            {!mine ? <Text style={styles.author}>{item.senderName}</Text> : null}
+            {!mine ? <Pressable accessibilityRole="button" accessibilityLabel={`Start private chat with ${item.senderName}`}
+              onPress={() => void openMember(item.senderUserId)}>
+              <Text style={styles.author}>{item.senderName}</Text>
+            </Pressable> : null}
             <Text style={mine ? styles.myText : styles.messageText}>{item.text}</Text>
             <Text style={[styles.timestamp, mine && styles.myTime]}>{new Date(item.createdAt).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' })}</Text>
             {item.animalId && onOpenAnimal ? <Pressable accessibilityRole="button"
@@ -182,12 +280,13 @@ export default function OrganisationChats({ userId, initialChannelId, onOpenAnim
           </View>;
         }} />
       <View>
+        {busyRecipient ? <Text style={styles.busyNotice}>This member is busy. Private messages are paused until they are available.</Text> : null}
         <View style={styles.composer}>
           <KeyboardAwareTextInput style={styles.input} value={draft} onChangeText={setDraft}
-            multiline maxLength={2000} placeholder="Message your group…"
+            multiline maxLength={2000} placeholder={activeChannel?.recipientUserId ? "Write a private message…" : "Message your group…"}
             accessibilityLabel="Chat message" />
           <Pressable accessibilityRole="button" accessibilityLabel="Send message"
-            disabled={busy || !draft.trim()} style={[styles.send, (busy || !draft.trim()) && styles.disabled]}
+            disabled={busy || busyRecipient || !draft.trim()} style={[styles.send, (busy || busyRecipient || !draft.trim()) && styles.disabled]}
             onPress={() => void send()}>
             <Text style={styles.sendText}>Send</Text>
           </Pressable>
@@ -207,6 +306,22 @@ const styles=StyleSheet.create({
   organisationTextSelected:{fontSize:12,color:'#fff',fontWeight:'700'},
   title:{fontSize:29,fontWeight:'800',color:'#173d2c'},
   subtitle:{fontSize:12,color:'#718077',marginTop:3},
+  memberButton:{color:'#24583f',fontWeight:'700',fontSize:12,paddingHorizontal:7},
+  peoplePanel:{backgroundColor:'#eff4ef',borderBottomWidth:1,borderBottomColor:'#d9e1dc'},
+  peopleRow:{gap:7,padding:9},
+  personChip:{backgroundColor:'#fff',borderRadius:9,borderWidth:1,borderColor:'#d9e1dc',padding:8,minWidth:105,maxWidth:205,flexDirection:'row',alignItems:'center',gap:7},
+  chipText:{fontSize:12,color:'#173d2c',fontWeight:'700'},
+  chipLabel:{fontSize:10,color:'#68766d',flexShrink:1},
+  directoryTabs:{flexDirection:'row',gap:8,paddingHorizontal:16,paddingBottom:12},
+  tab:{flex:1,minHeight:44,borderRadius:10,borderWidth:1,borderColor:'#d4e1d7',alignItems:'center',justifyContent:'center',backgroundColor:'#fff'},
+  tabActive:{backgroundColor:'#173d2c'},tabText:{color:'#173d2c',fontWeight:'800'},tabTextActive:{color:'#fff'},
+  search:{marginHorizontal:16,marginBottom:9,minHeight:44,borderRadius:10,paddingHorizontal:12,backgroundColor:'#fff',borderWidth:1,borderColor:'#d4e1d7',color:'#172c20'},
+  directoryHelp:{marginHorizontal:17,marginBottom:12,color:'#68766d',fontSize:12,lineHeight:17},
+  statusRow:{flexDirection:'row',alignItems:'center',gap:5},
+  statusText:{fontSize:10,color:'#68766d',textTransform:'capitalize'},
+  presence:{width:12,height:12,borderRadius:6,borderWidth:1,borderColor:'#e0e8e2'},
+  available:{backgroundColor:'#17854c'},busyPresence:{backgroundColor:'#bd7121'},offline:{backgroundColor:'#819088'},
+  busyNotice:{backgroundColor:'#fff0d7',color:'#684719',padding:12,fontSize:12},
   channelList:{paddingHorizontal:13,paddingBottom:30},
   channel:{backgroundColor:'#fff',borderRadius:12,padding:13,flexDirection:'row',alignItems:'center',gap:12,marginBottom:7},
   avatar:{width:45,height:45,backgroundColor:'#dbe9df',borderRadius:23,alignItems:'center',justifyContent:'center'},
