@@ -34,7 +34,7 @@ export const POST: RequestHandler = async ({ locals, request }) => {
 			return json({ error: 'Choose AVAILABLE, BUSY or OFFLINE.' }, { status: 400 });
 		}
 		const policy = { ...(locals.user.availabilityPolicy ?? defaultAvailabilityPolicy(locals.user.availabilityStatus)),
-			mode: body.status === 'AVAILABLE' ? 'ON' : 'OFF' };
+			mode: body.status === 'AVAILABLE' ? 'ON' : body.status === 'BUSY' ? 'BUSY' : 'OFF' };
 		const verified = validateAvailabilityPolicy(policy);
 		const status = await saveUserAvailabilityPolicy(locals.user.id, verified);
 		return json({ ok: true, policy: verified, status });
