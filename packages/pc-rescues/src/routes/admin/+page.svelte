@@ -86,7 +86,8 @@
   const inviteMembershipConfig = $derived(
     data.membershipConfigs[inviteOrganisationId || data.currentUser.organisationId || ''] ?? {
       membershipTypes: data.standardMembershipTypes,
-      teams: data.standardTeams
+      teams: data.standardTeams,
+      positions: [] as { id: string; name: string; active: boolean }[]
     }
   );
 
