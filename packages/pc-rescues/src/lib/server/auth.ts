@@ -560,8 +560,6 @@ export async function inviteUser(input: {
 	if (!name || name.length > 100) throw new Error('Enter a name.');
 	if (!organisationId) throw new Error('Choose an organisation.');
   if (roles.includes('PUBLIC_REPORTER')) throw new Error('Public reporter permissions cannot be granted to organisation staff.');
-  if (canTransport && !roles.some(role => ['RESCUER', 'CARER', 'DISPATCHER', 'ORG_ADMIN'].includes(role)))
-    throw new Error('Select a transport-capable access role before authorising transport.');
   if (positionIds.length > 20) throw new Error('Choose no more than 20 organisation positions.');
 
   const existingId = await lookupUserIdByEmail(email);
@@ -1068,8 +1066,6 @@ export async function updateUserAccess(input: {
   const roles = [...new Set(input.roles)];
   if (roles.includes('PUBLIC_REPORTER'))
     throw new Error('Public reporters cannot be assigned organisation roles.');
-  if (input.canTransport && !roles.some(role => ['RESCUER', 'CARER', 'DISPATCHER', 'ORG_ADMIN'].includes(role)))
-    throw new Error('Select a transport-capable role before authorising transport.');
   const changedRole = roles.length !== input.expectedRoles.length ||
     roles.some(role => !input.expectedRoles.includes(role));
   const expressions = 'SET #roles = :roles, membershipTypeId = :membership, teamIds = :teams, canTransport = :transport, updatedAt = :now';
