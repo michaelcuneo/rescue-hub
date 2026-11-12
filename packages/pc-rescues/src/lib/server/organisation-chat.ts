@@ -347,6 +347,19 @@ export async function postChatMessage(
   selectedOrganisationId?: string
 ): Promise<ChatMessage> {
   const { organisationId } = await requireChannel(user, channelId, selectedOrganisationId);
+  // Busy is a deliberate do-not-disturb state for private messages.
+  // Existing group channels remain available; direct sends are blocked.
+  if (isDirectChatChannelId(channelId)) {
+    const descriptor = await db.send(new GetCommand({
+      TableName: table, Key: dmRecordKey(organisationId, channelId), ConsistentRead: true
+    }));
+    const otherId = Array.isArray(descriptor.Item?.participants)
+      ? descriptor.Item.participants.find((id: unknown) => id !== user.id) : undefined;
+    if (typeof otherId !== 'string') throw new ChatAccessError('Private chat recipient unavailable.');
+    const recipient = await activeDirectRecipient(user, otherId, organisationId);
+    if (effectiveAvailability(recipient) === 'BUSY')
+      throw new ChatAccessError('This member is busy. Wait until they are available before messaging.');
+  }
   const text = validateChatText(input.text);
   const animalId = input.animalId;
   if (animalId !== undefined &&
