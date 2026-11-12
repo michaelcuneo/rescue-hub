@@ -53,11 +53,18 @@ export function canRescueForOrganisation(user: {
     user.roles.some(role => ['RESCUER', 'CARER', 'ORG_ADMIN'].includes(role));
 }
 
+/** Transport eligibility is independent of species training and carer status.
+ * It is assigned deliberately by an administrator, never inferred from being
+ * a rescuer, carer, or member of the Transport team.
+ * Missing legacy flags are deliberately treated as not authorised.
+ */
 export function canTransportForOrganisation(user: {
-  enabled: boolean; status: string; roles: string[]; membershipTypeId?: string;
+  enabled: boolean; status: string; roles: string[];
+  canTransport?: boolean; membershipTypeId?: string;
 }): boolean {
-  if (!user.enabled || user.status !== 'ACTIVE' || user.roles.includes('PUBLIC_REPORTER')) return false;
-  return canRescueForOrganisation(user) || user.membershipTypeId === 'transport-volunteer';
+  if (!user.enabled || user.status !== 'ACTIVE' ||
+      user.roles.includes('PUBLIC_REPORTER') || user.canTransport !== true) return false;
+  return user.roles.some(role => ['RESCUER', 'CARER', 'DISPATCHER', 'ORG_ADMIN'].includes(role));
 }
 
 /** Receipt from the receiving carer completes an already collected transport.
