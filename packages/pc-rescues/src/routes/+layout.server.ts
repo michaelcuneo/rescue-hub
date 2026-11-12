@@ -15,7 +15,7 @@ export const load: LayoutServerLoad = ({ locals, cookies }) => {
       isAvailableNow: effectiveAvailability(active) === 'AVAILABLE',
       canReceiveRescueOffers: Boolean(active.organisationId &&
         (canTransportForOrganisation(active) ||
-         (canRescueForOrganisation(active) && active.teamIds.some(id => id !== 'transport')))))
+         (canRescueForOrganisation(active) && active.teamIds.some(id => id !== 'transport'))))
     } : null,
     demoMode: getHunterDemo(cookies, user)
   };
