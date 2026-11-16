@@ -8,7 +8,10 @@ import { canRescueForOrganisation, canTransportForOrganisation } from '../../../
 
 export const POST: RequestHandler = async ({ locals, params }) => {
   const user = locals.user;
-  if (!user?.organisationId) return json({ error: 'Authentication required.' }, { status: 401 });
+  if (!user) return json({ error: 'Sign in again before claiming a rescue.' }, { status: 401 });
+  if (!user.organisationId) return json({
+    error: 'Your account is not linked to a rescue organisation. Platform administrator access alone does not authorise field rescue claims.'
+  }, { status: 403 });
   if (!user.enabled || user.status !== 'ACTIVE' || user.roles.includes('PUBLIC_REPORTER') ||
       effectiveAvailability(user) !== 'AVAILABLE') {
     return json({ error: 'An active, available rescuer account is required.' }, { status: 403 });
@@ -33,8 +36,11 @@ export const POST: RequestHandler = async ({ locals, params }) => {
     }
     const membership = await getOrganisationMembershipConfig(user.organisationId);
     const capability = classifyDispatchCapability(rescue.type, rescue.breed ?? '');
-    if (!canRescueForOrganisation(user) || !memberCanReceiveCapability(user.teamIds, membership, capability)) {
-      return json({ error: 'You are not qualified for this rescue.' }, { status: 403 });
+    if (!canRescueForOrganisation(user))
+      return json({ error: 'Your account needs the Rescuer system permission to claim species rescues. Set it under Administration → People.' }, { status: 403 });
+    if (!memberCanReceiveCapability(user.teamIds, membership, capability)) {
+      const label = capability.toLowerCase().replaceAll('_', ' ');
+      return json({ error: `This rescue requires ${label} training. Check your trained areas and the reported animal type under Administration → People.` }, { status: 403 });
     }
     return json({ rescue: await claimRescue(rescue.id, user.organisationId, user.id) });
   } catch (error) {

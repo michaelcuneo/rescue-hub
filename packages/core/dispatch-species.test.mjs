@@ -15,6 +15,14 @@ test('unknown snakes take specialist pathway and pythons remain nonvenomous', ()
   assert.equal(classifySpeciesCapability('Carpet python', '', 'Reptiles'), 'REPTILE_NON_VENOMOUS');
   assert.equal(classifySpeciesCapability('Water dragon', '', 'Reptiles'), 'REPTILE_NON_VENOMOUS');
 });
+test('non-venomous reptile labels stay non-venomous, but known dangerous snakes stay restricted', () => {
+  for (const label of ['Non-venomous reptile', 'Non venomous reptiles', 'Nonvenomous snake', 'Blue-tongue lizard']) {
+    assert.equal(classifySpeciesCapability(label), 'REPTILE_NON_VENOMOUS', label);
+  }
+  assert.equal(classifySpeciesCapability('Eastern brown snake – non-venomous'), 'REPTILE_VENOMOUS');
+  assert.equal(classifySpeciesCapability('Unknown snake'), 'REPTILE_VENOMOUS');
+});
+
 test('native animal groups route by their actual group', () => {
   assert.equal(classifySpeciesCapability('Antechinus', '', 'Mammals'), 'MAMMAL');
   assert.equal(classifySpeciesCapability('Echidna', '', 'Mammals'), 'MAMMAL');

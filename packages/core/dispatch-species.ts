@@ -25,8 +25,15 @@ export function classifySpeciesCapability(
   if (/\b(kangaroo|wallaby|pademelon|wallaroo|quokka)\b/.test(name)) return 'MACROPOD';
   if (/\b(possum|glider)\b/.test(name)) return 'POSSUM_GLIDER';
   if (/\bwombat\b/.test(name)) return 'WOMBAT';
-  if (/\b(brown snake|red[\s-]*bellied black snake|tiger snake|death adder|taipan|copperhead|small[\s-]*eyed snake|golden[\s-]*crowned snake|venomous)\b/.test(name))
+  // Known venomous species always outrank an incorrectly supplied
+  // "non-venomous" label. Generic "venomous" otherwise matches the
+  // substring of "non-venomous" and wrongly blocks qualified rescuers.
+  if (/\b(brown snake|red[\s-]*bellied black snake|tiger snake|death adder|taipan|copperhead|small[\s-]*eyed snake|golden[\s-]*crowned snake)\b/.test(name))
     return 'REPTILE_VENOMOUS';
+  if (/\b(non[\s-]*venomous|nonvenomous)\b/.test(name) &&
+      /\b(reptiles?|lizards?|skinks?|geckos?|snakes?|pythons?|dragons?|blue[\s-]*tongues?)\b/.test(name))
+    return 'REPTILE_NON_VENOMOUS';
+  if (/\bvenomous\b/.test(name)) return 'REPTILE_VENOMOUS';
   if (/\b(python|keelback|common tree snake|green tree snake|lizard|blue[\s-]*tongue|dragon|skink|gecko|goanna|monitor|echidna)\b/.test(name)) {
     // Echidnas are mammals, despite having spines.
     if (/\bechidna\b/.test(name)) return 'MAMMAL';
