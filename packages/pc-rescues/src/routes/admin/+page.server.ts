@@ -374,8 +374,14 @@ export const actions: Actions = {
 		if (target.id === actor.id) {
 			return fail(400, { action: 'disableUser', error: 'You cannot disable your own account.' });
 		}
-		await setUserEnabled(userId, false);
-		return { action: 'disableUser', success: true };
+    try {
+      await setUserEnabled(userId, false);
+      return { action: 'disableUser', userId, success: true };
+    } catch (error) {
+      console.error('Unable to disable account', error);
+      return fail(503, { action: 'disableUser', userId,
+        error: 'Account could not be disabled. Check its status before trying again.' });
+    }
 	},
 
 	enableUser: async ({ request, locals }) => {
@@ -386,8 +392,14 @@ export const actions: Actions = {
 		if (!target || !canManageUser(actor, target)) {
 			return fail(403, { action: 'enableUser', error: 'You cannot manage that user.' });
 		}
-		await setUserEnabled(userId, true);
-		return { action: 'enableUser', success: true };
+    try {
+      await setUserEnabled(userId, true);
+      return { action: 'enableUser', userId, success: true };
+    } catch (error) {
+      console.error('Unable to enable account', error);
+      return fail(503, { action: 'enableUser', userId,
+        error: 'Account could not be enabled. Check its status before trying again.' });
+    }
 	},
 
 	resetPassword: async ({ request, locals }) => {
@@ -398,12 +410,14 @@ export const actions: Actions = {
 		if (!target || !canManageUser(actor, target)) {
 			return fail(403, { action: 'resetPassword', error: 'You cannot manage that user.' });
 		}
-		const result = await requestPasswordResetForUser(userId);
-		return {
-			action: 'resetPassword',
-			success: true,
-			devCode: result.devCode
-		};
+    try {
+      const result = await requestPasswordResetForUser(userId);
+      return { action: 'resetPassword', userId, success: true, devCode: result.devCode };
+    } catch (error) {
+      console.error('Unable to request password reset', error);
+      return fail(503, { action: 'resetPassword', userId,
+        error: 'Password reset could not be requested. No email delivery is confirmed.' });
+    }
 	},
 
 	removeUser: async ({ request, locals }) => {
@@ -417,7 +431,13 @@ export const actions: Actions = {
 		if (target.id === actor.id) {
 			return fail(400, { action: 'removeUser', error: 'You cannot remove your own account.' });
 		}
-		await removeUser(userId);
-		return { action: 'removeUser', success: true };
+    try {
+      await removeUser(userId);
+      return { action: 'removeUser', userId, success: true };
+    } catch (error) {
+      console.error('Unable to remove account', error);
+      return fail(503, { action: 'removeUser', userId,
+        error: 'Member could not be removed. Check current access before trying again.' });
+    }
 	}
 };
