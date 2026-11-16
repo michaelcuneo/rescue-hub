@@ -2,6 +2,7 @@
 	import { env } from '$env/dynamic/public';
 	import { australianAnimalNames } from '$lib/data/australian-animals';
 import { reportChannelLabel } from '../../../../core/report-channel';
+	import { pinForRescue } from '../../../../core/rescue-pin-groups';
 	import RescueAddress from './RescueAddress.svelte';
 		import type { OrganisationMembershipConfig } from '$lib/server/membership';
 	import {
@@ -447,11 +448,13 @@ import { reportChannelLabel } from '../../../../core/report-channel';
 					type="button"
 					class:selected={selected?.id === item.id}
 					class="rescue-card"
+					style:--species-color={pinForRescue(item).color}
 					onclick={() => selectRescue(item)}
 				>
 					<span class="rescue-dot state-{tab}"></span>
 					<span class="rescue-content">
 						<span class="rescue-title">
+							<i class="species-dot" aria-hidden="true"></i>
 							<strong>{item.type}</strong>
 							<small>{item.breed && item.breed !== '-' ? item.breed : ''}</small>
 						</span>
@@ -502,7 +505,7 @@ import { reportChannelLabel } from '../../../../core/report-channel';
 			</button>
 
 			<p class="detail-kicker">Selected rescue · {reportChannelLabel(selected)}</p>
-			<div class="detail-title">
+			<div class="detail-title" style:--species-color={pinForRescue(selected).color}>
 				<div>
 					<h2>{selected.type}</h2>
 					<span>{selected.breed && selected.breed !== '-' ? selected.breed : 'Species detail unknown'}</span>
@@ -870,6 +873,8 @@ import { reportChannelLabel } from '../../../../core/report-channel';
 		cursor: pointer;
 	}
 
+	.rescue-card[style*="--species-color"] { border-left: 3px solid var(--species-color); }
+
 	.rescue-card:hover,
 	.rescue-card.selected {
 		border-radius: 10px;
@@ -907,6 +912,8 @@ import { reportChannelLabel } from '../../../../core/report-channel';
 		align-items: baseline;
 		gap: 5px;
 	}
+
+	.species-dot { display: inline-block; width: 10px; height: 10px; flex: 0 0 10px; border-radius: 50%; background: var(--species-color); box-shadow: 0 0 0 2px rgb(255 255 255 / .6); }
 
 	.rescue-title strong {
 		font-size: 14px;
@@ -1054,7 +1061,7 @@ import { reportChannelLabel } from '../../../../core/report-channel';
 		padding-right: 26px;
 	}
 
-	.detail-title h2 {
+	.detail-title h2 { border-left: 4px solid var(--species-color); padding-left: 9px;
 		font-size: 19px;
 	}
 
