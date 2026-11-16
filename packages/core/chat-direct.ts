@@ -13,7 +13,6 @@ export type DirectMember = {
   roles: string[];
   teamIds?: string[];
   positionTitle?: string;
-  membershipTypeId?: string;
 };
 
 export function directChannelId(organisationId: string, userA: string, userB: string): string {
@@ -39,13 +38,11 @@ export function canDirectChat(sender: DirectMember, recipient: DirectMember): bo
 }
 
 export function displayMemberLabels(
-  member: Pick<DirectMember, 'roles' | 'teamIds' | 'positionTitle' | 'membershipTypeId'>,
-  membershipNames: Map<string, string>,
+  member: Pick<DirectMember, 'roles' | 'teamIds' | 'positionTitle'>,
   teamNames: Map<string, string>
 ): string[] {
   const labels = [
     member.positionTitle?.trim(),
-    member.membershipTypeId ? membershipNames.get(member.membershipTypeId) : undefined,
     ...member.roles.map(role => ({
       ORG_ADMIN: 'Organisation administrator',
       DISPATCHER: 'Dispatcher', RESCUER: 'Rescuer', CARER: 'Carer',

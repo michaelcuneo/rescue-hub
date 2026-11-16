@@ -32,8 +32,7 @@ test('only two distinct active members of the same organisation can message', ()
 test('member display combines distinct organisation title, roles and teams', () => {
   const labels = displayMemberLabels(
     { ...member('b'), positionTitle:'Raptor Leader' },
-    new Map([['active-rescuer','Active rescuer']]),
     new Map([['raptors','Raptors']])
   );
-  assert.deepEqual(labels, ['Raptor Leader', 'Active rescuer', 'Carer', 'Raptors']);
+  assert.deepEqual(labels, ['Raptor Leader', 'Carer', 'Raptors']);
 });

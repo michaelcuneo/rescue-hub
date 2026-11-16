@@ -6,6 +6,7 @@ on:
       - deploy/rescue-demo-domain
   push:
     branches:
+      - fix/simplify-membership-and-invite-scroll
       - feature/explicit-member-roles-training-transport
       - feature/guided-animal-pickup-demo-base
       - deploy/rescue-demo-domain
