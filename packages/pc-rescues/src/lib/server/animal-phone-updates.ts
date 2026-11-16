@@ -15,7 +15,7 @@ export class AnimalPhoneConflict extends Error {}
 
 export type AnimalPhoneEvent = ValidPhoneUpdate & {
   id: string; animalId: string; organisationId: string;
-  type: 'PHONE_UPDATE'; source: 'PHONE'; actorUserId: string;
+  type: 'PHONE_UPDATE' | 'VET_UPDATE'; source: 'PHONE' | 'VET_PORTAL'; actorUserId: string;
   createdAt: string; transportRescueId?: string;
 };
 
@@ -42,16 +42,16 @@ export async function listAnimalPhoneUpdates(animalId: string, organisationId: s
 }
 
 export async function recordAnimalPhoneUpdate(
-  animal: AnimalRecord, actorUserId: string, input: ValidPhoneUpdate
+  animal: AnimalRecord, actorUserId: string, input: ValidPhoneUpdate, source: 'PHONE' | 'VET_PORTAL' = 'PHONE'
 ): Promise<AnimalPhoneEvent> {
   if (['RELEASED', 'EUTHANISED', 'DECEASED'].includes(animal.status))
     throw new AnimalPhoneConflict('The animal has a final outcome. Its history is read-only.');
   if (input.animalId && input.animalId !== animal.id)
     throw new AnimalPhoneConflict('Select the correct animal record.');
   if (input.finalOutcome && animal.status !== 'AT_VET')
-    throw new AnimalPhoneConflict('A veterinary telephone outcome requires the animal to be recorded at the veterinary facility.');
+    throw new AnimalPhoneConflict('A veterinary outcome requires the animal to be recorded at the veterinary facility.');
   if (input.finalOutcome && !input.notes.trim())
-    throw new AnimalPhoneConflict('Record the veterinary confirmation and the person who called.');
+    throw new AnimalPhoneConflict('Record veterinary confirmation and the responsible clinician.');
   if (input.requestTransport && animal.status !== 'AT_VET')
     throw new AnimalPhoneConflict('Vet pickup jobs require an animal currently recorded at a veterinary facility.');
   if (input.requestTransport && animal.activeTransportRescueId)
@@ -62,7 +62,7 @@ export async function recordAnimalPhoneUpdate(
   const transportRescueId = input.requestTransport ? crypto.randomUUID() : undefined;
   const event: AnimalPhoneEvent = {
     ...input, id, animalId: animal.id, organisationId: animal.organisationId,
-    type: 'PHONE_UPDATE', source: 'PHONE', actorUserId, createdAt: now,
+    type: source === 'PHONE' ? 'PHONE_UPDATE' : 'VET_UPDATE', source, actorUserId, createdAt: now,
     ...(transportRescueId ? { transportRescueId } : {})
   };
   const writes: NonNullable<TransactWriteCommandInput['TransactItems']> = [
@@ -110,7 +110,7 @@ export async function recordAnimalPhoneUpdate(
         entity: 'animal_event', id: finalEventId, animalId: animal.id,
         organisationId: animal.organisationId, actorUserId, createdAt: now,
         type: 'FINAL_OUTCOME', outcome: input.finalOutcome,
-        source: 'PHONE', reportedByName: input.callerName, notes: input.notes,
+        source, reportedByName: input.callerName, notes: input.notes,
         phoneUpdateId: id
       },
       ConditionExpression: 'attribute_not_exists(pk)'
