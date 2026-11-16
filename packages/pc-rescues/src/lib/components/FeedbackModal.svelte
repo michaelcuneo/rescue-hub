@@ -35,7 +35,7 @@
 
 <div class="feedback-overlay" role="presentation">
   <button class="feedback-backdrop" aria-label="Dismiss notification" type="button" onclick={dismiss}></button>
-  <section class="feedback-dialog" data-kind={kind}
+  <div class="feedback-dialog" data-kind={kind}
     role="dialog" aria-modal="true" aria-labelledby="feedback-title"
     aria-describedby="feedback-description" tabindex="-1">
     <div class="feedback-body">
@@ -55,7 +55,7 @@
         </button>
       </div>
     </div>
-  </section>
+  </div>
 </div>
 
 <style>
