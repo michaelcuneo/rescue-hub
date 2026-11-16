@@ -1,7 +1,7 @@
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
-import { DynamoDBDocumentClient, TransactWriteCommand } from '@aws-sdk/lib-dynamodb';
+import { DynamoDBDocumentClient, TransactWriteCommand, GetCommand } from '@aws-sdk/lib-dynamodb';
 import { Resource } from 'sst';
-import { getRescue, type Rescue } from './graphql';
+import type { Rescue } from './graphql';
 import { getAnimal, listAnimalEvents } from './animals';
 import { canCorrectMistakenPickup } from '../../../../core/pickup-correction';
 import { publishRescueChange } from './realtime';
@@ -22,12 +22,16 @@ export async function correctMistakenPickup(
   const note = reason.trim();
   if (note.length < 10 || note.length > 500)
     throw new PickupCorrectionConflict('Explain why the pickup was recorded in error (10–500 characters).');
-  if (!rescue.quickAnimalId || !rescue.organisationId)
+  const original = await db.send(new GetCommand({ TableName: Resource.RescueHubData.name,
+    Key: { pk: `RESCUE#${rescue.id}`, sk: 'META' }, ConsistentRead: true }));
+  const currentRescue = original.Item as Rescue | undefined;
+  if (!currentRescue || currentRescue.assignedUserId !== userId ||
+      !currentRescue.quickAnimalId || !currentRescue.organisationId)
     throw new PickupCorrectionConflict('This pickup cannot be corrected automatically. Contact dispatch to arrange a documented handover.');
-  const animal = await getAnimal(rescue.quickAnimalId);
+  const animal = await getAnimal(currentRescue.quickAnimalId);
   if (!animal) throw new PickupCorrectionConflict('The registered animal could not be verified. Contact dispatch.');
   const events = await listAnimalEvents(animal.id);
-  if (!canCorrectMistakenPickup(rescue, animal, userId, events.map(e => String(e.type ?? ''))))
+  if (!canCorrectMistakenPickup(currentRescue, animal, userId, events.map(e => String(e.type ?? ''))))
     throw new PickupCorrectionConflict(
       'This animal has care or handover history, or was not an untouched first pickup. Contact dispatch to arrange an acknowledged handover.'
     );
@@ -78,7 +82,8 @@ export async function correctMistakenPickup(
     throw error;
   }
   await publishRescueChange();
-  const updated = await getRescue(rescue.id);
-  if (!updated) throw new Error('Correction saved but the rescue could not be reloaded.');
-  return updated;
+  const updated = await db.send(new GetCommand({ TableName: table,
+    Key: { pk: `RESCUE#${rescue.id}`, sk: 'META' }, ConsistentRead: true }));
+  if (!updated.Item) throw new Error('Correction saved but the rescue could not be reloaded.');
+  return updated.Item as Rescue;
 }
