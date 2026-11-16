@@ -79,6 +79,8 @@ export const actions: Actions = {
     const outcome = form.get('outcome');
     if (outcome !== 'EUTHANISED' && outcome !== 'DECEASED')
       return fail(400, { message: 'Choose confirmed euthanasia or death.' });
+    if (form.get('confirmed') !== 'on')
+      return fail(400, { message: 'Confirm this is a verified final veterinary outcome.' });
     return withAnimal(locals.user, request, async (animal, _clinic, notes) => {
       const input = validatePhoneUpdate({
         callerName: locals.user!.name, callerRole: 'VET', notes,
