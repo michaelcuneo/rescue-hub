@@ -1,10 +1,10 @@
 <script lang="ts">
-  import type { PageData, ActionData } from './$types';
+  import type { PageData } from './$types';
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
   import FeedbackModal from '$lib/components/FeedbackModal.svelte';
   import type { FeedbackNotice } from '../../../../core/admin-feedback';
-  let { data }: { data: PageData; form?: ActionData } = $props();
+  let { data }: { data: PageData } = $props();
   let feedback = $state<FeedbackNotice | null>(null);
   let saving = $state(false);
   const handleClinicSubmit: SubmitFunction = ({ cancel }) => {
