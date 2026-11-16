@@ -7,6 +7,7 @@
 	import { mapRef, data, selectedRescue, intakeOpen, draftLocation } from '$lib/stores';
 	import Type from '$lib/components/Type.svelte';
 	import { shouldShowRescuePin } from '../../../../core/case-map-visibility';
+	import { RESCUE_PIN_GROUPS, pinForRescue } from '../../../../core/rescue-pin-groups';
 
 	type AreaSelection = {
 		name: string;
@@ -255,6 +256,7 @@
 				<Type
 				color={item.color}
 				type={item.type}
+				status={item.status ?? 'PENDING'}
 				selected={$selectedRescue?.id === item.id}
 				onclick={() => ($selectedRescue = item)}
 			/>
@@ -266,6 +268,7 @@
 				<Type
 				color={item.color}
 				type={item.type}
+				status={item.status ?? 'PENDING'}
 				selected={$selectedRescue?.id === item.id}
 				onclick={() => ($selectedRescue = item)}
 			/>
@@ -314,6 +317,17 @@
 			<span><i class="swatch hunter"></i>Hunter Wildlife Rescue</span>
 			<span><i class="swatch wires"></i>WIRES branches</span>
 			<span><i class="swatch other"></i>Other rehabilitation groups</span>
+		</div>
+		<div class="species-legend" aria-label="Rescue marker animal groups">
+			<strong>Animal groups</strong>
+			<div class="species-legend-items">
+				{#each Object.entries(RESCUE_PIN_GROUPS) as [group, pinGroup]}
+					{#if [...$data.pending, ...$data.assigned].some((item) => pinForRescue(item).group === group)}
+						<span><i style:background-color={pinGroup.color}></i>{pinGroup.label}</span>
+					{/if}
+				{/each}
+			</div>
+			<small>Marker colour identifies the animal group. The smaller dot shows dispatch status.</small>
 		</div>
 
 		{#if selectedArea}
@@ -474,6 +488,13 @@
 		border-color:#2d7148;
 		background:rgb(80 169 113 / 24%);
 	}
+
+	.species-legend { display: grid; gap: 8px; margin-top: 15px; padding-top: 12px; border-top: 1px solid var(--rh-border); }
+	.species-legend > strong { font-size: 12px; color: var(--rh-text); }
+	.species-legend-items { display: flex; flex-wrap: wrap; gap: 6px 10px; }
+	.species-legend-items span { display: inline-flex; align-items: center; gap: 6px; color: var(--rh-muted); font-size: 11px; }
+	.species-legend-items i { width: 10px; height: 10px; border: 1px solid rgb(255 255 255 / 0.75); border-radius: 50%; flex: 0 0 10px; }
+	.species-legend small { color: var(--rh-muted); font-size: 11px; line-height: 1.45; }
 
 	.selected-area {
 		display: grid;
