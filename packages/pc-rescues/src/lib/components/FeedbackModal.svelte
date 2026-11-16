@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { tick } from 'svelte';
   import { onMount } from 'svelte';
   import { AlertCircle, AlertTriangle, CheckCircle2, X } from '@lucide/svelte';
 
@@ -7,66 +8,62 @@
     kind: Kind; title: string; message: string; detail?: string;
     onDismiss: () => void;
   } = $props();
-  let dialog: HTMLDialogElement;
+  let closeButton: HTMLButtonElement;
+  let closed = false;
 
-  // Native modal dialog provides focus containment, an accessible announcement,
-  // and prevents interaction with underlying forms until acknowledged.
-  onMount(() => {
-    if (!dialog.open) dialog.showModal();
-    dialog.querySelector<HTMLButtonElement>('.acknowledge')?.focus();
-  });
+  // Use an ordinary fixed overlay rather than native <dialog>: a nested
+  // browser top layer can get stuck above an admin drawer after enhancement.
+  // All three dismissal paths update the same owner-controlled state.
   function dismiss() {
-    if (dialog?.open) dialog.close();
+    if (closed) return;
+    closed = true;
     onDismiss();
   }
-  function backdropClick(event: MouseEvent) {
-    // Click on backdrop (dialog element itself), not on its content.
-    if (event.target === dialog) dismiss();
+  onMount(() => {
+    void tick().then(() => closeButton?.focus());
+  });
+  function keydown(event: KeyboardEvent) {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      event.stopPropagation();
+      dismiss();
+    }
   }
 </script>
 
-<dialog bind:this={dialog} class="feedback-dialog" data-kind={kind}
-  aria-labelledby="feedback-title" aria-describedby="feedback-description"
-  oncancel={(event) => { event.preventDefault(); dismiss(); }}
-  onclick={backdropClick}>
-  <div class="feedback-body">
-    <div class="feedback-heading">
-      <span class="feedback-icon" aria-hidden="true">
-        {#if kind === 'success'}<CheckCircle2 size={25} />
-        {:else if kind === 'warning'}<AlertTriangle size={25} />
-        {:else}<AlertCircle size={25} />{/if}
-      </span>
-      <h2 id="feedback-title">{title}</h2>
+<svelte:window onkeydown={keydown} />
+
+<div class="feedback-overlay" role="presentation">
+  <button class="feedback-backdrop" aria-label="Dismiss notification" type="button" onclick={dismiss}></button>
+  <section class="feedback-dialog" data-kind={kind}
+    role="dialog" aria-modal="true" aria-labelledby="feedback-title"
+    aria-describedby="feedback-description" tabindex="-1">
+    <div class="feedback-body">
+      <div class="feedback-heading">
+        <span class="feedback-icon" aria-hidden="true">
+          {#if kind === 'success'}<CheckCircle2 size={25} />
+          {:else if kind === 'warning'}<AlertTriangle size={25} />
+          {:else}<AlertCircle size={25} />{/if}
+        </span>
+        <h2 id="feedback-title">{title}</h2>
+      </div>
+      <p id="feedback-description">{message}</p>
+      {#if detail}<p class="detail">{detail}</p>{/if}
+      <div class="feedback-actions">
+        <button bind:this={closeButton} class="acknowledge" type="button" onclick={dismiss}>
+          <X size={16} aria-hidden="true" /> Close
+        </button>
+      </div>
     </div>
-    <p id="feedback-description">{message}</p>
-    {#if detail}<p class="detail">{detail}</p>{/if}
-    <div class="feedback-actions">
-      <button type="button" class="acknowledge" onclick={dismiss}>
-        <X size={16} aria-hidden="true" /> Close
-      </button>
-    </div>
-  </div>
-</dialog>
+  </section>
+</div>
 
 <style>
-  .feedback-dialog {
-    position:fixed;
-    inset:50% auto auto 50%;
-    transform:translate(-50%,-50%);
-    margin:0;
-    z-index:9999;
-    width:min(440px,calc(100vw - 32px));
-    max-height:min(80dvh,680px);
-    overflow-y:auto;
-    border:1px solid var(--rh-border);
-    border-radius:16px;
-    padding:0;
-    background:var(--rh-surface);
-    color:var(--rh-text);
-    box-shadow:0 22px 70px rgba(0,0,0,.3);
-    box-sizing:border-box;
-  }
-  .feedback-dialog::backdrop{background:rgba(9,22,17,.7);backdrop-filter:blur(3px)}
+  .feedback-overlay {position:fixed;inset:0;z-index:100000;display:grid;place-items:center;padding:16px;isolation:isolate}
+  .feedback-backdrop {position:absolute;inset:0;width:100%;height:100%;border:0;background:rgba(9,22,17,.78);cursor:pointer}
+  .feedback-dialog {position:relative;z-index:1;width:min(440px,100%);max-height:calc(100dvh - 32px);
+    overflow-y:auto;border:1px solid var(--rh-border);border-radius:16px;background:var(--rh-surface);
+    color:var(--rh-text);box-shadow:0 22px 70px rgba(0,0,0,.3)}
   .feedback-body{padding:24px;display:grid;gap:17px}
   .feedback-heading{display:flex;align-items:center;gap:12px}
   .feedback-heading h2{margin:0;font-size:21px;line-height:1.3}
@@ -77,8 +74,8 @@
   p{margin:0;font-size:14px;line-height:1.65;overflow-wrap:anywhere}
   .detail{font-size:12px;color:var(--rh-muted)}
   .feedback-actions{display:flex;justify-content:flex-end;border-top:1px solid var(--rh-border);padding-top:17px}
-  button{display:flex;align-items:center;gap:8px;min-height:44px;padding:10px 18px;border:0;border-radius:9px;
+  .acknowledge{display:flex;align-items:center;gap:8px;min-height:44px;padding:10px 18px;border:0;border-radius:9px;
     background:var(--rh-primary);color:var(--rh-on-primary);font:inherit;font-weight:750;cursor:pointer}
-  button:focus-visible{outline:3px solid var(--rh-focus);outline-offset:3px}
+  .acknowledge:focus-visible{outline:3px solid var(--rh-focus);outline-offset:3px}
   @media(max-width:480px){.feedback-body{padding:18px}}
 </style>
