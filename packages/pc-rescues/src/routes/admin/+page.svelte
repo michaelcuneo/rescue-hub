@@ -30,6 +30,7 @@
   let selectedPersonId = $state<string | null>(null);
   let feedback = $state<FeedbackNotice | null>(null);
   let lastHandledForm = $state<unknown>(null);
+  let lastBackendFailure = $state('');
   let saving = $state(false);
   // Every admin form uses SvelteKit's in-place updates. No full reload,
   // preserved section, and refreshed data on an acknowledged successful save.
@@ -50,6 +51,12 @@
       lastHandledForm = form;
       feedback = adminActionFeedback(form);
     }
+    const backendFailure = data.backend.errors.join('|');
+    if (backendFailure && backendFailure !== lastBackendFailure && !form?.action) {
+      feedback = { kind: 'warning', title: 'Some Rescue Hub services are unavailable',
+        message: 'One or more administration data sources could not be loaded. Recent changes may not appear until services recover. Avoid repeating an action without checking the record.' };
+    }
+    lastBackendFailure = backendFailure;
     if (!positionOrganisationId)
       positionOrganisationId = data.currentUser.organisationId ?? data.organisations[0]?.id ?? '';
     const target = page.url.searchParams.get('section');
