@@ -8,7 +8,7 @@ import {
   acceptAnimalTransfer, addAnimalNote, getAnimalHistory, getRescueAnimals, confirmRescuePickup, getCareDelivery, type CareDeliveryDestination,
   recordAnimalOutcome, registerAnimal, requestAnimalTransfer, startVetTransport, recordVetDropoff, recordVetAssessment, unclaimRescue,
   correctAnimalIdentification, correctReportedRescue, getRescuerReporterContact, quickVetProgress,
-  getEligibleCarers, startPersonalCare, type Animal, type AnimalEvent, type Rescue
+  getEligibleCarers, getVetClinics, startPersonalCare, type VetClinicOption, type Animal, type AnimalEvent, type Rescue
 } from './api';
 
 type Props = { rescue: Rescue; userId: string; roles: string[]; onBack: () => void; onUnclaim: () => void };
@@ -47,6 +47,12 @@ export default function AnimalCare({ rescue, userId, roles, onBack, onUnclaim }:
   const [recipientId, setRecipientId] = useState('');
   const [destination, setDestination] = useState('');
   const [vetLocation, setVetLocation] = useState('');
+  const [vetClinics, setVetClinics] = useState<VetClinicOption[]>([]);
+  const [selectedVetClinicId, setSelectedVetClinicId] = useState('');
+  const selectVetClinic = (clinic: VetClinicOption) => {
+    setSelectedVetClinicId(clinic.id);
+    setVetLocation(clinic.name);
+  };
   const [quickVetNotes, setQuickVetNotes] = useState('');
   const [quickMessage, setQuickMessage] = useState('');
   const [showAdvanced, setShowAdvanced] = useState(false);
@@ -57,6 +63,9 @@ export default function AnimalCare({ rescue, userId, roles, onBack, onUnclaim }:
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
 
+  useEffect(() => {
+    void getVetClinics().then(result => setVetClinics(result.clinics)).catch(() => {});
+  }, []);
   useEffect(() => {
     if (!rescue.transportAnimalId || rescue.assignedUserId !== userId) return;
     void getCareDelivery(rescue.transportAnimalId).then(result => {
@@ -179,7 +188,7 @@ export default function AnimalCare({ rescue, userId, roles, onBack, onUnclaim }:
     setError('');
     try {
       const result = await quickVetProgress(rescue.id, kind, vetLocation.trim(),
-        quickVetNotes.trim(), activeAnimal?.id);
+        quickVetNotes.trim(), activeAnimal?.id, selectedVetClinicId || undefined);
       await refresh(result.animal.id);
       setQuickMessage(result.message);
       setQuickVetNotes('');
@@ -203,7 +212,7 @@ export default function AnimalCare({ rescue, userId, roles, onBack, onUnclaim }:
       if (nextStep === 'VET') {
         if (!vetLocation.trim()) throw new Error('Enter the veterinary clinic or destination.');
         if (effectiveStatus === 'IN_TRANSIT') {
-          await recordVetDropoff(animalId, vetLocation.trim(), quickVetNotes.trim());
+          await recordVetDropoff(animalId, vetLocation.trim(), quickVetNotes.trim(), selectedVetClinicId || undefined);
           setGuideStatus('AT_VET');
           setQuickMessage('Veterinary handover recorded. The animal remains in the care system.');
         } else {
@@ -386,9 +395,15 @@ export default function AnimalCare({ rescue, userId, roles, onBack, onUnclaim }:
               </Pressable>
               {nextStep === 'VET' && effectiveStatus !== 'AT_VET' && <>
                 <Text style={styles.fieldLabel}>Veterinary destination *</Text>
-                <KeyboardAwareTextInput style={styles.input} value={vetLocation} onChangeText={setVetLocation}
+                <KeyboardAwareTextInput style={styles.input} value={vetLocation} onChangeText={value => { setVetLocation(value); setSelectedVetClinicId(''); }}
                   maxLength={250} placeholder="e.g. AREC, Broadmeadow" accessibilityLabel="Veterinary destination" />
-              </>}
+                <Text style={styles.muted}>Select an approved clinic to give its staff access after physical handover.</Text>
+                {vetClinics.map(clinic => <Pressable key={clinic.id} accessibilityRole="button"
+                  accessibilityState={{ selected:selectedVetClinicId === clinic.id }}
+                  style={styles.secondaryButton} onPress={() => selectVetClinic(clinic)}>
+                  <Text style={styles.secondaryButtonText}>{selectedVetClinicId === clinic.id ? '✓ ' : ''}{clinic.name} — {clinic.address}</Text>
+                </Pressable>)}
+              </>
               {nextStep === 'CARER' && <>
                 <Text style={styles.fieldLabel}>Receiving carer *</Text>
                 <Pressable style={styles.dropdown} accessibilityRole="button"
@@ -558,6 +573,12 @@ export default function AnimalCare({ rescue, userId, roles, onBack, onUnclaim }:
                   <>
                     <KeyboardAwareTextInput style={styles.input} placeholder="Veterinary facility / location *"
                       value={vetLocation} onChangeText={setVetLocation} maxLength={250} />
+                    <Text style={styles.muted}>Select an approved clinic to give its staff access after physical handover.</Text>
+                    {vetClinics.map(clinic => <Pressable key={clinic.id} accessibilityRole="button"
+                      accessibilityState={{ selected:selectedVetClinicId === clinic.id }}
+                      style={styles.secondaryButton} onPress={() => selectVetClinic(clinic)}>
+                      <Text style={styles.secondaryButtonText}>{selectedVetClinicId === clinic.id ? '✓ ' : ''}{clinic.name} — {clinic.address}</Text>
+                    </Pressable>)}
                     {selected.status !== 'IN_TRANSIT' && collected ? (
                       <Pressable style={styles.button} disabled={busy || !vetLocation.trim()}
                         accessibilityRole="button" onPress={() => void run(
@@ -568,7 +589,7 @@ export default function AnimalCare({ rescue, userId, roles, onBack, onUnclaim }:
                     ) : null}
                     <Pressable style={styles.button} disabled={busy || !vetLocation.trim()}
                       accessibilityRole="button" onPress={() => void run(
-                        () => recordVetDropoff(selected.id, vetLocation.trim()), selected.id
+                        () => recordVetDropoff(selected.id, vetLocation.trim(), '', selectedVetClinicId || undefined), selected.id
                       )}>
                       <Text style={styles.buttonText}>Dropped off at veterinary clinic</Text>
                     </Pressable>
