@@ -6,6 +6,7 @@
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
   import FeedbackModal from '$lib/components/FeedbackModal.svelte';
+  import { portal } from '$lib/actions/portal';
   import { adminActionFeedback, type FeedbackNotice } from '../../../../core/admin-feedback';
   import { invitationEmailLabel, invitationExpired } from '../../../../core/invitation-delivery';
 
@@ -32,11 +33,11 @@
   let showInvite = $state(false);
   let selectedPersonId = $state<string | null>(null);
   let feedback = $state<FeedbackNotice | null>(null);
-  let lastHandledForm = $state<unknown>(null);
   let lastBackendFailure = $state('');
   let saving = $state(false);
-  // Every admin form uses SvelteKit's in-place updates. No full reload,
-  // preserved section, and refreshed data on an acknowledged successful save.
+  // Only new user submissions may open a feedback notice. Never watch stale
+  // action form data: SvelteKit invalidations can recreate its identity and
+  // reopen an already acknowledged modal.
   const handleAdminSubmit: SubmitFunction = ({ cancel }) => {
     if (saving) { cancel(); return; }
     saving = true;
@@ -47,16 +48,34 @@
           message: 'The server could not process your request. Your changes were not confirmed.' };
         return;
       }
+      if (result.type === 'redirect') {
+        await update();
+        return;
+      }
+      const response = result.data as { action?: string; success?: boolean; error?: string;
+        userId?: string; devCode?: string } | undefined;
+      if (response?.action) {
+        section = 'people';
+        if (response.action === 'addOrganisationPosition' ||
+            response.action === 'deactivateOrganisationPosition') peopleView = 'positions';
+        if (response.action === 'createVetClinic') peopleView = 'clinics';
+        if (response.action === 'inviteUser') showInvite = result.type === 'failure';
+        if (response.action === 'removeUser' && result.type === 'success') selectedPersonId = null;
+        if (['correctInvitationEmail', 'resendInvitation'].includes(response.action) &&
+            response.userId) selectedPersonId = response.userId;
+      }
       await update({ reset: result.type === 'success', invalidateAll: result.type === 'success' });
+      feedback = response
+        ? adminActionFeedback(response)
+        : { kind: result.type === 'success' ? 'success' : 'error',
+            title: result.type === 'success' ? 'Changes saved' : 'Could not save changes',
+            message: result.type === 'success' ? 'Your changes were saved.' :
+              'No detailed server response was returned. Please check the record.' };
     };
   };
   $effect(() => {
-    if (form && form !== lastHandledForm) {
-      lastHandledForm = form;
-      feedback = adminActionFeedback(form);
-    }
     const backendFailure = data.backend.errors.join('|');
-    if (backendFailure && backendFailure !== lastBackendFailure && !form?.action) {
+    if (backendFailure && backendFailure !== lastBackendFailure) {
       feedback = { kind: 'warning', title: 'Some Rescue Hub services are unavailable',
         message: 'One or more administration data sources could not be loaded. Recent changes may not appear until services recover. Avoid repeating an action without checking the record.' };
     }
@@ -66,28 +85,9 @@
     const target = page.url.searchParams.get('section');
     if (target && ['overview','organisations','rescues','regions','people','audit'].includes(target))
       section = target as Section;
-    else if (form?.action)
-      section = 'people';
-
     const subsection = page.url.searchParams.get('sub');
     if (subsection && ['people','positions','clinics'].includes(subsection))
       peopleView = subsection as PeopleView;
-    else if (form?.action === 'addOrganisationPosition' ||
-      form?.action === 'deactivateOrganisationPosition')
-      peopleView = 'positions';
-    else if (form?.action === 'createVetClinic')
-      peopleView = 'clinics';
-
-    if (form?.action === 'removeUser' && form.success) selectedPersonId = null;
-    if (form?.action === 'inviteUser') {
-      section = 'people';
-      if (form.error) showInvite = true;
-      if (form.success) showInvite = false;
-    }
-    if (form?.action === 'correctInvitationEmail' || form?.action === 'resendInvitation') {
-      section = 'people';
-      if (form.userId) selectedPersonId = form.userId;
-    }
   });
   function chooseSection(next: Section) {
     section = next;
@@ -252,10 +252,7 @@
 {#if feedback}
   <FeedbackModal kind={feedback.kind} title={feedback.title}
     message={feedback.message} detail={feedback.detail}
-    onDismiss={() => {
-      lastHandledForm = form;
-      feedback = null;
-    }} />
+    onDismiss={() => (feedback = null)} />
 {/if}
 {#if saving}
   <div class="save-progress" role="status" aria-live="polite">Saving changes…</div>
@@ -705,7 +702,7 @@
       </section>
 
       {#if showInvite}
-        <div class="people-overlay" role="presentation">
+        <div class="people-overlay" use:portal role="presentation">
           <button type="button" class="people-backdrop" aria-label="Close invitation" onclick={() => (showInvite = false)}></button>
           <div class="people-dialog invite-dialog" role="dialog" aria-modal="true" aria-labelledby="invite-title">
             <div class="dialog-heading"><div><p class="eyebrow">New team member</p><h2 id="invite-title">Invite a person</h2></div><button class="dialog-close" type="button" aria-label="Close invitation" onclick={() => (showInvite = false)}>×</button></div>
@@ -749,7 +746,7 @@
       {/if}
 
       {#if selectedPerson}
-        <div class="people-overlay" role="presentation">
+        <div class="people-overlay" use:portal role="presentation">
           <button type="button" class="people-backdrop" aria-label="Close person details" onclick={() => (selectedPersonId = null)}></button>
           <div class="people-dialog person-detail" role="dialog" aria-modal="true" aria-labelledby="person-detail-title">
             <div class="dialog-heading"><div><p class="eyebrow">Person details</p><h2 id="person-detail-title">{selectedPerson.name || selectedPerson.email}</h2><p class="intro">{selectedPerson.email} · {organisationName(selectedPerson.organisationId)}</p></div><button class="dialog-close" type="button" aria-label="Close person details" onclick={() => (selectedPersonId = null)}>×</button></div>
