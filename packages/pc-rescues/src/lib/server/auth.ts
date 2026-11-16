@@ -1065,6 +1065,42 @@ export async function updateUserDispatchMembership(input: {
  * Both DynamoDB records are updated in a single transaction and the session
  * epoch advances whenever privileges change (revokes existing sessions).
  */
+/** Platform owner may add or remove their own secondary system permissions.
+ * Never allow a self-change to remove PLATFORM_ADMIN. A standalone platform
+ * account has no organisation MEMBERSHIP row, so write its PROFILE directly.
+ * This does not assign species training, transport rights, or a vet clinic.
+ */
+export async function updateOwnPlatformPermissions(
+  userId: string, expectedRoles: RescueHubRole[], requestedRoles: RescueHubRole[]
+): Promise<void> {
+  const roles = [...new Set(requestedRoles)];
+  if (!roles.includes('PLATFORM_ADMIN'))
+    throw new Error('Platform Administrator must remain enabled on your account.');
+  if (roles.includes('PUBLIC_REPORTER') || roles.includes('VET_STAFF'))
+    throw new Error('Public reporter and veterinary clinic staff must use dedicated accounts.');
+  if (roles.some(role => ![
+    'RESCUER','CARER','DISPATCHER','ORG_ADMIN','DATA_STEWARD',
+    'AUTHORITY_AUDITOR','AUTHORITY_ADMIN','PLATFORM_ADMIN'
+  ].includes(role)))
+    throw new Error('Invalid system permission selected.');
+  try {
+    await db.send(new UpdateCommand({
+      TableName: tableName, Key: { pk: `USER#${userId}`, sk: 'PROFILE' },
+      UpdateExpression: 'SET #roles = :roles, updatedAt = :now',
+      ConditionExpression: 'attribute_exists(pk) AND #roles = :expected AND contains(#roles, :platform) AND enabled = :enabled AND #status = :active',
+      ExpressionAttributeNames: { '#roles': 'roles', '#status': 'status' },
+      ExpressionAttributeValues: {
+        ':roles': roles, ':expected': expectedRoles, ':platform': 'PLATFORM_ADMIN',
+        ':enabled': true, ':active': 'ACTIVE', ':now': new Date().toISOString()
+      }
+    }));
+  } catch (error) {
+    if (error instanceof Error && error.name === 'ConditionalCheckFailedException')
+      throw new Error('Your permissions changed while editing. Refresh the page and try again.');
+    throw error;
+  }
+}
+
 export async function updateUserAccess(input: {
   userId: string;
   expectedRoles: RescueHubRole[];

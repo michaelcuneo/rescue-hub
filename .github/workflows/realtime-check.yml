@@ -6,6 +6,7 @@ on:
       - deploy/rescue-demo-domain
   push:
     branches:
+      - hotfix/demo-modal-report-admin-permissions
       - fix/admin-feedback-and-positions
       - feature/veterinary-clinic-portal
       - fix/simplify-membership-and-invite-scroll

@@ -12,18 +12,23 @@
   // Native modal dialog provides focus containment, an accessible announcement,
   // and prevents interaction with underlying forms until acknowledged.
   onMount(() => {
-    dialog?.showModal();
-    dialog?.querySelector<HTMLButtonElement>('.acknowledge')?.focus();
+    if (!dialog.open) dialog.showModal();
+    dialog.querySelector<HTMLButtonElement>('.acknowledge')?.focus();
   });
   function dismiss() {
-    dialog?.close();
+    if (dialog?.open) dialog.close();
     onDismiss();
+  }
+  function backdropClick(event: MouseEvent) {
+    // Click on backdrop (dialog element itself), not on its content.
+    if (event.target === dialog) dismiss();
   }
 </script>
 
 <dialog bind:this={dialog} class="feedback-dialog" data-kind={kind}
   aria-labelledby="feedback-title" aria-describedby="feedback-description"
-  oncancel={(event) => event.preventDefault()}>
+  oncancel={(event) => { event.preventDefault(); dismiss(); }}
+  onclick={backdropClick}>
   <div class="feedback-body">
     <div class="feedback-heading">
       <span class="feedback-icon" aria-hidden="true">
@@ -45,6 +50,11 @@
 
 <style>
   .feedback-dialog {
+    position:fixed;
+    inset:50% auto auto 50%;
+    transform:translate(-50%,-50%);
+    margin:0;
+    z-index:9999;
     width:min(440px,calc(100vw - 32px));
     max-height:min(80dvh,680px);
     overflow-y:auto;
@@ -54,6 +64,7 @@
     background:var(--rh-surface);
     color:var(--rh-text);
     box-shadow:0 22px 70px rgba(0,0,0,.3);
+    box-sizing:border-box;
   }
   .feedback-dialog::backdrop{background:rgba(9,22,17,.7);backdrop-filter:blur(3px)}
   .feedback-body{padding:24px;display:grid;gap:17px}
