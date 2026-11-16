@@ -114,7 +114,7 @@ export async function createAnimal(input: {
 
 export async function recordAnimalEvent(animal: AnimalRecord, actorUserId: string, input: {
   type: 'OBSERVATION' | 'VET_ASSESSMENT' | 'TREATMENT' | 'FEEDING' | 'WEIGHT' | 'REVIEW';
-  notes: string; occurredAt?: string; source?: 'PHONE' | 'DIRECT'; reportedByName?: string; coordinatorOverride?: boolean;
+  notes: string; occurredAt?: string; source?: 'PHONE' | 'DIRECT' | 'VET_PORTAL'; reportedByName?: string; coordinatorOverride?: boolean;
 }) {
   if (terminal.has(animal.status)) throw new AnimalConflict('Animal has a final outcome.');
   if (animal.pendingTransferId) throw new AnimalConflict('Resolve the pending custody transfer first.');
