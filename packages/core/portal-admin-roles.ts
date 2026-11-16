@@ -1,6 +1,6 @@
 export const STAFF_ROLES = [
   'RESCUER', 'CARER', 'DISPATCHER', 'ORG_ADMIN', 'DATA_STEWARD',
-  'AUTHORITY_AUDITOR', 'AUTHORITY_ADMIN', 'PLATFORM_ADMIN'
+  'AUTHORITY_AUDITOR', 'AUTHORITY_ADMIN', 'PLATFORM_ADMIN', 'VET_STAFF'
 ] as const;
 
 type AccessUser = {
@@ -15,7 +15,7 @@ export function assignableStaffRoles(actor: AccessUser): string[] {
     role !== 'PLATFORM_ADMIN' && role !== 'AUTHORITY_ADMIN'
   );
   if (actor.roles.includes('ORG_ADMIN')) return STAFF_ROLES.filter(role =>
-    ['RESCUER', 'CARER', 'DISPATCHER', 'ORG_ADMIN', 'DATA_STEWARD'].includes(role)
+    ['RESCUER', 'CARER', 'DISPATCHER', 'ORG_ADMIN', 'DATA_STEWARD', 'VET_STAFF'].includes(role)
   );
   return [];
 }
