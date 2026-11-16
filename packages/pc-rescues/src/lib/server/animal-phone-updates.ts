@@ -144,12 +144,24 @@ export async function recordAnimalPhoneUpdate(
     }
   }
 
-  // Cancel any outstanding care offer if a veterinary final outcome arrives.
-  if (input.finalOutcome && animal.activeTransportRescueId && !animal.reservedCarerUserId) {
+  // A confirmed death/euthanasia must never remain available for care or
+  // transport. Reconcile the offer, any carer reservation and any private
+  // delivery address within the same conditional transaction as the outcome.
+  if (input.finalOutcome) {
     writes.push({ Delete: {
       TableName: table,
       Key: { pk: `ORG#${animal.organisationId}#CARE_OFFERS`, sk: `ANIMAL#${animal.id}` }
     }});
+    if (animal.reservedCarerUserId) {
+      writes.push({ Delete: {
+        TableName: table,
+        Key: { pk: `USER#${animal.reservedCarerUserId}`, sk: `CARE_RESERVATION#${animal.id}` }
+      }});
+      writes.push({ Delete: {
+        TableName: table,
+        Key: { pk: `ANIMAL#${animal.id}`, sk: 'CARE_DELIVERY' }
+      }});
+    }
   }
     if (transportRescueId) {
     const original = await getRescue(animal.rescueId);
