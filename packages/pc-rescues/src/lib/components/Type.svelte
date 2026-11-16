@@ -3,11 +3,13 @@
 		color,
 		type,
 		selected = false,
+		status = 'PENDING',
 		onclick
 	}: {
 		color: string;
 		type: string;
 		selected?: boolean;
+		status?: string;
 		onclick?: () => void;
 	} = $props();
 
@@ -24,11 +26,12 @@
 <button
 	type="button"
 	class:selected
-	style:--marker-color={`#${color}`}
-	aria-label={`${type} rescue`}
+	style:--marker-color={`#${color.replace(/^#/, '')}`}
+	aria-label={`${type} rescue, ${status.toLowerCase()}`}
 	{onclick}
 >
 	<span>{initials}</span>
+	<i class="workflow-indicator" class:pending={status === 'PENDING'} class:assigned={status === 'ASSIGNED'} class:completed={status === 'COMPLETED'} aria-hidden="true"></i>
 </button>
 
 <style>
@@ -59,6 +62,22 @@
 			0 3px 11px rgb(0 0 0 / 0.3),
 			0 0 0 3px rgb(255 255 255 / 0.65);
 	}
+
+	.workflow-indicator {
+		position: absolute;
+		right: -3px;
+		bottom: -3px;
+		width: 13px;
+		height: 13px;
+		border: 2px solid white;
+		border-radius: 50%;
+		background: #64748b;
+		box-shadow: 0 1px 3px rgb(0 0 0 / 0.18);
+	}
+
+	.workflow-indicator.pending { background: #d92b04; }
+	.workflow-indicator.assigned { background: #c18a12; }
+	.workflow-indicator.completed { background: #50a971; }
 
 	span {
 		font-size: 11px;
