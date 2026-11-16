@@ -1,11 +1,10 @@
 <script lang="ts">
-  import type { PageData, ActionData } from './$types';
+  import type { PageData } from './$types';
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
   import FeedbackModal from '$lib/components/FeedbackModal.svelte';
   import type { FeedbackNotice } from '../../../../core/admin-feedback';
-  let { data, form }: { data: PageData; form?: ActionData } = $props();
-  let lastHandledForm = $state<unknown>(null);
+  let { data }: { data: PageData } = $props();
   let feedback = $state<FeedbackNotice | null>(null);
   let saving = $state(false);
   const handleClinicSubmit: SubmitFunction = ({ cancel }) => {
@@ -18,19 +17,16 @@
           message: 'The server could not confirm this update. Refresh the animal record before trying again to avoid a duplicate.' };
         return;
       }
+      if (result.type === 'redirect') { await update(); return; }
+      const response = result.data as { success?: boolean; message?: string } | undefined;
       await update({ reset: result.type === 'success', invalidateAll: result.type === 'success' });
+      feedback = {
+        kind: result.type === 'success' ? 'success' : 'error',
+        title: result.type === 'success' ? 'Veterinary update saved' : 'Veterinary update not saved',
+        message: response?.message ?? 'The outcome could not be confirmed. Review the animal record before trying again.'
+      };
     };
   };
-  $effect(() => {
-    if (form && form !== lastHandledForm) {
-      lastHandledForm = form;
-      feedback = {
-        kind: form.success ? 'success' : 'error',
-        title: form.success ? 'Veterinary update saved' : 'Veterinary update not saved',
-        message: form.message ?? 'The outcome could not be confirmed. Please review the record before trying again.'
-      };
-    }
-  });
 </script>
 
 <svelte:head><title>Veterinary workspace · Rescue Hub</title></svelte:head>
