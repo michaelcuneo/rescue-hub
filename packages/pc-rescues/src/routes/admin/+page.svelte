@@ -252,7 +252,10 @@
 {#if feedback}
   <FeedbackModal kind={feedback.kind} title={feedback.title}
     message={feedback.message} detail={feedback.detail}
-    onDismiss={() => (feedback = null)} />
+    onDismiss={() => {
+      lastHandledForm = form;
+      feedback = null;
+    }} />
 {/if}
 {#if saving}
   <div class="save-progress" role="status" aria-live="polite">Saving changes…</div>
@@ -792,7 +795,7 @@
                       <span><strong>{position.name}</strong></span>
                     </label>
                   {:else}
-                    <p class="permission-help">No management positions defined yet. Create them in the People directory.</p>
+                    <p class="permission-help">No management positions defined yet. Create them in People & access → Organisation Positions.</p>
                   {/each}
                 </div>
                 <div class="dialog-actions">
@@ -835,12 +838,12 @@
                   </select>
                 </label>
               </div>
-              <fieldset class="capability-picker" disabled={selectedPerson.id === data.currentUser.id}><legend>Trained species and specialist teams <small>Check only verified training and qualifications. Unchecked areas are not assigned.</small></legend><div class="capability-grid">{#each membershipConfigFor(selectedPerson).teams.filter(team => team.active && team.id !== 'transport' && !team.receivesAllRescues) as team}<label class="capability-option"><input type="checkbox" name="teamIds" value={team.id} checked={(selectedPerson.teamIds ?? []).includes(team.id)} /><span><strong>{team.name}</strong><small>{team.description}</small></span></label>{/each}</div></fieldset>
-              <fieldset class="access-group" disabled={selectedPerson.id === data.currentUser.id}>
+              <fieldset class="capability-picker" disabled={selectedPerson.id === data.currentUser.id && !data.currentUser.roles.includes('PLATFORM_ADMIN')}><legend>Trained species and specialist teams <small>Check only verified training and qualifications. Unchecked areas are not assigned.</small></legend><div class="capability-grid">{#each membershipConfigFor(selectedPerson).teams.filter(team => team.active && team.id !== 'transport' && !team.receivesAllRescues) as team}<label class="capability-option"><input type="checkbox" name="teamIds" value={team.id} checked={(selectedPerson.teamIds ?? []).includes(team.id)} /><span><strong>{team.name}</strong><small>{team.description}</small></span></label>{/each}</div></fieldset>
+              <fieldset class="access-group" disabled={selectedPerson.id === data.currentUser.id && !data.currentUser.roles.includes('PLATFORM_ADMIN')}>
                 <legend>Transport authorisation</legend>
                 <label class="capability-option"><input type="checkbox" name="canTransport" value="on" checked={selectedPerson.canTransport === true} /><span><strong>Can transport animals</strong><small>Independent of being a carer, rescuer or specialist. Untick if they cannot transport.</small></span></label>
               </fieldset>
-              <div class="dialog-actions"><button class="primary-action" type="submit" disabled={selectedPerson.id === data.currentUser.id && !data.currentUser.roles.includes('PLATFORM_ADMIN')}>{selectedPerson.id === data.currentUser.id ? 'Save my system permissions' : 'Save permissions & qualifications'}</button></div>
+              <div class="dialog-actions"><button class="primary-action" type="submit" disabled={selectedPerson.id === data.currentUser.id && !data.currentUser.roles.includes('PLATFORM_ADMIN')}>{selectedPerson.id === data.currentUser.id ? 'Save my roles, training & transport' : 'Save permissions & qualifications'}</button></div>
             </form>
             <div class="account-management"><h3>Account access</h3><p>These actions affect sign-in access, not dispatch availability.</p><div class="account-actions"><form method="POST" use:enhance={handleAdminSubmit} action={selectedPerson.enabled ? '?/disableUser' : '?/enableUser'}><input type="hidden" name="userId" value={selectedPerson.id} /><button type="submit">{selectedPerson.enabled ? 'Disable access' : 'Enable access'}</button></form><form method="POST" use:enhance={handleAdminSubmit} action="?/resetPassword"><input type="hidden" name="userId" value={selectedPerson.id} /><button type="submit">Reset password</button></form><form method="POST" use:enhance={handleAdminSubmit} action="?/removeUser" onsubmit={(event) => { if (!confirm('Remove this person from Rescue Hub? This cannot be undone.')) event.preventDefault(); }}><input type="hidden" name="userId" value={selectedPerson.id} /><button class="danger" type="submit">Remove person</button></form></div></div>
           </div>
