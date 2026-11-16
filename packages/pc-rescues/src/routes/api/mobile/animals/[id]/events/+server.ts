@@ -68,7 +68,7 @@ export const POST: RequestHandler = async ({ locals, params, request }) => {
       const location = typeof body.location === 'string' ? body.location.trim() : '';
       if (location.length > 250) return json({ error: 'Location is too long.' }, { status: 400 });
       return json({ animal: await changeAnimalState(animal, user.id, {
-        kind: body.kind, location, notes
+        kind: body.kind, location, clinicId: typeof body.clinicId === 'string' ? body.clinicId : undefined, notes
       }) });
     }
     if (body.kind === 'OUTCOME') {
