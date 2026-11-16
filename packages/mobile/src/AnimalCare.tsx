@@ -403,7 +403,7 @@ export default function AnimalCare({ rescue, userId, roles, onBack, onUnclaim }:
                   style={styles.secondaryButton} onPress={() => selectVetClinic(clinic)}>
                   <Text style={styles.secondaryButtonText}>{selectedVetClinicId === clinic.id ? '✓ ' : ''}{clinic.name} — {clinic.address}</Text>
                 </Pressable>)}
-              </>
+              </>}
               {nextStep === 'CARER' && <>
                 <Text style={styles.fieldLabel}>Receiving carer *</Text>
                 <Pressable style={styles.dropdown} accessibilityRole="button"
@@ -572,7 +572,7 @@ export default function AnimalCare({ rescue, userId, roles, onBack, onUnclaim }:
                 {selected.status !== 'AT_VET' ? (
                   <>
                     <KeyboardAwareTextInput style={styles.input} placeholder="Veterinary facility / location *"
-                      value={vetLocation} onChangeText={setVetLocation} maxLength={250} />
+                      value={vetLocation} onChangeText={value => { setVetLocation(value); setSelectedVetClinicId(''); }} maxLength={250} />
                     <Text style={styles.muted}>Select an approved clinic to give its staff access after physical handover.</Text>
                     {vetClinics.map(clinic => <Pressable key={clinic.id} accessibilityRole="button"
                       accessibilityState={{ selected:selectedVetClinicId === clinic.id }}
