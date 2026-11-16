@@ -3,7 +3,7 @@
   import {
     ArrowLeft, ArrowRight, BookOpen, CheckCircle2, CircleHelp,
     ClipboardList, FileText, HeartHandshake, Leaf, MapPinned,
-    MessageCircle, ShieldCheck, Smartphone, Truck, Users, Workflow
+    MessageCircle, ShieldCheck, Smartphone, Truck, Users, Workflow, Stethoscope
   } from '@lucide/svelte';
 
   let { data }: { data: PageData } = $props();
@@ -18,6 +18,7 @@
     administrators: ShieldCheck,
     dispatchers: MapPinned,
     rescuers: Smartphone,
+    veterinary: Stethoscope,
     carers: HeartHandshake,
     transporters: Truck,
     communications: MessageCircle,
