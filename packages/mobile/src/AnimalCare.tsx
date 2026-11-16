@@ -8,7 +8,7 @@ import {
   acceptAnimalTransfer, addAnimalNote, getAnimalHistory, getRescueAnimals, confirmRescuePickup, getCareDelivery, type CareDeliveryDestination,
   recordAnimalOutcome, registerAnimal, requestAnimalTransfer, startVetTransport, recordVetDropoff, recordVetAssessment, unclaimRescue,
   correctAnimalIdentification, correctReportedRescue, getRescuerReporterContact, quickVetProgress,
-  getEligibleCarers, getVetClinics, startPersonalCare, type VetClinicOption, type Animal, type AnimalEvent, type Rescue
+  getEligibleCarers, getVetClinics, correctMistakenPickup, startPersonalCare, type VetClinicOption, type Animal, type AnimalEvent, type Rescue
 } from './api';
 
 type Props = { rescue: Rescue; userId: string; roles: string[]; onBack: () => void; onUnclaim: () => void };
@@ -145,6 +145,23 @@ export default function AnimalCare({ rescue, userId, roles, onBack, onUnclaim }:
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Unable to load animal history.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function undoMistakenPickup() {
+    if (busy || unclaimReason.trim().length < 10) {
+      setError('Explain why pickup was recorded in error, at least 10 characters.');
+      return;
+    }
+    setBusy(true);
+    setError('');
+    try {
+      await correctMistakenPickup(rescue.id, unclaimReason.trim());
+      onUnclaim();
+    } catch (issue) {
+      setError(issue instanceof Error ? issue.message : 'Pickup could not be corrected. Contact dispatch.');
     } finally {
       setBusy(false);
     }
@@ -494,12 +511,35 @@ export default function AnimalCare({ rescue, userId, roles, onBack, onUnclaim }:
             </Pressable>
           </View>
         ) : null}
-        {!collected && rescue.assignedUserId === userId && animals.length === 0 ? (
-          <Pressable style={styles.secondaryButton} accessibilityRole="button"
-            onPress={() => Alert.alert('Release rescue claim?', 'Return this uncollected rescue to the available queue.',
-              [{ text: 'Keep rescue', style: 'cancel' }, { text: 'Release claim', style: 'destructive', onPress: () => void releaseClaim() }])}>
-            <Text style={styles.secondaryButtonText}>Release uncollected claim</Text>
-          </Pressable>
+        {rescue.status === 'ASSIGNED' && rescue.assignedUserId === userId && !rescue.transportAnimalId ? (
+          <View style={styles.card}>
+            <Text style={styles.section}>{collected ? 'Correct a mistaken pickup' : 'Release my assignment'}</Text>
+            <Text style={styles.muted}>{collected
+              ? 'Only use this if you did NOT physically collect the animal. An untouched automatic registration can be voided with full audit history. Animals already treated, transported or handed over require dispatch assistance.'
+              : animals.length > 0
+                ? 'This rescue already has a registered animal. Do not abandon an animal record: contact dispatch to arrange an acknowledged handover.'
+                : 'Release an uncollected claim so another qualified volunteer can respond.'}</Text>
+            <KeyboardAwareTextInput style={styles.input} value={unclaimReason}
+              onChangeText={setUnclaimReason} maxLength={500} multiline
+              placeholder={collected ? 'Explain what happened: animal was not physically collected…' : 'Reason for releasing the claim (optional)'}
+              accessibilityLabel="Reason for release or correction" />
+            {collected ? (
+              <Pressable style={styles.releaseButton} accessibilityRole="button"
+                disabled={busy || animals.length !== 1 || unclaimReason.trim().length < 10}
+                onPress={() => Alert.alert('Undo mistaken pickup?',
+                  'Only confirm if the animal was NOT physically collected. The registration remains in the audit history, and the rescue returns to the pending queue. This is not for real animal transfers.',
+                  [{text:'Keep pickup',style:'cancel'}, {text:'Correct mistaken pickup',style:'destructive',onPress:()=>void undoMistakenPickup()}])}>
+                <Text style={styles.releaseText}>I did not collect this animal · Correct pickup</Text>
+              </Pressable>
+            ) : animals.length === 0 ? (
+              <Pressable style={styles.secondaryButton} accessibilityRole="button" disabled={busy}
+                onPress={() => Alert.alert('Release rescue claim?',
+                  'Return this uncollected rescue to the qualified volunteer queue?',
+                  [{text:'Keep assignment',style:'cancel'}, {text:'Release claim',style:'destructive',onPress:()=>void releaseClaim()}])}>
+                <Text style={styles.secondaryButtonText}>Release my claim</Text>
+              </Pressable>
+            ) : null}
+          </View>
         ) : null}
       </> : (
         <>

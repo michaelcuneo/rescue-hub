@@ -8,17 +8,17 @@ import { transportCloseStatus } from '../../../../core/care-delivery';
 const db = DynamoDBDocumentClient.from(new DynamoDBClient({}), { marshallOptions: { removeUndefinedValues: true } });
 const table = Resource.RescueHubData.name;
 
-export type AnimalStatus = 'IN_RESCUE' | 'IN_TRANSIT' | 'AT_VET' | 'IN_CARE' | 'RELEASED' | 'EUTHANISED' | 'DECEASED';
+export type AnimalStatus = 'IN_RESCUE' | 'IN_TRANSIT' | 'AT_VET' | 'IN_CARE' | 'RELEASED' | 'EUTHANISED' | 'DECEASED' | 'VOIDED';
 export type AnimalRecord = {
   id: string; rescueId: string; organisationId: string; species: string; description?: string;
   status: AnimalStatus; currentCustodianUserId?: string; currentLocation?: string;
   physicalCustodianType?: 'RESCUER' | 'VET'; physicalCustodianName?: string; vetClinicId?: string;
   vetStage?: 'AWAITING_ASSESSMENT' | 'ASSESSED_AWAITING_TRANSPORT';
-  pendingTransferId?: string; activeTransportRescueId?: string; reservedCarerUserId?: string; version: number; createdAt: string; updatedAt: string;
+  pendingTransferId?: string; activeTransportRescueId?: string; reservedCarerUserId?: string; registrationVoidedAt?: string; version: number; createdAt: string; updatedAt: string;
 };
 export class AnimalConflict extends Error {}
 const key = (id: string) => ({ pk: `ANIMAL#${id}`, sk: 'META' });
-const terminal = new Set<AnimalStatus>(['RELEASED', 'EUTHANISED', 'DECEASED']);
+const terminal = new Set<AnimalStatus>(['RELEASED', 'EUTHANISED', 'DECEASED', 'VOIDED']);
 
 export async function getAnimal(id: string): Promise<AnimalRecord | null> {
   const result = await db.send(new GetCommand({ TableName: table, Key: key(id), ConsistentRead: true }));
@@ -123,7 +123,7 @@ export async function recordAnimalEvent(animal: AnimalRecord, actorUserId: strin
     { ConditionCheck: {
       TableName: table, Key: key(animal.id),
       ConditionExpression: input.coordinatorOverride
-        ? 'version = :version AND organisationId = :org AND NOT (#status IN (:released, :euthanised, :deceased))'
+        ? 'version = :version AND organisationId = :org AND attribute_not_exists(registrationVoidedAt) AND NOT (#status IN (:released, :euthanised, :deceased))'
         : 'version = :version AND organisationId = :org AND currentCustodianUserId = :user AND attribute_not_exists(pendingTransferId) AND NOT (#status IN (:released, :euthanised, :deceased))',
       ExpressionAttributeNames: { '#status': 'status' },
       ExpressionAttributeValues: {
@@ -167,7 +167,7 @@ export async function changeAnimalState(animal: AnimalRecord, actorUserId: strin
 }) {
   if (terminal.has(animal.status)) throw new AnimalConflict('Animal already has a final outcome.');
   const now = new Date().toISOString(), eventId = crypto.randomUUID();
-  let update = '', condition = 'version = :version AND organisationId = :org AND NOT (#guardStatus IN (:released, :euthanised, :deceased))', values: Record<string, unknown> = {
+  let update = '', condition = 'version = :version AND organisationId = :org AND attribute_not_exists(registrationVoidedAt) AND NOT (#guardStatus IN (:released, :euthanised, :deceased))', values: Record<string, unknown> = {
     ':version': animal.version, ':org': animal.organisationId, ':now': now, ':next': animal.version + 1, ':released': 'RELEASED', ':euthanised': 'EUTHANISED', ':deceased': 'DECEASED'
   };
   let type = '', extra: Record<string, unknown> = {};

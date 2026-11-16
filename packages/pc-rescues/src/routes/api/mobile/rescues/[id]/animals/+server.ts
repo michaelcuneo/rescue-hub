@@ -7,13 +7,19 @@ import type { RequestHandler } from './$types';
 export const GET: RequestHandler = async ({ locals, params, cookies }) => {
   const user = locals.user;
   const organisationId = getHunterDemo(cookies, user) ? HUNTER_DEMO_ORGANISATION : user?.organisationId;
-  if (!user || !organisationId || !user.enabled || user.status !== 'ACTIVE') return json({ error: 'Access denied.' }, { status: 403 });
+  if (!user || !user.enabled || user.status !== 'ACTIVE' ||
+      user.roles.includes('PUBLIC_REPORTER') || user.roles.includes('VET_STAFF'))
+    return json({ error: 'Access denied.' }, { status: 403 });
   const rescue = await getRescue(params.id);
-  if (!rescue || rescue.organisationId !== organisationId) return json({ error: 'Rescue not found.' }, { status: 404 });
-  const items = await listRescueAnimals(params.id, organisationId);
+  const assignedSupervisor = Boolean(rescue?.assignedUserId === user.id &&
+    user.roles.some(role => ['PLATFORM_ADMIN', 'AUTHORITY_ADMIN'].includes(role)));
+  if (!rescue || !rescue.organisationId ||
+      (rescue.organisationId !== organisationId && !assignedSupervisor))
+    return json({ error: 'Rescue not found.' }, { status: 404 });
+  const items = await listRescueAnimals(params.id, rescue.organisationId);
   if (rescue.transportAnimalId && (rescue.assignedUserId === user.id || user.roles.some(role => ['ORG_ADMIN', 'DISPATCHER', 'PLATFORM_ADMIN', 'AUTHORITY_ADMIN'].includes(role)))) {
     const linked = await getAnimal(rescue.transportAnimalId);
-    if (linked && linked.organisationId === organisationId && !items.some(a => a.id === linked.id)) items.push(linked);
+    if (linked && linked.organisationId === rescue.organisationId && !items.some(a => a.id === linked.id)) items.push(linked);
   }
   const ownsAnimal = items.some(animal => animal.currentCustodianUserId === user.id);
   if (rescue.assignedUserId !== user.id && !ownsAnimal && !user.roles.some((r) =>
@@ -21,8 +27,9 @@ export const GET: RequestHandler = async ({ locals, params, cookies }) => {
   )) return json({ error: 'Access denied.' }, { status: 403 });
   // Retain historical species/status access for the original claimant, but
   // never leak a carer's private residential/workplace destination after handover.
-  const coordinator = user.roles.some(role =>
-    ['ORG_ADMIN', 'DISPATCHER', 'PLATFORM_ADMIN', 'AUTHORITY_ADMIN'].includes(role));
+  const coordinator = user.roles.some(role => ['ORG_ADMIN', 'DISPATCHER'].includes(role)) ||
+    (rescue.organisationId === organisationId &&
+      user.roles.some(role => ['PLATFORM_ADMIN', 'AUTHORITY_ADMIN'].includes(role)));
   const visible = items.map(animal => {
     const currentCustodian = animal.currentCustodianUserId === user.id;
     const activeTransporter = rescue.transportAnimalId === animal.id &&
