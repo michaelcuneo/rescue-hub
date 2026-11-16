@@ -29,7 +29,6 @@ export const load: PageServerLoad = async ({ locals }) => {
       email: user.email,
       roles: user.roles,
       organisationId: user.organisationId ?? null,
-      membershipTypeId: user.membershipTypeId ?? null,
       teamIds: user.teamIds
     },
     membership,
