@@ -149,7 +149,6 @@ export async function listChatDirectory(
       directParticipants = Array.isArray(row.Item?.participants) ? row.Item.participants : [];
     }
   }
-  const membershipNames = new Map(config.membershipTypes.filter(item => item.active).map(item => [item.id, item.name]));
   const teamNames = new Map(config.teams.filter(item => item.active).map(item => [item.id, item.name]));
   return people.filter(person =>
     person.organisationId === org && person.enabled && person.status === 'ACTIVE' &&
@@ -165,7 +164,7 @@ export async function listChatDirectory(
       ...(person.positionIds ?? []).map(id => config.positions.find(item => item.id === id && item.active)?.name)
         .filter((name): name is string => Boolean(name)),
       ...(person.canTransport ? ['Transport authorised'] : []),
-      ...displayMemberLabels(person, membershipNames, teamNames)
+      ...displayMemberLabels(person, teamNames)
     ])]
   })).sort((a, b) => {
     const rank = { AVAILABLE: 0, BUSY: 1, OFFLINE: 2 };
