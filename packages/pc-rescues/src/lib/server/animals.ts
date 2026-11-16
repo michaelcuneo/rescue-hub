@@ -12,7 +12,7 @@ export type AnimalStatus = 'IN_RESCUE' | 'IN_TRANSIT' | 'AT_VET' | 'IN_CARE' | '
 export type AnimalRecord = {
   id: string; rescueId: string; organisationId: string; species: string; description?: string;
   status: AnimalStatus; currentCustodianUserId?: string; currentLocation?: string;
-  physicalCustodianType?: 'RESCUER' | 'VET'; physicalCustodianName?: string;
+  physicalCustodianType?: 'RESCUER' | 'VET'; physicalCustodianName?: string; vetClinicId?: string;
   vetStage?: 'AWAITING_ASSESSMENT' | 'ASSESSED_AWAITING_TRANSPORT';
   pendingTransferId?: string; activeTransportRescueId?: string; reservedCarerUserId?: string; version: number; createdAt: string; updatedAt: string;
 };
@@ -163,7 +163,7 @@ export async function getPendingAnimalTransfer(animal: AnimalRecord) {
 
 export async function changeAnimalState(animal: AnimalRecord, actorUserId: string, input: {
   kind: 'TRANSFER' | 'ACCEPT_TRANSFER' | 'OUTCOME' | 'SELF_CARE' | 'VET_TRANSPORT_STARTED' | 'VET_DROPOFF' | 'VET_ASSESSED';
-  recipientUserId?: string; location?: string; latitude?: number; longitude?: number; releaseReason?: 'RELOCATION'; status?: AnimalStatus; notes?: string; purpose?: 'CARE' | 'TRANSPORT';
+  recipientUserId?: string; location?: string; clinicId?: string; latitude?: number; longitude?: number; releaseReason?: 'RELOCATION'; status?: AnimalStatus; notes?: string; purpose?: 'CARE' | 'TRANSPORT';
 }) {
   if (terminal.has(animal.status)) throw new AnimalConflict('Animal already has a final outcome.');
   const now = new Date().toISOString(), eventId = crypto.randomUUID();
@@ -171,6 +171,7 @@ export async function changeAnimalState(animal: AnimalRecord, actorUserId: strin
     ':version': animal.version, ':org': animal.organisationId, ':now': now, ':next': animal.version + 1, ':released': 'RELEASED', ':euthanised': 'EUTHANISED', ':deceased': 'DECEASED'
   };
   let type = '', extra: Record<string, unknown> = {};
+  let linkedClinicId: string | undefined;
   if (input.kind === 'TRANSFER') {
     if (animal.pendingTransferId) throw new AnimalConflict('A transfer is already pending.');
     if (!input.recipientUserId || input.recipientUserId === actorUserId || actorUserId !== animal.currentCustodianUserId) throw new AnimalConflict('Current custodian must nominate a different recipient.');
@@ -228,7 +229,7 @@ export async function changeAnimalState(animal: AnimalRecord, actorUserId: strin
       throw new AnimalConflict('Only the responsible rescuer or custodian can record a vet milestone.');
     }
     if (animal.pendingTransferId) throw new AnimalConflict('Complete the pending handover first.');
-    if (input.kind === 'VET_DROPOFF' && !input.location?.trim()) {
+    if (input.kind === 'VET_DROPOFF' && !input.location?.trim() && !input.clinicId) {
       throw new AnimalConflict('Record the veterinary facility or location.');
     }
     if (input.kind === 'VET_ASSESSED' && animal.status !== 'AT_VET') {
@@ -237,10 +238,20 @@ export async function changeAnimalState(animal: AnimalRecord, actorUserId: strin
     condition += ' AND currentCustodianUserId = :actor AND attribute_not_exists(pendingTransferId)';
     values[':actor'] = actorUserId;
     if (input.kind === 'VET_DROPOFF') {
+      // A clinic becomes a trusted custodian only when the rescuer explicitly
+      // selects an approved organisation clinic at physical handover.
+      const registeredClinic = input.clinicId
+        ? await (await import('./vet-clinics')).getVetClinic(animal.organisationId, input.clinicId)
+        : null;
+      if (input.clinicId && !registeredClinic)
+        throw new AnimalConflict('Select an approved veterinary clinic in this organisation.');
+      linkedClinicId = registeredClinic?.id;
+      const location = registeredClinic?.address ?? input.location!.trim();
+      const clinicName = registeredClinic?.name ?? input.location!.trim();
       type = 'VET_DROPOFF';
-      update = 'SET #status = :vet, vetStage = :stage, currentLocation = :location, physicalCustodianType = :physical, physicalCustodianName = :clinic, updatedAt = :now, version = :next';
-      values = { ...values, ':vet': 'AT_VET', ':stage': 'AWAITING_ASSESSMENT', ':location': input.location!.trim(), ':physical': 'VET', ':clinic': input.location!.trim() };
-      extra = { location: input.location!.trim(), notes: input.notes ?? '' };
+      update = 'SET #status = :vet, vetStage = :stage, currentLocation = :location, physicalCustodianType = :physical, physicalCustodianName = :clinic, vetClinicId = :clinicId, updatedAt = :now, version = :next';
+      values = { ...values, ':vet': 'AT_VET', ':stage': 'AWAITING_ASSESSMENT', ':location': location, ':physical': 'VET', ':clinic': clinicName, ':clinicId': linkedClinicId ?? '' };
+      extra = { location, clinicName, ...(linkedClinicId ? { vetClinicId: linkedClinicId } : {}), notes: input.notes ?? '' };
     } else {
       type = 'VET_ASSESSED';
       update = 'SET vetStage = :stage, updatedAt = :now, version = :next';
@@ -287,6 +298,15 @@ export async function changeAnimalState(animal: AnimalRecord, actorUserId: strin
       ExpressionAttributeValues: values }},
     { Put: { TableName: table, Item: event, ConditionExpression: 'attribute_not_exists(pk)' }}
   ];
+  if (linkedClinicId) {
+    writes.push({ Put: {
+      TableName: table,
+      Item: { pk: `VET_CLINIC#${animal.organisationId}#${linkedClinicId}`, sk: `ANIMAL#${animal.id}`,
+        entity: 'vet_clinic_handover', organisationId: animal.organisationId,
+        clinicId: linkedClinicId, animalId: animal.id, linkedAt: now, actorUserId },
+      ConditionExpression: 'attribute_not_exists(pk)'
+    }});
+  }
   // Completing a real custody handover also closes the outstanding pickup
   // offer. We never treat a mere phone call or job claim as a handover.
   if ((input.kind === 'ACCEPT_TRANSFER' || input.kind === 'OUTCOME') && animal.activeTransportRescueId) {
