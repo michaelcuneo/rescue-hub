@@ -64,7 +64,7 @@ jobs:
       - name: Keyboard occlusion geometry regression tests
         run: node --experimental-strip-types --test packages/core/keyboard-geometry.test.mjs
       - name: Organisation position and administration feedback regression tests
-        run: node --experimental-strip-types --test packages/core/organisation-position.test.mjs packages/core/admin-feedback.test.mjs
+        run: node --experimental-strip-types --test packages/core/organisation-position.test.mjs packages/core/admin-feedback.test.mjs packages/core/vet-final-cleanup.test.mjs
       - name: Veterinary clinic access policy tests
         run: node --experimental-strip-types --test packages/core/vet-access.test.mjs
       - name: Direct chat identity and membership tests
