@@ -2,6 +2,7 @@
   import { tick } from 'svelte';
   import { onMount } from 'svelte';
   import { AlertCircle, AlertTriangle, CheckCircle2, X } from '@lucide/svelte';
+  import { portal } from '$lib/actions/portal';
 
   type Kind = 'success' | 'warning' | 'error';
   let { kind, title, message, detail, onDismiss }: {
@@ -33,7 +34,7 @@
 
 <svelte:window onkeydown={keydown} />
 
-<div class="feedback-overlay" role="presentation">
+<div class="feedback-overlay" role="presentation" use:portal>
   <button class="feedback-backdrop" aria-label="Dismiss notification" type="button" onclick={dismiss}></button>
   <div class="feedback-dialog" data-kind={kind}
     role="dialog" aria-modal="true" aria-labelledby="feedback-title"
