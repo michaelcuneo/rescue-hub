@@ -142,7 +142,7 @@ export const documentationGuides: DocumentationGuide[] = [
           },
           {
             "title": "Invite staff and volunteers",
-            "detail": "Use People & access to invite coordinators, dispatchers, rescuers and carers. Choose their organisation, role and teams; they receive a secure email link to set their password and sign in without a verification code."
+            "detail": "Use People & access to invite coordinators, dispatchers, rescuers and carers. Choose their organisation, any system permissions, trained areas, transport authorisation and management positions; they receive a secure email link to set their password and sign in without a verification code."
           },
           {
             "title": "Verify access",
@@ -159,7 +159,7 @@ export const documentationGuides: DocumentationGuide[] = [
         "title": "People and access",
         "points": [
           "Invite new users with the correct role and organisation.",
-          "Assign membership type and specialist team IDs; a reptile carer should see reptile channels and appropriately qualified rescue work.",
+          "Assign independent Rescuer/Carer permissions, verified specialist team qualifications and optional transport permission; trained areas only permit rescue claims when Rescuer access is granted.",
           "Enable or disable users and initiate password reset from the portal; revoke access when someone leaves.",
           "Use audit records to review significant account and operational actions.",
           "Keep platform and authority privileges narrowly assigned to verified administrators."
