@@ -33,7 +33,6 @@
   let showInvite = $state(false);
   let selectedPersonId = $state<string | null>(null);
   let feedback = $state<FeedbackNotice | null>(null);
-  let lastBackendFailure = $state('');
   let saving = $state(false);
   // Only new user submissions may open a feedback notice. Never watch stale
   // action form data: SvelteKit invalidations can recreate its identity and
@@ -74,12 +73,7 @@
     };
   };
   $effect(() => {
-    const backendFailure = data.backend.errors.join('|');
-    if (backendFailure && backendFailure !== lastBackendFailure) {
-      feedback = { kind: 'warning', title: 'Some Rescue Hub services are unavailable',
-        message: 'One or more administration data sources could not be loaded. Recent changes may not appear until services recover. Avoid repeating an action without checking the record.' };
-    }
-    lastBackendFailure = backendFailure;
+    // Backend health is shown inline. A refresh must never open an unsolicited modal.
     if (!positionOrganisationId)
       positionOrganisationId = data.currentUser.organisationId ?? data.organisations[0]?.id ?? '';
     const target = page.url.searchParams.get('section');
