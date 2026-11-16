@@ -5,6 +5,7 @@ import { getRescue } from './graphql';
 import { publishRescueChange } from './realtime';
 import type { AnimalRecord } from './animals';
 import type { ValidPhoneUpdate } from '../../../../core/rescue-phone-update';
+import { vetFinalCleanupKeys } from '../../../../core/vet-final-cleanup';
 
 const db = DynamoDBDocumentClient.from(new DynamoDBClient({}), {
   marshallOptions: { removeUndefinedValues: true }
@@ -144,25 +145,14 @@ export async function recordAnimalPhoneUpdate(
     }
   }
 
-  // A confirmed death/euthanasia must never remain available for care or
-  // transport. Reconcile the offer, any carer reservation and any private
-  // delivery address within the same conditional transaction as the outcome.
+  // Delete all lingering care reservations/offers in the same transaction as
+  // a confirmed death/euthanasia. The animal and its history are not deleted.
   if (input.finalOutcome) {
-    writes.push({ Delete: {
-      TableName: table,
-      Key: { pk: `ORG#${animal.organisationId}#CARE_OFFERS`, sk: `ANIMAL#${animal.id}` }
-    }});
-    if (animal.reservedCarerUserId) {
-      writes.push({ Delete: {
-        TableName: table,
-        Key: { pk: `USER#${animal.reservedCarerUserId}`, sk: `CARE_RESERVATION#${animal.id}` }
-      }});
-      writes.push({ Delete: {
-        TableName: table,
-        Key: { pk: `ANIMAL#${animal.id}`, sk: 'CARE_DELIVERY' }
-      }});
+    for (const Key of vetFinalCleanupKeys(animal)) {
+      writes.push({ Delete: { TableName: table, Key } });
     }
   }
+
     if (transportRescueId) {
     const original = await getRescue(animal.rescueId);
     if (!original || original.organisationId !== animal.organisationId)
