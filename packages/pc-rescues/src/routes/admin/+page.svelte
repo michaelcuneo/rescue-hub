@@ -19,7 +19,10 @@
     | 'people'
     | 'audit';
 
+  type PeopleView = 'people' | 'positions' | 'clinics';
   let section = $state<Section>('overview');
+  let peopleView = $state<PeopleView>('people');
+  let peopleNavOpen = $state(true);
   let organisationSearch = $state('');
   let rescueSearch = $state('');
 
@@ -66,6 +69,15 @@
     else if (form?.action)
       section = 'people';
 
+    const subsection = page.url.searchParams.get('sub');
+    if (subsection && ['people','positions','clinics'].includes(subsection))
+      peopleView = subsection as PeopleView;
+    else if (form?.action === 'addOrganisationPosition' ||
+      form?.action === 'deactivateOrganisationPosition')
+      peopleView = 'positions';
+    else if (form?.action === 'createVetClinic')
+      peopleView = 'clinics';
+
     if (form?.action === 'removeUser' && form.success) selectedPersonId = null;
     if (form?.action === 'inviteUser') {
       section = 'people';
@@ -81,7 +93,23 @@
     section = next;
     const url = new URL(page.url);
     url.searchParams.set('section', next);
+    if (next !== 'people') url.searchParams.delete('sub');
     void goto(url.pathname + url.search, { replaceState: true, noScroll: true, keepFocus: true, invalidateAll: false });
+  }
+  function choosePeopleView(next: PeopleView) {
+    section = 'people';
+    peopleView = next;
+    peopleNavOpen = true;
+    showInvite = false;
+    selectedPersonId = null;
+    const url = new URL(page.url);
+    url.searchParams.set('section', 'people');
+    url.searchParams.set('sub', next);
+    void goto(url.pathname + url.search, { replaceState: true, noScroll: true, keepFocus: false, invalidateAll: false });
+  }
+  function togglePeopleNavigation() {
+    if (section === 'people') peopleNavOpen = !peopleNavOpen;
+    else choosePeopleView(peopleView);
   }
   let inviteOrganisationId = $state('');
   // New invitations start with no permissions, species teams, transport or positions.
@@ -236,11 +264,28 @@
         <button
           class:active={section === item.id}
           type="button"
-          onclick={() => chooseSection(item.id)}
+          aria-expanded={item.id === 'people' ? section === 'people' && peopleNavOpen : undefined}
+          onclick={() => item.id === 'people' ? togglePeopleNavigation() : chooseSection(item.id)}
         >
           <span class="nav-icon">{item.short}</span>
           <span>{item.label}</span>
+          {#if item.id === 'people'}
+            <span class="people-caret" aria-hidden="true">{section === 'people' && peopleNavOpen ? '▾' : '▸'}</span>
+          {/if}
         </button>
+        {#if item.id === 'people' && section === 'people' && peopleNavOpen}
+          <div class="people-subnav" role="group" aria-label="People and access sections">
+            {#each [
+              { id: 'people', label: 'People' },
+              { id: 'positions', label: 'Organisation Positions' },
+              { id: 'clinics', label: 'Veterinary Clinics' }
+            ] as child}
+              <button type="button" class:active={peopleView === child.id}
+                aria-current={peopleView === child.id ? 'page' : undefined}
+                onclick={() => choosePeopleView(child.id as PeopleView)}>{child.label}</button>
+            {/each}
+          </div>
+        {/if}
       {/each}
     </nav>
     <div class="sidebar-footer">
@@ -517,78 +562,27 @@
         <div class="people-head">
           <div>
             <p class="eyebrow">Identity & permissions</p>
-            <h2>People & access</h2>
-            <p class="intro">Manage member permissions, trained areas, transport and organisation positions.</p>
+            <h2>{peopleView === 'people' ? 'People directory' : peopleView === 'positions' ? 'Organisation Positions' : 'Veterinary Clinics'}</h2>
+            <p class="intro">{peopleView === 'people'
+              ? 'Manage member permissions, trained areas, transport and organisation assignments.'
+              : peopleView === 'positions'
+                ? 'Define committee and leadership titles separately from trained roles and system access.'
+                : 'Manage approved veterinary practices and their verified collection locations.'}</p>
           </div>
-          <button class="primary-action" type="button" onclick={() => { inviteOrganisationId = data.currentUser.organisationId ?? data.organisations[0]?.id ?? ''; showInvite = true; }}>+ Invite person</button>
+          {#if peopleView === 'people'}
+            <button class="primary-action" type="button" onclick={() => { inviteOrganisationId = data.currentUser.organisationId ?? data.organisations[0]?.id ?? ''; showInvite = true; }}>+ Invite person</button>
+          {/if}
         </div>
 
-        <div class="people-stats" aria-label="People summary">
-          <div><span>Total people</span><strong>{data.users.length}</strong></div>
-          <div><span>Available now</span><strong>{data.users.filter((user) => user.enabled && user.availabilityStatus === 'AVAILABLE').length}</strong></div>
-          <div><span>Administrators</span><strong>{data.users.filter((user) => user.roles.some((role) => role.includes('ADMIN'))).length}</strong></div>
-          <div><span>Awaiting invitations</span><strong>{data.users.filter((user) => user.status === 'INVITED' && !user.roles.includes('PUBLIC_REPORTER')).length}</strong></div>
-        </div>
-
-
-        <div class="people-directory panel">
-          <div class="directory-toolbar">
-            <div class="access-group">
-            <h3>Organisation positions</h3>
-            <p class="permission-help">Add committee and management positions such as President, Secretary, Raptor Leader or Transport Coordinator. These are shown beside members in Chats; they do not change permissions.</p>
-            <form method="POST" use:enhance={handleAdminSubmit} action="?/addOrganisationPosition" class="position-create">
-              <label><span>Organisation</span>
-                <select name="organisationId" bind:value={positionOrganisationId} required>
-                  {#each data.organisations as organisation}
-                    <option value={organisation.id}>{organisation.displayName}</option>
-                  {/each}
-                </select>
-              </label>
-              <label><span>New position</span>
-                <input name="positionName" maxlength="80" required placeholder="e.g. Raptor Leader" />
-              </label>
-              <button class="primary-action" type="submit">Add position</button>
-            </form>
-            {#each data.organisations.filter(org => org.id === positionOrganisationId || (!positionOrganisationId && org.id === data.currentUser.organisationId)) as organisation}
-              <div class="position-list">
-                {#each (data.membershipConfigs[organisation.id]?.positions ?? []).filter(position => position.active) as position (position.id)}
-                  <form method="POST" use:enhance={handleAdminSubmit} action="?/deactivateOrganisationPosition" class="position-row">
-                    <input type="hidden" name="organisationId" value={organisation.id} />
-                    <input type="hidden" name="positionId" value={position.id} />
-                    <span>{position.name}</span>
-                    <button type="submit" aria-label={`Disable ${position.name}`}>Disable</button>
-                  </form>
-                {:else}
-                  <p class="permission-help">No organisation positions added yet.</p>
-                {/each}
-              </div>
-            {/each}
+        {#if peopleView === 'people'}
+          <div class="people-stats" aria-label="People summary">
+            <div><span>Total people</span><strong>{data.users.length}</strong></div>
+            <div><span>Available now</span><strong>{data.users.filter(user => user.enabled && user.availabilityStatus === 'AVAILABLE').length}</strong></div>
+            <div><span>Administrators</span><strong>{data.users.filter(user => user.roles.some(role => role.includes('ADMIN'))).length}</strong></div>
+            <div><span>Awaiting invitations</span><strong>{data.users.filter(user => user.status === 'INVITED' && !user.roles.includes('PUBLIC_REPORTER')).length}</strong></div>
           </div>
-          <section class="access-group" aria-label="Veterinary clinics">
-              <h3>Approved veterinary clinics</h3>
-              <p class="permission-help">Add a clinic and its exact pickup coordinates before inviting staff. Only animals explicitly handed over to that clinic are visible to its staff.</p>
-              <form method="POST" use:enhance={handleAdminSubmit} action="?/createVetClinic" class="position-create">
-                <label><span>Rescue organisation</span>
-                  <select name="organisationId" required>
-                    {#each data.organisations as organisation}
-                      <option value={organisation.id} selected={organisation.id === (data.currentUser.organisationId ?? data.organisations[0]?.id)}>{organisation.displayName}</option>
-                    {/each}
-                  </select>
-                </label>
-                <label><span>Clinic name</span><input name="name" required maxlength="120" placeholder="e.g. Animal Referral & Emergency Centre" /></label>
-                <label><span>Full pickup address</span><input name="address" required maxlength="250" placeholder="Street, suburb, NSW, Australia" /></label>
-                <label><span>Latitude</span><input name="latitude" type="number" step="any" min="-90" max="90" required placeholder="-32.93" /></label>
-                <label><span>Longitude</span><input name="longitude" type="number" step="any" min="-180" max="180" required placeholder="151.76" /></label>
-                <button class="primary-action" type="submit">Add clinic</button>
-              </form>
-              {#each data.organisations as organisation}
-                {#if data.vetClinicDirectory[organisation.id]?.length}
-                  <p class="permission-help"><strong>{organisation.displayName}:</strong>
-                    {data.vetClinicDirectory[organisation.id].map(clinic => clinic.name).join(' · ')}
-                  </p>
-                {/if}
-              {/each}
-            </section>
+          <div class="people-directory panel">
+            <div class="directory-toolbar">
             <div><h3>People directory</h3><p>{visiblePeople.length} of {data.users.length} people</p></div>
             <label class="people-search"><span class="sr-only">Search people</span><input type="search" bind:value={peopleSearch} placeholder="Search people, organisations or teams…" /></label>
           </div>
@@ -618,7 +612,93 @@
               <div class="empty-state"><strong>No matching people</strong><span>Try a different search or filter.</span></div>
             {/each}
           </div>
-        </div>
+
+          </div>
+        {:else if peopleView === 'positions'}
+          <section class="panel page-panel management-panel" aria-label="Organisation positions">
+            <div class="management-heading">
+              <h3>Manage positions</h3>
+              <p>Titles such as President, Secretary and Raptor Leader appear in member profiles and Chats. They never grant application permissions.</p>
+            </div>
+            <div class="management-form">
+            <h3>Organisation positions</h3>
+            <p class="permission-help">Add committee and management positions such as President, Secretary, Raptor Leader or Transport Coordinator. These are shown beside members in Chats; they do not change permissions.</p>
+            <form method="POST" use:enhance={handleAdminSubmit} action="?/addOrganisationPosition" class="position-create">
+              <label><span>Organisation</span>
+                <select name="organisationId" bind:value={positionOrganisationId} required>
+                  {#each data.organisations as organisation}
+                    <option value={organisation.id}>{organisation.displayName}</option>
+                  {/each}
+                </select>
+              </label>
+              <label><span>New position</span>
+                <input name="positionName" maxlength="80" required placeholder="e.g. Raptor Leader" />
+              </label>
+              <button class="primary-action" type="submit">Add position</button>
+            </form>
+            {#each data.organisations.filter(org => org.id === positionOrganisationId || (!positionOrganisationId && org.id === data.currentUser.organisationId)) as organisation}
+              <div class="position-list">
+                {#each (data.membershipConfigs[organisation.id]?.positions ?? []).filter(position => position.active) as position (position.id)}
+                  <form method="POST" use:enhance={handleAdminSubmit} action="?/deactivateOrganisationPosition" class="position-row">
+                    <input type="hidden" name="organisationId" value={organisation.id} />
+                    <input type="hidden" name="positionId" value={position.id} />
+                    <span>{position.name}</span>
+                    <button type="submit" aria-label={`Disable ${position.name}`}>Disable</button>
+                  </form>
+                {:else}
+                  <p class="permission-help">No organisation positions added yet.</p>
+                {/each}
+              </div>
+            {/each}
+            </div>
+          </section>
+        {:else if peopleView === 'clinics'}
+          <section class="panel page-panel management-panel" aria-label="Approved veterinary clinics">
+            <div class="management-heading">
+              <h3>Approved clinics</h3>
+              <p>Register a clinic with its verified pickup address and coordinates before inviting veterinary staff. An animal becomes visible to the clinic only after a recorded handover.</p>
+            </div>
+            <div class="management-form">
+              <h3>Approved veterinary clinics</h3>
+              <p class="permission-help">Add a clinic and its exact pickup coordinates before inviting staff. Only animals explicitly handed over to that clinic are visible to its staff.</p>
+              <form method="POST" use:enhance={handleAdminSubmit} action="?/createVetClinic" class="position-create">
+                <label><span>Rescue organisation</span>
+                  <select name="organisationId" required>
+                    {#each data.organisations as organisation}
+                      <option value={organisation.id} selected={organisation.id === (data.currentUser.organisationId ?? data.organisations[0]?.id)}>{organisation.displayName}</option>
+                    {/each}
+                  </select>
+                </label>
+                <label><span>Clinic name</span><input name="name" required maxlength="120" placeholder="e.g. Animal Referral & Emergency Centre" /></label>
+                <label><span>Full pickup address</span><input name="address" required maxlength="250" placeholder="Street, suburb, NSW, Australia" /></label>
+                <label><span>Latitude</span><input name="latitude" type="number" step="any" min="-90" max="90" required placeholder="-32.93" /></label>
+                <label><span>Longitude</span><input name="longitude" type="number" step="any" min="-180" max="180" required placeholder="151.76" /></label>
+                <button class="primary-action" type="submit">Add clinic</button>
+              </form>
+              <div class="clinic-directory">
+                <h4>Registered clinics</h4>
+                {#each data.organisations as organisation}
+                  {#if data.vetClinicDirectory[organisation.id]?.length}
+                    <div class="clinic-organisation">
+                      <h5>{organisation.displayName}</h5>
+                      <div class="clinic-list">
+                        {#each data.vetClinicDirectory[organisation.id] as clinic (clinic.id)}
+                          <article class="clinic-entry">
+                            <strong>{clinic.name}</strong>
+                            <span>{clinic.address}</span>
+                          </article>
+                        {/each}
+                      </div>
+                    </div>
+                  {/if}
+                {/each}
+                {#if !data.organisations.some(org => (data.vetClinicDirectory[org.id]?.length ?? 0) > 0)}
+                  <p class="permission-help">No approved veterinary clinics registered yet.</p>
+                {/if}
+              </div>
+            </div>
+          </section>
+        {/if}
       </section>
 
       {#if showInvite}
@@ -808,6 +888,38 @@
   .reviewer-note p { margin: 5px 0 0; line-height: 1.5; }
 
   .people-workspace { display: grid; gap: 22px; }
+  .people-workspace > .panel { width:100%; min-width:0; }
+  .management-panel { display:grid; gap:24px; align-content:start; max-width:100%; }
+  .management-heading { display:grid; gap:7px; padding-bottom:18px; border-bottom:1px solid var(--rh-border); }
+  .management-heading h3 { margin:0; font-size:20px; }
+  .management-heading p { margin:0; color:var(--rh-muted); font-size:13px; line-height:1.65; max-width:760px; }
+  .management-form { display:grid; gap:18px; max-width:850px; min-width:0; }
+  .management-form > h3 { display:none; }
+  .clinic-directory { display:grid; gap:15px; padding-top:14px; border-top:1px solid var(--rh-border); }
+  .clinic-directory h4 { margin:0; font-size:15px; }
+  .clinic-organisation { display:grid; gap:9px; }
+  .clinic-organisation h5 { margin:0; font-size:12px; font-weight:750; color:var(--rh-muted); }
+  .clinic-list { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr)); gap:10px; }
+  .clinic-entry { display:grid; align-content:start; gap:6px; padding:13px 15px; border:1px solid var(--rh-border); border-radius:10px; background:var(--rh-surface-soft); }
+  .clinic-entry strong { font-size:13px; color:var(--rh-text); }
+  .clinic-entry span { font-size:12px; color:var(--rh-muted); line-height:1.5; overflow-wrap:anywhere; }
+  .management-form > .permission-help { max-width:720px; }
+  .management-form .position-create { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; align-items:end; }
+  .management-form .position-create label { min-width:0; width:100%; }
+  .management-form .position-create button { justify-self:start; }
+  .management-form .position-list { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,230px),1fr)); gap:10px; }
+  .management-form .position-row { justify-content:space-between; min-width:0; }
+  .management-form .position-row span { overflow-wrap:anywhere; }
+  .management-form > form[action*="createVetClinic"] label:nth-of-type(3) { grid-column:1 / -1; }
+  @media(max-width:700px) {
+    .management-form .position-create { grid-template-columns:1fr; }
+    .management-form .position-create button { width:100%; }
+  }
+  .people-subnav { display:grid; gap:4px; margin:0 0 5px 14px; padding:5px 0 5px 12px; border-left:2px solid var(--rh-border); }
+  nav .people-subnav button { min-height:38px; padding:8px 11px; font-size:12px; border-radius:9px; white-space:normal; }
+  nav .people-subnav button.active { background:var(--rh-nav-active); color:var(--rh-text); font-weight:800; }
+  .people-caret { margin-left:auto; font-size:14px; }
+
   .position-create { display:flex;flex-wrap:wrap;align-items:flex-end;gap:10px }
   .position-create label { display:grid;gap:5px;flex:1 1 170px }
   .position-create input,.position-create select { min-height:42px;border:1px solid var(--rh-border);border-radius:9px;background:var(--rh-field);color:var(--rh-text);padding:9px 12px;font:inherit }
@@ -1730,9 +1842,12 @@
 
     nav {
       display: flex;
+      flex-wrap: wrap;
       overflow-x: auto;
       padding-bottom: 2px;
     }
+    nav .people-subnav { flex:1 1 100%; display:flex; flex-wrap:wrap; margin:0; padding:6px 0; border-left:0; border-top:1px solid var(--rh-border); }
+    nav .people-subnav button { flex:0 0 auto; width:auto; }
 
     nav button {
       width: auto;
