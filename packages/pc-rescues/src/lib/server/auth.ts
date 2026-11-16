@@ -1071,7 +1071,8 @@ export async function updateUserDispatchMembership(input: {
  * This does not assign species training, transport rights, or a vet clinic.
  */
 export async function updateOwnPlatformPermissions(
-  userId: string, expectedRoles: RescueHubRole[], requestedRoles: RescueHubRole[]
+  userId: string, expectedRoles: RescueHubRole[], requestedRoles: RescueHubRole[],
+  teamIds: string[], canTransport: boolean
 ): Promise<void> {
   const roles = [...new Set(requestedRoles)];
   if (!roles.includes('PLATFORM_ADMIN'))
@@ -1081,16 +1082,21 @@ export async function updateOwnPlatformPermissions(
   if (roles.some(role => ![
     'RESCUER','CARER','DISPATCHER','ORG_ADMIN','DATA_STEWARD',
     'AUTHORITY_AUDITOR','AUTHORITY_ADMIN','PLATFORM_ADMIN'
-  ].includes(role)))
-    throw new Error('Invalid system permission selected.');
+  ].includes(role))) throw new Error('Invalid system permission selected.');
+  const profile = await getUserRecord(userId);
+  if (!profile || !Array.isArray(profile.roles) || !profile.roles.includes('PLATFORM_ADMIN'))
+    throw new Error('An active Platform Administrator account is required.');
+  if (!profile.organisationId && (teamIds.length > 0 || canTransport))
+    throw new Error('Assign your account to a rescue organisation before adding trained areas or transport authorisation.');
   try {
     await db.send(new UpdateCommand({
       TableName: tableName, Key: { pk: `USER#${userId}`, sk: 'PROFILE' },
-      UpdateExpression: 'SET #roles = :roles, updatedAt = :now',
+      UpdateExpression: 'SET #roles = :roles, teamIds = :teams, canTransport = :transport, updatedAt = :now',
       ConditionExpression: 'attribute_exists(pk) AND #roles = :expected AND contains(#roles, :platform) AND enabled = :enabled AND #status = :active',
       ExpressionAttributeNames: { '#roles': 'roles', '#status': 'status' },
       ExpressionAttributeValues: {
-        ':roles': roles, ':expected': expectedRoles, ':platform': 'PLATFORM_ADMIN',
+        ':roles': roles, ':teams': [...new Set(teamIds)], ':transport': canTransport,
+        ':expected': expectedRoles, ':platform': 'PLATFORM_ADMIN',
         ':enabled': true, ':active': 'ACTIVE', ':now': new Date().toISOString()
       }
     }));
