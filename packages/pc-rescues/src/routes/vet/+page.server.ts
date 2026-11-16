@@ -49,7 +49,7 @@ async function withAnimal(
     if (issue instanceof AnimalPhoneConflict || issue instanceof AnimalConflict)
       return fail(409, { message: issue.message });
     console.error('Veterinary workspace update failed:', issue);
-    return fail(503, { message: 'Could not record veterinary update. Please retry.' });
+    return fail(503, { message: 'The veterinary update could not be confirmed. Refresh the animal record before trying again.' });
   }
 }
 export const actions: Actions = {
