@@ -3,6 +3,7 @@ name: Rescue Hub realtime type and Svelte validation
 on:
   pull_request:
     branches:
+      - fix/simplify-membership-and-invite-scroll
       - deploy/rescue-demo-domain
   push:
     branches:
