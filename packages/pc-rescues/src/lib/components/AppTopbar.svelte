@@ -11,6 +11,7 @@
   };
   let { viewer }: { viewer: Viewer | null } = $props();
 
+  const isVet = $derived(Boolean(viewer?.roles.includes('VET_STAFF')));
   const isAdministrator = $derived(Boolean(viewer?.roles.some(role =>
     ['PLATFORM_ADMIN', 'AUTHORITY_ADMIN', 'ORG_ADMIN'].includes(role))));
   const initials = $derived(viewer?.name.split(/\s+/).filter(Boolean).slice(0, 2)
@@ -50,18 +51,18 @@
 />
 
 <header class="workspace-bar">
-  <a class="identity" href={viewer ? '/' : '/documentation'} aria-label="Rescue Hub home">
+  <a class="identity" href={isVet ? '/vet' : viewer ? '/' : '/documentation'} aria-label="Rescue Hub home">
     <span class="mark" aria-hidden="true">RH</span>
     <span class="identity-text"><strong>Rescue Hub</strong><small>Wildlife coordination</small></span>
   </a>
 
   <nav class="area-navigation" aria-label="Main navigation">
     {#if viewer}
-      <a href="/" aria-current={path === '/' ? 'page' : undefined}>Operations</a>
+      {#if isVet}<a href="/vet" aria-current={path.startsWith('/vet') ? 'page' : undefined}>Veterinary workspace</a>{:else}<a href="/" aria-current={path === '/' ? 'page' : undefined}>Operations</a>{/if}
     {:else}
       <a href="/login?next=%2F">Operations</a>
     {/if}
-    {#if viewer && !viewer.roles.includes('PUBLIC_REPORTER')}
+    {#if viewer && !viewer.roles.includes('PUBLIC_REPORTER') && !isVet}
       <a href="/chats" aria-current={path.startsWith('/chats') ? 'page' : undefined}>Chats</a>
     {/if}
     {#if isAdministrator}
