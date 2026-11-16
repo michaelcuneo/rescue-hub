@@ -47,15 +47,17 @@ test('transport closes as completed only after collected animal is accepted by c
   assert.equal(transportCloseStatus('OUTCOME','ASSIGNED','2026-11-11T01:00:00Z'),'CANCELLED');
 });
 
-test('only active field rescuers handle species cases; carers can still be carers', async () => {
+test('rescue requires an explicit RESCUER role; old operational memberships have no authority', async () => {
   const { canRescueForOrganisation } = await import('./care-delivery.ts');
-  const active = { enabled: true, status: 'ACTIVE', roles: ['CARER'], membershipTypeId: 'active-rescuer' };
+  const active = { enabled: true, status: 'ACTIVE', roles: ['RESCUER'] };
   assert.equal(canRescueForOrganisation(active), true);
-  assert.equal(canRescueForOrganisation({ ...active, membershipTypeId: undefined }), false);
-  assert.equal(canRescueForOrganisation({ ...active, membershipTypeId: '' }), false);
+  assert.equal(canRescueForOrganisation({ ...active, membershipTypeId: undefined }), true);
+  assert.equal(canRescueForOrganisation({ ...active, membershipTypeId: 'carer' }), true);
+  assert.equal(canRescueForOrganisation({ ...active, roles: ['CARER'], membershipTypeId: 'active-rescuer' }), false);
+  assert.equal(canRescueForOrganisation({ ...active, roles: ['ORG_ADMIN'], membershipTypeId: 'active-rescuer' }), false);
   assert.equal(canRescueForOrganisation({ ...active, roles: ['RESCUER', 'CARER'] }), true);
-  assert.equal(canRescueForOrganisation({ ...active, membershipTypeId: 'carer' }), false);
-  assert.equal(canRescueForOrganisation({ ...active, membershipTypeId: 'transport-volunteer' }), false);
-  assert.equal(canRescueForOrganisation({ ...active, roles: ['DATA_STEWARD'] }), false);
-  assert.equal(canRescueForOrganisation({ ...active, roles: ['PUBLIC_REPORTER'] }), false);
+  assert.equal(canRescueForOrganisation({ ...active, roles: [], membershipTypeId: 'active-rescuer' }), false);
+  assert.equal(canRescueForOrganisation({ ...active, enabled: false }), false);
+  assert.equal(canRescueForOrganisation({ ...active, status: 'INVITED' }), false);
+  assert.equal(canRescueForOrganisation({ ...active, roles: ['RESCUER', 'PUBLIC_REPORTER'] }), false);
 });
