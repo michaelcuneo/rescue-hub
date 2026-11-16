@@ -481,8 +481,10 @@ export async function startPersonalCare(id: string, notes = '') {
     method: 'POST', body: JSON.stringify({ kind: 'SELF_CARE', notes })
   });
 }
-export async function getEligibleCarers() {
-  return request<{ carers: { id: string; name: string }[] }>('/api/mobile/carers');
+export async function getEligibleCarers(rescueId?: string) {
+  return request<{ carers: { id: string; name: string }[] }>(
+    `/api/mobile/carers${rescueId ? `?rescueId=${encodeURIComponent(rescueId)}` : ''}`
+  );
 }
 export async function recordAnimalOutcome(
   id: string, status: 'RELEASED' | 'EUTHANISED' | 'DECEASED', notes: string,
@@ -495,6 +497,8 @@ export async function recordAnimalOutcome(
 
 export type VetClinicOption = { id: string; organisationId: string; name: string; address: string;
   latitude: number; longitude: number; active: boolean };
-export async function getVetClinics(): Promise<{ clinics: VetClinicOption[] }> {
-  return request<{ clinics: VetClinicOption[] }>('/api/mobile/vet-clinics');
+export async function getVetClinics(rescueId?: string): Promise<{ clinics: VetClinicOption[] }> {
+  return request<{ clinics: VetClinicOption[] }>(
+    `/api/mobile/vet-clinics${rescueId ? `?rescueId=${encodeURIComponent(rescueId)}` : ''}`
+  );
 }
