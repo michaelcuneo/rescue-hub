@@ -443,6 +443,9 @@ h6 {
   --rh-map-background: #171d25;
   --rh-shadow: 0 14px 40px rgb(0 0 0 / .3);
   --rh-status-assigned: #f8c65e;
+  --rh-danger-bg: #3e272c;
+  --rh-status-pending: #ff8068;
+  --rh-status-completed: #79d9a5;
   color-scheme: dark;
 
 }
@@ -475,5 +478,109 @@ input::placeholder, textarea::placeholder { color: var(--rh-subtle); opacity: 1;
   border-color: var(--rh-border);
 }
 :root[data-theme='dark'] .mapboxgl-ctrl-attrib a { color: var(--rh-accent); }
+
+/* Dark-only corrections. No rules or tokens for the light theme are changed. */
+:root[data-theme='dark'] .dispatcher-shell .queue,
+:root[data-theme='dark'] .dispatcher-shell .detail-card,
+:root[data-theme='dark'] .dispatcher-shell .intake,
+:root[data-theme='dark'] .dispatcher-shell .intake > header {
+  background: var(--rh-surface);
+  color: var(--rh-text);
+  border-color: var(--rh-border);
+}
+:root[data-theme='dark'] .dispatcher-shell .queue,
+:root[data-theme='dark'] .dispatcher-shell .detail-card,
+:root[data-theme='dark'] .dispatcher-shell .intake {
+  box-shadow: var(--rh-shadow);
+  backdrop-filter: none;
+}
+:root[data-theme='dark'] .dispatcher-shell .queue .new-rescue,
+:root[data-theme='dark'] .dispatcher-shell .detail-actions .primary,
+:root[data-theme='dark'] .dispatcher-shell .intake .primary {
+  background: var(--rh-primary);
+  border-color: var(--rh-primary);
+  color: var(--rh-on-primary);
+}
+:root[data-theme='dark'] .dispatcher-shell .detail-close,
+:root[data-theme='dark'] .dispatcher-shell .detail-status,
+:root[data-theme='dark'] .dispatcher-shell .detail-location {
+  background: var(--rh-surface-soft);
+  color: var(--rh-text);
+}
+:root[data-theme='dark'] .dispatcher-shell input,
+:root[data-theme='dark'] .dispatcher-shell textarea,
+:root[data-theme='dark'] .dispatcher-shell select {
+  background: var(--rh-field);
+  border-color: var(--rh-border);
+  color: var(--rh-text);
+}
+:root[data-theme='dark'] .dispatcher-shell .rescue-dot.state-pending {
+  background: var(--rh-status-pending);
+}
+:root[data-theme='dark'] .dispatcher-shell .rescue-dot.state-completed {
+  background: var(--rh-status-completed);
+}
+/* Documentation: restore legibility without touching the light presentation. */
+:root[data-theme='dark'] .docs-root .hero-overview {
+  background: radial-gradient(circle at 95% 5%, rgb(53 129 99 / .28), transparent 45%),
+    linear-gradient(125deg, #1e3841, #111d28);
+}
+:root[data-theme='dark'] .docs-root .hero .eyebrow,
+:root[data-theme='dark'] .docs-root .hero .hero-description,
+:root[data-theme='dark'] .docs-root .hero-foot {
+  color: #e0f2e7;
+}
+:root[data-theme='dark'] .docs-root .primary-cta {
+  background: #9be2b7;
+  color: #102d20;
+}
+:root[data-theme='dark'] .docs-root .guide-nav a.current,
+:root[data-theme='dark'] .docs-root .guide-nav a:hover {
+  background: var(--rh-nav-active);
+  color: var(--rh-text);
+}
+:root[data-theme='dark'] .docs-root .article section,
+:root[data-theme='dark'] .docs-root .value-grid > div,
+:root[data-theme='dark'] .docs-root .staff-notice,
+:root[data-theme='dark'] .docs-root .note,
+:root[data-theme='dark'] .docs-root .toc-card {
+  border-color: var(--rh-border);
+}
+:root[data-theme='dark'] .docs-root .guide-hero .hero-description,
+:root[data-theme='dark'] .docs-root .section-intro,
+:root[data-theme='dark'] .docs-root .point-list li,
+:root[data-theme='dark'] .docs-root .steps p,
+:root[data-theme='dark'] .docs-root .toc a,
+:root[data-theme='dark'] .docs-root .article-bottom p,
+:root[data-theme='dark'] .docs-root .site-footer,
+:root[data-theme='dark'] .docs-root .guide-metadata {
+  color: var(--rh-muted);
+}
+:root[data-theme='dark'] .docs-root .point-list li svg {
+  color: var(--rh-accent);
+}
+:root[data-theme='dark'] .docs-root .continue {
+  background: var(--rh-primary);
+  color: var(--rh-on-primary);
+}
+:root[data-theme='dark'] .docs-root .search-wrap input,
+:root[data-theme='dark'] .docs-root .search-wrap input::placeholder {
+  color: var(--rh-text);
+}
+/* Form controls and status surfaces preserve contrast in dark mode. */
+:root[data-theme='dark'] .vet-workspace .state,
+:root[data-theme='dark'] .vet-workspace summary,
+:root[data-theme='dark'] .settings-page .day {
+  background: var(--rh-surface-soft);
+  color: var(--rh-text);
+}
+:root[data-theme='dark'] .vet-workspace .danger {
+  background: var(--rh-danger-bg);
+  color: var(--rh-danger-text);
+}
+:root[data-theme='dark'] button:disabled {
+  opacity: .6;
+}
+
 
 @media(max-width:760px) { :root { --rh-content-top: 106px; --rh-gutter:10px; } }
