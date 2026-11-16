@@ -19,7 +19,10 @@
     | 'people'
     | 'audit';
 
+  type PeopleView = 'people' | 'positions' | 'clinics';
   let section = $state<Section>('overview');
+  let peopleView = $state<PeopleView>('people');
+  let peopleNavOpen = $state(true);
   let organisationSearch = $state('');
   let rescueSearch = $state('');
 
@@ -66,6 +69,15 @@
     else if (form?.action)
       section = 'people';
 
+    const subsection = page.url.searchParams.get('sub');
+    if (subsection && ['people','positions','clinics'].includes(subsection))
+      peopleView = subsection as PeopleView;
+    else if (form?.action === 'addOrganisationPosition' ||
+      form?.action === 'deactivateOrganisationPosition')
+      peopleView = 'positions';
+    else if (form?.action === 'createVetClinic')
+      peopleView = 'clinics';
+
     if (form?.action === 'removeUser' && form.success) selectedPersonId = null;
     if (form?.action === 'inviteUser') {
       section = 'people';
@@ -81,7 +93,23 @@
     section = next;
     const url = new URL(page.url);
     url.searchParams.set('section', next);
+    if (next !== 'people') url.searchParams.delete('sub');
     void goto(url.pathname + url.search, { replaceState: true, noScroll: true, keepFocus: true, invalidateAll: false });
+  }
+  function choosePeopleView(next: PeopleView) {
+    section = 'people';
+    peopleView = next;
+    peopleNavOpen = true;
+    showInvite = false;
+    selectedPersonId = null;
+    const url = new URL(page.url);
+    url.searchParams.set('section', 'people');
+    url.searchParams.set('sub', next);
+    void goto(url.pathname + url.search, { replaceState: true, noScroll: true, keepFocus: false, invalidateAll: false });
+  }
+  function togglePeopleNavigation() {
+    if (section === 'people') peopleNavOpen = !peopleNavOpen;
+    else choosePeopleView(peopleView);
   }
   let inviteOrganisationId = $state('');
   // New invitations start with no permissions, species teams, transport or positions.
@@ -236,11 +264,28 @@
         <button
           class:active={section === item.id}
           type="button"
-          onclick={() => chooseSection(item.id)}
+          aria-expanded={item.id === 'people' ? section === 'people' && peopleNavOpen : undefined}
+          onclick={() => item.id === 'people' ? togglePeopleNavigation() : chooseSection(item.id)}
         >
           <span class="nav-icon">{item.short}</span>
           <span>{item.label}</span>
+          {#if item.id === 'people'}
+            <span class="people-caret" aria-hidden="true">{section === 'people' && peopleNavOpen ? '▾' : '▸'}</span>
+          {/if}
         </button>
+        {#if item.id === 'people' && section === 'people' && peopleNavOpen}
+          <div class="people-subnav" role="group" aria-label="People and access sections">
+            {#each [
+              { id: 'people', label: 'People' },
+              { id: 'positions', label: 'Organisation Positions' },
+              { id: 'clinics', label: 'Veterinary Clinics' }
+            ] as child}
+              <button type="button" class:active={peopleView === child.id}
+                aria-current={peopleView === child.id ? 'page' : undefined}
+                onclick={() => choosePeopleView(child.id as PeopleView)}>{child.label}</button>
+            {/each}
+          </div>
+        {/if}
       {/each}
     </nav>
     <div class="sidebar-footer">
