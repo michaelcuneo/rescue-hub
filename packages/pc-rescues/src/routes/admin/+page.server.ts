@@ -28,6 +28,7 @@ import {
 	STANDARD_MEMBERSHIP_TYPES,
 	STANDARD_TEAMS
 } from '$lib/server/membership';
+import { createVetClinic, getVetClinic, listVetClinics } from '$lib/server/vet-clinics';
 import type { Actions, PageServerLoad } from './$types';
 import { assignableStaffRoles, mayAssignStaffRole, mayManageStaffAccount } from '../../../../core/portal-admin-roles';
 
@@ -102,7 +103,11 @@ export const load: PageServerLoad = async ({ locals }) => {
 			: null
 	].filter((value): value is string => Boolean(value));
 
+  const vetClinicDirectory = Object.fromEntries(await Promise.all(organisations
+    .map(async organisation => [organisation.id,
+      await listVetClinics(organisation.id).catch(() => [])] as const)));
 	return {
+    vetClinicDirectory,
 		currentUser: actor,
 		organisations,
 		rescues,
@@ -150,6 +155,7 @@ export const actions: Actions = {
     const requestedRoles = [...new Set(form.getAll('roles').map(String))] as RescueHubRole[];
     const teamIds = [...new Set(form.getAll('teamIds').map(String).filter(Boolean))];
     const positionIds = [...new Set(form.getAll('positionIds').map(String).filter(Boolean))];
+    const vetClinicId = requiredString(form, 'vetClinicId');
     const canTransport = form.get('canTransport') === 'on';
 
 		const organisationId = isAuthorityAdmin(actor)
@@ -180,6 +186,7 @@ export const actions: Actions = {
         roles: requestedRoles,
         teamIds,
         positionIds,
+        vetClinicId,
         canTransport
 			});
 			return { action: 'inviteUser', success: true };
@@ -230,6 +237,25 @@ export const actions: Actions = {
     } catch (error) {
       return fail(400, { action: 'correctInvitationEmail', userId,
         error: error instanceof Error ? error.message : 'Could not correct invitation email.' });
+    }
+  },
+  createVetClinic: async ({ request, locals }) => {
+    const actor = await requireAdmin(locals);
+    const form = await request.formData();
+    const organisationId = isAuthorityAdmin(actor)
+      ? requiredString(form, 'organisationId') : actor.organisationId ?? '';
+    if (!organisationId || (!isAuthorityAdmin(actor) &&
+        (!actor.roles.includes('ORG_ADMIN') || actor.organisationId !== organisationId)))
+      return fail(403, { action: 'createVetClinic', error: 'Organisation administrator access required.' });
+    try {
+      await createVetClinic(organisationId, {
+        name: requiredString(form, 'name'), address: requiredString(form, 'address'),
+        latitude: requiredString(form, 'latitude'), longitude: requiredString(form, 'longitude')
+      });
+      return { action: 'createVetClinic', success: true };
+    } catch (error) {
+      return fail(400, { action: 'createVetClinic',
+        error: error instanceof Error ? error.message : 'Could not register veterinary clinic.' });
     }
   },
   addOrganisationPosition: async ({ request, locals }) => {
@@ -307,6 +333,7 @@ export const actions: Actions = {
     const roles = [...new Set(form.getAll('roles').map(String))] as RescueHubRole[];
     const teamIds = [...new Set(form.getAll('teamIds').map(String).filter(Boolean))];
     const canTransport = form.get('canTransport') === 'on';
+    const vetClinicId = requiredString(form, 'vetClinicId');
 		// Read the current account on the server: never trust roles sent by the browser.
 		const target = (await listUsers()).find(user => user.id === userId);
 		if (!target || !canManageUser(actor, target)) {
@@ -328,7 +355,7 @@ export const actions: Actions = {
 		try {
 			await updateUserAccess({
         userId, expectedRoles: target.roles, roles,
-        teamIds, canTransport
+        teamIds, canTransport, vetClinicId
 			});
 			return { action: 'updateMemberAccess', success: true };
 		} catch (error) {
