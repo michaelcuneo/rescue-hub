@@ -288,10 +288,10 @@ export async function getRescueAddress(id: string): Promise<RescueAddressResult>
 export async function correctReportedRescue(id: string, type: string, injury: string) {
   return request<{ rescue: Rescue }>(`/api/mobile/rescues/${encodeURIComponent(id)}/correction`, { method: 'PATCH', body: JSON.stringify({ type, injury }) });
 }
-export async function quickVetProgress(rescueId: string, kind: 'GOING_TO_VET' | 'HANDED_TO_VET', clinic: string, notes = '', animalId?: string) {
+export async function quickVetProgress(rescueId: string, kind: 'GOING_TO_VET' | 'HANDED_TO_VET', clinic: string, notes = '', animalId?: string, clinicId?: string) {
   return request<{ animal: Animal; message: string }>(
     `/api/mobile/rescues/${encodeURIComponent(rescueId)}/vet-progress`,
-    { method: 'POST', body: JSON.stringify({ kind, clinic, notes, ...(animalId ? { animalId } : {}) }) }
+    { method: 'POST', body: JSON.stringify({ kind, clinic, notes, ...(animalId ? { animalId } : {}), ...(clinicId ? {clinicId} : {}) }) }
   );
 }
 
@@ -452,9 +452,9 @@ export async function startVetTransport(id: string, location: string, notes = ''
     method: 'POST', body: JSON.stringify({ kind: 'VET_TRANSPORT_STARTED', location, notes })
   });
 }
-export async function recordVetDropoff(id: string, location: string, notes = '') {
+export async function recordVetDropoff(id: string, location: string, notes = '', clinicId?: string) {
   return request<{ animal: Animal }>(`/api/mobile/animals/${encodeURIComponent(id)}/events`, {
-    method: 'POST', body: JSON.stringify({ kind: 'VET_DROPOFF', location, notes })
+    method: 'POST', body: JSON.stringify({ kind: 'VET_DROPOFF', location, notes, ...(clinicId ? { clinicId } : {}) })
   });
 }
 
@@ -479,4 +479,10 @@ export async function recordAnimalOutcome(
   return request<{ animal: Animal }>(`/api/mobile/animals/${encodeURIComponent(id)}/events`, {
     method: 'POST', body: JSON.stringify({ kind: 'OUTCOME', status, notes, ...(release ?? {}) })
   });
+}
+
+export type VetClinicOption = { id: string; organisationId: string; name: string; address: string;
+  latitude: number; longitude: number; active: boolean };
+export async function getVetClinics(): Promise<{ clinics: VetClinicOption[] }> {
+  return request<{ clinics: VetClinicOption[] }>('/api/mobile/vet-clinics');
 }
