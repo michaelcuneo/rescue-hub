@@ -6,7 +6,7 @@ export function canUpdateOwnRescue(user:FieldActor|null|undefined,rescue:FieldRe
     rescue.status==='ASSIGNED' && !rescue.transportAnimalId);
 }
 export type QuickVetAction = 'GOING_TO_VET'|'HANDED_TO_VET';
-export function validateQuickVetAction(raw:unknown):{kind:QuickVetAction;clinic:string;notes:string;animalId:string|null} {
+export function validateQuickVetAction(raw:unknown):{kind:QuickVetAction;clinic:string;notes:string;animalId:string|null;clinicId?:string} {
   if (!raw || typeof raw!=='object') throw new Error('Choose a rescue update.');
   const data=raw as Record<string,unknown>;
   if (data.kind!=='GOING_TO_VET' && data.kind!=='HANDED_TO_VET') throw new Error('Choose going to vet or handed to vet.');
@@ -15,7 +15,10 @@ export function validateQuickVetAction(raw:unknown):{kind:QuickVetAction;clinic:
   if (clinic.length>250 || notes.length>1000) throw new Error('Clinic and notes are too long.');
   if (data.kind==='HANDED_TO_VET' && !clinic) throw new Error('Enter the clinic or veterinarian receiving the animal.');
   if (data.animalId!==undefined && (typeof data.animalId!=='string'||data.animalId.length>120)) throw new Error('Choose a valid animal.');
-  return { kind:data.kind,clinic,notes,animalId:typeof data.animalId==='string'&&data.animalId?data.animalId:null };
+  const clinicId = typeof data.clinicId === 'string' ? data.clinicId.trim() : '';
+  if (clinicId && !/^[a-f0-9-]{36}$/i.test(clinicId)) throw new Error('Select a valid veterinary clinic.');
+  return { kind:data.kind,clinic,notes,animalId:typeof data.animalId==='string'&&data.animalId?data.animalId:null,
+    ...(clinicId ? {clinicId} : {}) };
 }
 export function quickVetStep(status:string|null|undefined):'READY'|'TRAVELLING'|'AT_VET'|'OTHER' {
   if (status==='AT_VET') return 'AT_VET';

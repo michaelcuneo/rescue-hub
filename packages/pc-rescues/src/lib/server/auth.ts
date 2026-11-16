@@ -41,7 +41,8 @@ export type RescueHubRole =
 	| 'RESCUER'
 	| 'CARER'
 	| 'DATA_STEWARD'
-	| 'PUBLIC_REPORTER';
+	| 'PUBLIC_REPORTER'
+  | 'VET_STAFF';
 
 export type RescueHubUser = {
 	id: string;
@@ -51,6 +52,7 @@ export type RescueHubUser = {
 	status: 'INVITED' | 'ACTIVE' | 'REMOVED';
 	emailVerified: boolean;
 	organisationId?: string;
+  vetClinicId?: string;
 	roles: RescueHubRole[];
 	membershipTypeId?: string;
 	positionTitle?: string;
@@ -118,6 +120,7 @@ function toUser(item: Record<string, unknown>): RescueHubUser {
 		status: String(item.status ?? 'ACTIVE') as RescueHubUser['status'],
 		emailVerified: Boolean(item.emailVerified),
 		organisationId: item.organisationId ? String(item.organisationId) : undefined,
+    vetClinicId: typeof item.vetClinicId === 'string' ? item.vetClinicId : undefined,
 		roles: Array.isArray(item.roles) ? item.roles.map(String) as RescueHubRole[] : [],
 		membershipTypeId: item.membershipTypeId ? String(item.membershipTypeId) : undefined,
 		positionTitle: typeof item.positionTitle === 'string' ? item.positionTitle : undefined,
@@ -546,6 +549,7 @@ export async function inviteUser(input: {
 	teamIds?: string[];
   canTransport?: boolean;
   positionIds?: string[];
+  vetClinicId?: string;
 }) {
 	const email = normalizeEmail(input.email);
 	const name = input.name.trim();
@@ -555,6 +559,12 @@ export async function inviteUser(input: {
 	const teamIds = [...new Set(input.teamIds ?? [])];
   const positionIds = [...new Set(input.positionIds ?? [])];
   const canTransport = input.canTransport === true;
+  const vetClinicId = input.vetClinicId?.trim() || '';
+  if (roles.includes('VET_STAFF') &&
+      (roles.length !== 1 || !vetClinicId || teamIds.length || canTransport || positionIds.length))
+    throw new Error('Clinic accounts must have only Veterinary staff permission, one approved clinic and no rescue qualifications.');
+  if (!roles.includes('VET_STAFF') && vetClinicId)
+    throw new Error('Only veterinary staff can be linked to a clinic.');
 
 	if (!/^\S+@\S+\.\S+$/.test(email)) throw new Error('Enter a valid email address.');
 	if (!name || name.length > 100) throw new Error('Enter a name.');
@@ -621,6 +631,7 @@ export async function inviteUser(input: {
 						teamIds,
             positionIds,
             canTransport,
+            ...(vetClinicId ? { vetClinicId } : {}),
 						availabilityStatus: 'OFFLINE',
 						createdAt: now,
 						updatedAt: now,
@@ -645,6 +656,7 @@ export async function inviteUser(input: {
 						teamIds,
             positionIds,
             canTransport,
+            ...(vetClinicId ? { vetClinicId } : {}),
 						availabilityStatus: 'OFFLINE',
 						status: 'PENDING',
 						createdAt: now,
@@ -1059,20 +1071,27 @@ export async function updateUserAccess(input: {
   roles: RescueHubRole[];
   teamIds: string[];
   canTransport: boolean;
+  vetClinicId?: string;
 }) {
   const now = new Date().toISOString();
   const teamIds = [...new Set(input.teamIds.filter(Boolean))];
   const roles = [...new Set(input.roles)];
   if (roles.includes('PUBLIC_REPORTER'))
     throw new Error('Public reporters cannot be assigned organisation roles.');
+  const clinicId = input.vetClinicId?.trim() || '';
+  if (roles.includes('VET_STAFF') &&
+      (roles.length !== 1 || !clinicId || teamIds.length || input.canTransport))
+    throw new Error('Clinic staff require an approved clinic and no operational privileges.');
+  if (!roles.includes('VET_STAFF') && clinicId)
+    throw new Error('Clinic assignment requires Veterinary staff permission.');
   const changedRole = roles.length !== input.expectedRoles.length ||
     roles.some(role => !input.expectedRoles.includes(role));
   // The old membership category is retired. Clear it when saving a member;
   // existing profiles remain readable and the field no longer confers access.
-  const expressions = 'SET #roles = :roles, membershipTypeId = :empty, teamIds = :teams, canTransport = :transport, updatedAt = :now';
+  const expressions = 'SET #roles = :roles, membershipTypeId = :empty, teamIds = :teams, canTransport = :transport, vetClinicId = :clinic, updatedAt = :now';
   const args = {
     ':roles': roles, ':empty': '', ':teams': teamIds,
-    ':transport': input.canTransport, ':now': now
+    ':transport': input.canTransport, ':clinic': clinicId, ':now': now
   };
   try {
     await db.send(new TransactWriteCommand({

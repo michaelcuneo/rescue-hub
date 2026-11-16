@@ -68,6 +68,7 @@
   const roleOptions = [
     { id: 'RESCUER', label: 'Rescuer — field rescue access' },
     { id: 'CARER', label: 'Carer — custody and care access' },
+    { id: 'VET_STAFF', label: 'Veterinary clinic staff — clinic-only workspace' },
     { id: 'DISPATCHER', label: 'Dispatcher — coordinate organisation jobs' },
     { id: 'ORG_ADMIN', label: 'Organisation administrator' },
     { id: 'DATA_STEWARD', label: 'Data steward — records support' },
@@ -526,7 +527,32 @@
               </div>
             {/each}
           </div>
-          <div><h3>People directory</h3><p>{visiblePeople.length} of {data.users.length} people</p></div>
+          <section class="access-group" aria-label="Veterinary clinics">
+              <h3>Approved veterinary clinics</h3>
+              <p class="permission-help">Add a clinic and its exact pickup coordinates before inviting staff. Only animals explicitly handed over to that clinic are visible to its staff.</p>
+              <form method="POST" action="?/createVetClinic" class="position-create">
+                <label><span>Rescue organisation</span>
+                  <select name="organisationId" required>
+                    {#each data.organisations as organisation}
+                      <option value={organisation.id} selected={organisation.id === (data.currentUser.organisationId ?? data.organisations[0]?.id)}>{organisation.displayName}</option>
+                    {/each}
+                  </select>
+                </label>
+                <label><span>Clinic name</span><input name="name" required maxlength="120" placeholder="e.g. Animal Referral & Emergency Centre" /></label>
+                <label><span>Full pickup address</span><input name="address" required maxlength="250" placeholder="Street, suburb, NSW, Australia" /></label>
+                <label><span>Latitude</span><input name="latitude" type="number" step="any" min="-90" max="90" required placeholder="-32.93" /></label>
+                <label><span>Longitude</span><input name="longitude" type="number" step="any" min="-180" max="180" required placeholder="151.76" /></label>
+                <button class="primary-action" type="submit">Add clinic</button>
+              </form>
+              {#each data.organisations as organisation}
+                {#if data.vetClinicDirectory[organisation.id]?.length}
+                  <p class="permission-help"><strong>{organisation.displayName}:</strong>
+                    {data.vetClinicDirectory[organisation.id].map(clinic => clinic.name).join(' · ')}
+                  </p>
+                {/if}
+              {/each}
+            </section>
+            <div><h3>People directory</h3><p>{visiblePeople.length} of {data.users.length} people</p></div>
             <label class="people-search"><span class="sr-only">Search people</span><input type="search" bind:value={peopleSearch} placeholder="Search people, organisations or teams…" /></label>
           </div>
           <div class="people-filters" aria-label="Filter people">
@@ -577,6 +603,17 @@
                 <p class="permission-help">All unchecked by default. These control access to Rescue Hub features, not committee titles or animal training.</p>
                 <div class="capability-grid">{#each roleOptions.filter(option => data.assignableRoles.includes(option.id)) as role}<label class="capability-option"><input type="checkbox" name="roles" value={role.id} /><span><strong>{role.label}</strong></span></label>{/each}</div>
               </fieldset>
+              <div class="access-group">
+                <label><span>Veterinary clinic — veterinary staff only</span>
+                  <select name="vetClinicId">
+                    <option value="">No clinic assigned</option>
+                    {#each (data.vetClinicDirectory[inviteOrganisationId] ?? []) as clinic}
+                      <option value={clinic.id}>{clinic.name} — {clinic.address}</option>
+                    {/each}
+                  </select>
+                </label>
+                <p class="permission-help">Vet accounts must have Veterinary staff as their only system permission and cannot be assigned wildlife rescue training, transport or committee positions. Staff access only animals physically handed over to the selected clinic.</p>
+              </div>
               <fieldset class="capability-picker"><legend>Trained species and specialist teams <small>All unchecked. Assign verified training; field rescue additionally requires Rescuer permission.</small></legend><div class="capability-grid">{#each inviteMembershipConfig.teams.filter(team => team.active && team.id !== 'transport' && !team.receivesAllRescues) as team}<label class="capability-option"><input type="checkbox" name="teamIds" value={team.id} /><span><strong>{team.name}</strong><small>{team.description}</small></span></label>{/each}</div></fieldset>
               <fieldset class="access-group">
                 <legend>Transport authorisation</legend>
@@ -668,6 +705,16 @@
                 <p class="permission-help">Grant only necessary privileges. Changing permissions signs this member out of existing sessions. Management positions do not grant permissions.</p>
                 <div class="capability-grid">{#each roleOptions.filter(option => data.assignableRoles.includes(option.id)) as role}<label class="capability-option"><input type="checkbox" name="roles" value={role.id} checked={selectedPerson.roles.includes(role.id)} /><span><strong>{role.label}</strong></span></label>{/each}</div>
               </fieldset>
+              <div class="access-group">
+                <label><span>Assigned veterinary clinic (veterinary staff only)</span>
+                  <select name="vetClinicId" disabled={selectedPerson.id === data.currentUser.id}>
+                    <option value="">No clinic assigned</option>
+                    {#each (data.vetClinicDirectory[selectedPerson.organisationId ?? ''] ?? []) as clinic}
+                      <option value={clinic.id} selected={selectedPerson.vetClinicId === clinic.id}>{clinic.name} — {clinic.address}</option>
+                    {/each}
+                  </select>
+                </label>
+              </div>
               <fieldset class="capability-picker" disabled={selectedPerson.id === data.currentUser.id}><legend>Trained species and specialist teams <small>Check only verified training and qualifications. Unchecked areas are not assigned.</small></legend><div class="capability-grid">{#each membershipConfigFor(selectedPerson).teams.filter(team => team.active && team.id !== 'transport' && !team.receivesAllRescues) as team}<label class="capability-option"><input type="checkbox" name="teamIds" value={team.id} checked={(selectedPerson.teamIds ?? []).includes(team.id)} /><span><strong>{team.name}</strong><small>{team.description}</small></span></label>{/each}</div></fieldset>
               <fieldset class="access-group" disabled={selectedPerson.id === data.currentUser.id}>
                 <legend>Transport authorisation</legend>

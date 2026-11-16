@@ -25,7 +25,7 @@ const PLATFORM_OVERSIGHT_ROLES = new Set(['PLATFORM_ADMIN', 'AUTHORITY_ADMIN']);
  */
 export function isPlatformOversightUser(user: ChatViewer): boolean {
   return user.enabled && user.status === 'ACTIVE' &&
-    !user.roles.includes('PUBLIC_REPORTER') &&
+    !(user.roles.includes('PUBLIC_REPORTER') || user.roles.includes('VET_STAFF')) &&
     user.roles.some(role => PLATFORM_OVERSIGHT_ROLES.has(role));
 }
 export function canSelectChatOrganisation(user: ChatViewer, organisationId: string): boolean {
