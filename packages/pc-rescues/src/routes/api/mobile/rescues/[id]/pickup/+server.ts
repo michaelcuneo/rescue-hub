@@ -7,15 +7,17 @@ import { canTransportForOrganisation } from '../../../../../../../../core/care-d
 
 export const POST: RequestHandler = async ({ locals, params, request }) => {
   const user = locals.user;
-  if (!user?.organisationId || !user.enabled || user.status !== 'ACTIVE') {
+  if (!user || !user.enabled || user.status !== 'ACTIVE' ||
+      user.roles.includes('PUBLIC_REPORTER') || user.roles.includes('VET_STAFF')) {
     return json({ error: 'An active assigned volunteer is required.' }, { status: 403 });
   }
   const rescue = await getRescue(params.id);
-  if (!rescue || rescue.organisationId !== user.organisationId ||
+  if (!rescue || (rescue.organisationId !== user.organisationId &&
+      !user.roles.some(role => ['PLATFORM_ADMIN','AUTHORITY_ADMIN'].includes(role))) ||
       rescue.assignedUserId !== user.id)
     return json({ error: 'This job is not assigned to you.' }, { status: 404 });
   const canPickup = rescue.transportAnimalId ? canTransportForOrganisation(user) :
-    user.roles.some(role => ['RESCUER', 'CARER', 'ORG_ADMIN'].includes(role));
+    user.roles.some(role => ['RESCUER','CARER','ORG_ADMIN','PLATFORM_ADMIN','AUTHORITY_ADMIN'].includes(role));
   if (!canPickup) return json({ error: 'This account is not eligible to collect the animal.' }, { status: 403 });
   const body = await request.json().catch(() => ({})) as { notes?: unknown; species?: unknown; description?: unknown };
   if (body.notes !== undefined && typeof body.notes !== 'string')
