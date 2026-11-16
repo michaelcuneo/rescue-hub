@@ -1,6 +1,35 @@
 <script lang="ts">
   import type { PageData, ActionData } from './$types';
+  import { enhance } from '$app/forms';
+  import type { SubmitFunction } from '@sveltejs/kit';
+  import FeedbackModal from '$lib/components/FeedbackModal.svelte';
+  import type { FeedbackNotice } from '../../../../core/admin-feedback';
   let { data, form }: { data: PageData; form?: ActionData } = $props();
+  let lastHandledForm = $state<unknown>(null);
+  let feedback = $state<FeedbackNotice | null>(null);
+  let saving = $state(false);
+  const handleClinicSubmit: SubmitFunction = () => {
+    saving = true;
+    return async ({ result, update }) => {
+      saving = false;
+      if (result.type === 'error') {
+        feedback = { kind: 'error', title: 'Veterinary update failed',
+          message: 'The server could not process the update. The animal record is unchanged until confirmed.' };
+        return;
+      }
+      await update({ reset: result.type === 'success', invalidateAll: result.type === 'success' });
+    };
+  };
+  $effect(() => {
+    if (form && form !== lastHandledForm) {
+      lastHandledForm = form;
+      feedback = {
+        kind: form.success ? 'success' : 'error',
+        title: form.success ? 'Veterinary update saved' : 'Veterinary update not saved',
+        message: form.message ?? 'The outcome could not be confirmed. Please review the record before trying again.'
+      };
+    }
+  });
 </script>
 
 <svelte:head><title>Veterinary workspace · Rescue Hub</title></svelte:head>
@@ -13,9 +42,11 @@
     <p class="address">{data.clinic.address}</p>
   </header>
 
-  {#if form?.message}
-    <p class:success={form.success} class:failure={!form.success} role="status">{form.message}</p>
+  {#if feedback}
+    <FeedbackModal kind={feedback.kind} title={feedback.title}
+      message={feedback.message} onDismiss={() => (feedback = null)} />
   {/if}
+  {#if saving}<p class="save-progress" role="status" aria-live="polite">Saving veterinary update…</p>{/if}
 
   <section aria-labelledby="current-animals">
     <h2 id="current-animals">Animals in your care <span>({data.animals.length})</span></h2>
@@ -30,7 +61,7 @@
 
         <details>
           <summary>Record veterinary assessment or treatment</summary>
-          <form method="POST" action="?/assessment">
+          <form method="POST" use:enhance={handleClinicSubmit} action="?/assessment">
             <input type="hidden" name="animalId" value={animal.id} />
             <label for={'assessment-' + animal.id}>Clinical observations and treatment notes</label>
             <textarea id={'assessment-' + animal.id} name="notes" minlength="3" maxlength="4000" required rows="3" placeholder="Document findings and assessment…"></textarea>
@@ -41,7 +72,7 @@
         {#if !animal.ready}
           <details>
             <summary>Mark ready for care and collection</summary>
-            <form method="POST" action="?/ready">
+            <form method="POST" use:enhance={handleClinicSubmit} action="?/ready">
               <input type="hidden" name="animalId" value={animal.id} />
               <label for={'ready-' + animal.id}>Assessment, care instructions and collection notes</label>
               <textarea id={'ready-' + animal.id} name="notes" minlength="3" maxlength="4000" required rows="3" placeholder="Fit for transfer, medication needs, handling precautions…"></textarea>
@@ -53,7 +84,7 @@
 
         <details>
           <summary>Record confirmed death or euthanasia</summary>
-          <form method="POST" action="?/outcome">
+          <form method="POST" use:enhance={handleClinicSubmit} action="?/outcome">
             <input type="hidden" name="animalId" value={animal.id} />
             <label for={'outcome-' + animal.id}>Confirmed outcome</label>
             <select id={'outcome-' + animal.id} name="outcome" required>
@@ -107,8 +138,6 @@
   .helper,.footnote{font-size:12px;color:var(--rh-muted);line-height:1.6}
   .empty-state h3{margin-top:0}
   .empty-state p{color:var(--rh-muted);line-height:1.5}
-  .success,.failure{padding:12px 16px;border-radius:9px;background:var(--rh-surface-soft)}
-  .success{border:1px solid var(--rh-border)}
-  .failure{color:var(--rh-danger-text);border:1px solid var(--rh-border)}
+  .save-progress{padding:12px 16px;border-radius:9px;border:1px solid var(--rh-border);background:var(--rh-surface-soft);font-weight:750}
   @media(max-width:600px){.animal-heading{flex-direction:column}.state{white-space:normal}article,.empty-state{padding:15px}}
 </style>
