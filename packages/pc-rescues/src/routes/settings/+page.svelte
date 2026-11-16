@@ -20,10 +20,6 @@
   const selectedTeams = $derived(
     data.membership?.teams.filter(team => data.profile.teamIds.includes(team.id)).map(team => team.name) ?? []
   );
-  const membershipName = $derived(
-    data.membership?.membershipTypes.find(type => type.id === data.profile.membershipTypeId)?.name ??
-      data.profile.membershipTypeId ?? 'No active membership assigned'
-  );
 
   function editDay(day: Weekday, changes: Partial<AvailabilityPolicy['week'][Weekday]>) {
     policy.week[day] = { ...policy.week[day], ...changes };
@@ -85,15 +81,14 @@
       <section class="settings-panel" aria-labelledby="account-heading">
       <div class="section-heading">
         <UserRound size={21} aria-hidden="true" />
-        <h2 id="account-heading">Account and membership</h2>
+        <h2 id="account-heading">Account and permissions</h2>
       </div>
       <dl class="account-details">
         <div><dt>Name</dt><dd>{data.profile.name}</dd></div>
         <div><dt>Email</dt><dd>{data.profile.email}</dd></div>
         <div><dt>Organisation</dt><dd>{data.membership?.organisationId ?? 'No organisation'}</dd></div>
-        <div><dt>Membership</dt><dd>{membershipName}</dd></div>
         <div><dt>Roles</dt><dd>{data.profile.roles.map(role => role.replaceAll('_', ' ')).join(' · ')}</dd></div>
-        <div><dt>Dispatch teams</dt><dd>{selectedTeams.length ? selectedTeams.join(' · ') : 'None assigned'}</dd></div>
+        <div><dt>Trained areas</dt><dd>{selectedTeams.length ? selectedTeams.join(' · ') : 'None assigned'}</dd></div>
       </dl>
       <p class="help">Roles and species qualifications are managed by your organisation administrator. Changing availability does not grant any additional permissions.</p>
     </section>
