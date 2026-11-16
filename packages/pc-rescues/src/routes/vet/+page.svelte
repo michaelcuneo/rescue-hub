@@ -15,7 +15,7 @@
       saving = false;
       if (result.type === 'error') {
         feedback = { kind: 'error', title: 'Veterinary update failed',
-          message: 'The server could not process the update. The animal record is unchanged until confirmed.' };
+          message: 'The server could not confirm this update. Refresh the animal record before trying again to avoid a duplicate.' };
         return;
       }
       await update({ reset: result.type === 'success', invalidateAll: result.type === 'success' });
