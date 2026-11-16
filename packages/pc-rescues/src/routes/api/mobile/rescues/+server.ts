@@ -10,6 +10,7 @@ import {
 import type { RequestHandler } from './$types';
 import { canRescueForOrganisation, canTransportForOrganisation } from '../../../../../../core/care-delivery';
 import { reconcileRescueSnapshots } from '../../../../../../core/rescue-feed-reconciliation';
+import { mobileRescueVisibility } from '../../../../../../core/mobile-rescue-visibility';
 
 /**
  * An OFF-duty member can still browse the open rescues their assigned team
@@ -17,8 +18,12 @@ import { reconcileRescueSnapshots } from '../../../../../../core/rescue-feed-rec
  */
 export const GET: RequestHandler = async ({ locals }) => {
   const user = locals.user;
-  if (!user?.organisationId || !user.enabled || user.status !== 'ACTIVE') return json({ error: 'Authentication required.' }, { status: 401 });
-  const membership = await getOrganisationMembershipConfig(user.organisationId);
+  if (!user || !user.enabled || user.status !== 'ACTIVE' ||
+      user.roles.includes('PUBLIC_REPORTER') || user.roles.includes('VET_STAFF') ||
+      (!user.organisationId && !user.roles.some(role => ['PLATFORM_ADMIN','AUTHORITY_ADMIN'].includes(role))))
+    return json({ error: 'Active rescue organisation or platform access required.' }, { status: 403 });
+  const membership = user.organisationId
+    ? await getOrganisationMembershipConfig(user.organisationId) : null;
   let nextToken: string | undefined;
   // Both sources are projections of the same rescue table. A nonempty AppSync
   // result can still be stale, so ALWAYS reconcile it with the desktop GSI.
@@ -58,7 +63,7 @@ export const GET: RequestHandler = async ({ locals }) => {
   const pending = inOrganisation.filter((rescue) => rescue.status === 'PENDING' && !rescue.assignedUserId && !rescue.awaitingCarer);
   const permittedRole = canRescueForOrganisation(user) || canTransportForOrganisation(user);
   const qualified = pending.filter((rescue) =>
-    (rescue.transportAnimalId ? canTransportForOrganisation(user) : canRescueForOrganisation(user) && memberCanReceiveCapability(
+    (rescue.transportAnimalId ? canTransportForOrganisation(user) : canRescueForOrganisation(user) && membership !== null && memberCanReceiveCapability(
       user.teamIds,
       membership,
       classifyDispatchCapability(rescue.type, rescue.breed ?? '')
@@ -66,25 +71,23 @@ export const GET: RequestHandler = async ({ locals }) => {
   );
   const canBrowse = user.enabled && user.status === 'ACTIVE' && permittedRole;
 
-  // Current custody (not historical claimant) governs ongoing care visibility.
-  // After every registered animal has been accepted by another custodian,
-  // the original rescuer's completed handoff disappears from their queue.
   const finalOutcomes = new Set(['RELEASED', 'EUTHANISED', 'DECEASED']);
-  const currentCustody = (await listCustodianAnimals(user.organisationId, user.id))
-    .filter(animal => !finalOutcomes.has(animal.status));
+  const currentCustody = user.organisationId
+    ? (await listCustodianAnimals(user.organisationId, user.id))
+        .filter(animal => !finalOutcomes.has(animal.status)) : [];
   const custodianRescueIds = new Set(currentCustody.map(animal => animal.rescueId));
-  const owned = inOrganisation.filter(rescue => rescue.assignedUserId === user.id &&
-    !['COMPLETED', 'CANCELLED'].includes(rescue.status));
+  // Keep all of MY assignments in the list, including ones previously picked
+  // up or handed to a vet. Only the map pin disappears at physical collection.
+  // A platform administrator without an organisation can still see assignments
+  // explicitly made to their own identity, never arbitrary other-org cases.
+  const owned = rescues.filter(rescue =>
+    rescue.assignedUserId === user.id &&
+    (rescue.organisationId === user.organisationId ||
+      user.roles.some(role => ['PLATFORM_ADMIN','AUTHORITY_ADMIN'].includes(role))));
   const ownedAnimalGroups = await Promise.all(owned.map(async rescue => ({
     id: rescue.id,
-    animals: await listRescueAnimals(rescue.id, user.organisationId!)
+    animals: await listRescueAnimals(rescue.id, rescue.organisationId!)
   })));
-  const activeOwned = new Set(ownedAnimalGroups.filter(group =>
-    group.animals.length === 0 || group.animals.some(animal =>
-      animal.currentCustodianUserId === user.id && !finalOutcomes.has(animal.status)
-    )
-  ).map(group => group.id));
-
   const stages = new Map<string, string>();
   for (const group of ownedAnimalGroups) {
     if (group.animals.some(animal => animal.status === 'AT_VET' &&
@@ -106,18 +109,25 @@ export const GET: RequestHandler = async ({ locals }) => {
           : animal.status === 'IN_CARE' ? 'In care' : 'Rescue in progress');
   }
 
-  const items = inOrganisation.filter(rescue =>
-    activeOwned.has(rescue.id) ||
-    custodianRescueIds.has(rescue.id) ||
-    (canBrowse && rescue.status === 'PENDING' && !rescue.assignedUserId && !rescue.awaitingCarer &&
-      (rescue.transportAnimalId ? canTransportForOrganisation(user) : canRescueForOrganisation(user) && memberCanReceiveCapability(
-        user.teamIds, membership, classifyDispatchCapability(rescue.type, rescue.breed ?? '')
-      )))
-  ).map(rescue => ({
-    ...rescue,
-    custodyRole: custodianRescueIds.has(rescue.id) ? 'CUSTODIAN' : undefined,
-    stageLabel: rescue.transportAnimalId ? 'Transport pickup job' : stages.get(rescue.id)
-  }));
+  const items = rescues.flatMap(rescue => {
+    const qualification = rescue.organisationId === user.organisationId &&
+      rescue.status === 'PENDING' && !rescue.assignedUserId && !rescue.awaitingCarer &&
+      (rescue.transportAnimalId ? canTransportForOrganisation(user) :
+        canRescueForOrganisation(user) && membership !== null && memberCanReceiveCapability(
+          user.teamIds, membership, classifyDispatchCapability(rescue.type, rescue.breed ?? '')
+        ));
+    const visibility = mobileRescueVisibility(
+      user, rescue, custodianRescueIds.has(rescue.id), qualification
+    );
+    if (!visibility) return [];
+    return [{
+      ...rescue,
+      custodyRole: custodianRescueIds.has(rescue.id) ? 'CUSTODIAN' as const : undefined,
+      visibility,
+      stageLabel: rescue.transportAnimalId ? 'Transport pickup job' :
+        stages.get(rescue.id) ?? (rescue.pickedUpAt ? 'Collected · history available' : undefined)
+    }];
+  });
 
   return json({
     items,
@@ -128,6 +138,7 @@ export const GET: RequestHandler = async ({ locals }) => {
       pendingRescues: pending.length,
       qualifiedPending: qualified.length,
       visibleRescues: items.length,
+      assignedToMe: items.filter(item => item.assignedUserId === user.id).length,
       canBrowse,
       organisationId: user.organisationId,
       teamIds: user.teamIds

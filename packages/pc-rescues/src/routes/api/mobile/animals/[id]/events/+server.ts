@@ -1,16 +1,25 @@
 import { json } from '@sveltejs/kit';
 import { getUserById } from '$lib/server/auth';
-import { getOrganisationMembershipConfig, memberCanReceiveCapability } from '$lib/server/membership';
+import { getOrganisationMembershipConfig } from '$lib/server/membership';
 import { getAnimal, recordAnimalEvent, changeAnimalState, AnimalConflict } from '$lib/server/animals';
+import { getRescue } from '$lib/server/graphql';
 import type { RequestHandler } from './$types';
 
 const notesTypes = new Set(['OBSERVATION', 'VET_ASSESSMENT', 'TREATMENT', 'FEEDING', 'WEIGHT', 'REVIEW']);
 const finalStatuses = new Set(['RELEASED', 'EUTHANISED', 'DECEASED']);
 export const POST: RequestHandler = async ({ locals, params, request }) => {
   const user = locals.user;
-  if (!user?.organisationId || !user.enabled || user.status !== 'ACTIVE') return json({ error: 'Access denied.' }, { status: 403 });
+  if (!user || !user.enabled || user.status !== 'ACTIVE' ||
+      user.roles.includes('PUBLIC_REPORTER') || user.roles.includes('VET_STAFF'))
+    return json({ error: 'Access denied.' }, { status: 403 });
   const animal = await getAnimal(params.id);
-  if (!animal || animal.organisationId !== user.organisationId) return json({ error: 'Animal not found.' }, { status: 404 });
+  if (!animal) return json({ error: 'Animal not found.' }, { status: 404 });
+  const source = await getRescue(animal.rescueId);
+  const assignedSupervisor = source?.assignedUserId === user.id &&
+    user.roles.some(role => ['PLATFORM_ADMIN','AUTHORITY_ADMIN'].includes(role));
+  if (animal.organisationId !== user.organisationId && !assignedSupervisor)
+    return json({ error: 'Animal not found.' }, { status: 404 });
+  const organisationId = animal.organisationId;
   const body = await request.json().catch(() => null) as Record<string, unknown> | null;
   if (!body || typeof body.kind !== 'string') return json({ error: 'Event kind is required.' }, { status: 400 });
   const notes = typeof body.notes === 'string' ? body.notes.trim() : '';
@@ -32,13 +41,11 @@ export const POST: RequestHandler = async ({ locals, params, request }) => {
       if (typeof body.recipientUserId !== 'string' || !body.recipientUserId.trim()) return json({ error: 'Recipient is required.' }, { status: 400 });
       if (body.location !== undefined && (typeof body.location !== 'string' || body.location.length > 250)) return json({ error: 'Invalid location.' }, { status: 400 });
       const recipient = await getUserById(body.recipientUserId);
-      if (!recipient || !recipient.enabled || recipient.status !== 'ACTIVE' || recipient.organisationId !== user.organisationId) {
+      if (!recipient || !recipient.enabled || recipient.status !== 'ACTIVE' || recipient.organisationId !== organisationId) {
         return json({ error: 'Recipient must be active in this organisation.' }, { status: 400 });
       }
       const purpose = body.purpose === 'TRANSPORT' ? 'TRANSPORT' : 'CARE';
-      const teamConfig = await getOrganisationMembershipConfig(user.organisationId);
-      const canTransport = memberCanReceiveCapability(recipient.teamIds, teamConfig, 'OTHER') ||
-        recipient.roles.some(r => ['RESCUER', 'CARER'].includes(r));
+      const canTransport = recipient.canTransport === true;
       if (purpose === 'TRANSPORT' ? !canTransport : !recipient.roles.includes('CARER')) {
         return json({ error: purpose === 'TRANSPORT'
           ? 'Recipient must have transport eligibility or be an active rescuer/carer.'

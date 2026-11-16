@@ -74,20 +74,19 @@ export default function App() {
       const restored = await restoreSession();
       if (restored) {
         setSession(restored);
-        if (!restored.user.organisationId &&
-            restored.user.roles?.some(role => role === 'PLATFORM_ADMIN' || role === 'AUTHORITY_ADMIN')) {
-          setView('chats');
-        }
-        if (restored.user.organisationId && !restored.user.roles?.includes('PUBLIC_REPORTER')) {
-          setPushStatus(await registerForPushNotifications());
-        try {
-          const result = await getRescues();
-          setRescues(result.items);
-          setFeed(result.feed ?? null);
-        } catch (e) {
-          setError(e instanceof Error ? e.message : 'Unable to load rescues.');
-        }
-        await getAvailability().then(({ policy }) => setPolicy(policy)).catch(console.warn);
+        if (!restored.user.roles?.includes('PUBLIC_REPORTER') &&
+            !restored.user.roles?.includes('VET_STAFF')) {
+          if (restored.user.organisationId)
+            void registerForPushNotifications().then(setPushStatus).catch(console.warn);
+          try {
+            const result = await getRescues();
+            setRescues(result.items);
+            setFeed(result.feed ?? null);
+          } catch (e) {
+            setError(e instanceof Error ? e.message : 'Unable to load assigned rescues.');
+          }
+          if (restored.user.organisationId)
+            await getAvailability().then(({ policy }) => setPolicy(policy)).catch(console.warn);
         }
       }
       setLoading(false);
@@ -98,7 +97,10 @@ export default function App() {
   // server filters actual records by organisation/team/custodian; the websocket
   // carries no rescue or location data and has no mutation permissions.
   useEffect(() => {
-    if (!session?.user.id || !session.user.organisationId || session.user.roles?.includes('PUBLIC_REPORTER')) return;
+    if (!session?.user.id || session.user.roles?.includes('PUBLIC_REPORTER') ||
+        session.user.roles?.includes('VET_STAFF') ||
+        (!session.user.organisationId && !session.user.roles?.some(role =>
+          ['PLATFORM_ADMIN','AUTHORITY_ADMIN'].includes(role)))) return;
     const userId = session.user.id;
     let closed = false;
     let foreground = AppState.currentState === 'active';
@@ -116,19 +118,22 @@ export default function App() {
       inFlight = true;
       try {
         const [rescueResult, availabilityResult] = await Promise.all([
-          getRescues(), getAvailability()
+          getRescues(), session.user.organisationId
+            ? getAvailability().catch(() => null) : Promise.resolve(null)
         ]);
         if (closed || !foreground) return;
         setRescues(rescueResult.items);
         setFeed(rescueResult.feed ?? null);
         setSelectedMapRescue(current =>
           current ? rescueResult.items.find(rescue => rescue.id === current.id) ?? null : null);
-        setPolicy(availabilityResult.policy);
-        setSession(current => current?.user.id === userId
-          ? { ...current, user: { ...current.user,
-              availabilityStatus: availabilityResult.status,
-              availabilityPolicy: availabilityResult.policy } }
-          : current);
+        if (availabilityResult) {
+          setPolicy(availabilityResult.policy);
+          setSession(current => current?.user.id === userId
+            ? { ...current, user: { ...current.user,
+                availabilityStatus: availabilityResult.status,
+                availabilityPolicy: availabilityResult.policy } }
+            : current);
+        }
         setError('');
       } catch (e) {
         if (!closed && foreground) {
@@ -202,6 +207,11 @@ export default function App() {
     };
   }, [session?.user.id]);
 
+  const sortedRescues = useMemo(() => [...rescues].sort((a,b) =>
+    Number(b.assignedUserId === session?.user.id) - Number(a.assignedUserId === session?.user.id)
+  ), [rescues, session?.user.id]);
+  const myAssignedCount = rescues.filter(item => item.assignedUserId === session?.user.id).length;
+
   const teamNames = useMemo(() => {
     if (!session) return [];
     const ids = new Set(session.user.teamIds);
@@ -214,16 +224,16 @@ export default function App() {
     try {
       const result = await login(email.trim(), password);
       setSession({ user: result.user, membership: result.membership });
-      if (!result.user.organisationId &&
-          result.user.roles?.some(role => role === 'PLATFORM_ADMIN' || role === 'AUTHORITY_ADMIN')) {
-        setView('chats');
-      }
-      if (result.user.organisationId && !result.user.roles?.includes('PUBLIC_REPORTER')) {
-        setPushStatus(await registerForPushNotifications());
+      if (!result.user.roles?.includes('PUBLIC_REPORTER') &&
+          !result.user.roles?.includes('VET_STAFF')) {
+        setView('map');
+        if (result.user.organisationId)
+          void registerForPushNotifications().then(setPushStatus).catch(console.warn);
         const initial = await getRescues();
         setRescues(initial.items);
         setFeed(initial.feed ?? null);
-        await getAvailability().then(({ policy }) => setPolicy(policy)).catch(console.warn);
+        if (result.user.organisationId)
+          await getAvailability().then(({ policy }) => setPolicy(policy)).catch(console.warn);
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Unable to sign in.');
@@ -497,6 +507,12 @@ export default function App() {
         ) : null}
       </View>
 
+      {myAssignedCount > 0 ? (
+        <Pressable style={styles.assignmentBanner} accessibilityRole="button"
+          onPress={() => setView('list')}>
+          <Text style={styles.assignmentBannerText}>My assignments: {myAssignedCount} · View assigned rescues</Text>
+        </Pressable>
+      ) : null}
       {error ? <Text style={styles.errorBanner}>{error}</Text> : null}
       {!error && feed && rescues.length === 0 ? (
         <Text style={styles.feedNotice}>
@@ -546,7 +562,7 @@ export default function App() {
         </View>
       ) : (
         <FlatList
-          data={rescues}
+          data={sortedRescues}
           style={styles.rescueList}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.list}
@@ -584,6 +600,8 @@ export default function App() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#edf1ee' },
+  assignmentBanner: {backgroundColor:'#dceae1',borderColor:'#91b39d',borderWidth:1,marginHorizontal:12,marginVertical:6,padding:12,borderRadius:10},
+  assignmentBannerText: {color:'#173d2c',fontSize:14,fontWeight:'800'},
   loading: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   login: { flexGrow: 1, justifyContent: 'center', padding: 28, gap: 12, paddingBottom: 56 },
   kicker: { color: '#648074', fontSize: 11, fontWeight: '800', letterSpacing: 1.4 },
