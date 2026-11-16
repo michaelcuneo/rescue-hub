@@ -5,15 +5,11 @@
   import { data as rescueData, people, selectedRescue, routingExceptions } from '$lib/stores';
   import { subscribeRescueChanges, type RealtimeConfig } from '../../../core/realtime-client';
   import type { PageData } from './$types';
+  import { pinForRescue } from '../../../core/rescue-pin-groups';
 
   let { data }: { data: PageData } = $props();
 
   type RescueRecord = PageData['rescues'][number];
-  const colourForStatus = (status: string) => {
-    if (status === 'ASSIGNED') return 'ffbf00';
-    if (status === 'COMPLETED') return '238823';
-    return 'd2222d';
-  };
   function showRescues(rescues: RescueRecord[]) {
     const mapped = rescues.map(rescue => ({
       ...rescue,
@@ -21,7 +17,7 @@
       location: rescue.location ?? '',
       injury: rescue.injury ?? '',
       assignedUserId: rescue.assignedUserId ?? undefined,
-      color: colourForStatus(rescue.status),
+      color: pinForRescue(rescue).color.slice(1),
       disabled: false
     }));
     rescueData.set({
