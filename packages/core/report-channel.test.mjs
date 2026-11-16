@@ -9,9 +9,9 @@ test('phone and online are intake channels for one dispatch pipeline', () => {
   assert.equal(reportChannel({ id: 'phone-report-report123' }), 'PHONE');
   assert.equal(reportChannelLabel({ id: 'public-report-report123' }), 'Online report');
 });
-test('historical rescues without provenance are not falsely called phone reports', () => {
+test('historical rescues without provenance use legacy online display label and retain unverified metadata', () => {
   assert.equal(reportChannel({ id: 'old-unknown' }), 'UNVERIFIED');
-  assert.equal(reportChannelLabel({ id: 'old-unknown' }), 'Public report');
+  assert.equal(reportChannelLabel({ id: 'old-unknown' }), 'Online report');
 });
 test('online prefix is authoritative even if stored metadata is stale', () => {
   assert.equal(reportChannel({ id: 'public-report-123', intakeSource: 'PHONE' }), 'ONLINE');
