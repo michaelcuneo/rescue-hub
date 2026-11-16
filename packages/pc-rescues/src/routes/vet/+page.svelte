@@ -8,7 +8,8 @@
   let lastHandledForm = $state<unknown>(null);
   let feedback = $state<FeedbackNotice | null>(null);
   let saving = $state(false);
-  const handleClinicSubmit: SubmitFunction = () => {
+  const handleClinicSubmit: SubmitFunction = ({ cancel }) => {
+    if (saving) { cancel(); return; }
     saving = true;
     return async ({ result, update }) => {
       saving = false;
