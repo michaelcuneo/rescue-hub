@@ -1,8 +1,10 @@
-export type FieldActor = { id:string; organisationId?:string|null; enabled:boolean; status:string };
+export type FieldActor = { id:string; organisationId?:string|null; enabled:boolean; status:string; roles?:string[] };
 export type FieldRescue = { organisationId?:string|null; assignedUserId?:string|null; status:string; transportAnimalId?:string|null };
 export function canUpdateOwnRescue(user:FieldActor|null|undefined,rescue:FieldRescue|null|undefined):boolean {
-  return Boolean(user && rescue && user.enabled && user.status==='ACTIVE' && user.organisationId &&
-    user.organisationId===rescue.organisationId && rescue.assignedUserId===user.id &&
+  return Boolean(user && rescue && user.enabled && user.status==='ACTIVE' &&
+    (user.organisationId===rescue.organisationId ||
+      user.roles?.some(role=>['PLATFORM_ADMIN','AUTHORITY_ADMIN'].includes(role))) &&
+    rescue.organisationId && rescue.assignedUserId===user.id &&
     rescue.status==='ASSIGNED' && !rescue.transportAnimalId);
 }
 export type QuickVetAction = 'GOING_TO_VET'|'HANDED_TO_VET';
