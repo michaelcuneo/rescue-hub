@@ -55,7 +55,7 @@ export const actions: Actions = {
   assessment: async ({ locals, request }) => withAnimal(locals.user, request,
     async (animal, _clinic, notes) => {
       await recordAnimalEvent(animal, locals.user!.id, {
-        type: 'VET_ASSESSMENT', notes, source: 'DIRECT',
+        type: 'VET_ASSESSMENT', notes, source: 'VET_PORTAL',
         coordinatorOverride: true
       });
     }),
