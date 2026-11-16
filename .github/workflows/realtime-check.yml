@@ -6,6 +6,7 @@ on:
       - deploy/rescue-demo-domain
   push:
     branches:
+      - fix/admin-feedback-and-positions
       - feature/veterinary-clinic-portal
       - fix/simplify-membership-and-invite-scroll
       - feature/explicit-member-roles-training-transport
@@ -62,6 +63,8 @@ jobs:
         run: node --experimental-strip-types --test packages/core/rescue-pin-geojson.test.mjs
       - name: Keyboard occlusion geometry regression tests
         run: node --experimental-strip-types --test packages/core/keyboard-geometry.test.mjs
+      - name: Organisation position and administration feedback regression tests
+        run: node --experimental-strip-types --test packages/core/organisation-position.test.mjs packages/core/admin-feedback.test.mjs
       - name: Veterinary clinic access policy tests
         run: node --experimental-strip-types --test packages/core/vet-access.test.mjs
       - name: Direct chat identity and membership tests
