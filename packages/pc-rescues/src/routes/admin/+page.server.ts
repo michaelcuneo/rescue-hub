@@ -148,7 +148,6 @@ export const actions: Actions = {
 		const email = requiredString(form, 'email').toLowerCase();
 		const requestedOrganisationId = requiredString(form, 'organisationId');
     const requestedRoles = [...new Set(form.getAll('roles').map(String))] as RescueHubRole[];
-    const membershipTypeId = requiredString(form, 'membershipTypeId');
     const teamIds = [...new Set(form.getAll('teamIds').map(String).filter(Boolean))];
     const positionIds = [...new Set(form.getAll('positionIds').map(String).filter(Boolean))];
     const canTransport = form.get('canTransport') === 'on';
@@ -168,10 +167,9 @@ export const actions: Actions = {
       return fail(403, { action: 'inviteUser', error: 'You cannot grant one of the selected access roles.' });
     }
 		const membership = await getOrganisationMembershipConfig(organisationId);
-    if ((membershipTypeId && !membership.membershipTypes.some(type => type.id === membershipTypeId && type.active)) ||
-        teamIds.some(id => !membership.teams.some(team => team.id === id && team.active)) ||
+    if (teamIds.some(id => !membership.teams.some(team => team.id === id && team.active)) ||
         positionIds.some(id => !membership.positions.some(position => position.id === id && position.active))) {
-      return fail(400, { action: 'inviteUser', error: 'Invalid operational membership, training areas, or organisation positions.' });
+      return fail(400, { action: 'inviteUser', error: 'Invalid training areas or organisation positions.' });
     }
 
 		try {
@@ -180,7 +178,6 @@ export const actions: Actions = {
 				email,
 				organisationId,
         roles: requestedRoles,
-        membershipTypeId,
         teamIds,
         positionIds,
         canTransport
@@ -308,7 +305,6 @@ export const actions: Actions = {
 		const form = await request.formData();
 		const userId = requiredString(form, 'userId');
     const roles = [...new Set(form.getAll('roles').map(String))] as RescueHubRole[];
-    const membershipTypeId = requiredString(form, 'membershipTypeId');
     const teamIds = [...new Set(form.getAll('teamIds').map(String).filter(Boolean))];
     const canTransport = form.get('canTransport') === 'on';
 		// Read the current account on the server: never trust roles sent by the browser.
@@ -326,16 +322,13 @@ export const actions: Actions = {
 			return fail(400, { action: 'updateMemberAccess', error: 'The account must belong to an organisation.' });
 		}
 		const config = await getOrganisationMembershipConfig(target.organisationId);
-		if (membershipTypeId && !config.membershipTypes.some(type => type.id === membershipTypeId && type.active)) {
-			return fail(400, { action: 'updateMemberAccess', error: 'Select an active operational membership.' });
-		}
 		if (teamIds.some(id => !config.teams.some(team => team.id === id && team.active))) {
 			return fail(400, { action: 'updateMemberAccess', error: 'Invalid or inactive dispatch team selected.' });
 		}
 		try {
 			await updateUserAccess({
         userId, expectedRoles: target.roles, roles,
-        membershipTypeId, teamIds, canTransport
+        teamIds, canTransport
 			});
 			return { action: 'updateMemberAccess', success: true };
 		} catch (error) {
