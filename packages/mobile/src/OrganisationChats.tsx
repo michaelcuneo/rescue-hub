@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, FlatList, ScrollView, Pressable,
+import { ActivityIndicator, FlatList, Modal, ScrollView, Pressable,
   SafeAreaView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { KeyboardAwareView, KeyboardAwareTextInput } from './KeyboardAware';
 import { getChatChannels, getChannelMessages, markChannelRead,
@@ -18,6 +18,7 @@ export default function OrganisationChats({ userId, initialChannelId, onOpenAnim
   const [showChannelPeople, setShowChannelPeople] = useState(false);
   const [organisations, setOrganisations] = useState<ChatOrganisation[]>([]);
   const [organisationId, setOrganisationId] = useState('');
+  const [organisationPickerOpen, setOrganisationPickerOpen] = useState(false);
   const organisationRef = useRef('');
   const [selected, setSelected] = useState<string | null>(initialChannelId ?? null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -133,6 +134,7 @@ export default function OrganisationChats({ userId, initialChannelId, onOpenAnim
     } catch (e) { setError(e instanceof Error ? e.message : 'Unable to send message.'); }
     finally { setBusy(false); }
   };
+  const currentOrganisation = organisations.find(org => org.id === organisationId);
   const activeChannel = channels.find(channel => channel.id === selected);
   const recipient = members.find(member => member.id === activeChannel?.recipientUserId);
   const busyRecipient = activeChannel?.recipientAvailability === 'BUSY' || recipient?.availability === 'BUSY';
@@ -141,6 +143,7 @@ export default function OrganisationChats({ userId, initialChannelId, onOpenAnim
     .sort((a,b) => ({ AVAILABLE:0, BUSY:1, OFFLINE:2 })[a.availability] -
       ({ AVAILABLE:0, BUSY:1, OFFLINE:2 })[b.availability] || a.name.localeCompare(b.name));
   const changeOrganisation = (id: string) => {
+    setOrganisationPickerOpen(false);
     if (id === organisationRef.current) return;
     organisationRef.current = id;
     setOrganisationId(id);
@@ -160,17 +163,16 @@ export default function OrganisationChats({ userId, initialChannelId, onOpenAnim
     {!selected ? <>
       <View style={styles.heading}><Text style={styles.title}>Chats</Text>
         <Text style={styles.subtitle}>Your organisation and care groups</Text>
-        {organisations.length > 1 ? <View style={styles.organisations}>
-          <Text style={styles.organisationLabel}>Viewing organisation</Text>
-          <ScrollView style={styles.organisationScroll} nestedScrollEnabled keyboardShouldPersistTaps="handled">
-          {organisations.map(org => <Pressable key={org.id} accessibilityRole="button"
-            accessibilityState={{ selected: organisationId === org.id }}
-            style={[styles.organisationButton, organisationId === org.id && styles.organisationSelected]}
-            onPress={() => changeOrganisation(org.id)}>
-            <Text style={organisationId === org.id ? styles.organisationTextSelected : styles.organisationText}>{org.name}</Text>
-          </Pressable>)}
-          </ScrollView>
-        </View> : null}
+        {organisations.length > 1 ? <Pressable style={styles.organisationPicker}
+          accessibilityRole="button" accessibilityState={{ expanded: organisationPickerOpen }}
+          accessibilityLabel={`Viewing organisation: ${currentOrganisation?.name ?? 'Choose organisation'}. Change organisation`}
+          onPress={() => setOrganisationPickerOpen(true)}>
+          <Text style={styles.organisationPickerLabel}>Viewing organisation</Text>
+          <Text style={styles.organisationPickerName} numberOfLines={1}>
+            {currentOrganisation?.name ?? 'Select organisation'}
+          </Text>
+          <Text style={styles.organisationChevron} accessibilityElementsHidden>⌄</Text>
+        </Pressable> : null}
       </View>
       {loading ? <ActivityIndicator /> : null}
       {error ? <Text style={styles.error} accessibilityRole="alert">{error}</Text> : null}
@@ -293,17 +295,60 @@ export default function OrganisationChats({ userId, initialChannelId, onOpenAnim
         </View>
       </View>
     </>}
-  </KeyboardAwareView></SafeAreaView>;
+  </KeyboardAwareView>
+  <Modal visible={organisationPickerOpen && organisations.length > 1} transparent
+    animationType="fade" onRequestClose={() => setOrganisationPickerOpen(false)}>
+    <View style={styles.pickerOverlay}>
+      <Pressable style={StyleSheet.absoluteFill} accessibilityRole="button"
+        accessibilityLabel="Close organisation selector"
+        onPress={() => setOrganisationPickerOpen(false)} />
+      <View style={styles.organisationMenu} accessibilityViewIsModal>
+        <View style={styles.organisationMenuHeader}>
+          <Text style={styles.organisationMenuTitle}>Switch organisation</Text>
+          <Pressable accessibilityRole="button" accessibilityLabel="Close organisation selector"
+            onPress={() => setOrganisationPickerOpen(false)}>
+            <Text style={styles.organisationMenuClose}>Close</Text>
+          </Pressable>
+        </View>
+        <ScrollView style={styles.organisationMenuScroll} nestedScrollEnabled
+          keyboardShouldPersistTaps="handled">
+          {organisations.map(org => <Pressable key={org.id} accessibilityRole="button"
+            accessibilityState={{ selected: organisationId === org.id }}
+            style={[styles.organisationMenuOption, organisationId === org.id && styles.organisationMenuOptionSelected]}
+            onPress={() => changeOrganisation(org.id)}>
+            <Text style={[styles.organisationMenuOptionText, organisationId === org.id && styles.organisationMenuOptionTextSelected]}
+              numberOfLines={2}>{org.name}</Text>
+            {organisationId === org.id ? <Text style={styles.organisationTick}>✓</Text> : null}
+          </Pressable>)}
+        </ScrollView>
+      </View>
+    </View>
+  </Modal>
+  </SafeAreaView>;
 }
 const styles=StyleSheet.create({
-  root:{flex:1,backgroundColor:'#f5f7f5'},heading:{padding:20,paddingBottom:10},
-  organisations:{gap:6,marginTop:12,maxHeight:220},
-  organisationScroll:{maxHeight:175},
-  organisationLabel:{fontSize:12,fontWeight:'700',color:'#4c6755'},
-  organisationButton:{padding:9,borderWidth:1,borderColor:'#d4e1d7',borderRadius:9,backgroundColor:'#fff'},
-  organisationSelected:{backgroundColor:'#173d2c'},
-  organisationText:{fontSize:12,color:'#173d2c'},
-  organisationTextSelected:{fontSize:12,color:'#fff',fontWeight:'700'},
+  root:{flex:1,backgroundColor:'#f5f7f5'},heading:{paddingHorizontal:20,paddingTop:14,paddingBottom:10},
+  organisationPicker:{flexDirection:'row',alignItems:'center',gap:8,marginTop:10,minHeight:46,
+    paddingHorizontal:12,borderWidth:1,borderColor:'#d4e1d7',borderRadius:10,backgroundColor:'#fff'},
+  organisationPickerLabel:{fontSize:11,fontWeight:'700',color:'#587164'},
+  organisationPickerName:{flex:1,minWidth:0,fontSize:13,fontWeight:'800',color:'#173d2c',textAlign:'right'},
+  organisationChevron:{fontSize:21,fontWeight:'700',color:'#24583f',marginTop:-4},
+  pickerOverlay:{flex:1,justifyContent:'center',alignItems:'center',padding:20,
+    backgroundColor:'rgba(10,29,19,0.4)'},
+  organisationMenu:{width:'100%',maxWidth:440,maxHeight:'65%',borderRadius:16,
+    backgroundColor:'#fff',padding:12,shadowColor:'#000',shadowOpacity:0.18,shadowRadius:18,elevation:12},
+  organisationMenuHeader:{flexDirection:'row',alignItems:'center',justifyContent:'space-between',
+    paddingHorizontal:6,paddingVertical:8},
+  organisationMenuTitle:{fontSize:16,fontWeight:'800',color:'#173d2c'},
+  organisationMenuClose:{fontSize:13,fontWeight:'700',color:'#24583f',padding:8},
+  organisationMenuScroll:{flexGrow:0},
+  organisationMenuOption:{flexDirection:'row',alignItems:'center',justifyContent:'space-between',
+    minHeight:48,paddingHorizontal:12,paddingVertical:10,marginTop:4,borderRadius:10,
+    borderWidth:1,borderColor:'#e0e8e2',backgroundColor:'#fff'},
+  organisationMenuOptionSelected:{borderColor:'#8bb4a0',backgroundColor:'#eaf4ed'},
+  organisationMenuOptionText:{flex:1,fontSize:14,color:'#173d2c'},
+  organisationMenuOptionTextSelected:{fontWeight:'800'},
+  organisationTick:{fontSize:18,fontWeight:'800',color:'#176c4b',marginLeft:12},
   title:{fontSize:29,fontWeight:'800',color:'#173d2c'},
   subtitle:{fontSize:12,color:'#718077',marginTop:3},
   memberButton:{color:'#24583f',fontWeight:'700',fontSize:12,paddingHorizontal:7},
