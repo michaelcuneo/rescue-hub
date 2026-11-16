@@ -675,13 +675,27 @@
                 <label><span>Longitude</span><input name="longitude" type="number" step="any" min="-180" max="180" required placeholder="151.76" /></label>
                 <button class="primary-action" type="submit">Add clinic</button>
               </form>
-              {#each data.organisations as organisation}
-                {#if data.vetClinicDirectory[organisation.id]?.length}
-                  <p class="permission-help"><strong>{organisation.displayName}:</strong>
-                    {data.vetClinicDirectory[organisation.id].map(clinic => clinic.name).join(' · ')}
-                  </p>
+              <div class="clinic-directory">
+                <h4>Registered clinics</h4>
+                {#each data.organisations as organisation}
+                  {#if data.vetClinicDirectory[organisation.id]?.length}
+                    <div class="clinic-organisation">
+                      <h5>{organisation.displayName}</h5>
+                      <div class="clinic-list">
+                        {#each data.vetClinicDirectory[organisation.id] as clinic (clinic.id)}
+                          <article class="clinic-entry">
+                            <strong>{clinic.name}</strong>
+                            <span>{clinic.address}</span>
+                          </article>
+                        {/each}
+                      </div>
+                    </div>
+                  {/if}
+                {/each}
+                {#if !data.organisations.some(org => (data.vetClinicDirectory[org.id]?.length ?? 0) > 0)}
+                  <p class="permission-help">No approved veterinary clinics registered yet.</p>
                 {/if}
-              {/each}
+              </div>
             </div>
           </section>
         {/if}
@@ -881,6 +895,14 @@
   .management-heading p { margin:0; color:var(--rh-muted); font-size:13px; line-height:1.65; max-width:760px; }
   .management-form { display:grid; gap:18px; max-width:850px; min-width:0; }
   .management-form > h3 { display:none; }
+  .clinic-directory { display:grid; gap:15px; padding-top:14px; border-top:1px solid var(--rh-border); }
+  .clinic-directory h4 { margin:0; font-size:15px; }
+  .clinic-organisation { display:grid; gap:9px; }
+  .clinic-organisation h5 { margin:0; font-size:12px; font-weight:750; color:var(--rh-muted); }
+  .clinic-list { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr)); gap:10px; }
+  .clinic-entry { display:grid; align-content:start; gap:6px; padding:13px 15px; border:1px solid var(--rh-border); border-radius:10px; background:var(--rh-surface-soft); }
+  .clinic-entry strong { font-size:13px; color:var(--rh-text); }
+  .clinic-entry span { font-size:12px; color:var(--rh-muted); line-height:1.5; overflow-wrap:anywhere; }
   .management-form > .permission-help { max-width:720px; }
   .management-form .position-create { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; align-items:end; }
   .management-form .position-create label { min-width:0; width:100%; }
