@@ -34,7 +34,8 @@ export function canDirectChat(sender: DirectMember, recipient: DirectMember): bo
     recipient.enabled && recipient.status === 'ACTIVE' &&
     sender.id !== recipient.id &&
     sender.organisationId && sender.organisationId === recipient.organisationId &&
-    !sender.roles.includes('PUBLIC_REPORTER') && !recipient.roles.includes('PUBLIC_REPORTER'));
+    !sender.roles.includes('PUBLIC_REPORTER') && !recipient.roles.includes('PUBLIC_REPORTER') &&
+    !sender.roles.includes('VET_STAFF') && !recipient.roles.includes('VET_STAFF'));
 }
 
 export function displayMemberLabels(
