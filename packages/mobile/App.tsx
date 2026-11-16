@@ -584,6 +584,7 @@ export default function App() {
                   <Text style={styles.primaryButtonText}>Change availability in Settings to claim</Text>
                 </Pressable>
               ) : (selectedMapRescue.assignedUserId === session.user.id || selectedMapRescue.custodyRole === 'CUSTODIAN') ? (
+                <>
                 <Pressable style={styles.claimButton} onPress={() => setActiveRescue(selectedMapRescue)}
                   accessibilityRole="button">
                   <Text style={styles.primaryButtonText}>Manage animals and care history</Text>
@@ -594,6 +595,7 @@ export default function App() {
                     <Text style={styles.headerActionText}>Release my claim</Text>
                   </Pressable>
                 ) : null}
+                </>
               ) : null}
             </View>
           ) : null}
