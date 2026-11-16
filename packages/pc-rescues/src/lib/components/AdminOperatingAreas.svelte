@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { env } from '$env/dynamic/public';
 	import { Map, controls } from '@beyonk/svelte-mapbox';
+  import type { FeedbackNotice } from '../../../../core/admin-feedback';
+  let { onNotice }: { onNotice?: (notice: FeedbackNotice) => void } = $props();
 
 	type OperatingAreaCollection = {
 		type: 'FeatureCollection';
