@@ -13,6 +13,6 @@ export function reportChannelLabel(rescue: RescueOrigin): string {
   switch (reportChannel(rescue)) {
     case 'PHONE': return 'Phone report';
     case 'ONLINE': return 'Online report';
-    default: return 'Public report';
+    default: return 'Online report';
   }
 }
