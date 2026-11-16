@@ -86,7 +86,7 @@ export const POST: RequestHandler = async ({ locals, params, request }) => {
     // A simple one-step dropoff also works for members who forgot to mark the
     // travel milestone. It records clinic physical custody, not a final outcome.
     animal = await changeAnimalState(animal, user!.id, {
-      kind: 'VET_DROPOFF', location: command.clinic, notes: command.notes
+      kind: 'VET_DROPOFF', location: command.clinic, clinicId: command.clinicId, notes: command.notes
     });
     return json({ animal, message: 'Handed to vet. The clinic holds the animal; its record stays open for updates and future transport.' });
   } catch (error) {
