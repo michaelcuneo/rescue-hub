@@ -103,8 +103,8 @@ export async function resolveChatOrganisation(user: RescueHubUser, selected?: st
 
 export async function listChatOrganisations(user: RescueHubUser):
   Promise<Array<{ id: string; name: string }>> {
-  if (!user.enabled || user.status !== 'ACTIVE' || user.roles.includes('PUBLIC_REPORTER'))
-    throw new ChatAccessError('Chat access requires an active account.');
+  if (!user.enabled || user.status !== 'ACTIVE' || (user.roles.includes('PUBLIC_REPORTER') || user.roles.includes('VET_STAFF')))
+    throw new ChatAccessError('Chat access requires an authorised organisation role.');
   if (!isPlatformOversightUser(user)) {
     if (!user.organisationId) throw new ChatAccessError('Organisation membership required.');
     return [{ id: user.organisationId, name: user.organisationId }];
@@ -152,7 +152,7 @@ export async function listChatDirectory(
   const teamNames = new Map(config.teams.filter(item => item.active).map(item => [item.id, item.name]));
   return people.filter(person =>
     person.organisationId === org && person.enabled && person.status === 'ACTIVE' &&
-    !person.roles.includes('PUBLIC_REPORTER') &&
+    !person.roles.includes('PUBLIC_REPORTER') && !person.roles.includes('VET_STAFF') &&
     (!scopedChannel || (directParticipants
       ? directParticipants.includes(person.id)
       : canAccessChat(person, scopedChannel)))
