@@ -56,6 +56,7 @@ export type Rescue = {
   awaitingCarer?: boolean | null;
   transportSourceRescueId?: string | null;
   custodyRole?: 'CUSTODIAN';
+  visibility?: 'MY_ASSIGNMENT' | 'MY_CUSTODY' | 'COORDINATOR' | 'QUALIFIED_PENDING';
   stageLabel?: string;
 };
 
@@ -265,6 +266,7 @@ export type RescueFeedDiagnostics = {
   pendingRescues: number;
   qualifiedPending: number;
   visibleRescues: number;
+  assignedToMe?: number;
   canBrowse: boolean;
   organisationId: string;
   teamIds: string[];
@@ -306,6 +308,16 @@ export async function claimRescue(id: string) {
   return request<{ rescue: Rescue }>(`/api/mobile/rescues/${encodeURIComponent(id)}/claim`, {
     method: 'POST'
   });
+}
+/** Reverse only a mistakenly confirmed, otherwise untouched first collection.
+ * The backend archives the original registration and preserves audit history.
+ */
+export async function correctMistakenPickup(id: string, reason: string) {
+  return request<{ rescue: Rescue }>(
+    `/api/mobile/rescues/${encodeURIComponent(id)}/correct-pickup`, {
+      method:'POST', body:JSON.stringify({reason})
+    }
+  );
 }
 export async function unclaimRescue(id: string, reason = '') {
   return request<{ rescue: Rescue }>(`/api/mobile/rescues/${encodeURIComponent(id)}/unclaim`, {
