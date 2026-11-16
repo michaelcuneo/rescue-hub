@@ -345,8 +345,16 @@ export const actions: Actions = {
         return fail(403, { action: 'updateMemberAccess', error: 'Only Platform Administrators can edit their own system permissions.' });
       if (roles.some(role => !mayAssignStaffRole(actor, role)))
         return fail(403, { action: 'updateMemberAccess', error: 'Invalid system permission selected.' });
+      if (target.organisationId) {
+        const config = await getOrganisationMembershipConfig(target.organisationId);
+        if (teamIds.some(id => !config.teams.some(team => team.id === id && team.active && !team.receivesAllRescues)))
+          return fail(400, { action: 'updateMemberAccess', error: 'Choose valid trained species for your organisation.' });
+      } else if (teamIds.length || canTransport) {
+        return fail(400, { action: 'updateMemberAccess',
+          error: 'Your Platform Administrator profile has no rescue organisation. Assign an organisation before adding field training or transport authorisation.' });
+      }
       try {
-        await updateOwnPlatformPermissions(userId, target.roles, roles);
+        await updateOwnPlatformPermissions(userId, target.roles, roles, teamIds, canTransport);
         return { action: 'updateMemberAccess', userId, success: true };
       } catch (error) {
         return fail(409, { action: 'updateMemberAccess',
