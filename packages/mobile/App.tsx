@@ -5,6 +5,7 @@ import {
   Alert,
   AppState,
   FlatList,
+  Modal,
   Pressable,
   SafeAreaView,
   StatusBar,
@@ -46,6 +47,25 @@ import { subscribeRescueChanges } from '../core/realtime-client';
 import { shouldShowRescuePin } from '../core/case-map-visibility';
 
 type Session = { user: User; membership: MembershipConfig | null };
+type ClaimNotice = { title: string; message: string };
+
+function claimNoticeFor(error: unknown): ClaimNotice {
+  const raw = error instanceof Error ? error.message : 'Unable to claim this rescue.';
+  const training = raw.match(/This rescue (?:requires|needs) (.+?) training\b/i);
+  if (training) {
+    return {
+      title: 'Training required',
+      message: `This rescue needs ${training[1].trim().toLowerCase()} training. Once you complete it, your organisation administrator can update your permissions.`
+    };
+  }
+  if (/Rescuer system permission|Only approved rescuers can claim species rescues/i.test(raw)) {
+    return {
+      title: 'Rescuer access required',
+      message: 'Ask your organisation administrator to enable rescuer access on your account.'
+    };
+  }
+  return { title: 'Could not claim rescue', message: raw };
+}
 
 export default function App() {
   const [loading, setLoading] = useState(true);
@@ -61,6 +81,7 @@ export default function App() {
   const [authMode, setAuthMode] = useState<'login' | 'signup' | 'verify' | 'rescuer'>('signup');
   const [socialProviders, setSocialProviders] = useState<SocialProvider[]>([]);
   const [error, setError] = useState('');
+  const [claimNotice, setClaimNotice] = useState<ClaimNotice | null>(null);
   const [busy, setBusy] = useState(false);
   const [view, setView] = useState<'map' | 'list' | 'settings' | 'care' | 'chats'>('map');
   const [policy, setPolicy] = useState<AvailabilityPolicy | null>(null);
@@ -278,6 +299,7 @@ export default function App() {
   async function handleClaim(id: string) {
     setBusy(true);
     setError('');
+    setClaimNotice(null);
     try {
       const claimed = await claimRescue(id);
       const result = await getRescues().catch(() => null);
@@ -289,9 +311,7 @@ export default function App() {
       setSelectedMapRescue(null);
       setActiveRescue(mine);
     } catch (e) {
-      const message = e instanceof Error ? e.message : 'Unable to claim rescue.';
-      setError(message);
-      Alert.alert('Rescue claim not completed', message);
+      setClaimNotice(claimNoticeFor(e));
       await getRescues().then((result) => {
         setRescues(result.items);
         setFeed(result.feed ?? null);
@@ -334,6 +354,7 @@ export default function App() {
     setView('map');
     setAuthMode('signup');
     setError('');
+    setClaimNotice(null);
   }
 
   async function refresh() {
@@ -512,6 +533,19 @@ export default function App() {
   return (
     <SafeAreaView style={styles.root}>
       <StatusBar barStyle="dark-content" />
+      <Modal visible={claimNotice !== null} transparent animationType="fade"
+        statusBarTranslucent onRequestClose={() => setClaimNotice(null)}>
+        <View style={styles.claimModalBackdrop}>
+          <View style={styles.claimModalCard} accessibilityViewIsModal>
+            <Text style={styles.claimModalTitle} accessibilityRole="header">{claimNotice?.title}</Text>
+            <Text style={styles.claimModalMessage}>{claimNotice?.message}</Text>
+            <Pressable style={styles.claimModalButton} accessibilityRole="button"
+              accessibilityLabel="Close rescue claim notice" onPress={() => setClaimNotice(null)}>
+              <Text style={styles.claimModalButtonText}>OK</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
       <View style={styles.header}>
         <View style={styles.headerCopy}>
           <Text style={styles.kicker}>RESCUE HUB</Text>
@@ -694,6 +728,16 @@ const styles = StyleSheet.create({
   claimButton: { backgroundColor: '#173d2c', borderRadius: 10, padding: 12, alignItems: 'center', marginTop: 12 },
   mine: { color: '#24583f', fontWeight: '700', marginTop: 12 },
   errorBanner: { color: '#a23f35', paddingHorizontal: 20, paddingTop: 10 },
+  claimModalBackdrop: { flex: 1, alignItems: 'center', justifyContent: 'center',
+    padding: 24, backgroundColor: 'rgba(14, 29, 22, 0.5)' },
+  claimModalCard: { width: '100%', maxWidth: 380, padding: 24, borderRadius: 18,
+    backgroundColor: '#fff', gap: 14, shadowColor: '#000',
+    shadowOpacity: 0.2, shadowRadius: 18, elevation: 12 },
+  claimModalTitle: { color: '#173d2c', fontSize: 20, fontWeight: '800' },
+  claimModalMessage: { color: '#435249', fontSize: 15, lineHeight: 23 },
+  claimModalButton: { marginTop: 6, alignSelf: 'stretch', minHeight: 48,
+    backgroundColor: '#173d2c', borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  claimModalButtonText: { color: '#fff', fontSize: 15, fontWeight: '800' },
   feedNotice: { color: '#4b6555', backgroundColor: '#fff', fontSize: 12, padding: 10 },
   rescueList: { flex: 1 }
 });
