@@ -7,12 +7,19 @@ import { getRescue } from '$lib/server/graphql';
 export const GET: RequestHandler = async ({ locals, params, cookies }) => {
   const user = locals.user;
   const organisationId = getHunterDemo(cookies, user) ? HUNTER_DEMO_ORGANISATION : user?.organisationId;
-  if (!user || !organisationId || !user.enabled || user.status !== 'ACTIVE') return json({ error: 'Access denied.' }, { status: 403 });
+  if (!user || !user.enabled || user.status !== 'ACTIVE' ||
+      user.roles.includes('PUBLIC_REPORTER') || user.roles.includes('VET_STAFF'))
+    return json({ error: 'Access denied.' }, { status: 403 });
   const animal = await getAnimal(params.id);
-  if (!animal || animal.organisationId !== organisationId) return json({ error: 'Animal not found.' }, { status: 404 });
+  if (!animal) return json({ error: 'Animal not found.' }, { status: 404 });
+  const sourceRescue = await getRescue(animal.rescueId);
+  const assignedSupervisor = sourceRescue?.assignedUserId === user.id &&
+    user.roles.some(role => ['PLATFORM_ADMIN', 'AUTHORITY_ADMIN'].includes(role));
+  if (animal.organisationId !== organisationId && !assignedSupervisor)
+    return json({ error: 'Animal not found.' }, { status: 404 });
   const pending = await getPendingAnimalTransfer(animal);
   const transport = animal.activeTransportRescueId ? await getRescue(animal.activeTransportRescueId) : null;
-  const claimedTransport = transport?.organisationId === organisationId && transport.assignedUserId === user.id;
+  const claimedTransport = transport?.organisationId === animal.organisationId && transport.assignedUserId === user.id;
   if (animal.currentCustodianUserId !== user.id && pending?.toUserId !== user.id && animal.reservedCarerUserId !== user.id && !claimedTransport && !user.roles.some((r) => ['ORG_ADMIN', 'DISPATCHER', 'PLATFORM_ADMIN', 'AUTHORITY_ADMIN'].includes(r))) {
     return json({ error: 'Access denied.' }, { status: 403 });
   }
@@ -20,7 +27,8 @@ export const GET: RequestHandler = async ({ locals, params, cookies }) => {
   return json({ animal: {
     ...animal,
     pendingTransferToUserId: pending?.toUserId === user.id ? user.id : undefined
-  }, events: user.roles.some((r) => ['ORG_ADMIN', 'DISPATCHER'].includes(r)) || (animal.currentCustodianUserId === user.id || claimedTransport) ? events : events.filter((event) => event.id === animal.pendingTransferId) });
+  }, events: user.roles.some((r) => ['ORG_ADMIN', 'DISPATCHER'].includes(r)) ||
+    assignedSupervisor || (animal.currentCustodianUserId === user.id || claimedTransport) ? events : events.filter((event) => event.id === animal.pendingTransferId) });
 };
 
 export const PATCH: RequestHandler = async ({ locals, params, request }) => {
