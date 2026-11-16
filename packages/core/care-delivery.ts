@@ -41,16 +41,18 @@ export function canClaimAnimalCare(
     !reservedCarerUserId && !pendingTransferId;
 }
 
-/** Rescue eligibility requires an explicitly assigned active-rescuer
- * membership, a suitable system role and matching species qualifications.
- * A blank membership is never interpreted as being trained for field rescue.
+/** Permission to perform wildlife rescues comes only from the explicitly
+ * assigned RESCUER role. Species-specific authorisation is checked separately
+ * against trained areas when jobs are shown, claimed, or notified.
+ *
+ * CARER and ORG_ADMIN do not implicitly confer field-rescue qualification;
+ * legacy membershipTypeId values must never grant or block access.
  */
 export function canRescueForOrganisation(user: {
-  enabled: boolean; status: string; roles: string[]; membershipTypeId?: string;
+  enabled: boolean; status: string; roles: string[];
 }): boolean {
-  if (!user.enabled || user.status !== 'ACTIVE' || user.roles.includes('PUBLIC_REPORTER')) return false;
-  return user.membershipTypeId === 'active-rescuer' &&
-    user.roles.some(role => ['RESCUER', 'CARER', 'ORG_ADMIN'].includes(role));
+  return user.enabled && user.status === 'ACTIVE' &&
+    !user.roles.includes('PUBLIC_REPORTER') && user.roles.includes('RESCUER');
 }
 
 /** Transport eligibility is independent of species training and carer status.
@@ -60,7 +62,7 @@ export function canRescueForOrganisation(user: {
  */
 export function canTransportForOrganisation(user: {
   enabled: boolean; status: string; roles: string[];
-  canTransport?: boolean; membershipTypeId?: string;
+  canTransport?: boolean;
 }): boolean {
   if (!user.enabled || user.status !== 'ACTIVE' ||
       user.roles.includes('PUBLIC_REPORTER') || user.canTransport !== true) return false;
