@@ -215,6 +215,12 @@
     }).format(new Date(value));
 </script>
 
+<svelte:window onkeydown={(event) => {
+  if (event.key !== 'Escape' || feedback) return;
+  if (selectedPersonId) selectedPersonId = null;
+  else if (showInvite) showInvite = false;
+}} />
+
 {#if feedback}
   <FeedbackModal kind={feedback.kind} title={feedback.title}
     message={feedback.message} detail={feedback.detail}
@@ -617,6 +623,7 @@
 
       {#if showInvite}
         <div class="people-overlay" role="presentation">
+          <button type="button" class="people-backdrop" aria-label="Close invitation" onclick={() => (showInvite = false)}></button>
           <div class="people-dialog invite-dialog" role="dialog" aria-modal="true" aria-labelledby="invite-title">
             <div class="dialog-heading"><div><p class="eyebrow">New team member</p><h2 id="invite-title">Invite a person</h2></div><button class="dialog-close" type="button" aria-label="Close invitation" onclick={() => (showInvite = false)}>×</button></div>
               <form method="POST" use:enhance={handleAdminSubmit} action="?/inviteUser" class="person-form invite-form">
@@ -660,6 +667,7 @@
 
       {#if selectedPerson}
         <div class="people-overlay" role="presentation">
+          <button type="button" class="people-backdrop" aria-label="Close person details" onclick={() => (selectedPersonId = null)}></button>
           <div class="people-dialog person-detail" role="dialog" aria-modal="true" aria-labelledby="person-detail-title">
             <div class="dialog-heading"><div><p class="eyebrow">Person details</p><h2 id="person-detail-title">{selectedPerson.name || selectedPerson.email}</h2><p class="intro">{selectedPerson.email} · {organisationName(selectedPerson.organisationId)}</p></div><button class="dialog-close" type="button" aria-label="Close person details" onclick={() => (selectedPersonId = null)}>×</button></div>
             <div class="person-detail-summary"><span class:available={selectedPerson.enabled && selectedPerson.availabilityStatus === 'AVAILABLE'} class="availability-state">{selectedPerson.enabled ? selectedPerson.availabilityStatus ?? 'Offline' : 'Disabled'}</span><span>{selectedPerson.roles.join(' · ')}</span><span>{selectedPerson.status}</span></div>
@@ -840,10 +848,10 @@
   .person-identity strong, .person-role strong { font-size: 13px; overflow-wrap: anywhere; }
   .person-identity small, .person-role small, .person-teams { color:var(--muted); font-size: 11px; overflow-wrap: anywhere; }
   .person-chevron { font-size: 25px; color:var(--muted); }
-  .people-overlay { position: fixed; inset: 0; z-index: 100; background:rgba(10,27,18,.56); display: flex; justify-content: flex-end; }
-  .people-dialog { width: min(100%, 690px); height: 100%; overflow-y: auto; padding: 28px; background:var(--rh-t6, white); box-shadow: -15px 0 50px rgba(0,0,0,.14); }
-  .people-overlay { min-height: 0; overflow: hidden; }
-  .invite-dialog { display: flex; flex-direction: column; height: 100dvh; max-height: 100dvh; min-height: 0; overflow: hidden; padding-bottom: max(18px, env(safe-area-inset-bottom)); }
+  .people-overlay { position:fixed; inset:0; z-index:100; background:rgba(10,27,18,.56); display:flex; align-items:center; justify-content:center; min-height:0; overflow:hidden; padding:16px; }
+  .people-backdrop { position:absolute; inset:0; width:100%; height:100%; z-index:0; padding:0; margin:0; border:0; background:transparent; cursor:default; }
+  .people-dialog { position:relative; z-index:1; width:min(100%,740px); height:auto; max-height:calc(100dvh - 32px); min-height:0; overflow-y:auto; padding:28px; background:var(--rh-t6, white); box-shadow:0 22px 70px rgba(0,0,0,.28); border-radius:16px; }
+  .invite-dialog { display:flex; flex-direction:column; height:min(88dvh,760px); max-height:calc(100dvh - 32px); min-height:0; overflow:hidden; padding-bottom:max(18px,env(safe-area-inset-bottom)); }
   .invite-dialog .dialog-heading { flex: 0 0 auto; }
   .invite-form { display:flex; flex:1 1 auto; min-height:0; overflow:hidden; gap:0; }
   .invite-scroll-content { flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x:hidden; overscroll-behavior:contain; -webkit-overflow-scrolling:touch; display:grid; align-content:start; gap:18px; padding:2px 4px 18px 0; }
@@ -877,7 +885,7 @@
   .account-actions .danger { color:var(--rh-t79, #a32929); border-color:var(--rh-t80, #e6b6b6); }
   .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border:0; }
   @media (max-width: 1100px) { .person-row { grid-template-columns: 42px minmax(150px,1.5fr) minmax(110px,1fr) 90px 16px; } .person-teams { display: none; } }
-  @media (max-width: 700px) { .people-head, .directory-toolbar { align-items: stretch; flex-direction: column; } .people-stats { grid-template-columns: repeat(2,minmax(0,1fr)); } .person-row { grid-template-columns: 38px minmax(0,1fr) 18px; gap: 10px; padding: 13px; } .person-role, .person-status { display: none; } .people-dialog { padding: 18px; } .form-pair, .capability-grid { grid-template-columns: 1fr; } }
+  @media (max-width: 700px) { .people-overlay { padding:8px; } .people-dialog { max-height:calc(100dvh - 16px); padding:18px; } .invite-dialog { height:calc(100dvh - 16px); } .people-head, .directory-toolbar { align-items: stretch; flex-direction: column; } .people-stats { grid-template-columns: repeat(2,minmax(0,1fr)); } .person-row { grid-template-columns: 38px minmax(0,1fr) 18px; gap: 10px; padding: 13px; } .person-role, .person-status { display: none; } .people-dialog { padding: 18px; } .form-pair, .capability-grid { grid-template-columns: 1fr; } }
 
   .admin-shell {
     --ink: var(--rh-text);
