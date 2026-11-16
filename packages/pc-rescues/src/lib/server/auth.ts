@@ -1049,7 +1049,7 @@ export async function updateUserDispatchMembership(input: {
 }
 
 /**
- * Administrative role and operational participation form one consistent edit.
+ * Access roles, trained species areas and transport authorisation form one consistent edit.
  * Both DynamoDB records are updated in a single transaction and the session
  * epoch advances whenever privileges change (revokes existing sessions).
  */
@@ -1057,7 +1057,6 @@ export async function updateUserAccess(input: {
   userId: string;
   expectedRoles: RescueHubRole[];
   roles: RescueHubRole[];
-  membershipTypeId: string;
   teamIds: string[];
   canTransport: boolean;
 }) {
@@ -1068,9 +1067,11 @@ export async function updateUserAccess(input: {
     throw new Error('Public reporters cannot be assigned organisation roles.');
   const changedRole = roles.length !== input.expectedRoles.length ||
     roles.some(role => !input.expectedRoles.includes(role));
-  const expressions = 'SET #roles = :roles, membershipTypeId = :membership, teamIds = :teams, canTransport = :transport, updatedAt = :now';
+  // The old membership category is retired. Clear it when saving a member;
+  // existing profiles remain readable and the field no longer confers access.
+  const expressions = 'SET #roles = :roles, membershipTypeId = :empty, teamIds = :teams, canTransport = :transport, updatedAt = :now';
   const args = {
-    ':roles': roles, ':membership': input.membershipTypeId, ':teams': teamIds,
+    ':roles': roles, ':empty': '', ':teams': teamIds,
     ':transport': input.canTransport, ':now': now
   };
   try {
