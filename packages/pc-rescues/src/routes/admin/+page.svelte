@@ -34,7 +34,8 @@
   let saving = $state(false);
   // Every admin form uses SvelteKit's in-place updates. No full reload,
   // preserved section, and refreshed data on an acknowledged successful save.
-  const handleAdminSubmit: SubmitFunction = () => {
+  const handleAdminSubmit: SubmitFunction = ({ cancel }) => {
+    if (saving) { cancel(); return; }
     saving = true;
     return async ({ result, update }) => {
       saving = false;
