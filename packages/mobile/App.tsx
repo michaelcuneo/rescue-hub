@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { KeyboardAwareScrollView, KeyboardAwareTextInput, useKeyboardVisible } from './src/KeyboardAware';
 import {
   ActivityIndicator,
+  Alert,
   AppState,
   FlatList,
   Pressable,
@@ -17,6 +18,7 @@ import {
   getRealtimeConfig,
   getAvailability,
   claimRescue,
+  unclaimRescue,
   login,
   logout,
   restoreSession,
@@ -277,17 +279,47 @@ export default function App() {
     setBusy(true);
     setError('');
     try {
-      await claimRescue(id);
-      const result = await getRescues();
-      setRescues(result.items);
-      setFeed(result.feed ?? null);
-      setSelectedMapRescue(result.items.find((item) => item.id === id) ?? null);
+      const claimed = await claimRescue(id);
+      const result = await getRescues().catch(() => null);
+      if (result) {
+        setRescues(result.items);
+        setFeed(result.feed ?? null);
+      }
+      const mine = result?.items.find(item => item.id === id) ?? claimed.rescue;
+      setSelectedMapRescue(null);
+      setActiveRescue(mine);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Unable to claim rescue.');
-      await getRescues().then((result) => setRescues(result.items)).catch(console.warn);
+      const message = e instanceof Error ? e.message : 'Unable to claim rescue.';
+      setError(message);
+      Alert.alert('Rescue claim not completed', message);
+      await getRescues().then((result) => {
+        setRescues(result.items);
+        setFeed(result.feed ?? null);
+      }).catch(console.warn);
     } finally {
       setBusy(false);
     }
+  }
+
+  function releaseAssignedClaim(rescue: Rescue) {
+    Alert.alert('Release rescue claim?', 'This is for uncollected rescues only. If an animal was physically collected, use the documented handover or correct an accidental pickup inside Manage animals.', [
+      { text: 'Keep assignment', style: 'cancel' },
+      { text: 'Release claim', style: 'destructive', onPress: () => {
+        void (async () => {
+          setBusy(true); setError('');
+          try {
+            await unclaimRescue(rescue.id);
+            setSelectedMapRescue(null);
+            setActiveRescue(null);
+            await refresh();
+          } catch (e) {
+            const message = e instanceof Error ? e.message : 'Could not release the claim.';
+            setError(message);
+            Alert.alert('Claim was not released', message);
+          } finally { setBusy(false); }
+        })();
+      }}
+    ]);
   }
 
   async function signOut() {
@@ -554,8 +586,14 @@ export default function App() {
               ) : (selectedMapRescue.assignedUserId === session.user.id || selectedMapRescue.custodyRole === 'CUSTODIAN') ? (
                 <Pressable style={styles.claimButton} onPress={() => setActiveRescue(selectedMapRescue)}
                   accessibilityRole="button">
-                  <Text style={styles.primaryButtonText}>Manage animal care</Text>
+                  <Text style={styles.primaryButtonText}>Manage animals and care history</Text>
                 </Pressable>
+                {selectedMapRescue.status === 'ASSIGNED' && !selectedMapRescue.pickedUpAt ? (
+                  <Pressable style={styles.headerAction} accessibilityRole="button" disabled={busy}
+                    onPress={() => releaseAssignedClaim(selectedMapRescue)}>
+                    <Text style={styles.headerActionText}>Release my claim</Text>
+                  </Pressable>
+                ) : null}
               ) : null}
             </View>
           ) : null}
@@ -587,6 +625,12 @@ export default function App() {
                   <Pressable style={styles.claimButton} onPress={() => setActiveRescue(item)}>
                     <Text style={styles.primaryButtonText}>Manage animals and care history</Text>
                   </Pressable>
+                  {item.status === 'ASSIGNED' && !item.pickedUpAt ? (
+                    <Pressable style={styles.headerAction} accessibilityRole="button" disabled={busy}
+                      onPress={() => releaseAssignedClaim(item)}>
+                      <Text style={styles.headerActionText}>Release my claim</Text>
+                    </Pressable>
+                  ) : null}
                 </>
               ) : null}
             </View>
