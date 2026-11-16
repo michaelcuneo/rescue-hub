@@ -11,6 +11,7 @@ import {
 	sendOrganisationInvitation,
 	setUserEnabled,
 	updateUserAccess,
+  updateOwnPlatformPermissions,
 	updateMemberPositionTitle,
   updateMemberPositionAssignments,
 	type RescueHubRole,
@@ -339,9 +340,19 @@ export const actions: Actions = {
 		if (!target || !canManageUser(actor, target)) {
 			return fail(403, { action: 'updateMemberAccess', error: 'You cannot manage that account.' });
 		}
-		if (actor.id === target.id) {
-			return fail(400, { action: 'updateMemberAccess', error: 'Change another administrator\'s account rather than your own access level.' });
-		}
+    if (actor.id === target.id) {
+      if (!actor.roles.includes('PLATFORM_ADMIN'))
+        return fail(403, { action: 'updateMemberAccess', error: 'Only Platform Administrators can edit their own system permissions.' });
+      if (roles.some(role => !mayAssignStaffRole(actor, role)))
+        return fail(403, { action: 'updateMemberAccess', error: 'Invalid system permission selected.' });
+      try {
+        await updateOwnPlatformPermissions(userId, target.roles, roles);
+        return { action: 'updateMemberAccess', userId, success: true };
+      } catch (error) {
+        return fail(409, { action: 'updateMemberAccess',
+          error: error instanceof Error ? error.message : 'Unable to save your system permissions.' });
+      }
+    }
     if (roles.some(role => !mayAssignStaffRole(actor, role))) {
       return fail(403, { action: 'updateMemberAccess', error: 'You cannot grant one of the selected access roles.' });
     }
