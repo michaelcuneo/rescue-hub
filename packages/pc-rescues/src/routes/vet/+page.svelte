@@ -64,6 +64,7 @@
             <label for={'outcome-notes-' + animal.id}>Clinical confirmation and notes</label>
             <textarea id={'outcome-notes-' + animal.id} name="notes" minlength="3" maxlength="4000" required rows="3" placeholder="Record why and by whom the outcome was confirmed…"></textarea>
             <p class="helper">This is a final animal outcome. Any outstanding collection offer is cancelled and the permanent history remains.</p>
+            <label class="confirmation"><input type="checkbox" name="confirmed" required /> I confirm that the veterinarian has verified this final outcome.</label>
             <button class="danger" type="submit">Record final veterinary outcome</button>
           </form>
         </details>
@@ -101,6 +102,8 @@
   textarea,select{width:100%;border:1px solid var(--rh-border);border-radius:9px;padding:12px;font:inherit;background:var(--rh-field);color:var(--rh-text)}
   button{justify-self:start;min-height:44px;border:0;border-radius:9px;padding:11px 17px;background:var(--rh-primary);color:var(--rh-on-primary);font:inherit;font-weight:800;cursor:pointer}
   .danger{background:var(--rh-danger-bg);color:var(--rh-danger-text);border:1px solid var(--rh-border)}
+  .confirmation{display:flex;align-items:start;gap:10px;line-height:1.5}
+  .confirmation input{width:18px;height:18px;flex:0 0 18px}
   .helper,.footnote{font-size:12px;color:var(--rh-muted);line-height:1.6}
   .empty-state h3{margin-top:0}
   .empty-state p{color:var(--rh-muted);line-height:1.5}
