@@ -28,9 +28,11 @@ The SvelteKit application serves a responsive documentation centre at
 
 - **Public overview and project status:** Share `/documentation` or
   `/documentation?guide=readiness` with stakeholders. No login is required.
-- **Staff guides:** Administrators, dispatchers, rescuers, carers, transport
-  volunteers, communications and animal records. These guides are accessible
-  only to authenticated, active Rescue Hub staff accounts.
+- **Staff guides:** Administrators, dispatchers, veterinary clinics, rescuers,
+  carers, transport volunteers, communications and animal records. These guides
+  are accessible to authenticated, active Rescue Hub staff within their roles.
+  Approved clinic-only accounts can open `/documentation?guide=veterinary` but
+  cannot browse unrelated volunteer/dispatcher guides.
 - **Administrator guidance:** Restricted to platform, authority and
   organisation administrators.
 - Content is maintained in
@@ -46,6 +48,7 @@ and official NPWS/DCCEEW exports need their own verification.
 The product direction is documented here:
 
 - **[Authoritative animal lifecycle and custody model](docs/ANIMAL-LIFECYCLE.md) — read first; supersedes conflicting older workflow descriptions.**
+- [Veterinary clinic portal, permissions and handover workflow](docs/VETERINARY-CLINIC-PORTAL.md)
 - [AI agent instructions](AGENTS.md)
 
 - [Product vision and operating model](docs/PRODUCT.md)
