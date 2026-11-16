@@ -6,6 +6,7 @@ on:
       - deploy/rescue-demo-domain
   push:
     branches:
+      - hotfix/demo-claim-modal-self-permissions
       - fix/admin-people-subnavigation
       - hotfix/demo-modal-report-admin-permissions
       - fix/admin-feedback-and-positions
