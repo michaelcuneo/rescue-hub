@@ -38,9 +38,11 @@
 			const collection = (await response.json()) as OperatingAreaCollection;
 			featureCount = collection.features.length;
 			if (!featureCount) {
-				loadStatus = 'error';
-				return;
-			}
+        loadStatus = 'error';
+        onNotice?.({ kind:'warning', title:'Operating areas unavailable',
+          message:'No operating-area boundaries were returned. Geographic coverage is not currently displayed.' });
+        return;
+      }
 
 			map.addSource('admin-operating-areas', {
 				type: 'geojson',
@@ -109,12 +111,18 @@
 				}
 			});
 
-			loadStatus = collection.metadata?.failedLayers?.length ? 'partial' : 'ready';
+      loadStatus = collection.metadata?.failedLayers?.length ? 'partial' : 'ready';
+      if (loadStatus === 'partial') onNotice?.({
+        kind: 'warning', title:'Some operating areas are missing',
+        message:'The map loaded only part of the available boundary data. Check the operating-area data source before using these boundaries for routing.'
+      });
 		} catch (error) {
 			console.error('Unable to load admin operating-area map.', error);
-			loadStatus = 'error';
-		}
-	}
+      loadStatus = 'error';
+      onNotice?.({ kind: 'error', title:'Could not load operating areas',
+        message:'The boundary data service did not respond. Please refresh or check the service before relying on geographic coverage.' });
+    }
+  }
 </script>
 
 <div class="map-card">
