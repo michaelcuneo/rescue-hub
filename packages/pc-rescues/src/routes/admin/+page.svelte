@@ -3,6 +3,10 @@
   import type { PageData } from './$types';
   import { page } from '$app/state';
   import { goto } from '$app/navigation';
+  import { enhance } from '$app/forms';
+  import type { SubmitFunction } from '@sveltejs/kit';
+  import FeedbackModal from '$lib/components/FeedbackModal.svelte';
+  import { adminActionFeedback, type FeedbackNotice } from '../../../../core/admin-feedback';
   import { invitationEmailLabel, invitationExpired } from '../../../../core/invitation-delivery';
 
   let { data, form }: { data: PageData; form?: any } = $props();
@@ -24,7 +28,30 @@
   let peopleFilter = $state<'all' | 'invited' | 'available' | 'admins' | 'disabled'>('all');
   let showInvite = $state(false);
   let selectedPersonId = $state<string | null>(null);
+  let feedback = $state<FeedbackNotice | null>(null);
+  let lastHandledForm = $state<unknown>(null);
+  let saving = $state(false);
+  // Every admin form uses SvelteKit's in-place updates. No full reload,
+  // preserved section, and refreshed data on an acknowledged successful save.
+  const handleAdminSubmit: SubmitFunction = () => {
+    saving = true;
+    return async ({ result, update }) => {
+      saving = false;
+      if (result.type === 'error') {
+        feedback = { kind: 'error', title: 'Request failed',
+          message: 'The server could not process your request. Your changes were not confirmed.' };
+        return;
+      }
+      await update({ reset: result.type === 'success', invalidateAll: result.type === 'success' });
+    };
+  };
   $effect(() => {
+    if (form && form !== lastHandledForm) {
+      lastHandledForm = form;
+      feedback = adminActionFeedback(form);
+    }
+    if (!positionOrganisationId)
+      positionOrganisationId = data.currentUser.organisationId ?? data.organisations[0]?.id ?? '';
     const target = page.url.searchParams.get('section');
     if (target && ['overview','organisations','rescues','regions','people','audit'].includes(target))
       section = target as Section;
@@ -180,6 +207,14 @@
     }).format(new Date(value));
 </script>
 
+{#if feedback}
+  <FeedbackModal kind={feedback.kind} title={feedback.title}
+    message={feedback.message} detail={feedback.detail}
+    onDismiss={() => (feedback = null)} />
+{/if}
+{#if saving}
+  <div class="save-progress" role="status" aria-live="polite">Saving changes…</div>
+{/if}
 <div class="admin-shell">
   <aside class="sidebar">
     <nav aria-label="Administration">
@@ -481,25 +516,13 @@
           <div><span>Awaiting invitations</span><strong>{data.users.filter((user) => user.status === 'INVITED' && !user.roles.includes('PUBLIC_REPORTER')).length}</strong></div>
         </div>
 
-        {#if form?.error}
-          <div class="people-feedback error" role="alert">{form.error}</div>
-        {:else if form?.success}
-          <div class="people-feedback success" role="status">
-            {['inviteUser', 'inviteDemoReviewer', 'resendInvitation', 'correctInvitationEmail'].includes(form.action)
-                ? 'Invitation accepted for sending by the email service. Check the invitation status below for actual delivery.'
-                : form.action === 'removeUser'
-                  ? 'Person removed from the active directory. Historical rescue records remain intact.'
-                  : 'User updated.'}
-            {#if form.action === 'resetPassword' && form.devCode}<code>Development reset code: {form.devCode}</code>{/if}
-          </div>
-        {/if}
 
         <div class="people-directory panel">
           <div class="directory-toolbar">
             <div class="access-group">
             <h3>Organisation positions</h3>
             <p class="permission-help">Add committee and management positions such as President, Secretary, Raptor Leader or Transport Coordinator. These are shown beside members in Chats; they do not change permissions.</p>
-            <form method="POST" action="?/addOrganisationPosition" class="position-create">
+            <form method="POST" use:enhance={handleAdminSubmit} action="?/addOrganisationPosition" class="position-create">
               <label><span>Organisation</span>
                 <select name="organisationId" bind:value={positionOrganisationId} required>
                   {#each data.organisations as organisation}
@@ -515,7 +538,7 @@
             {#each data.organisations.filter(org => org.id === positionOrganisationId || (!positionOrganisationId && org.id === data.currentUser.organisationId)) as organisation}
               <div class="position-list">
                 {#each (data.membershipConfigs[organisation.id]?.positions ?? []).filter(position => position.active) as position (position.id)}
-                  <form method="POST" action="?/deactivateOrganisationPosition" class="position-row">
+                  <form method="POST" use:enhance={handleAdminSubmit} action="?/deactivateOrganisationPosition" class="position-row">
                     <input type="hidden" name="organisationId" value={organisation.id} />
                     <input type="hidden" name="positionId" value={position.id} />
                     <span>{position.name}</span>
@@ -530,7 +553,7 @@
           <section class="access-group" aria-label="Veterinary clinics">
               <h3>Approved veterinary clinics</h3>
               <p class="permission-help">Add a clinic and its exact pickup coordinates before inviting staff. Only animals explicitly handed over to that clinic are visible to its staff.</p>
-              <form method="POST" action="?/createVetClinic" class="position-create">
+              <form method="POST" use:enhance={handleAdminSubmit} action="?/createVetClinic" class="position-create">
                 <label><span>Rescue organisation</span>
                   <select name="organisationId" required>
                     {#each data.organisations as organisation}
@@ -588,10 +611,7 @@
         <div class="people-overlay" role="presentation">
           <div class="people-dialog invite-dialog" role="dialog" aria-modal="true" aria-labelledby="invite-title">
             <div class="dialog-heading"><div><p class="eyebrow">New team member</p><h2 id="invite-title">Invite a person</h2></div><button class="dialog-close" type="button" aria-label="Close invitation" onclick={() => (showInvite = false)}>×</button></div>
-            {#if form?.action === 'inviteUser' && form.error}
-                <p class="people-feedback error" role="alert">{form.error}</p>
-              {/if}
-              <form method="POST" action="?/inviteUser" class="person-form invite-form">
+              <form method="POST" use:enhance={handleAdminSubmit} action="?/inviteUser" class="person-form invite-form">
               <div class="invite-scroll-content">
               {#if canChooseOrganisation}
                 <div class="reviewer-note"><strong>Reviewer permissions</strong><p>Invitations grant operational access according to the selected role. Do not invite read-only reviewers until a restricted reviewer role is available.</p></div>
@@ -634,9 +654,6 @@
         <div class="people-overlay" role="presentation">
           <div class="people-dialog person-detail" role="dialog" aria-modal="true" aria-labelledby="person-detail-title">
             <div class="dialog-heading"><div><p class="eyebrow">Person details</p><h2 id="person-detail-title">{selectedPerson.name || selectedPerson.email}</h2><p class="intro">{selectedPerson.email} · {organisationName(selectedPerson.organisationId)}</p></div><button class="dialog-close" type="button" aria-label="Close person details" onclick={() => (selectedPersonId = null)}>×</button></div>
-            {#if form?.error && form.userId === selectedPerson.id}
-              <p class="people-feedback error" role="alert">{form.error}</p>
-            {/if}
             <div class="person-detail-summary"><span class:available={selectedPerson.enabled && selectedPerson.availabilityStatus === 'AVAILABLE'} class="availability-state">{selectedPerson.enabled ? selectedPerson.availabilityStatus ?? 'Offline' : 'Disabled'}</span><span>{selectedPerson.roles.join(' · ')}</span><span>{selectedPerson.status}</span></div>
             {#if selectedPerson.status === 'INVITED' && selectedPerson.enabled && !selectedPerson.roles.includes('PUBLIC_REPORTER')}
               <section class="invitation-detail" aria-labelledby="pending-invite-heading">
@@ -652,11 +669,11 @@
                   {/if}
                 </dl>
                 <p class="permission-help">Accepted by SES means the email service accepted the send. Delivered means a receiving mail server accepted it—not that the person read it. Older invitations may show unknown until resent.</p>
-                <form method="POST" action="?/resendInvitation" class="invitation-resend">
+                <form method="POST" use:enhance={handleAdminSubmit} action="?/resendInvitation" class="invitation-resend">
                   <input type="hidden" name="userId" value={selectedPerson.id} />
                   <button type="submit">Resend invitation email</button>
                 </form>
-                <form method="POST" action="?/correctInvitationEmail" class="person-form invitation-correction">
+                <form method="POST" use:enhance={handleAdminSubmit} action="?/correctInvitationEmail" class="person-form invitation-correction">
                   <input type="hidden" name="userId" value={selectedPerson.id} />
                   <label><span>Correct the email address</span>
                     <input name="email" type="email" value={selectedPerson.email} required autocomplete="off" />
@@ -666,7 +683,7 @@
                 </form>
               </section>
             {/if}
-            <form method="POST" action="?/assignMemberPositions" class="person-form">
+            <form method="POST" use:enhance={handleAdminSubmit} action="?/assignMemberPositions" class="person-form">
               <input type="hidden" name="userId" value={selectedPerson.id} />
               <div class="access-group">
                 <strong>Organisation management and committee positions</strong>
@@ -687,7 +704,7 @@
                 </div>
               </div>
             </form>
-            <form method="POST" action="?/updateMemberPosition" class="person-form">
+            <form method="POST" use:enhance={handleAdminSubmit} action="?/updateMemberPosition" class="person-form">
               <input type="hidden" name="userId" value={selectedPerson.id} />
               <div class="access-group">
                 <label><span>Organisation position / function — shown in Chats</span>
@@ -698,7 +715,7 @@
               </div>
               <div class="dialog-actions"><button class="primary-action" type="submit">Save position</button></div>
             </form>
-            <form method="POST" action="?/updateMemberAccess" class="person-form">
+            <form method="POST" use:enhance={handleAdminSubmit} action="?/updateMemberAccess" class="person-form">
               <input type="hidden" name="userId" value={selectedPerson.id} />
               <fieldset class="access-group" disabled={selectedPerson.id === data.currentUser.id}>
                 <legend>System permissions — select all that apply</legend>
@@ -722,7 +739,7 @@
               </fieldset>
               <div class="dialog-actions"><button class="primary-action" type="submit" disabled={selectedPerson.id === data.currentUser.id}>Save permissions & qualifications</button></div>
             </form>
-            <div class="account-management"><h3>Account access</h3><p>These actions affect sign-in access, not dispatch availability.</p><div class="account-actions"><form method="POST" action={selectedPerson.enabled ? '?/disableUser' : '?/enableUser'}><input type="hidden" name="userId" value={selectedPerson.id} /><button type="submit">{selectedPerson.enabled ? 'Disable access' : 'Enable access'}</button></form><form method="POST" action="?/resetPassword"><input type="hidden" name="userId" value={selectedPerson.id} /><button type="submit">Reset password</button></form><form method="POST" action="?/removeUser" onsubmit={(event) => { if (!confirm('Remove this person from Rescue Hub? This cannot be undone.')) event.preventDefault(); }}><input type="hidden" name="userId" value={selectedPerson.id} /><button class="danger" type="submit">Remove person</button></form></div></div>
+            <div class="account-management"><h3>Account access</h3><p>These actions affect sign-in access, not dispatch availability.</p><div class="account-actions"><form method="POST" use:enhance={handleAdminSubmit} action={selectedPerson.enabled ? '?/disableUser' : '?/enableUser'}><input type="hidden" name="userId" value={selectedPerson.id} /><button type="submit">{selectedPerson.enabled ? 'Disable access' : 'Enable access'}</button></form><form method="POST" use:enhance={handleAdminSubmit} action="?/resetPassword"><input type="hidden" name="userId" value={selectedPerson.id} /><button type="submit">Reset password</button></form><form method="POST" use:enhance={handleAdminSubmit} action="?/removeUser" onsubmit={(event) => { if (!confirm('Remove this person from Rescue Hub? This cannot be undone.')) event.preventDefault(); }}><input type="hidden" name="userId" value={selectedPerson.id} /><button class="danger" type="submit">Remove person</button></form></div></div>
           </div>
         </div>
       {/if}
@@ -757,6 +774,9 @@
 </div>
 
 <style>
+  .save-progress{position:fixed;z-index:90;top:84px;right:var(--rh-gutter);
+    background:var(--rh-surface);color:var(--rh-text);border:1px solid var(--rh-border);
+    box-shadow:var(--rh-shadow);padding:12px 18px;border-radius:9px;font-size:13px;font-weight:750}
   .adam-invite { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 20px; border:1px solid var(--rh-t72, #a7c6b1); background:var(--rh-t73, #f2f8f3); border-radius: 12px; }
   
   @media (max-width: 700px) { .adam-invite { flex-direction: column; align-items: stretch; } }
