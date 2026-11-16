@@ -51,7 +51,6 @@
   let inviteOrganisationId = $state('');
   // New invitations start with no permissions, species teams, transport or positions.
   // Administrators deliberately select each independent responsibility.
-  let inviteMembershipTypeId = $state('');
 
   const visiblePeople = $derived(data.users.filter((user) => {
     const query = peopleSearch.trim().toLowerCase();
@@ -78,7 +77,6 @@
   ] as const;
   const inviteMembershipConfig = $derived(
     data.membershipConfigs[inviteOrganisationId || data.currentUser.organisationId || ''] ?? {
-      membershipTypes: data.standardMembershipTypes,
       teams: data.standardTeams,
       positions: [] as { id: string; name: string; active: boolean }[]
     }
@@ -162,10 +160,6 @@
       positions: [] as { id: string; name: string; active: boolean }[]
     };
 
-  const membershipTypeName = (user: { organisationId?: string; membershipTypeId?: string }) =>
-    membershipConfigFor(user).membershipTypes.find((type) => type.id === user.membershipTypeId)?.name ??
-    user.membershipTypeId ??
-    'Not set';
 
   const teamNames = (user: { organisationId?: string; teamIds: string[] }) => {
     const config = membershipConfigFor(user);
@@ -474,9 +468,9 @@
           <div>
             <p class="eyebrow">Identity & permissions</p>
             <h2>People & access</h2>
-            <p class="intro">Manage organisation membership, dispatch capabilities and account access.</p>
+            <p class="intro">Manage member permissions, trained areas, transport and organisation positions.</p>
           </div>
-          <button class="primary-action" type="button" onclick={() => { inviteOrganisationId = data.currentUser.organisationId ?? data.organisations[0]?.id ?? ''; inviteMembershipTypeId = ''; showInvite = true; }}>+ Invite person</button>
+          <button class="primary-action" type="button" onclick={() => { inviteOrganisationId = data.currentUser.organisationId ?? data.organisations[0]?.id ?? ''; showInvite = true; }}>+ Invite person</button>
         </div>
 
         <div class="people-stats" aria-label="People summary">
@@ -545,7 +539,7 @@
               <button class="person-row" type="button" onclick={() => (selectedPersonId = user.id)} aria-label={`Manage ${user.name || user.email}`}>
                 <span class="person-avatar" aria-hidden="true">{(user.name || user.email).split(' ').slice(0, 2).map((part) => part[0]?.toUpperCase()).join('')}</span>
                 <span class="person-identity"><strong>{user.name || user.email}</strong><small>{user.email}</small><small>{organisationName(user.organisationId)}</small></span>
-                <span class="person-role"><strong>{user.roles.map((role) => role.replaceAll('_', ' ').toLowerCase()).join(' · ') || 'No role'}</strong><small>{membershipTypeName(user)}</small></span>
+                <span class="person-role"><strong>{user.roles.map((role) => role.replaceAll('_', ' ').toLowerCase()).join(' · ') || 'No system permissions'}</strong><small>{user.canTransport ? 'Transport authorised' : 'No transport authorisation'}</small></span>
                 <span class="person-teams">{teamNames(user).slice(0, 2).join(' · ') || 'No dispatch teams'}{teamNames(user).length > 2 ? ` +${teamNames(user).length - 2}` : ''}</span>
                 <span class="person-status">
                   <span class:available={user.enabled && user.availabilityStatus === 'AVAILABLE'} class="availability-state">
@@ -566,12 +560,13 @@
 
       {#if showInvite}
         <div class="people-overlay" role="presentation">
-          <div class="people-dialog" role="dialog" aria-modal="true" aria-labelledby="invite-title">
+          <div class="people-dialog invite-dialog" role="dialog" aria-modal="true" aria-labelledby="invite-title">
             <div class="dialog-heading"><div><p class="eyebrow">New team member</p><h2 id="invite-title">Invite a person</h2></div><button class="dialog-close" type="button" aria-label="Close invitation" onclick={() => (showInvite = false)}>×</button></div>
             {#if form?.action === 'inviteUser' && form.error}
                 <p class="people-feedback error" role="alert">{form.error}</p>
               {/if}
-              <form method="POST" action="?/inviteUser" class="person-form">
+              <form method="POST" action="?/inviteUser" class="person-form invite-form">
+              <div class="invite-scroll-content">
               {#if canChooseOrganisation}
                 <div class="reviewer-note"><strong>Reviewer permissions</strong><p>Invitations grant operational access according to the selected role. Do not invite read-only reviewers until a restricted reviewer role is available.</p></div>
               {/if}
@@ -582,15 +577,7 @@
                 <p class="permission-help">All unchecked by default. These control access to Rescue Hub features, not committee titles or animal training.</p>
                 <div class="capability-grid">{#each roleOptions.filter(option => data.assignableRoles.includes(option.id)) as role}<label class="capability-option"><input type="checkbox" name="roles" value={role.id} /><span><strong>{role.label}</strong></span></label>{/each}</div>
               </fieldset>
-              <div class="access-group">
-                <label><span>Operational membership (optional)</span>
-                  <select name="membershipTypeId" bind:value={inviteMembershipTypeId}>
-                    <option value="">None — select only if appropriate</option>
-                    {#each inviteMembershipConfig.membershipTypes.filter(type => type.active) as type}<option value={type.id}>{type.name}</option>{/each}
-                  </select></label>
-                <p class="permission-help">Participation is independent of system permissions and organisation management titles. New members are not automatically trained rescuers.</p>
-              </div>
-              <fieldset class="capability-picker"><legend>Trained species and specialist teams <small>All unchecked. Assign only training the member actually holds. Training alone never grants rescue access.</small></legend><div class="capability-grid">{#each inviteMembershipConfig.teams.filter(team => team.active && team.id !== 'transport' && !team.receivesAllRescues) as team}<label class="capability-option"><input type="checkbox" name="teamIds" value={team.id} /><span><strong>{team.name}</strong><small>{team.description}</small></span></label>{/each}</div></fieldset>
+              <fieldset class="capability-picker"><legend>Trained species and specialist teams <small>All unchecked. Assign verified training; field rescue additionally requires Rescuer permission.</small></legend><div class="capability-grid">{#each inviteMembershipConfig.teams.filter(team => team.active && team.id !== 'transport' && !team.receivesAllRescues) as team}<label class="capability-option"><input type="checkbox" name="teamIds" value={team.id} /><span><strong>{team.name}</strong><small>{team.description}</small></span></label>{/each}</div></fieldset>
               <fieldset class="access-group">
                 <legend>Transport authorisation</legend>
                 <label class="capability-option"><input type="checkbox" name="canTransport" value="on" /><span><strong>Can transport animals</strong><small>Unchecked by default. Enable for a transport-only volunteer or a trained rescuer/carer who can transport. Not required for carer or management roles.</small></span></label>
@@ -599,6 +586,7 @@
                 <legend>Committee and management positions <small>Independent of training and system permissions. Select any positions this person holds.</small></legend>
                 <div class="capability-grid">{#each (inviteMembershipConfig.positions ?? []).filter(position => position.active) as position}<label class="capability-option"><input type="checkbox" name="positionIds" value={position.id} /><span><strong>{position.name}</strong></span></label>{:else}<p class="permission-help">No positions defined yet. Add President, Secretary, Raptor Leader and others in People → Organisation positions.</p>{/each}</div>
               </fieldset>
+              </div>
               <div class="dialog-actions"><button type="button" onclick={() => (showInvite = false)}>Cancel</button><button class="primary-action" type="submit">Send invitation</button></div>
             </form>
           </div>
@@ -669,7 +657,7 @@
                   <input name="positionTitle" maxlength="100" value={selectedPerson.positionTitle ?? ''}
                     placeholder="e.g. Director, Raptor Manager, Transport Coordinator" />
                 </label>
-                <p class="permission-help">A descriptive title displayed alongside your member's actual access role, membership and teams. This does not change permissions.</p>
+                <p class="permission-help">A descriptive title displayed alongside permissions and trained areas. This does not change permissions.</p>
               </div>
               <div class="dialog-actions"><button class="primary-action" type="submit">Save position</button></div>
             </form>
@@ -680,13 +668,6 @@
                 <p class="permission-help">Grant only necessary privileges. Changing permissions signs this member out of existing sessions. Management positions do not grant permissions.</p>
                 <div class="capability-grid">{#each roleOptions.filter(option => data.assignableRoles.includes(option.id)) as role}<label class="capability-option"><input type="checkbox" name="roles" value={role.id} checked={selectedPerson.roles.includes(role.id)} /><span><strong>{role.label}</strong></span></label>{/each}</div>
               </fieldset>
-              <div class="access-group">
-                <label><span>Operational membership (optional)</span><select name="membershipTypeId" disabled={selectedPerson.id === data.currentUser.id}>
-                  <option value="" selected={!selectedPerson.membershipTypeId}>None</option>
-                  {#each membershipConfigFor(selectedPerson).membershipTypes.filter(type => type.active) as type}<option value={type.id} selected={type.id === selectedPerson.membershipTypeId}>{type.name}</option>{/each}
-                </select></label>
-                <p class="permission-help">Field participation is separate from access permissions, trained species and management positions.</p>
-              </div>
               <fieldset class="capability-picker" disabled={selectedPerson.id === data.currentUser.id}><legend>Trained species and specialist teams <small>Check only verified training and qualifications. Unchecked areas are not assigned.</small></legend><div class="capability-grid">{#each membershipConfigFor(selectedPerson).teams.filter(team => team.active && team.id !== 'transport' && !team.receivesAllRescues) as team}<label class="capability-option"><input type="checkbox" name="teamIds" value={team.id} checked={(selectedPerson.teamIds ?? []).includes(team.id)} /><span><strong>{team.name}</strong><small>{team.description}</small></span></label>{/each}</div></fieldset>
               <fieldset class="access-group" disabled={selectedPerson.id === data.currentUser.id}>
                 <legend>Transport authorisation</legend>
@@ -779,6 +760,13 @@
   .person-chevron { font-size: 25px; color:var(--muted); }
   .people-overlay { position: fixed; inset: 0; z-index: 100; background:rgba(10,27,18,.56); display: flex; justify-content: flex-end; }
   .people-dialog { width: min(100%, 690px); height: 100%; overflow-y: auto; padding: 28px; background:var(--rh-t6, white); box-shadow: -15px 0 50px rgba(0,0,0,.14); }
+  .people-overlay { min-height: 0; overflow: hidden; }
+  .invite-dialog { display: flex; flex-direction: column; height: 100dvh; max-height: 100dvh; min-height: 0; overflow: hidden; padding-bottom: max(18px, env(safe-area-inset-bottom)); }
+  .invite-dialog .dialog-heading { flex: 0 0 auto; }
+  .invite-form { display:flex; flex:1 1 auto; min-height:0; overflow:hidden; gap:0; }
+  .invite-scroll-content { flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x:hidden; overscroll-behavior:contain; -webkit-overflow-scrolling:touch; display:grid; align-content:start; gap:18px; padding:2px 4px 18px 0; }
+  .invite-form > .dialog-actions { flex:0 0 auto; margin-top:0; padding:14px 0 0; background:var(--rh-surface); }
+
   .dialog-heading { align-items: flex-start; border-bottom:1px solid var(--line); padding-bottom: 18px; margin-bottom: 20px; }
   .dialog-close { border:1px solid var(--line); background:var(--rh-t6, white); border-radius: 9px; width: 36px; height: 36px; font-size: 25px; cursor: pointer; }
   .person-form { display: grid; gap: 18px; }
