@@ -134,7 +134,7 @@ export const actions: Actions = {
 		try {
 			await inviteUser({
 				name, email, organisationId: HUNTER_DEMO_ORGANISATION,
-				roles: ['DISPATCHER'], membershipTypeId: 'support-member', teamIds: []
+				roles: ['DISPATCHER'], teamIds: []
 			});
 			return { action: 'inviteDemoReviewer', success: true };
 		} catch (error) {
