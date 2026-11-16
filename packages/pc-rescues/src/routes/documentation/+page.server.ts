@@ -6,7 +6,7 @@ const PUBLIC_GUIDES = new Set(['overview', 'readiness']);
 const ADMIN_ROLES = new Set(['PLATFORM_ADMIN', 'AUTHORITY_ADMIN', 'ORG_ADMIN']);
 const STAFF_ROLES = new Set([
   'PLATFORM_ADMIN', 'AUTHORITY_ADMIN', 'ORG_ADMIN',
-  'DISPATCHER', 'RESCUER', 'CARER', 'DATA_STEWARD'
+  'DISPATCHER', 'RESCUER', 'CARER', 'DATA_STEWARD', 'VET_STAFF'
 ]);
 
 export const load: PageServerLoad = async ({ locals, url }) => {
@@ -25,9 +25,15 @@ export const load: PageServerLoad = async ({ locals, url }) => {
   }
   if (guide.id === 'administrators' && !administrator)
     error(403, 'Administrator access is required for this guide.');
+  // Clinic-only identities may read their clinical guide but not operational
+  // volunteer/dispatch guides, whose routes and actions they cannot access.
+  const vetOnly = Boolean(active && user?.roles.length === 1 && user.roles[0] === 'VET_STAFF');
+  if (vetOnly && !PUBLIC_GUIDES.has(guide.id) && guide.id !== 'veterinary')
+    error(403, 'Your clinic account can access the veterinary clinic guide only.');
 
   const guideDirectory = documentationGuides.filter(item =>
-    PUBLIC_GUIDES.has(item.id) || (active && (item.id !== 'administrators' || administrator))
+    PUBLIC_GUIDES.has(item.id) || (active &&
+      (vetOnly ? item.id === 'veterinary' : item.id !== 'administrators' || administrator))
   ).map(({ id, title, audience, minutes, description }) =>
     ({ id, title, audience, minutes, description }));
 
