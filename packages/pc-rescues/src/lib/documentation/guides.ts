@@ -45,6 +45,7 @@ export const documentationGuides: DocumentationGuide[] = [
           "Public reporters: drop an incident pin, describe what they see and optionally allow contact.",
           "Dispatchers: create incidents from telephone calls, review routing exceptions, record veterinary updates and monitor the rescue queue.",
           "Rescuers: see relevant jobs, self-claim, confirm pickup, correct animal details and document what happened.",
+          "Veterinary clinic staff: receive linked animal handovers and record clinical observations, ready-for-care decisions and confirmed outcomes in a restricted clinic workspace.",
           "Carers: independently accept responsibility for an animal, request transport to their location, record care and final release/outcome.",
           "Transport volunteers: claim pickup and delivery jobs without becoming the long-term carer.",
           "Organisation administrators: manage people, membership, specialist teams and audit activity.",
@@ -76,11 +77,11 @@ export const documentationGuides: DocumentationGuide[] = [
           },
           {
             "title": "Vet",
-            "detail": "The animal is logged as transporting to AREC and dropped off. Its permanent record remains active, off-map."
+            "detail": "The rescuer physically hands over the animal at an approved veterinary clinic, selecting its registered entry in the mobile form. The animal enters that clinic's /vet queue, with its existing identity and history retained."
           },
           {
             "title": "Decision",
-            "detail": "AREC calls later. A veterinary-reported euthanasia closes care, or a ready-for-care call creates an offer to carers."
+            "detail": "Authorised clinic staff can record veterinary assessments, mark the animal ready for care or document confirmed death/euthanasia. Verified telephone callbacks remain available for clinics without accounts."
           },
           {
             "title": "Care & transport",
@@ -142,7 +143,7 @@ export const documentationGuides: DocumentationGuide[] = [
           },
           {
             "title": "Invite staff and volunteers",
-            "detail": "Use People & access to invite coordinators, dispatchers, rescuers and carers. Choose their organisation, any system permissions, trained areas, transport authorisation and management positions; they receive a secure email link to set their password and sign in without a verification code."
+            "detail": "In People & access → People, create an invitation and deliberately select independent system permissions, approved specialist rescue training, optional transport permission and management positions. Invitations start without any of these selected; the link takes each user to confirm a new password."
           },
           {
             "title": "Verify access",
@@ -162,8 +163,34 @@ export const documentationGuides: DocumentationGuide[] = [
           "Assign independent Rescuer/Carer permissions, verified specialist team qualifications and optional transport permission; trained areas only permit rescue claims when Rescuer access is granted.",
           "Enable or disable users and initiate password reset from the portal; revoke access when someone leaves.",
           "Use audit records to review significant account and operational actions.",
-          "Keep platform and authority privileges narrowly assigned to verified administrators."
+          "Keep platform and authority privileges narrowly assigned to verified administrators.",
+          "Volunteers cannot update their own specialist training qualifications. Verify completed training and then assign approved species teams and Rescuer permissions in People & access → People.",
+          "Review Invited users in the People directory; authorised administrators can correct addresses and resend invitation links when needed.",
+          "People & access separates People, Organisation Positions and Veterinary Clinics. Committee positions do not confer operational access."
         ]
+      },
+      {
+        "id": "clinic-admin",
+        "title": "Register clinics and manage clinic staff",
+        "steps": [
+          {
+            "title": "Approve the clinic",
+            "detail": "Open Administration → People & access → Veterinary Clinics and register the name, verified full pickup address and geographic coordinates."
+          },
+          {
+            "title": "Invite staff with clinic-only access",
+            "detail": "From People, invite Veterinary clinic staff as their only system role and link the account to the specific approved clinic."
+          },
+          {
+            "title": "Verify a physical handover",
+            "detail": "The rescuer must select that clinic in their mobile veterinary drop-off form; typing a clinic name alone does not create the animal-to-clinic permission link."
+          },
+          {
+            "title": "Check the restricted workspace",
+            "detail": "Have the staff member sign in to /vet and confirm they see only animals currently in that clinic's custody, and can record assessments, ready-for-care updates and confirmed final outcomes."
+          }
+        ],
+        "note": "A veterinary-only account is not a dispatcher, rescuer or general chat member. Clinic identity, address and staff must be independently verified before live use."
       },
       {
         "id": "boundaries",
@@ -210,7 +237,7 @@ export const documentationGuides: DocumentationGuide[] = [
           },
           {
             "title": "Submit",
-            "detail": "Create the pending rescue. It appears on the relevant map and eligible available volunteers can receive rescue notifications."
+            "detail": "Submit the pending Phone Report. Online Report is the separate source category for public web/mobile reports; avoid inventing a third public report category."
           },
           {
             "title": "Monitor",
@@ -249,6 +276,10 @@ export const documentationGuides: DocumentationGuide[] = [
             "title": "Take the next action",
             "detail": "A vet-ready animal can be offered to carers and subsequently for pickup; a confirmed veterinary-reported death or euthanasia can complete care."
           }
+        ],
+        "points": [
+          "Verified clinics can directly record assessments and decisions through the restricted /vet workspace after a formally linked physical handover.",
+          "Organisation dispatchers can continue to record an attributed telephone update for clinics without a portal account, checking existing veterinary records to avoid duplicating the decision."
         ]
       },
       {
@@ -257,7 +288,7 @@ export const documentationGuides: DocumentationGuide[] = [
         "steps": [
           {
             "title": "Record the vet's report",
-            "detail": "Confirm which registered animal is ready and where it physically is."
+            "detail": "Confirm the correct registered animal and exact physical clinic location. Check whether clinic staff have already recorded the ready-for-care action in /vet before adding a separate telephone update."
           },
           {
             "title": "Offer care",
@@ -288,6 +319,129 @@ export const documentationGuides: DocumentationGuide[] = [
     ]
   },
   {
+    "id": "veterinary",
+    "title": "Veterinary clinics",
+    "audience": "Approved veterinary clinic staff and rescue coordinators",
+    "minutes": 8,
+    "description": "How approved clinics receive animal handovers, record veterinary assessments and arrange onward care.",
+    "sections": [
+      {
+        "id": "access",
+        "title": "Get access to your clinic workspace",
+        "intro": "Veterinary clinic accounts use a restricted workspace at /vet, not the general rescue operations dashboard. The responsible rescue organisation must approve the clinic and invite staff first.",
+        "steps": [
+          {
+            "title": "Have your clinic approved",
+            "detail": "An organisation administrator opens Administration → People & access → Veterinary Clinics, registers the clinic and verifies its full pickup address and GPS coordinates."
+          },
+          {
+            "title": "Receive your staff invitation",
+            "detail": "The administrator invites you through People & access → People with Veterinary clinic staff as the only system role, linked to that one approved clinic."
+          },
+          {
+            "title": "Activate your account",
+            "detail": "Follow the secure email invitation, enter and confirm a new password, then sign in. Rescue Hub directs veterinary-only accounts to /vet."
+          },
+          {
+            "title": "Review the clinic queue",
+            "detail": "Animals in your care lists only the animals formally handed over to your clinic that are still in its veterinary custody."
+          }
+        ],
+        "note": "Clinic-only staff cannot browse the rescue map, volunteer jobs, organisation chats or other clinics' animal records. A person who also volunteers needs separately approved access through an appropriate account."
+      },
+      {
+        "id": "handover",
+        "title": "How an animal reaches the clinic queue",
+        "points": [
+          "A rescuer identifies the animal in the existing permanent animal record, then records physical transport and drop-off at the clinic.",
+          "At handover, the rescuer must select the actual approved veterinary clinic in the mobile form. Merely typing its name as a free-text destination does not grant portal access.",
+          "A successful clinic-linked handover records veterinary custody. The original rescue organisation remains responsible for ongoing coordination, with no duplicate animal identity.",
+          "Historical or unlinked veterinary drop-offs will not automatically appear to clinic staff.",
+          "Once an animal leaves veterinary custody, it leaves the active clinic list; its attributed assessments remain part of the original animal history."
+        ]
+      },
+      {
+        "id": "clinical-notes",
+        "title": "Record an assessment or treatment",
+        "steps": [
+          {
+            "title": "Choose the correct animal",
+            "detail": "From /vet, select the animal under Animals in your care and verify its identity and current information."
+          },
+          {
+            "title": "Open the assessment",
+            "detail": "Expand Record veterinary assessment or treatment and enter clinical findings, treatment and relevant care instructions."
+          },
+          {
+            "title": "Save to animal history",
+            "detail": "Submit Save assessment to animal history. The update is permanently attributed to the signed-in veterinary staff member and the VET_PORTAL source."
+          },
+          {
+            "title": "Check confirmation",
+            "detail": "If the server reports an error or conflicting update, refresh the record and confirm whether your change saved before trying again."
+          }
+        ],
+        "note": "Notes require 3 to 4,000 characters. Rescue Hub is a coordination and audit tool, not a substitute for the clinic's clinical patient-management system."
+      },
+      {
+        "id": "ready",
+        "title": "Mark the animal ready for care and collection",
+        "steps": [
+          {
+            "title": "Confirm the clinical decision",
+            "detail": "Check that the animal is fit to leave the clinic; note relevant medication, handling restrictions, welfare concerns and pickup instructions."
+          },
+          {
+            "title": "Record ready for care",
+            "detail": "Expand Mark ready for care and collection, enter the clinical notes and choose Confirm ready for care."
+          },
+          {
+            "title": "Care offer and pickup request",
+            "detail": "The system creates the carer offer and a held transport pickup job at the approved clinic's registered coordinates, linked to the same animal."
+          },
+          {
+            "title": "Wait for formal claims",
+            "detail": "A carer formally accepts the animal before a transport-authorised volunteer can self-claim collection. Ready for care does not assign a transporter or transfer physical custody."
+          }
+        ]
+      },
+      {
+        "id": "outcomes",
+        "title": "Record confirmed death or euthanasia",
+        "steps": [
+          {
+            "title": "Verify the outcome",
+            "detail": "Only use this for a death or euthanasia that has actually been confirmed by a veterinarian, never as a shortcut to close the case."
+          },
+          {
+            "title": "Choose the outcome",
+            "detail": "Expand Record confirmed death or euthanasia and choose Deceased or Euthanised."
+          },
+          {
+            "title": "Document and explicitly confirm",
+            "detail": "Provide clinical confirmation and notes, then tick the final-outcome confirmation checkbox before submitting."
+          },
+          {
+            "title": "Review the permanent history",
+            "detail": "The final outcome is attributed to clinic staff and cancels outstanding collection work. The animal record is retained for authorised historical review."
+          }
+        ]
+      },
+      {
+        "id": "privacy",
+        "title": "Access boundaries, troubleshooting and emergencies",
+        "points": [
+          "In the initial implementation, each clinic-only account belongs to exactly one approved clinic within one responsible rescue organisation.",
+          "If an expected animal is missing, confirm that the rescuer physically handed it over, selected the registered clinic, and recorded it as At vet; an unlinked free-text destination is not enough.",
+          "If a clinical update fails, refresh before retrying. A change in animal custody, a concurrent update or an inactive staff account can prevent the save.",
+          "Coordinators can still document verified veterinary telephone callbacks for clinics without portal logins.",
+          "Clinical attachments, lab results, signatures, self-service clinic registration, multi-organisation clinic tenancy and formal regulatory integration are not implemented.",
+          "For urgent wildlife incidents use established clinical or organisational telephone escalation; do not depend on a portal update or chat notification."
+        ]
+      }
+    ]
+  },
+  {
     "id": "rescuers",
     "title": "Rescuers",
     "audience": "Volunteer responders on iPhone or Android",
@@ -304,7 +458,7 @@ export const documentationGuides: DocumentationGuide[] = [
           },
           {
             "title": "Confirm membership",
-            "detail": "Check your assigned rescue group and qualifications with your administrator."
+            "detail": "Check your approved Rescuer permission and specialist training teams with your administrator. You cannot add your own qualifications; they can be updated after completing the required training."
           },
           {
             "title": "Set availability",
@@ -334,7 +488,7 @@ export const documentationGuides: DocumentationGuide[] = [
           },
           {
             "title": "Confirm physical pickup",
-            "detail": "Tap Animal picked up only after collection. The rescue pin then leaves the operational map, but the history is retained."
+            "detail": "Confirm pickup only after physically collecting the animal. The original map job disappears but its permanent record remains. Where an initial pickup was recorded in error and the animal was never collected, use the audited correction path instead of leaving a false custody record."
           },
           {
             "title": "Register and update",
@@ -343,9 +497,20 @@ export const documentationGuides: DocumentationGuide[] = [
         ]
       },
       {
+        "id": "colours-training",
+        "title": "Map colours and training notices",
+        "points": [
+          "Desktop and Expo map markers share animal-group colours; a smaller dot distinguishes Pending or Assigned status. Colour alone does not prove eligibility.",
+          "If a claim requires a species qualification you do not hold, Expo shows a centred, dismissible Training required notice without resizing the map.",
+          "Once you have completed additional training, ask your organisation administrator to update your species team and system permissions.",
+          "The server checks your active role, availability, training and organisation before accepting a self-claim."
+        ]
+      },
+      {
         "id": "vets",
         "title": "Transport to a vet and follow-up",
         "points": [
+          "When handing an animal over, select the actual approved clinic from the mobile list to make it visible in that clinic's restricted workspace. Free-text clinic names alone do not grant access.",
           "Record Transporting to veterinary clinic, then Dropped off at veterinary clinic as separate milestones.",
           "An animal at a veterinary facility remains registered even though it is off the active rescue map.",
           "The original animal record continues when a carer or a different transport volunteer later takes over.",
@@ -455,7 +620,7 @@ export const documentationGuides: DocumentationGuide[] = [
         "title": "Who can transport",
         "points": [
           "Transport is separate from specialist wildlife rescue qualification.",
-          "Eligible active organisation volunteers can claim transport jobs even when they don't care for that species; local handling, safety and welfare policies still apply.",
+          "Transport requires an active organisation account, current availability and explicit transport authorisation granted by an administrator. Neither a specialist rescue team nor the Carer role automatically grants transport permission; safe handling policy still applies.",
           "Unaffiliated public reporter accounts cannot claim organisation transport jobs.",
           "The transport job becomes available once a carer has formally claimed the animal and chosen a destination."
         ]
@@ -530,12 +695,16 @@ export const documentationGuides: DocumentationGuide[] = [
             "detail": "On the Expo rescuer app use the Chats tab in the bottom navigation; on desktop open /chats."
           },
           {
+            "title": "Select an organisation where permitted",
+            "detail": "Users with access to multiple organisations can switch their scope. On Expo, Viewing organisation is a compact dropdown opening a dismissible modal, leaving more room for the conversation list."
+          },
+          {
             "title": "Select a channel",
-            "detail": "You only see channels permitted for your role and active team membership."
+            "detail": "Choose Conversations or People, then open a permitted organisation channel or start a direct chat with an available organisation member."
           },
           {
             "title": "Talk to the team",
-            "detail": "Messages carry sender attribution and timestamps and remain available as channel history."
+            "detail": "Messages retain sender identity and timestamps. Members show Available, Busy or Offline; busy members do not receive new private messages. Desktop supports Enter to send and Shift+Enter for a new line."
           },
           {
             "title": "Review updates",
@@ -560,7 +729,8 @@ export const documentationGuides: DocumentationGuide[] = [
           "Organisation chats are not available to unaffiliated members of the public.",
           "Only the current assigned rescuer may communicate privately with a public reporter when the reporter opted into that contact.",
           "Do not share reporter phone numbers, residential addresses or sensitive animal information broadly in group channels.",
-          "Chat-specific push alerts, comprehensive moderation and formal retention governance are not yet implemented."
+          "Chat-specific push alerts, comprehensive moderation and formal retention governance are not yet implemented.",
+          "Veterinary-only staff do not appear in the general chats directory and cannot browse organisation channels; record clinical findings through /vet."
         ]
       }
     ]
@@ -579,7 +749,8 @@ export const documentationGuides: DocumentationGuide[] = [
           "An initial report is an observation; the registered animal is the continuing record once a rescuer identifies it.",
           "A rescue response and each later transport pickup have their own operational job IDs.",
           "The animal record holds its ID, species and corrections, current status and custodian, call notes, progress milestones, transfers, outcomes and timestamps.",
-          "Subsequent transport work references the original animal; it does not create a second animal for the same case."
+          "Subsequent transport work references the original animal; it does not create a second animal for the same case.",
+          "Approved veterinary drop-off links the existing animal record to a restricted clinic queue; signed-in clinic assessments and decisions use attributed VET_PORTAL provenance."
         ]
       },
       {
@@ -612,7 +783,7 @@ export const documentationGuides: DocumentationGuide[] = [
           },
           {
             "title": "Record the outcome or action",
-            "detail": "A veterinary ready-for-pickup call may lead to a care offer. A confirmed vet-reported euthanasia or death is a terminal outcome."
+            "detail": "Authorised clinic staff can mark ready for care or record confirmed outcomes directly at /vet. Verified telephone updates remain an alternative for clinics that have not been onboarded."
           }
         ]
       },
@@ -652,18 +823,22 @@ export const documentationGuides: DocumentationGuide[] = [
           "Permanent animal history, veterinary phone updates, recorded outcomes and multi-animal case handling.",
           "GeoJSON-rendered Mapbox rescue markers and mobile keyboard handling improvements.",
           "Organisation group chats across desktop and Expo, including channel permissions and chat history.",
-          "Existing AppSync/DynamoDB realtime update infrastructure and server-side push notification pathways."
+          "Existing AppSync/DynamoDB realtime update infrastructure and server-side push notification pathways.",
+          "Approved veterinary clinics, restricted vet-only identities, recorded handovers and clinical assessments, care offers and confirmed outcomes at /vet.",
+          "Shared desktop/mobile animal-group map colours and workflow markers, mobile training-required claim modals and a compact organisation selector in Expo Chats.",
+          "Administration separates People, Organisation Positions and Veterinary Clinics; invites start without permissions, training or transport authorisation, with resend and correction actions."
         ]
       },
       {
         "id": "requires-test",
         "title": "Needs deployment or real-world verification",
         "points": [
-          "The latest source changes have passed GitHub CI but do not prove the running AWS stage has those changes deployed.",
+          "Source changes are committed but do not prove the AWS stage or Expo Metro bundle currently contains them. Verify deployed revisions before demonstrating new features.",
           "End-to-end physical-device testing of maps, keyboard behaviour, claims, vet callbacks, pickup, custody handover and chat sync is still required.",
           "SES email delivery and social identity provider credentials must be verified in the deployed environment.",
           "Apple/Android native builds, device registration and actual remote push delivery must be tested separately from compilation.",
-          "Geographic licensing/coverage boundaries, special-area overlap rules, and the proposed organisation model require real operational sign-off."
+          "Geographic licensing/coverage boundaries, special-area overlap rules, and the proposed organisation model require real operational sign-off.",
+          "Test clinic-only sign-in, clinic A/B isolation, documented handover, assessment, ready-for-care and confirmed outcomes in AWS, including competing updates."
         ]
       },
       {
@@ -674,7 +849,8 @@ export const documentationGuides: DocumentationGuide[] = [
           "National rollout and verified authoritative geographic coverage across Australian jurisdictions.",
           "Comprehensive chat moderation, chat push notifications and agreed data-retention policies.",
           "A complete provisional telephone-event workflow before an animal is registered.",
-          "Production onboarding, reliability testing, operational support and agency/organisation acceptance."
+          "Production onboarding, reliability testing, operational support and agency/organisation acceptance.",
+          "Multi-organisation veterinary clinic tenancy, clinic self-registration, clinical attachments and laboratory results."
         ]
       },
       {
@@ -687,15 +863,15 @@ export const documentationGuides: DocumentationGuide[] = [
           },
           {
             "title": "Create a wildlife report",
-            "detail": "Place an incident pin, enter an observation and follow the report into the responsible organisation. Avoid entering unnecessary personal information.",
+            "detail": "Place an incident pin, enter an observation and follow the report into the responsible organisation. Avoid entering unnecessary personal information."
           },
           {
             "title": "Show self-claim and pickup",
-            "detail": "Follow an eligible volunteer accepting a rescue and confirming physical collection.",
+            "detail": "Follow an eligible volunteer accepting a rescue and confirming physical collection."
           },
           {
             "title": "Show veterinary follow-up",
-            "detail": "Record a veterinary callback, open a care offer and arrange independent transport to a carer.",
+            "detail": "Use a registered clinic and vet-only staff account to demonstrate handover, clinical assessment, ready for care and onward transport; use the established phone-call fallback for non-portal clinics."
           },
           {
             "title": "Finish with oversight",
@@ -706,7 +882,7 @@ export const documentationGuides: DocumentationGuide[] = [
       {
         "id": "support",
         "title": "Support and limitations",
-        "intro": "These guides explain the platform workflows as at 11 November 2026; they do not replace clinical wildlife-care advice. If a critical operation is unavailable, follow established emergency and organisational procedures."
+        "intro": "These guides describe the implemented source workflows as at 16 November 2026; deployment and real-device validation remain separate requirements. They are not clinical wildlife-care advice. For critical incidents follow established emergency and organisational procedures."
       }
     ]
   }
