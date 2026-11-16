@@ -7,6 +7,7 @@ import {
 } from '@aws-sdk/lib-dynamodb';
 import { Resource } from 'sst';
 import { australianAnimalGroups } from '$lib/data/australian-animals';
+import { validateOrganisationPositionName } from '../../../../core/organisation-position';
 import { classifySpeciesCapability, findCatalogueGroup, matchesSpeciesTeam, type SpeciesCapability } from '../../../../core/dispatch-species';
 
 const db = DynamoDBDocumentClient.from(new DynamoDBClient({}), {
@@ -321,11 +322,7 @@ export async function saveOrganisationMembershipConfig(
 
 /** Manage organisation-specific governance/committee titles, not login roles. */
 export async function addOrganisationPosition(organisationId: string, nameInput: string) {
-  const name = nameInput.trim();
-  if (!name || name.length > 80 || /[\\u0000-\\u001f\\u007f]/.test(name))
-    throw new Error('Enter a position name of up to 80 readable characters.');
-  const id = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 72);
-  if (!id) throw new Error('Position must contain letters or numbers.');
+  const { name, id } = validateOrganisationPositionName(nameInput);
   await db.send(new PutCommand({
     TableName: tableName, Item: {
       pk: `ORG#${organisationId}`, sk: `POSITION#${id}`,

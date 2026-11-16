@@ -29,6 +29,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 async function withAnimal(
   user: RescueHubUser | null,
   request: Request,
+  successMessage: string,
   fn: (animal: NonNullable<Awaited<ReturnType<typeof getAnimal>>>, clinic:
     NonNullable<Awaited<ReturnType<typeof getVetClinic>>>, notes: string) => Promise<void>
 ) {
@@ -43,16 +44,17 @@ async function withAnimal(
   if (!canVetAccessAnimal(user as VetActor, animal)) return fail(403, { message: 'This animal is not assigned to your clinic.' });
   try {
     await fn(animal!, clinic, notes);
-    return { success: true, message: 'Veterinary update recorded.' };
+    return { success: true, message: successMessage };
   } catch (issue) {
     if (issue instanceof AnimalPhoneConflict || issue instanceof AnimalConflict)
       return fail(409, { message: issue.message });
     console.error('Veterinary workspace update failed:', issue);
-    return fail(503, { message: 'Could not record veterinary update. Please retry.' });
+    return fail(503, { message: 'The veterinary update could not be confirmed. Refresh the animal record before trying again.' });
   }
 }
 export const actions: Actions = {
   assessment: async ({ locals, request }) => withAnimal(locals.user, request,
+    'Clinical assessment saved to the animal’s permanent record.',
     async (animal, _clinic, notes) => {
       await recordAnimalEvent(animal, locals.user!.id, {
         type: 'VET_ASSESSMENT', notes, source: 'VET_PORTAL',
@@ -60,6 +62,7 @@ export const actions: Actions = {
       });
     }),
   ready: async ({ locals, request }) => withAnimal(locals.user, request,
+    'Animal marked ready for care. The care offer and transport collection request were created.',
     async (animal, clinic, notes) => {
       if (animal.activeTransportRescueId)
         throw new AnimalPhoneConflict('A collection request already exists for this animal.');
@@ -81,7 +84,9 @@ export const actions: Actions = {
       return fail(400, { message: 'Choose confirmed euthanasia or death.' });
     if (form.get('confirmed') !== 'on')
       return fail(400, { message: 'Confirm this is a verified final veterinary outcome.' });
-    return withAnimal(locals.user, request, async (animal, _clinic, notes) => {
+    return withAnimal(locals.user, request,
+      'Confirmed veterinary outcome saved. Any pending collection job was cancelled.',
+      async (animal, _clinic, notes) => {
       const input = validatePhoneUpdate({
         callerName: locals.user!.name, callerRole: 'VET', notes,
         animalId: animal.id, requestTransport: false, finalOutcome: outcome,
