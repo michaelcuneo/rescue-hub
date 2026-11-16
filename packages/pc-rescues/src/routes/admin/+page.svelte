@@ -10,7 +10,7 @@
   import { adminActionFeedback, type FeedbackNotice } from '../../../../core/admin-feedback';
   import { invitationEmailLabel, invitationExpired } from '../../../../core/invitation-delivery';
 
-  let { data, form }: { data: PageData; form?: any } = $props();
+  let { data }: { data: PageData } = $props();
 
   type Section =
     | 'overview'
