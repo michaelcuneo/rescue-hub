@@ -33,7 +33,7 @@
           <form method="POST" action="?/assessment">
             <input type="hidden" name="animalId" value={animal.id} />
             <label for={'assessment-' + animal.id}>Clinical observations and treatment notes</label>
-            <textarea id={'assessment-' + animal.id} name="notes" minlength="3" maxlength="4000" required rows="3" placeholder="Document findings and assessment…" />
+            <textarea id={'assessment-' + animal.id} name="notes" minlength="3" maxlength="4000" required rows="3" placeholder="Document findings and assessment…"></textarea>
             <button type="submit">Save assessment to animal history</button>
           </form>
         </details>
@@ -44,7 +44,7 @@
             <form method="POST" action="?/ready">
               <input type="hidden" name="animalId" value={animal.id} />
               <label for={'ready-' + animal.id}>Assessment, care instructions and collection notes</label>
-              <textarea id={'ready-' + animal.id} name="notes" minlength="3" maxlength="4000" required rows="3" placeholder="Fit for transfer, medication needs, handling precautions…" />
+              <textarea id={'ready-' + animal.id} name="notes" minlength="3" maxlength="4000" required rows="3" placeholder="Fit for transfer, medication needs, handling precautions…"></textarea>
               <p class="helper">This creates a care offer and a pending transport pickup at your approved clinic. A carer must accept responsibility before a volunteer collects the animal.</p>
               <button type="submit">Confirm ready for care</button>
             </form>
@@ -62,7 +62,7 @@
               <option value="DECEASED">Deceased</option>
             </select>
             <label for={'outcome-notes-' + animal.id}>Clinical confirmation and notes</label>
-            <textarea id={'outcome-notes-' + animal.id} name="notes" minlength="3" maxlength="4000" required rows="3" placeholder="Record why and by whom the outcome was confirmed…" />
+            <textarea id={'outcome-notes-' + animal.id} name="notes" minlength="3" maxlength="4000" required rows="3" placeholder="Record why and by whom the outcome was confirmed…"></textarea>
             <p class="helper">This is a final animal outcome. Any outstanding collection offer is cancelled and the permanent history remains.</p>
             <button class="danger" type="submit">Record final veterinary outcome</button>
           </form>
