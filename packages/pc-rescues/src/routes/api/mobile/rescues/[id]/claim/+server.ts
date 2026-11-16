@@ -37,10 +37,10 @@ export const POST: RequestHandler = async ({ locals, params }) => {
     const membership = await getOrganisationMembershipConfig(user.organisationId);
     const capability = classifyDispatchCapability(rescue.type, rescue.breed ?? '');
     if (!canRescueForOrganisation(user))
-      return json({ error: 'Your account needs the Rescuer system permission to claim species rescues. Set it under Administration → People.' }, { status: 403 });
+      return json({ error: 'Only approved rescuers can claim species rescues. Ask your organisation administrator to enable rescuer access.' }, { status: 403 });
     if (!memberCanReceiveCapability(user.teamIds, membership, capability)) {
       const label = capability.toLowerCase().replaceAll('_', ' ');
-      return json({ error: `This rescue requires ${label} training. Check your trained areas and the reported animal type under Administration → People.` }, { status: 403 });
+      return json({ error: `This rescue needs ${label} training. Once trained, ask your organisation administrator to update your permissions.` }, { status: 403 });
     }
     return json({ rescue: await claimRescue(rescue.id, user.organisationId, user.id) });
   } catch (error) {
