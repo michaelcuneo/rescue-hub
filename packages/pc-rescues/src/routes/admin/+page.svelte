@@ -496,7 +496,7 @@
             <span><strong>{Math.max(0, data.organisations.length - gisOrganisations.length)}</strong> text-only areas</span>
           </div>
         </article>
-        <AdminOperatingAreas />
+        <AdminOperatingAreas onNotice={(notice) => (feedback = notice)} />
       </section>
     {:else if section === 'people'}
       <section class="people-workspace" aria-label="People and access management">
