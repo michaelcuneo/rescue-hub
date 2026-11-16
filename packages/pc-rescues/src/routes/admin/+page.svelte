@@ -725,10 +725,17 @@
             </form>
             <form method="POST" use:enhance={handleAdminSubmit} action="?/updateMemberAccess" class="person-form">
               <input type="hidden" name="userId" value={selectedPerson.id} />
-              <fieldset class="access-group" disabled={selectedPerson.id === data.currentUser.id}>
+              <fieldset class="access-group" disabled={selectedPerson.id === data.currentUser.id && !data.currentUser.roles.includes('PLATFORM_ADMIN')}>
                 <legend>System permissions — select all that apply</legend>
                 <p class="permission-help">Grant only necessary privileges. Changing permissions signs this member out of existing sessions. Management positions do not grant permissions.</p>
-                <div class="capability-grid">{#each roleOptions.filter(option => data.assignableRoles.includes(option.id)) as role}<label class="capability-option"><input type="checkbox" name="roles" value={role.id} checked={selectedPerson.roles.includes(role.id)} /><span><strong>{role.label}</strong></span></label>{/each}</div>
+                {#if selectedPerson.id === data.currentUser.id && data.currentUser.roles.includes('PLATFORM_ADMIN')}
+                  <p class="permission-help">You can select your own additional system permissions. Platform Administrator remains mandatory. Public reporter and veterinary clinic staff require dedicated accounts.</p>
+                {/if}
+                <div class="capability-grid">{#each roleOptions.filter(option => data.assignableRoles.includes(option.id) &&
+                  !(selectedPerson.id === data.currentUser.id && ['VET_STAFF'].includes(option.id))) as role}<label class="capability-option"><input type="checkbox" name="roles" value={role.id} checked={selectedPerson.roles.includes(role.id)}
+                    disabled={selectedPerson.id === data.currentUser.id && role.id === 'PLATFORM_ADMIN'} />
+                  {#if selectedPerson.id === data.currentUser.id && role.id === 'PLATFORM_ADMIN'}<input type="hidden" name="roles" value="PLATFORM_ADMIN" />{/if}
+                  <span><strong>{role.label}</strong></span></label>{/each}</div>
               </fieldset>
               <div class="access-group">
                 <label><span>Assigned veterinary clinic (veterinary staff only)</span>
@@ -745,7 +752,7 @@
                 <legend>Transport authorisation</legend>
                 <label class="capability-option"><input type="checkbox" name="canTransport" value="on" checked={selectedPerson.canTransport === true} /><span><strong>Can transport animals</strong><small>Independent of being a carer, rescuer or specialist. Untick if they cannot transport.</small></span></label>
               </fieldset>
-              <div class="dialog-actions"><button class="primary-action" type="submit" disabled={selectedPerson.id === data.currentUser.id}>Save permissions & qualifications</button></div>
+              <div class="dialog-actions"><button class="primary-action" type="submit" disabled={selectedPerson.id === data.currentUser.id && !data.currentUser.roles.includes('PLATFORM_ADMIN')}>{selectedPerson.id === data.currentUser.id ? 'Save my system permissions' : 'Save permissions & qualifications'}</button></div>
             </form>
             <div class="account-management"><h3>Account access</h3><p>These actions affect sign-in access, not dispatch availability.</p><div class="account-actions"><form method="POST" use:enhance={handleAdminSubmit} action={selectedPerson.enabled ? '?/disableUser' : '?/enableUser'}><input type="hidden" name="userId" value={selectedPerson.id} /><button type="submit">{selectedPerson.enabled ? 'Disable access' : 'Enable access'}</button></form><form method="POST" use:enhance={handleAdminSubmit} action="?/resetPassword"><input type="hidden" name="userId" value={selectedPerson.id} /><button type="submit">Reset password</button></form><form method="POST" use:enhance={handleAdminSubmit} action="?/removeUser" onsubmit={(event) => { if (!confirm('Remove this person from Rescue Hub? This cannot be undone.')) event.preventDefault(); }}><input type="hidden" name="userId" value={selectedPerson.id} /><button class="danger" type="submit">Remove person</button></form></div></div>
           </div>
