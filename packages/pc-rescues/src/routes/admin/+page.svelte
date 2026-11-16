@@ -1556,12 +1556,6 @@
     color:var(--rh-t107, #9d3c34);
   }
 
-  .people-feedback code {
-    padding: 3px 6px;
-    border-radius: 5px;
-    background:var(--rh-surface);
-  }
-
   .people-table {
     margin-top: 18px;
   }
