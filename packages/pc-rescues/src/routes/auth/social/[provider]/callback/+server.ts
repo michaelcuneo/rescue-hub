@@ -8,23 +8,23 @@ async function finish(input: {
   provider: string; origin: string; state: string; code: string;
   appleUser?: string; cookies: Parameters<RequestHandler>[0]['cookies']
 }): Promise<Response> {
-  if (!isSocialProvider(input.provider)) throw redirect(303, '/join?social_error=unknown');
+  if (!isSocialProvider(input.provider)) throw redirect(303, '/login');
   try {
     const identity = await finishSocialOAuth({
       provider: input.provider, origin: input.origin,
       state: input.state, code: input.code, appleUser: input.appleUser
     });
-    const mobile = Boolean(identity.mobileChallenge);
-    const result = await createOrLoginSocialReporter(identity, mobile ? undefined : input.cookies);
+    if (!identity.mobileChallenge) throw redirect(303, '/login');
+    const result = await createOrLoginSocialReporter(identity);
     if (identity.mobileChallenge) {
       const target = await createMobileAuthHandoff(result.user!.id, identity.mobileChallenge);
       throw redirect(303, target);
     }
-    throw redirect(303, '/report');
+    throw redirect(303, '/login');
   } catch (e) {
     if (e && typeof e === 'object' && 'status' in e && 'location' in e) throw e;
     console.error('Public social sign-in failed:', e instanceof Error ? e.message : 'Unknown error');
-    throw redirect(303, '/join?social_error=failed');
+    throw redirect(303, '/login');
   }
 }
 
