@@ -51,11 +51,11 @@ type ClaimNotice = { title: string; message: string };
 
 function claimNoticeFor(error: unknown): ClaimNotice {
   const raw = error instanceof Error ? error.message : 'Unable to claim this rescue.';
-  const training = raw.match(/This rescue (?:requires|needs) (.+?) training\b/i);
+  const training = raw.match(/This rescue (?:requires|needs) (.+?) training\b/i)?.[1];
   if (training) {
     return {
       title: 'Training required',
-      message: `This rescue needs ${training[1].trim().toLowerCase()} training. Once you complete it, your organisation administrator can update your permissions.`
+      message: `This rescue needs ${training.trim().toLowerCase()} training. Once you complete it, your organisation administrator can update your permissions.`
     };
   }
   if (/Rescuer system permission|Only approved rescuers can claim species rescues/i.test(raw)) {
