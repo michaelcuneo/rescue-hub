@@ -1,5 +1,6 @@
 import { json, type Handle } from '@sveltejs/kit';
-import { getCurrentUser } from '$lib/server/auth';
+import { getCurrentUser, logoutUser } from '$lib/server/auth';
+import { mayUseDesktopPortal } from '../../../core/desktop-portal-access';
 
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 
@@ -15,7 +16,16 @@ export const handle: Handle = async ({ event, resolve }) => {
 		return json({ error: 'Cross-origin request rejected.' }, { status: 403 });
 	}
 	try {
-		event.locals.user = await getCurrentUser(event.cookies, event.request.headers.get('authorization'));
+		const authorization = event.request.headers.get('authorization');
+		event.locals.user = await getCurrentUser(event.cookies, authorization);
+		if (event.locals.user && !mayUseDesktopPortal(event.locals.user)) {
+			// Bearer-authenticated mobile API endpoints stay available to reporters.
+			const bearer = /^Bearer\s+\S+/i.test(authorization ?? '');
+			if (!(bearer && event.url.pathname.startsWith('/api/'))) {
+				if (!bearer) await logoutUser(event.cookies);
+				event.locals.user = null;
+			}
+		}
 	} catch (error) {
 		console.error('Unable to resolve Rescue Hub session', error);
 		event.locals.user = null;
