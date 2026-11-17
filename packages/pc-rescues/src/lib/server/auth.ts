@@ -18,6 +18,7 @@ import { isValidReporterEmail, isValidReporterVerificationCode, normalizeReporte
 import { INVITATION_TTL_SECONDS, INVITATION_RESEND_SECONDS, makeInvitationUrl, parseInvitationCredential, invitationNotExpired } from '../../../../core/invitation-links';
 import { getOrganisation } from './graphql';
 import { resolveInviteLookup, inviteLookupExplanation } from '../../../../core/invite-email-resolution';
+import { mayUseDesktopPortal } from '../../../../core/desktop-portal-access';
 
 const scrypt = promisify(scryptCallback);
 const db = DynamoDBDocumentClient.from(new DynamoDBClient({}), {
@@ -891,7 +892,9 @@ export async function loginUser(email: string, password: string, cookies?: Cooki
 		throw new Error('Invalid email or password.');
 	}
 
-	return { user: toUser(profile), sessionToken: await createSession(userId, cookies) };
+	const user = toUser(profile);
+	if (cookies && !mayUseDesktopPortal(user)) throw new Error('An organisation account is required for desktop sign-in.');
+	return { user, sessionToken: await createSession(userId, cookies) };
 }
 
 export async function requestPasswordReset(emailInput: string) {
