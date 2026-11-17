@@ -1211,6 +1211,7 @@ export async function setUserEnabled(userId: string, enabled: boolean) {
 export async function removeUser(userId: string) {
   const account = await getUserRecord(userId);
   if (!account || account.status === 'REMOVED') throw new Error('Account already removed or not found.');
+	const membership = await db.send(new GetCommand({ TableName: tableName, Key: { pk: `USER#${userId}`, sk: 'MEMBERSHIP' }, ConsistentRead: true }));
 	const now = new Date().toISOString();
 	await db.send(new TransactWriteCommand({
 		TransactItems: [
@@ -1224,7 +1225,7 @@ export async function removeUser(userId: string) {
 					ExpressionAttributeValues: { ':no': false, ':removed': 'REMOVED', ':zero': 0, ':one': 1, ':at': now }
 				}
 			},
-			{
+...(membership.Item ? [			{
 				Update: {
 					TableName: tableName,
 					Key: { pk: `USER#${userId}`, sk: 'MEMBERSHIP' },
@@ -1233,7 +1234,7 @@ export async function removeUser(userId: string) {
 					ExpressionAttributeNames: { '#status': 'status' },
 					ExpressionAttributeValues: { ':removed': 'REMOVED', ':at': now }
 				}
-			}
+			}] : [])
 		]
 	}));
   // Retain historical profile and rescue references while freeing the email
