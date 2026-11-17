@@ -1,6 +1,6 @@
 import { json, type Handle } from '@sveltejs/kit';
 import { getCurrentUser, logoutUser } from '$lib/server/auth';
-import { mayUseDesktopPortal } from '../../../core/desktop-portal-access';
+import { mayUseDesktopPortal } from '../../core/desktop-portal-access';
 
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 
