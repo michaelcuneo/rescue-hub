@@ -18,6 +18,7 @@ import { isValidReporterEmail, isValidReporterVerificationCode, normalizeReporte
 import { INVITATION_TTL_SECONDS, INVITATION_RESEND_SECONDS, makeInvitationUrl, parseInvitationCredential, invitationNotExpired } from '../../../../core/invitation-links';
 import { getOrganisation } from './graphql';
 import { resolveInviteLookup, inviteLookupExplanation } from '../../../../core/invite-email-resolution';
+import { mayUseDesktopPortal } from '../../../../core/desktop-portal-access';
 
 const scrypt = promisify(scryptCallback);
 const db = DynamoDBDocumentClient.from(new DynamoDBClient({}), {
@@ -891,7 +892,9 @@ export async function loginUser(email: string, password: string, cookies?: Cooki
 		throw new Error('Invalid email or password.');
 	}
 
-	return { user: toUser(profile), sessionToken: await createSession(userId, cookies) };
+	const user = toUser(profile);
+	if (cookies && !mayUseDesktopPortal(user)) throw new Error('An organisation account is required for desktop sign-in.');
+	return { user, sessionToken: await createSession(userId, cookies) };
 }
 
 export async function requestPasswordReset(emailInput: string) {
@@ -1211,6 +1214,7 @@ export async function setUserEnabled(userId: string, enabled: boolean) {
 export async function removeUser(userId: string) {
   const account = await getUserRecord(userId);
   if (!account || account.status === 'REMOVED') throw new Error('Account already removed or not found.');
+	const membership = await db.send(new GetCommand({ TableName: tableName, Key: { pk: `USER#${userId}`, sk: 'MEMBERSHIP' }, ConsistentRead: true }));
 	const now = new Date().toISOString();
 	await db.send(new TransactWriteCommand({
 		TransactItems: [
@@ -1224,7 +1228,7 @@ export async function removeUser(userId: string) {
 					ExpressionAttributeValues: { ':no': false, ':removed': 'REMOVED', ':zero': 0, ':one': 1, ':at': now }
 				}
 			},
-			{
+...(membership.Item ? [			{
 				Update: {
 					TableName: tableName,
 					Key: { pk: `USER#${userId}`, sk: 'MEMBERSHIP' },
@@ -1233,7 +1237,7 @@ export async function removeUser(userId: string) {
 					ExpressionAttributeNames: { '#status': 'status' },
 					ExpressionAttributeValues: { ':removed': 'REMOVED', ':at': now }
 				}
-			}
+			}] : [])
 		]
 	}));
   // Retain historical profile and rescue references while freeing the email

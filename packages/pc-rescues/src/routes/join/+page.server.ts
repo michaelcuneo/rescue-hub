@@ -1,6 +1,4 @@
-import { configuredSocialProviders } from '$lib/server/social-oauth';
+import { redirect } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
 
-export const load: PageServerLoad = () => ({
-  providers: configuredSocialProviders()
-});
+export const load: PageServerLoad = () => { throw redirect(303, '/login'); };

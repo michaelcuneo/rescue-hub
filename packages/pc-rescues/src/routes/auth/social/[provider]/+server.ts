@@ -5,8 +5,8 @@ import type { RequestHandler } from './$types';
 export const GET: RequestHandler = async ({ params, url }) => {
   if (!isSocialProvider(params.provider)) error(404, 'Unknown sign-in provider.');
   try {
-    const mobileChallenge = url.searchParams.get('mobile') === '1'
-      ? url.searchParams.get('code_challenge') ?? '' : undefined;
+    if (url.searchParams.get('mobile') !== '1') error(404, 'Reporter sign-in is available in the mobile app.');
+    const mobileChallenge = url.searchParams.get('code_challenge') ?? '';
     const destination = await startSocialOAuth(params.provider, url.origin, mobileChallenge);
     redirect(303, destination);
   } catch (e) {

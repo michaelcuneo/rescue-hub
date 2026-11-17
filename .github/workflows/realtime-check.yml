@@ -76,6 +76,8 @@ jobs:
         run: node --experimental-strip-types --test packages/core/chat-channels.test.mjs
       - name: Operational map lifecycle validation tests
         run: node --experimental-strip-types --test packages/core/case-map-visibility.test.mjs
+      - name: Organisation-only desktop access tests
+        run: node --experimental-strip-types --test packages/core/desktop-portal-access.test.mjs
       - name: Desktop rescue visibility tests
         run: node --experimental-strip-types --test packages/core/desktop-dispatch-access.test.mjs
       - name: Role assignment and administrator privilege boundary tests
