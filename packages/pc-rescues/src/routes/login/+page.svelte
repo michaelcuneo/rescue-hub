@@ -16,7 +16,6 @@
 			<button type="submit">Sign in</button>
 		</form>
 		<div class="links"><a href="/reset">Forgot password?</a></div>
-    <div class="public-link"><a href="/join">Not part of a rescue organisation? Report injured wildlife</a></div>
 	</section>
 </main>
 
@@ -32,6 +31,5 @@
 	button{min-height:40px;border:0;border-radius:9px;background:#173d2c;color:white;font-weight:800;cursor:pointer}
 	.error{padding:9px;border-radius:8px;background:var(--rh-t190, #fff0ed);color:var(--rh-t191, #9d3c34);font-size: 13px}
 	.links{display:flex;justify-content:space-between;margin-top:16px;font-size: 13px}
-	.public-link{margin-top:18px;padding-top:16px;border-top:1px solid var(--rh-t178, #d9e1dc);font-size:14px}
 	a{color:var(--rh-t192, #24583f)}
 </style>
