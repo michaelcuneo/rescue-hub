@@ -1148,6 +1148,15 @@
 </div>
 
 <style>
+  /* Controls must never rely on browser-default ButtonText/ButtonFace.
+     Both themes supply explicit, high-contrast surface and foreground tokens.
+     :where() keeps this a low-specificity fallback: primary actions, active
+     filters, destructive actions and transparent navigation keep their own styles. */
+  :where(.admin-shell) button {
+    color: var(--rh-text);
+    background: var(--rh-surface-soft);
+  }
+
   .save-progress{position:fixed;z-index:90;top:84px;right:var(--rh-gutter);
     background:var(--rh-surface);color:var(--rh-text);border:1px solid var(--rh-border);
     box-shadow:var(--rh-shadow);padding:12px 18px;border-radius:9px;font-size:13px;font-weight:750}
