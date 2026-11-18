@@ -223,7 +223,14 @@ import { completedOnNSWDay, rescueTodayNSW, sortRescueRecords, isWaitingFourHour
 		const requestId = ++addressSearchSequence;
 		addressSearching = true;
 		try {
-			const response = await fetch(`/api/geocoding/search?q=${encodeURIComponent(query)}`, {
+			const params = new URLSearchParams({ q: query });
+			const lon = Number($coords[0]), lat = Number($coords[1]);
+			if (Number.isFinite(lat) && Number.isFinite(lon) &&
+				Math.abs(lat) <= 90 && Math.abs(lon) <= 180) {
+				params.set('lat', String(lat));
+				params.set('lon', String(lon));
+			}
+			const response = await fetch(`/api/geocoding/search?${params}`, {
 				cache: 'no-store'
 			});
 			if (!response.ok) throw new Error(`Address search failed: ${response.status}`);
@@ -580,7 +587,7 @@ import { completedOnNSWDay, rescueTodayNSW, sortRescueRecords, isWaitingFourHour
 									</button>
 								{/each}
 							</div>
-							<small>Address data: G-NAF Core © Geoscape Australia</small>
+							<small>Address data: Amazon Location Service</small>
 						{/if}
 					</label>
 

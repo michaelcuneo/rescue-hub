@@ -1,14 +1,6 @@
 import type { MappedAddress, RescueCoordinates } from './rescue-location';
 
-// Type-only import works in both SvelteKit and Node's strip-types test runner.
-// Keep this small guard local so the module has no runtime imports.
-function validGeocodingCoordinates(input: RescueCoordinates): boolean {
-  return Number.isFinite(input.latitude) && Number.isFinite(input.longitude) &&
-    input.latitude >= -90 && input.latitude <= 90 &&
-    input.longitude >= -180 && input.longitude <= 180;
-}
-
-/** Wire contract for our independent, G-NAF-derived geocoder. No Mapbox data. */
+/** Provider-independent contract for AWS Location today, G-NAF later. */
 export type AddressSuggestion = {
   id: string;
   label: string;
@@ -16,56 +8,92 @@ export type AddressSuggestion = {
   longitude: number;
 };
 
-function record(value: unknown): Record<string, unknown> | null {
+function object(value: unknown): Record<string, unknown> | null {
   return value !== null && typeof value === 'object' && !Array.isArray(value)
     ? value as Record<string, unknown> : null;
 }
 
-function addressLabel(value: unknown): string | null {
-  return typeof value === 'string' && value.trim().length >= 3 &&
-    value.trim().length <= 250 ? value.trim() : null;
+function coordinates(input: RescueCoordinates): boolean {
+  return Number.isFinite(input.latitude) && Number.isFinite(input.longitude) &&
+    Math.abs(input.latitude) <= 90 && Math.abs(input.longitude) <= 180;
+}
+
+function australianAddress(record: Record<string, unknown>): boolean {
+  const address = object(record.Address);
+  const country = object(address?.Country);
+  // Country is returned by AWS Places v2, unlike the user's exact GPS location.
+  return country?.Code2 === 'AU' || country?.Code3 === 'AUS';
+}
+
+function position(value: unknown): RescueCoordinates | null {
+  if (!Array.isArray(value) || value.length !== 2) return null;
+  const point = { longitude: value[0] as number, latitude: value[1] as number };
+  return coordinates(point) ? point : null;
+}
+
+function labelOf(record: Record<string, unknown>): string | null {
+  const label = object(record.Address)?.Label ?? record.Title;
+  return typeof label === 'string' && label.trim().length >= 3 &&
+    label.trim().length <= 250 ? label.trim() : null;
 }
 
 export function metresBetween(a: RescueCoordinates, b: RescueCoordinates): number {
-  if (!validGeocodingCoordinates(a) || !validGeocodingCoordinates(b)) return Infinity;
-  const radians = Math.PI / 180;
-  const dLat = (b.latitude - a.latitude) * radians;
-  const dLon = (b.longitude - a.longitude) * radians;
+  if (!coordinates(a) || !coordinates(b)) return Infinity;
+  const r = Math.PI / 180;
+  const dLat = (b.latitude - a.latitude) * r;
+  const dLon = (b.longitude - a.longitude) * r;
   const h = Math.sin(dLat / 2) ** 2 +
-    Math.cos(a.latitude * radians) * Math.cos(b.latitude * radians) * Math.sin(dLon / 2) ** 2;
+    Math.cos(a.latitude * r) * Math.cos(b.latitude * r) * Math.sin(dLon / 2) ** 2;
   return 6371000 * 2 * Math.asin(Math.min(1, Math.sqrt(h)));
 }
 
-/** G-NAF points can be nearby properties, never proof of the rescue's street number. */
-export function parseGnafReverse(value: unknown, incident: RescueCoordinates): MappedAddress {
-  const unavailable: MappedAddress = { address: null, precision: 'UNAVAILABLE' };
-  const result = record(value);
-  if (!result || result.source !== 'GNAF' || !validGeocodingCoordinates(incident)) return unavailable;
-  const address = addressLabel(result.address);
-  const point = { latitude: result.latitude as number, longitude: result.longitude as number };
-  if (!address || !validGeocodingCoordinates(point)) return unavailable;
-  const distance = metresBetween(incident, point);
-  // Beyond 300 m, a numbered property is actively misleading for wildlife reports.
-  if (distance > 300) return unavailable;
-  return { address, precision: 'NEARBY_ADDRESS' };
+function resultRows(value: unknown): Record<string, unknown>[] {
+  const result = object(value);
+  return Array.isArray(result?.ResultItems) ? result.ResultItems.flatMap(row => {
+    const data = object(row);
+    return data ? [data] : [];
+  }) : [];
 }
 
-/** Validate backend data before it can supply a saved rescue location. */
-export function parseGnafSuggestions(value: unknown): AddressSuggestion[] {
-  const response = record(value);
-  if (!response || response.source !== 'GNAF' || !Array.isArray(response.results)) return [];
+/** Reverse hints describe only a nearby location; a property never replaces the incident GPS pin. */
+export function parseAwsReverse(value: unknown, incident: RescueCoordinates): MappedAddress {
+  const unavailable: MappedAddress = { address: null, precision: 'UNAVAILABLE' };
+  if (!coordinates(incident)) return unavailable;
+  const features = resultRows(value).flatMap(row => {
+    if (!australianAddress(row)) return [];
+    const label = labelOf(row);
+    const point = position(row.Position);
+    if (!label || !point) return [];
+    const metres = metresBetween(incident, point);
+    if (metres > 300) return [];
+    return [{ label, type: row.PlaceType, metres }];
+  }).sort((a, b) => a.metres - b.metres);
+
+  const property = features.find(item => ['PointAddress', 'InterpolatedAddress',
+    'SecondaryAddress', 'InferredSecondaryAddress'].includes(String(item.type)));
+  if (property) return { address: property.label, precision: 'NEARBY_ADDRESS' };
+  const street = features.find(item => item.type === 'Street' || item.type === 'Intersection');
+  if (street) return { address: street.label, precision: 'STREET' };
+  const area = features.find(item => ['Locality', 'District', 'SubDistrict', 'PostalCode']
+    .includes(String(item.type)));
+  if (area) return { address: area.label, precision: 'AREA' };
+  return unavailable;
+}
+
+/** Validate AWS Places v2 SearchText response before using it for rescue intake pins. */
+export function parseAwsSearchText(value: unknown): AddressSuggestion[] {
+  const items: AddressSuggestion[] = [];
   const seen = new Set<string>();
-  const suggestions: AddressSuggestion[] = [];
-  for (const item of response.results) {
-    const row = record(item);
-    const label = addressLabel(row?.label);
-    const id = typeof row?.id === 'string' && row.id.length <= 120 ? row.id : null;
-    const latitude = row?.latitude as number;
-    const longitude = row?.longitude as number;
-    if (!id || !label || seen.has(id) || !validGeocodingCoordinates({ latitude, longitude })) continue;
+  for (const row of resultRows(value)) {
+    if (!australianAddress(row)) continue;
+    const label = labelOf(row);
+    const point = position(row.Position);
+    const id = row.PlaceId;
+    if (!label || !point || typeof id !== 'string' || !id || id.length > 500 ||
+        seen.has(id)) continue;
     seen.add(id);
-    suggestions.push({ id, label, latitude, longitude });
-    if (suggestions.length === 5) break;
+    items.push({ id, label, ...point });
+    if (items.length >= 5) break;
   }
-  return suggestions;
+  return items;
 }

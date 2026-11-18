@@ -1,4 +1,4 @@
-name: G-NAF independent geocoding checks
+name: AWS-native geocoding checks
 
 on:
   push:
@@ -9,20 +9,15 @@ permissions:
   contents: read
 
 jobs:
-  geocoder:
+  geocoding-contract:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-      - name: G-NAF Core import, spatial lookup, search and auth tests
-        run: python3 -m unittest discover -s services/gnaf-geocoder -p 'test_*.py' -v
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Geocoding contract and rescue-pin safety
+      - name: Geocoding parsing and GPS safety
         run: node --experimental-strip-types --test packages/core/geocoding.test.mjs packages/core/rescue-location.test.mjs
 
   svelte-and-mobile:
@@ -40,6 +35,7 @@ jobs:
       - name: Build SvelteKit (dummy SST resources only)
         env:
           SST_RESOURCE_RescueHubData: '{"name":"ci-placeholder-table"}'
+          SST_RESOURCE_RescueHubGeocodingCache: '{"name":"ci-geocode-cache"}'
           SST_RESOURCE_RescueHubGraphQL: '{"url":"https://example.invalid/graphql","apiKey":"ci-placeholder"}'
           SST_RESOURCE_RescueHubRealtime: '{"url":"https://example.appsync-api.ap-southeast-2.amazonaws.com/graphql","apiKey":"ci-placeholder"}'
           SST_RESOURCE_RescueHubMailFrom: '{"value":"ci@example.invalid"}'

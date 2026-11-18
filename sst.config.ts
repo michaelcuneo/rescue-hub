@@ -17,6 +17,7 @@ export default $config({
 
   async run() {
     const { data } = await import("./packages/infra/data");
+    const { geocodingCache } = await import("./packages/infra/geocoding");
     const { api, graphql } = await import("./packages/infra/api");
     const { realtime, realtimeLink } = await import("./packages/infra/realtime");
     const { mailFrom } = await import("./packages/infra/config");
@@ -39,11 +40,10 @@ export default $config({
           dns: sst.aws.dns(),
         },
       } : {}),
-      link: [graphql, realtimeLink, data, mailFrom],
+      link: [graphql, realtimeLink, data, geocodingCache, mailFrom],
       environment: {
-        // Private origin and bearer token for our independently licensed G-NAF geocoder.
-        RESCUE_GEOCODER_URL: process.env.RESCUE_GEOCODER_URL ?? "",
-        RESCUE_GEOCODER_TOKEN: process.env.RESCUE_GEOCODER_TOKEN ?? "",
+        // Server-only feature flag. Activate after validating Stored Places pricing.
+        RESCUE_GEOCODING_ENABLED: process.env.RESCUE_GEOCODING_ENABLED ?? "false",
         RESCUE_HUB_SES_CONFIGURATION_SET: invitationEmailConfigurationSetName,
         // Trusted website origin for single-use organisation invitation links.
         RESCUE_HUB_PUBLIC_ORIGIN: publicOrigin,
@@ -59,6 +59,10 @@ export default $config({
         APPLE_PRIVATE_KEY: process.env.APPLE_PRIVATE_KEY ?? "",
       },
       permissions: [
+        {
+          actions: ["geo-places:SearchText", "geo-places:ReverseGeocode"],
+          resources: ["*"],
+        },
         {
           actions: ["ses:SendEmail"],
           resources: ["*"],

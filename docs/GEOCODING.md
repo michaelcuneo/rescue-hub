@@ -1,68 +1,101 @@
-# Independent geocoding (G-NAF Core prototype)
+# Rescue Hub geocoding — AWS-native adapter
 
-## What changed
+## Decision
 
-Rescue Hub desktop address search, reverse-geocoded rescue cards, and Expo rescue address views no longer query Mapbox Geocoding. The web server exposes **authenticated** `/api/geocoding/search?q=...` and existing authorised `/api/mobile/rescues/[id]/address`, both backed by an optional private G-NAF service. The browser never sees the geocoder secret. Both clients deduplicate and reuse short-lived hints in memory. The API remains `private, no-store` because incident locations are sensitive.
+Use the existing **SST SvelteKit Lambda** for both authenticated HTTP endpoints:
+- `GET /api/geocoding/search?q=...&lat=...&lon=...` (dispatchers)
+- `GET /api/mobile/rescues/[id]/address` (rescue-visibility checks)
 
-**Incident GPS coordinates always remain authoritative.** An address within 300 metres is labelled **nearby/approximate**, never substituted for the rescue or directions pin. An address further away is suppressed. With no provider configured, the UI falls back to GPS and the stored reporter-provided location; there is deliberately **no Mapbox fallback**.
+The initial provider is **Amazon Location Service Places v2** (SearchText and
+ReverseGeocode). It is not an independent G-NAF data index and does not imply
+that AWS Places uses G-NAF. The provider-neutral interface stays intact so we
+can later import G-NAF into AWS-native indexing services, if needed.
 
-This is a **working prototype**, not a production migration. Existing rescue records with Mapbox-derived location text have not been automatically scrubbed, and the existing Mapbox-based Expo *basemap* is a separate migration.
+No Python, SQLite, sidecar container, external geocoder token, or manual PSV
+import is required for the initial provider. Lambda uses its standard IAM role
+credentials and SigV4; clients never receive AWS credentials. The existing
+`aws4fetch` dependency signs AWS Places requests, using AWS SDK credentials.
 
-## Dataset
+## Architecture
 
-Use the current **open G-NAF Core** release rather than the multi-table full G-NAF Standard release. Core includes `ADDRESS_LABEL`, `ADDRESS_DETAIL_PID`, `STATE`, `LATITUDE`, and `LONGITUDE`, so no per-state join pipeline is required. Download/unzip from the Geoscape G-NAF Core open-data release. Do **not** import `GNAF_CORE_RETIRED`.
-
-- Official schema: https://docs.geoscape.com.au/projects/gnafcore_info/en/stable/
-- Government open-data information: https://www.industry.gov.au/publications/geocoded-national-address-file-g-naf-and-administrative-boundaries-ab-data
-
-The importer reads PSV, builds a SQLite FTS5 address search index and an RTree spatial index, and replaces the database **only after successful processing**. The service reads the resulting index in read-only mode.
-
-## Local setup
-
-Requires Python 3.12+ with SQLite FTS5 and RTree (standard Python builds). No Pip dependencies.
-
-```bash
-# First try NSW only; omit --states to index all eight jurisdictions.
-python3 services/gnaf-geocoder/import_gnaf.py \
-  --input /path/to/extracted/GNAF_CORE.psv \
-  --output /data/gnaf/gnaf.sqlite \
-  --edition 2026-08 --states NSW
-
-export GNAF_DB=/data/gnaf/gnaf.sqlite
-export GNAF_TOKEN="$(openssl rand -hex 32)"
-python3 services/gnaf-geocoder/geocoder.py --host 127.0.0.1 --port 8765
-
-# In another shell (same bearer secret):
-curl -H "Authorization: Bearer $GNAF_TOKEN" \
-  "http://127.0.0.1:8765/search?q=hunter&limit=5"
-curl -H "Authorization: Bearer $GNAF_TOKEN" \
-  "http://127.0.0.1:8765/reverse?latitude=-32.929&longitude=151.779"
+```text
+MapLibre desktop / Expo
+  -> existing authenticated SvelteKit API (AWS Lambda)
+       -> Amazon Location Service Places v2
+       -> RescueHubGeocodingCache (DynamoDB, TTL)
+  -> existing rescue GPS coordinates remain authoritative
 ```
 
-`services/gnaf-geocoder/compose.yaml` optionally runs the API as an unprivileged, read-only Docker service bound to **127.0.0.1** on the host. Set `GNAF_DATA_DIR` to the directory containing `gnaf.sqlite` and set `GNAF_TOKEN` to the same secret. To connect the SST Lambda, expose the geocoder over **HTTPS with access controls**, not an unauthenticated public port.
+The separate `RescueHubGeocodingCache` table is linked only to the web
+Lambda. Repeated reverse lookups of the same coordinates are stored for 30 days,
+with 6-hour negative-result caching and expiry by DynamoDB TTL. The browser
+and Expo also deduplicate in-flight lookups for 2 minutes in memory.
 
-Set these **server-only** environment variables for SST stages after that service is reachable:
+Address search is biased toward the dispatch map centre and filtered to
+Australia. SearchText returns usable coordinates, unlike Autocomplete. Each
+SearchText and ReverseGeocode call sets `IntendedUse: 'Storage'`, allowing
+results to be cached or saved at the **higher AWS Stored pricing tier**.
+Do not replace this with single-use mode while caching.
+
+The rescue GPS pin and Directions link use only the original coordinates.
+Nearby property numbers are *always approximate*, even at the pin. No geocoded
+property may silently move a rescue location.
+
+## Activation
+
+The new AWS adapter is **opt-in**:
 
 ```dotenv
-RESCUE_GEOCODER_URL=https://internal-geocoder.example.org
-RESCUE_GEOCODER_TOKEN=<same-long-random-secret>
+RESCUE_GEOCODING_ENABLED=false
 ```
 
-Do not set them for demo until the service is deployed, secured and smoke-tested. There is no automatic infrastructure provisioning or production/demo deployment in this branch.
+Set it to `true` for a development SST stage after reviewing IAM permissions
+and costs, then deploy that stage. By default, lookups return unavailable and
+the client displays the exact GPS pin / user-entered location instead.
 
-## Testing
+SST gives the web Lambda `geo-places:SearchText` and
+`geo-places:ReverseGeocode` permissions and links the new DynamoDB cache.
+Region defaults to the SST AWS region (`ap-southeast-2`, Sydney). No public
+Places API key is needed.
+
+Do **not** deploy to `demo` or `production` as part of this prototype.
+Before rollout: verify a small set of urban/rural Australian coordinates,
+AWS Location source attribution and provider terms for wildlife operations,
+SvelteKit performance, latency, search-result relevance, and Stored API costs.
+Amazon Location is an AWS service, but still uses data providers and has its own
+license and data-processing terms.
+
+## Future G-NAF option
+
+If owning the address dataset is essential, replace only the provider adapter.
+Store quarterly licensed **G-NAF Core** files in S3; run ETL in Lambda / Batch
+or Step Functions, index text in OpenSearch or an appropriate DynamoDB search
+projection, and keep reverse spatial cells in an AWS-managed index. Select
+the technology based on **actual** national scale and autocomplete requirements.
+DynamoDB alone does not provide arbitrary full-text search or native nearest
+neighbour queries, and an entire national G-NAF copy should not be placed in
+the operational rescue data table.
+
+G-NAF licence: https://docs.geoscape.com.au/projects/gnafcore_info/en/stable/
+AWS storage terms: https://docs.aws.amazon.com/location/latest/developerguide/places-intended-use.html
+AWS MapLibre: https://docs.aws.amazon.com/location/latest/developerguide/dev-maplibre.html
+
+## Tests
 
 ```bash
-python3 -m unittest discover -s services/gnaf-geocoder -p 'test_*.py' -v
-node --experimental-strip-types --test packages/core/geocoding.test.mjs
+node --experimental-strip-types --test packages/core/geocoding.test.mjs packages/core/rescue-location.test.mjs
+npm run check
+npm run build --workspace=website
 ```
 
-The Python tests import **synthetic fixture data** and validate autocomplete, reverse lookup, state filtering, JWT-independent bearer authentication, and refusal to search retired files. Real-data coverage, import duration, memory/disk use, accuracy benchmarks and AWS connectivity remain to be verified.
+The contract tests use synthetic AWS Places v2 responses, not live API access.
+A real AWS deployment and E2E geocoding test are still required.
 
-## Licence, attribution and migration
+## Existing stored data
 
-G-NAF Core's open EULA is based on CC BY 4.0 with a restriction on using unverified addresses to send physical mail. Follow its specific attribution wording and user-data/privacy requirements. See the official G-NAF Core documentation above. The UI displays a concise Geoscape attribution where results are shown.
-
-**Before production:** audit stored `rescue.location` data and identify whether text came from Mapbox temporary geocoding, user entry, or other sources. Do not bulk-copy Mapbox-derived addresses into the G-NAF index. Replace suspect geocoder-derived strings with fresh independently sourced results **from original, independently collected GPS pins**, preserving user-entered text. Verify source licensing and review with counsel if uncertain.
-
-Quarterly updates: import a fresh G-NAF Core edition into a separate SQLite file, check record counts and sample queries, then atomically swap the file in the mounted **directory**. Monitor `/healthz`, response time, errors, reverse coverage and empty address results. Add per-user rate limiting and production load tests before wider rollout.
+No automatic migration of old `rescue.location` strings was performed.
+Before production, audit whether any existing text was derived from temporary
+Mapbox geocoding. Replace those values with independently sourced results
+using the original incident GPS coordinates where permitted. User-entered
+locations must be preserved. Existing Expo *Mapbox maps* are a separate
+dependency and have not been changed in this branch.

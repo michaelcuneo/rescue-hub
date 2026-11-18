@@ -2,6 +2,9 @@ import "sst";
 
 declare module "sst" {
   interface Resource {
+    RescueHubGeocodingCache: {
+      name: string;
+    };
     RescueHubData: {
       name: string;
     };

@@ -46,7 +46,7 @@
       loading ? 'Looking up nearest mapped address…' :
       'No reliable mapped address — follow the GPS pin'}</small>
     {#if address?.address}
-      <small>Address data: G-NAF Core © Geoscape Australia</small>
+      <small>Address data: Amazon Location Service</small>
     {/if}
     <small class="coordinates">GPS {gps}</small>
     {#if directions && link}

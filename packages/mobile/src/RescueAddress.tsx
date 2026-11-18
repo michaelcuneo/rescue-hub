@@ -43,7 +43,7 @@ export default function RescueAddress({
           loading ? 'Looking up nearest mapped address…' :
           'No reliable address. Follow the GPS pin.'}
       </Text>
-      {value?.address && <Text style={styles.note}>G-NAF Core © Geoscape Australia</Text>}
+      {value?.address && <Text style={styles.note}>Address data: Amazon Location Service</Text>}
       <Text style={styles.coordinates}>GPS {formatRescueCoordinates({ latitude, longitude })}</Text>
     </>}
     {showDirections && directions ? (

@@ -1,27 +1,54 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { metresBetween, parseGnafReverse, parseGnafSuggestions } from './geocoding.ts';
+import { metresBetween, parseAwsReverse, parseAwsSearchText } from './geocoding.ts';
 
 const pin = { latitude: -32.929, longitude: 151.779 };
-test('G-NAF nearby properties are always approximate; rescue GPS is unchanged', () => {
-  const address = parseGnafReverse({ source: 'GNAF', address: '12 Hunter St, Newcastle NSW 2300',
-    latitude: -32.92901, longitude: 151.77901 }, pin);
-  assert.deepEqual(address, { address: '12 Hunter St, Newcastle NSW 2300', precision: 'NEARBY_ADDRESS' });
-  assert.equal(pin.latitude, -32.929);
+function item(id, label, latitude, longitude, type = 'PointAddress', country = 'AU') {
+  return {
+    PlaceId: id, PlaceType: type,
+    Address: { Label: label, Country: { Code2: country } },
+    Position: [longitude, latitude]
+  };
+}
+
+test('Reverse geocoding never relocates the rescue pin or implies a property is exact', () => {
+  const result = parseAwsReverse({ ResultItems: [
+    item('1', '12 Hunter Street, Newcastle NSW', -32.92901, 151.77901)
+  ] }, pin);
+  assert.deepEqual(result, { address: '12 Hunter Street, Newcastle NSW',
+    precision: 'NEARBY_ADDRESS' });
+  assert.deepEqual(pin, { latitude: -32.929, longitude: 151.779 });
 });
-test('never supply a distant street number or an untrusted geocoding response', () => {
-  const distant = { source: 'GNAF', address: '10 Distant Rd', latitude: -32.93, longitude: 151.789 };
-  assert.deepEqual(parseGnafReverse(distant, pin), { address: null, precision: 'UNAVAILABLE' });
-  assert.deepEqual(parseGnafReverse({ ...distant, source: 'MAPBOX' }, pin),
+
+test('Distant properties and foreign addresses are not accepted as nearby', () => {
+  const far = item('1', '123 Far Away Rd', -32.9, 151.80);
+  assert.deepEqual(parseAwsReverse({ ResultItems: [far] }, pin),
     { address: null, precision: 'UNAVAILABLE' });
-  assert.deepEqual(parseGnafReverse({ source: 'GNAF', address: 'Fake Road', latitude: 400, longitude: 3 }, pin),
-    { address: null, precision: 'UNAVAILABLE' });
+  assert.deepEqual(parseAwsReverse({ ResultItems: [
+    item('2', 'Not in Australia', -32.929, 151.779, 'PointAddress', 'NZ')
+  ] }, pin), { address: null, precision: 'UNAVAILABLE' });
   assert.ok(metresBetween(pin, { latitude: -32.929, longitude: 151.780 }) > 80);
 });
-test('only valid, unique G-NAF search results can populate incident drafts', () => {
-  const good = { id: 'GNAF-1', label: '123 Hunter Street, Newcastle NSW', latitude: -32.929, longitude: 151.78 };
-  const value = { source: 'GNAF', results: [good, good, { ...good, id: 'GNAF-2', latitude: 999 },
-    { ...good, id: 'GNAF-3', label: '' }, { ...good, id: 'GNAF-4' }] };
-  assert.deepEqual(parseGnafSuggestions(value), [good, { ...good, id: 'GNAF-4' }]);
-  assert.deepEqual(parseGnafSuggestions({ ...value, source: 'MAPBOX' }), []);
+
+test('Street results are labelled approximate; missing coordinates are rejected', () => {
+  assert.deepEqual(parseAwsReverse({ ResultItems: [
+    item('st', 'Hunter Street', -32.929, 151.779, 'Street')
+  ] }, pin), { address: 'Hunter Street', precision: 'STREET' });
+  assert.deepEqual(parseAwsReverse({ ResultItems: [
+    { PlaceId: '2', PlaceType: 'Street', Address: { Label: 'Unknown Street',
+      Country: { Code2: 'AU' } } }
+  ] }, pin), { address: null, precision: 'UNAVAILABLE' });
+});
+
+test('SearchText returns only valid Australian results with coordinates', () => {
+  const good = item('a', '12 Hunter Street, Newcastle NSW', -32.929, 151.779);
+  assert.deepEqual(parseAwsSearchText({ ResultItems: [
+    good, good, item('b', 'Near NZ', -32.9, 151.8, 'Street', 'NZ'),
+    item('c', 'No point', -32.9, 999),
+    item('d', 'Hunter Street, Newcastle NSW', -32.929, 151.78, 'Street')
+  ] }), [
+    { id: 'a', label: good.Address.Label, latitude: -32.929, longitude: 151.779 },
+    { id: 'd', label: 'Hunter Street, Newcastle NSW', latitude: -32.929, longitude: 151.78 }
+  ]);
+  assert.deepEqual(parseAwsSearchText({ ResultItems: [] }), []);
 });

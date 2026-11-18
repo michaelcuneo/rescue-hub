@@ -1,16 +1,25 @@
 import { json } from '@sveltejs/kit';
 import { searchRescueAddresses } from '$lib/server/rescue-geocoding';
+import { validRescueCoordinates } from '../../../../core/rescue-location';
 import type { RequestHandler } from './$types';
 
-/** Not an unrestricted public address-search proxy. */
+/** Not an unrestricted public geocoding proxy: only verified dispatch staff. */
 export const GET: RequestHandler = async ({ locals, url, fetch: eventFetch }) => {
   const user = locals.user;
   if (!user || !user.enabled || user.status !== 'ACTIVE' || user.roles.includes('PUBLIC_REPORTER'))
     return json({ error: 'Authentication required.' }, { status: 401 });
-  if (!user.roles.some(role => ['PLATFORM_ADMIN', 'AUTHORITY_ADMIN', 'ORG_ADMIN', 'DISPATCHER'].includes(role)))
+  if (!user.roles.some(role =>
+    ['PLATFORM_ADMIN', 'AUTHORITY_ADMIN', 'ORG_ADMIN', 'DISPATCHER'].includes(role)))
     return json({ error: 'Dispatcher access required.' }, { status: 403 });
+
   const query = url.searchParams.get('q')?.trim() ?? '';
   if (query.length > 120) return json({ error: 'Address query too long.' }, { status: 400 });
-  const results = await searchRescueAddresses(query, eventFetch);
+  const latitude = Number(url.searchParams.get('lat'));
+  const longitude = Number(url.searchParams.get('lon'));
+  // null numeric conversion yields 0: require both parameters explicitly.
+  const hasBias = url.searchParams.has('lat') && url.searchParams.has('lon');
+  const bias = { latitude, longitude };
+  const results = await searchRescueAddresses(query, eventFetch,
+    hasBias && validRescueCoordinates(bias) ? bias : undefined);
   return json({ results }, { headers: { 'cache-control': 'private, no-store' } });
 };
