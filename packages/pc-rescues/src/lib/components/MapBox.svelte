@@ -1,365 +1,547 @@
 <script lang="ts">
-	import { onDestroy } from 'svelte';
-	import { resolvedTheme } from '$lib/theme';
-	import { env } from '$env/dynamic/public';
-	import { get } from 'svelte/store';
-	import { Map, Marker, controls } from '@beyonk/svelte-mapbox';
-	import { mapRef, data, selectedRescue, intakeOpen, draftLocation } from '$lib/stores';
-	import Type from '$lib/components/Type.svelte';
-	import { shouldShowRescuePin } from '../../../../core/case-map-visibility';
-	import { RESCUE_PIN_GROUPS, pinForRescue } from '../../../../core/rescue-pin-groups';
+  import { onMount } from 'svelte';
+  import { get } from 'svelte/store';
+  import { resolvedTheme } from '$lib/theme';
+  import { mapRef, data, selectedRescue, intakeOpen, draftLocation, coords, type RescueItem, type DraftLocation } from '$lib/stores';
+  import { shouldShowRescuePin } from '../../../../core/case-map-visibility';
+  import { RESCUE_PIN_GROUPS, pinForRescue } from '../../../../core/rescue-pin-groups';
 
-	type AreaSelection = {
-		name: string;
-		organisation: string;
-		status: string;
-	};
+  // Same pinned, browser-only proof of concept as Administration → Rescues → Map.
+  // Keep the npm lockfile and Mapbox-based Expo application untouched for now.
+  const MAPLIBRE_ESM = 'https://unpkg.com/maplibre-gl@6.18.0/dist/maplibre-gl.mjs';
+  const LIGHT_STYLE = 'https://tiles.openfreemap.org/styles/liberty';
+  const DARK_STYLE = 'https://tiles.openfreemap.org/styles/dark';
+  const PIN_SOURCE = 'rescue-operations-pins';
+  const AREA_SOURCE = 'nsw-operating-areas';
 
-	type OperatingAreaCollection = {
-		type: 'FeatureCollection';
-		features: Array<{
-			type: 'Feature';
-			geometry: { type: string; coordinates: unknown };
-			properties: Record<string, unknown>;
-		}>;
-		metadata?: {
-			loadedLayers?: number[];
-			failedLayers?: Array<{ layerId: number; name: string; error: string }>;
-		};
-	};
+  type AreaSelection = {
+    name: string;
+    organisation: string;
+    status: string;
+  };
+  type OperatingAreaCollection = {
+    type: 'FeatureCollection';
+    features: Array<{
+      type: 'Feature';
+      geometry: { type: string; coordinates: unknown };
+      properties: Record<string, unknown>;
+    }>;
+    metadata?: {
+      loadedLayers?: number[];
+      failedLayers?: Array<{ layerId: number; name: string; error: string }>;
+    };
+  };
 
-	let center: [number, number] = $state([151.66, -32.95]);
-	let zoom = $state(9);
-	let ref: any = $state(undefined);
-	let areasState: 'loading' | 'ready' | 'partial' | 'error' = $state('loading');
-	let areaFeatureCount = $state(0);
-	let selectedArea: AreaSelection | null = $state(null);
-	let secureContext = $state(false);
-	let mapSurface: HTMLDivElement | undefined;
-	let resizeObserver: ResizeObserver | undefined;
+  let container: HTMLDivElement | undefined;
+  let mapSurface: HTMLDivElement | undefined;
+  let mapInstance: any;
+  let draftMarker: any;
+  let resizeObserver: ResizeObserver | undefined;
+  let mapReady = $state(false);
+  let mapError = $state('');
+  let areasState: 'loading' | 'ready' | 'partial' | 'error' = $state('loading');
+  let areaFeatureCount = $state(0);
+  let selectedArea: AreaSelection | null = $state(null);
+  let cachedAreas: OperatingAreaCollection | null = null;
+  let fittedInitialArea = false;
 
-	onDestroy(() => resizeObserver?.disconnect());
+  const colourExpression: unknown[] = ['match', ['get', 'group']];
+  for (const [group, definition] of Object.entries(RESCUE_PIN_GROUPS)) {
+    colourExpression.push(group, definition.color);
+  }
+  colourExpression.push('#455665');
 
-	const mapboxAccessToken = env.PUBLIC_MAPBOX_ACCESS_TOKEN ?? '';
-	const { GeolocateControl, NavigationControl, ScaleControl } = controls;
+  function validPin(item: RescueItem): boolean {
+    return shouldShowRescuePin(item) &&
+      Number.isFinite(item.latitude) && Number.isFinite(item.longitude) &&
+      Math.abs(item.latitude) <= 90 && Math.abs(item.longitude) <= 180 &&
+      !(item.latitude === 0 && item.longitude === 0);
+  }
 
-	function coordinateBounds(collection: OperatingAreaCollection, organisationId: string) {
-		let minLng = Number.POSITIVE_INFINITY;
-		let minLat = Number.POSITIVE_INFINITY;
-		let maxLng = Number.NEGATIVE_INFINITY;
-		let maxLat = Number.NEGATIVE_INFINITY;
+  function pinCollection(items: RescueItem[]) {
+    return {
+      type: 'FeatureCollection' as const,
+      features: items.filter(validPin).map(item => ({
+        type: 'Feature' as const,
+        properties: {
+          id: item.id,
+          type: item.type,
+          status: item.status ?? 'PENDING',
+          group: pinForRescue(item).group,
+          initials: pinForRescue(item).initials
+        },
+        geometry: {
+          type: 'Point' as const,
+          coordinates: [item.longitude, item.latitude]
+        }
+      }))
+    };
+  }
 
-		const walk = (value: unknown) => {
-			if (!Array.isArray(value)) return;
+  function updateRescueSource(items: RescueItem[]) {
+    const map = mapInstance;
+    if (!mapReady || !map?.getSource?.(PIN_SOURCE)) return;
+    map.getSource(PIN_SOURCE).setData(pinCollection(items));
+  }
 
-			if (
-				value.length >= 2 &&
-				typeof value[0] === 'number' &&
-				typeof value[1] === 'number'
-			) {
-				const lng = value[0];
-				const lat = value[1];
-				minLng = Math.min(minLng, lng);
-				minLat = Math.min(minLat, lat);
-				maxLng = Math.max(maxLng, lng);
-				maxLat = Math.max(maxLat, lat);
-				return;
-			}
+  function updateSelectedPin(id: string) {
+    const map = mapInstance;
+    if (mapReady && map?.getLayer?.('rescue-operations-selected')) {
+      map.setFilter('rescue-operations-selected', ['==', ['get', 'id'], id]);
+    }
+  }
 
-			value.forEach(walk);
-		};
+  function setDraftMarker(location: DraftLocation | null) {
+    if (!mapReady || !mapInstance || !mapLibreModule) return;
+    draftMarker?.remove();
+    draftMarker = undefined;
+    if (!location || !Number.isFinite(location.latitude) || !Number.isFinite(location.longitude)) return;
 
-		for (const feature of collection.features) {
-			if (feature.properties.organisationId !== organisationId) continue;
-			walk(feature.geometry.coordinates);
-		}
+    const element = document.createElement('div');
+    element.className = 'rescue-draft-map-marker';
+    element.textContent = '+';
+    element.setAttribute('role', 'img');
+    element.setAttribute('aria-label', 'New rescue pin');
+    draftMarker = new mapLibreModule.Marker({ element, anchor: 'center' })
+      .setLngLat([location.longitude, location.latitude])
+      .addTo(mapInstance);
+  }
 
-		if (!Number.isFinite(minLng)) return null;
+  let mapLibreModule: any;
 
-		return [
-			[minLng, minLat],
-			[maxLng, maxLat]
-		] as [[number, number], [number, number]];
-	}
+  function coordinateBounds(collection: OperatingAreaCollection, organisationId: string) {
+    let minLng = Number.POSITIVE_INFINITY;
+    let minLat = Number.POSITIVE_INFINITY;
+    let maxLng = Number.NEGATIVE_INFINITY;
+    let maxLat = Number.NEGATIVE_INFINITY;
 
-	function installAreaLayers(rawMap: any, collection: OperatingAreaCollection) {
-		const sourceId = 'nsw-operating-areas';
+    const walk = (value: unknown) => {
+      if (!Array.isArray(value)) return;
+      if (value.length >= 2 && typeof value[0] === 'number' && typeof value[1] === 'number') {
+        const lng = value[0], lat = value[1];
+        minLng = Math.min(minLng, lng);
+        minLat = Math.min(minLat, lat);
+        maxLng = Math.max(maxLng, lng);
+        maxLat = Math.max(maxLat, lat);
+      } else value.forEach(walk);
+    };
 
-		if (rawMap.getSource(sourceId)) {
-			rawMap.getSource(sourceId).setData(collection);
-			return;
-		}
+    for (const feature of collection.features) {
+      if (feature.properties.organisationId === organisationId) walk(feature.geometry.coordinates);
+    }
+    if (!Number.isFinite(minLng)) return null;
+    return [[minLng, minLat], [maxLng, maxLat]] as [[number, number], [number, number]];
+  }
 
-		rawMap.addSource(sourceId, {
-			type: 'geojson',
-			data: collection
-		});
+  function installRescueLayers(map: any) {
+    if (!map.getSource(PIN_SOURCE)) {
+      const snapshot = get(data);
+      map.addSource(PIN_SOURCE, {
+        type: 'geojson',
+        data: pinCollection([...snapshot.pending, ...snapshot.assigned])
+      });
+    }
+    if (map.getLayer('rescue-operations-main')) return;
+    // Native GPU layers stay attached to geographic coordinates across
+    // pan/zoom/rotation. The ring, initials and small status dot match the
+    // previous rescue marker semantics without one DOM button per animal.
+    map.addLayer({
+      id: 'rescue-operations-selected', type: 'circle', source: PIN_SOURCE,
+      filter: ['==', ['get', 'id'], get(selectedRescue)?.id ?? ''],
+      paint: {
+        'circle-radius': 25,
+        'circle-color': '#ffffff',
+        'circle-opacity': 0.85,
+        'circle-stroke-width': 2,
+        'circle-stroke-color': '#173d2c'
+      }
+    });
+    map.addLayer({
+      id: 'rescue-operations-main', type: 'circle', source: PIN_SOURCE,
+      paint: {
+        'circle-radius': 19,
+        'circle-color': colourExpression,
+        'circle-stroke-width': 3,
+        'circle-stroke-color': '#ffffff'
+      }
+    });
+    map.addLayer({
+      id: 'rescue-operations-initials', type: 'symbol', source: PIN_SOURCE,
+      layout: {
+        'text-field': ['get', 'initials'],
+        'text-size': 11,
+        'text-allow-overlap': true,
+        'text-ignore-placement': true,
+        'text-font': ['Noto Sans Regular']
+      },
+      paint: {
+        'text-color': '#ffffff',
+        'text-halo-width': 0.2,
+        'text-halo-color': '#173d2c'
+      }
+    });
+    map.addLayer({
+      id: 'rescue-operations-status', type: 'circle', source: PIN_SOURCE,
+      paint: {
+        'circle-radius': 6.5,
+        'circle-translate': [15, 15],
+        'circle-color': [
+          'match', ['get', 'status'],
+          'PENDING', '#d92b04',
+          'ASSIGNED', '#c18a12',
+          'COMPLETED', '#50a971',
+          '#64748b'
+        ],
+        'circle-stroke-width': 2,
+        'circle-stroke-color': '#ffffff'
+      }
+    });
+  }
 
-		rawMap.addLayer({
-			id: 'nsw-operating-areas-fill',
-			type: 'fill',
-			source: sourceId,
-			paint: {
-				'fill-color': [
-					'case',
-					['==', ['get', 'organisationId'], 'native-animal-trust-fund'],
-					'#f2b705',
-					['==', ['get', 'organisationId'], 'wires'],
-					'#517da8',
-					'#50a971'
-				],
-				'fill-opacity': [
-					'case',
-					['==', ['get', 'organisationId'], 'native-animal-trust-fund'],
-					0.22,
-					0.08
-				]
-			}
-		});
+  function installAreaLayers(map: any, collection: OperatingAreaCollection) {
+    if (map.getSource(AREA_SOURCE)) {
+      map.getSource(AREA_SOURCE).setData(collection);
+      return;
+    }
+    map.addSource(AREA_SOURCE, { type: 'geojson', data: collection });
+    // Insert the regions underneath rescue pins and text labels, never over
+    // the incident markers.
+    const before = map.getLayer('rescue-operations-selected')
+      ? 'rescue-operations-selected' : undefined;
+    map.addLayer({
+      id: 'nsw-operating-areas-fill',
+      type: 'fill',
+      source: AREA_SOURCE,
+      paint: {
+        'fill-color': [
+          'match', ['get', 'organisationId'],
+          'native-animal-trust-fund', '#f2b705',
+          'wires', '#517da8',
+          '#50a971'
+        ],
+        'fill-opacity': [
+          'case',
+          ['==', ['get', 'organisationId'], 'native-animal-trust-fund'],
+          0.22, 0.08
+        ]
+      }
+    }, before);
+    map.addLayer({
+      id: 'nsw-operating-areas-outline',
+      type: 'line',
+      source: AREA_SOURCE,
+      paint: {
+        'line-color': [
+          'match', ['get', 'organisationId'],
+          'native-animal-trust-fund', '#8a6200',
+          'wires', '#31597f',
+          '#2d7148'
+        ],
+        'line-width': [
+          'case',
+          ['==', ['get', 'organisationId'], 'native-animal-trust-fund'],
+          2.5, 1
+        ],
+        'line-opacity': 0.85
+      }
+    }, before);
+    map.addLayer({
+      id: 'nsw-operating-areas-labels',
+      type: 'symbol',
+      source: AREA_SOURCE,
+      minzoom: 7.5,
+      layout: {
+        'text-field': ['get', 'areaLabel'],
+        'text-size': 11,
+        'text-max-width': 16,
+        'text-allow-overlap': false
+      },
+      paint: {
+        'text-color': '#173d2c',
+        'text-halo-color': '#ffffff',
+        'text-halo-width': 1.5
+      }
+    }, before);
+  }
 
-		rawMap.addLayer({
-			id: 'nsw-operating-areas-outline',
-			type: 'line',
-			source: sourceId,
-			paint: {
-				'line-color': [
-					'case',
-					['==', ['get', 'organisationId'], 'native-animal-trust-fund'],
-					'#8a6200',
-					['==', ['get', 'organisationId'], 'wires'],
-					'#31597f',
-					'#2d7148'
-				],
-				'line-width': [
-					'case',
-					['==', ['get', 'organisationId'], 'native-animal-trust-fund'],
-					2.5,
-					1
-				],
-				'line-opacity': 0.85
-			}
-		});
+  async function loadOperatingAreas(map: any) {
+    areasState = 'loading';
+    try {
+      let collection = cachedAreas;
+      if (!collection) {
+        const response = await fetch('/api/operating-areas', { cache: 'no-store' });
+        if (!response.ok) throw new Error('Operating-area request failed: ' + response.status);
+        collection = await response.json() as OperatingAreaCollection;
+        cachedAreas = collection;
+      }
+      if (map !== mapInstance || !mapReady) return;
+      areaFeatureCount = collection.features.length;
+      installAreaLayers(map, collection);
+      areasState = collection.metadata?.failedLayers?.length ? 'partial' : 'ready';
+      if (!fittedInitialArea) {
+        fittedInitialArea = true;
+        const hunterBounds = coordinateBounds(collection, 'native-animal-trust-fund');
+        if (hunterBounds) map.fitBounds(hunterBounds, { padding: 70, duration: 700, maxZoom: 10 });
+      }
+    } catch (error) {
+      if (map !== mapInstance) return;
+      areasState = 'error';
+      console.error('Unable to load NSW operating areas on MapLibre.', error);
+    }
+  }
 
-		rawMap.addLayer({
-			id: 'nsw-operating-areas-labels',
-			type: 'symbol',
-			source: sourceId,
-			minzoom: 7.5,
-			layout: {
-				'text-field': ['get', 'areaLabel'],
-				'text-size': 11,
-				'text-max-width': 16,
-				'text-allow-overlap': false
-			},
-			paint: {
-				'text-color': '#173d2c',
-				'text-halo-color': 'rgba(255,255,255,0.92)',
-				'text-halo-width': 1.5
-			}
-		});
+  function hit(map: any, point: unknown, layers: string[]) {
+    const availableLayers = layers.filter(id => Boolean(map.getLayer(id)));
+    return availableLayers.length
+      ? map.queryRenderedFeatures(point, { layers: availableLayers })[0]
+      : undefined;
+  }
 
-		rawMap.on('mouseenter', 'nsw-operating-areas-fill', () => {
-			rawMap.getCanvas().style.cursor = 'pointer';
-		});
+  function registerInteractions(map: any) {
+    map.on('click', (event: any) => {
+      const rescueHit = hit(map, event.point, [
+        'rescue-operations-status', 'rescue-operations-initials', 'rescue-operations-main'
+      ]);
+      const id = rescueHit?.properties?.id;
+      if (typeof id === 'string') {
+        const snapshot = get(data);
+        const item = [...snapshot.pending, ...snapshot.assigned].find(rescue => rescue.id === id);
+        if (item) selectedRescue.set(item);
+        return;
+      }
 
-		rawMap.on('mouseleave', 'nsw-operating-areas-fill', () => {
-			rawMap.getCanvas().style.cursor = '';
-		});
+      const areaHit = hit(map, event.point, ['nsw-operating-areas-fill']);
+      if (areaHit) {
+        const properties = areaHit.properties ?? {};
+        selectedArea = {
+          name: String(properties.areaLabel ?? properties.organisationName ?? 'Operating area'),
+          organisation: String(properties.organisationName ?? 'NSW wildlife rehabilitation'),
+          status: properties.directoryStatus === 'CURRENT'
+            ? 'Current directory match' : 'GIS layer requires directory review'
+        };
+      }
 
-		rawMap.on('click', 'nsw-operating-areas-fill', (event: any) => {
-			const properties = event.features?.[0]?.properties ?? {};
+      // A dispatcher may drop a new location pin on any empty portion of
+      // the basemap (including an operating-area polygon).
+      if (get(intakeOpen)) {
+        draftLocation.set({
+          longitude: event.lngLat.lng,
+          latitude: event.lngLat.lat,
+          label: 'Dropped map pin'
+        });
+      }
+    });
 
-			selectedArea = {
-				name: String(properties.areaLabel ?? properties.organisationName ?? 'Operating area'),
-				organisation: String(properties.organisationName ?? 'NSW wildlife rehabilitation'),
-				status:
-					properties.directoryStatus === 'CURRENT'
-						? 'Current directory match'
-						: 'GIS layer requires directory review'
-			};
-		});
-	}
+    map.on('mousemove', (event: any) => {
+      const feature = hit(map, event.point, [
+        'rescue-operations-main', 'rescue-operations-status', 'nsw-operating-areas-fill'
+      ]);
+      map.getCanvas().style.cursor = feature ? 'pointer' : get(intakeOpen) ? 'crosshair' : '';
+    });
+  }
 
-	async function loadOperatingAreas(rawMap: any) {
-		areasState = 'loading';
+  onMount(() => {
+    let disposed = false;
+    let unsubscribeTheme: (() => void) | undefined;
+    const init = async () => {
+      try {
+        const lib = await import(/* @vite-ignore */ MAPLIBRE_ESM);
+        if (disposed || !container) return;
+        mapLibreModule = lib;
+        let activeTheme = get(resolvedTheme);
+        const map = new lib.Map({
+          container,
+          style: activeTheme === 'dark' ? DARK_STYLE : LIGHT_STYLE,
+          center: [151.66, -32.95],
+          zoom: 9,
+          attributionControl: true
+        });
+        mapInstance = map;
+        // Keep the existing public mapRef.getMap() API used by DispatcherShell.
+        const publicRef = { getMap: () => map };
+        mapRef.set(publicRef);
+        map.addControl(new lib.NavigationControl(), 'top-right');
+        map.addControl(new lib.ScaleControl(), 'bottom-left');
+        if (window.isSecureContext) {
+          const geolocate = new lib.GeolocateControl({
+            positionOptions: { enableHighAccuracy: true },
+            trackUserLocation: true,
+            showUserHeading: true
+          });
+          geolocate.on('geolocate', (event: GeolocationPosition) => {
+            coords.set([event.coords.longitude, event.coords.latitude]);
+          });
+          map.addControl(geolocate, 'top-right');
+        }
+        registerInteractions(map);
 
-		try {
-			const response = await fetch('/api/operating-areas');
-			if (!response.ok) throw new Error(`Operating-area request failed: ${response.status}`);
+        map.on('style.load', () => {
+          if (disposed) return;
+          try {
+            installRescueLayers(map);
+            mapReady = true;
+            mapError = '';
+            const snapshot = get(data);
+            updateRescueSource([...snapshot.pending, ...snapshot.assigned]);
+            updateSelectedPin(get(selectedRescue)?.id ?? '');
+            setDraftMarker(get(draftLocation));
+            void loadOperatingAreas(map);
+          } catch (error) {
+            console.error('Unable to configure MapLibre Operations layers', error);
+            mapError = error instanceof Error ? error.message : 'Map layers unavailable';
+          }
+        });
+        map.on('error', (event: any) => {
+          if (!mapReady) mapError = event.error?.message ?? 'Map tiles could not load';
+        });
 
-			const collection = (await response.json()) as OperatingAreaCollection;
-			areaFeatureCount = collection.features.length;
-			installAreaLayers(rawMap, collection);
+        if (mapSurface && typeof ResizeObserver !== 'undefined') {
+          resizeObserver = new ResizeObserver(() => map.resize());
+          resizeObserver.observe(mapSurface);
+        }
+        map.resize();
+        unsubscribeTheme = resolvedTheme.subscribe(theme => {
+          if (disposed || theme === activeTheme) return;
+          activeTheme = theme;
+          mapReady = false;
+          map.setStyle(theme === 'dark' ? DARK_STYLE : LIGHT_STYLE);
+        });
+      } catch (error) {
+        if (!disposed) {
+          console.error('MapLibre Operations map failed', error);
+          mapError = error instanceof Error ? error.message : 'MapLibre failed to load';
+        }
+      }
+    };
+    void init();
+    return () => {
+      disposed = true;
+      unsubscribeTheme?.();
+      resizeObserver?.disconnect();
+      draftMarker?.remove();
+      draftMarker = undefined;
+      mapReady = false;
+      mapRef.set(undefined);
+      mapInstance?.remove();
+      mapInstance = undefined;
+    };
+  });
 
-			areasState = collection.metadata?.failedLayers?.length ? 'partial' : 'ready';
-
-			const hunterBounds = coordinateBounds(collection, 'native-animal-trust-fund');
-			if (hunterBounds) {
-				rawMap.fitBounds(hunterBounds, {
-					padding: 70,
-					duration: 700,
-					maxZoom: 10
-				});
-			}
-		} catch (error) {
-			areasState = 'error';
-			console.error('Unable to load NSW wildlife operating areas.', error);
-		}
-	}
-
-	async function handleMapReady() {
-		$mapRef = ref;
-		secureContext = window.isSecureContext;
-
-		const rawMap = ref?.getMap?.();
-		if (!rawMap) return;
-
-		// Mapbox must recalculate its canvas when the dispatch workspace changes size.
-		if (mapSurface && typeof ResizeObserver !== 'undefined') {
-			resizeObserver?.disconnect();
-			resizeObserver = new ResizeObserver(() => rawMap.resize?.());
-			resizeObserver.observe(mapSurface);
-		}
-		rawMap.resize?.();
-
-		if (typeof rawMap.isStyleLoaded === 'function' && !rawMap.isStyleLoaded()) {
-			await new Promise<void>((resolve) => rawMap.once('load', () => resolve()));
-		}
-
-		await loadOperatingAreas(rawMap);
-
-		rawMap.on('click', (event: any) => {
-			if (!get(intakeOpen)) return;
-
-			draftLocation.set({
-				longitude: event.lngLat.lng,
-				latitude: event.lngLat.lat,
-				label: 'Dropped map pin'
-			});
-		});
-	}
+  $effect(() => {
+    const pending = $data.pending;
+    const assigned = $data.assigned;
+    if (mapReady) updateRescueSource([...pending, ...assigned]);
+  });
+  $effect(() => {
+    const selected = $selectedRescue?.id ?? '';
+    if (mapReady) updateSelectedPin(selected);
+  });
+  $effect(() => {
+    const location = $draftLocation;
+    if (mapReady) setDraftMarker(location);
+  });
 </script>
 
+<svelte:head>
+  <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@6.18.0/dist/maplibre-gl.css" />
+</svelte:head>
+
 <div class="map-shell">
-	<div class="map-surface" bind:this={mapSurface}>
-	{#key $resolvedTheme}
-	<Map
-		bind:this={ref}
-		bind:center
-		bind:zoom
-		accessToken={mapboxAccessToken}
-		style={$resolvedTheme === 'dark' ? 'mapbox://styles/mapbox/dark-v11' : 'mapbox://styles/michaelcuneo/ckzzecgy7005j14qvpzd53fgn'}
-		onready={handleMapReady}
-	>
-		{#each $data.pending.filter(shouldShowRescuePin) as item}
-			<Marker lat={item.latitude} lng={item.longitude} label={item.type}>
-				<Type
-				color={item.color}
-				type={item.type}
-				status={item.status ?? 'PENDING'}
-				selected={$selectedRescue?.id === item.id}
-				onclick={() => ($selectedRescue = item)}
-			/>
-			</Marker>
-		{/each}
+  <div class="map-surface" bind:this={mapSurface}>
+    <div class="maplibre-surface" bind:this={container}
+      role="region" aria-label="Live rescue operations locations"></div>
+    {#if mapError}
+      <p class="maplibre-error" role="alert">MapLibre: {mapError}</p>
+    {:else if !mapReady}
+      <p class="maplibre-loading" role="status">Loading rescue map…</p>
+    {/if}
+  </div>
+  <aside class="area-panel" aria-label="NSW operating areas">
+    <div class="area-panel-heading">
+      <span class="area-dot"></span>
+      <div>
+        <strong>NSW operating areas</strong>
+        <small>DCCEEW boundary data</small>
+      </div>
+    </div>
 
-		{#each $data.assigned.filter(shouldShowRescuePin) as item}
-			<Marker lat={item.latitude} lng={item.longitude} label={item.type}>
-				<Type
-				color={item.color}
-				type={item.type}
-				status={item.status ?? 'PENDING'}
-				selected={$selectedRescue?.id === item.id}
-				onclick={() => ($selectedRescue = item)}
-			/>
-			</Marker>
-		{/each}
+    {#if areasState === 'loading'}
+      <p>Loading official boundaries…</p>
+    {:else if areasState === 'error'}
+      <p class="error">Boundary service unavailable.</p>
+    {:else}
+      <p>{areaFeatureCount} mapped boundary features loaded.</p>
+      {#if areasState === 'partial'}
+        <small class="warning">Some DCCEEW layers did not respond.</small>
+      {/if}
+    {/if}
 
+    <div class="legend">
+      <span><i class="swatch hunter"></i>Hunter Wildlife Rescue</span>
+      <span><i class="swatch wires"></i>WIRES branches</span>
+      <span><i class="swatch other"></i>Other rehabilitation groups</span>
+    </div>
+    <div class="species-legend" aria-label="Rescue marker animal groups">
+      <strong>Animal groups</strong>
+      <div class="species-legend-items">
+        {#each Object.entries(RESCUE_PIN_GROUPS) as [group, pinGroup]}
+          {#if [...$data.pending, ...$data.assigned].some((item) => pinForRescue(item).group === group)}
+            <span><i style:background-color={pinGroup.color}></i>{pinGroup.label}</span>
+          {/if}
+        {/each}
+      </div>
+      <small>Marker colour identifies the animal group. The smaller dot shows dispatch status.</small>
+    </div>
 
-		<NavigationControl />
-		{#if secureContext}
-			<GeolocateControl />
-		{/if}
-		<ScaleControl />
-
-		{#if $draftLocation}
-			<Marker lat={$draftLocation.latitude} lng={$draftLocation.longitude} label="New rescue">
-				<div class="draft-marker" aria-label="New rescue location">
-					<span>+</span>
-				</div>
-			</Marker>
-		{/if}
-	</Map>
-	{/key}
-	</div>
-
-	<aside class="area-panel" aria-label="NSW operating areas">
-		<div class="area-panel-heading">
-			<span class="area-dot"></span>
-			<div>
-				<strong>NSW operating areas</strong>
-				<small>DCCEEW boundary data</small>
-			</div>
-		</div>
-
-		{#if areasState === 'loading'}
-			<p>Loading official boundaries…</p>
-		{:else if areasState === 'error'}
-			<p class="error">Boundary service unavailable.</p>
-		{:else}
-			<p>{areaFeatureCount} mapped boundary features loaded.</p>
-			{#if areasState === 'partial'}
-				<small class="warning">Some DCCEEW layers did not respond.</small>
-			{/if}
-		{/if}
-
-		<div class="legend">
-			<span><i class="swatch hunter"></i>Hunter Wildlife Rescue</span>
-			<span><i class="swatch wires"></i>WIRES branches</span>
-			<span><i class="swatch other"></i>Other rehabilitation groups</span>
-		</div>
-		<div class="species-legend" aria-label="Rescue marker animal groups">
-			<strong>Animal groups</strong>
-			<div class="species-legend-items">
-				{#each Object.entries(RESCUE_PIN_GROUPS) as [group, pinGroup]}
-					{#if [...$data.pending, ...$data.assigned].some((item) => pinForRescue(item).group === group)}
-						<span><i style:background-color={pinGroup.color}></i>{pinGroup.label}</span>
-					{/if}
-				{/each}
-			</div>
-			<small>Marker colour identifies the animal group. The smaller dot shows dispatch status.</small>
-		</div>
-
-		{#if selectedArea}
-			<div class="selected-area">
-				<small>Selected operating area</small>
-				<strong>{selectedArea.name}</strong>
-				<span>{selectedArea.status}</span>
-			</div>
-		{/if}
-	</aside>
+    {#if selectedArea}
+      <div class="selected-area">
+        <small>Selected operating area</small>
+        <strong>{selectedArea.name}</strong>
+        <span>{selectedArea.status}</span>
+      </div>
+    {/if}
+  </aside>
 </div>
-
 <style>
-	.draft-marker {
-		display: grid;
-		place-items: center;
-		width: 38px;
-		height: 38px;
-		border:4px solid var(--rh-surface);
-		border-radius: 50% 50% 50% 8px;
-		background:#173d2c;
-		color:white;
-		box-shadow: 0 4px 14px rgb(0 0 0 / 0.3);
-		transform: rotate(-45deg);
-	}
-
-	.draft-marker span {
-		font-size: 19px;
-		font-weight: 400;
-		transform: rotate(45deg);
-	}
-
+  .maplibre-surface {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+  }
+  .maplibre-surface :global(.maplibregl-map) {
+    width: 100%;
+    height: 100%;
+  }
+  .maplibre-error, .maplibre-loading {
+    position: absolute;
+    z-index: 5;
+    top: 14px;
+    left: 14px;
+    max-width: calc(100% - 28px);
+    margin: 0;
+    padding: 10px 12px;
+    border: 1px solid var(--rh-border);
+    border-radius: 9px;
+    background: var(--rh-surface);
+    color: var(--rh-text);
+    font-size: 12px;
+    box-shadow: var(--rh-shadow);
+  }
+  .maplibre-error { color: var(--rh-danger-text); }
+  .map-surface :global(.rescue-draft-map-marker) {
+    display: grid;
+    place-items: center;
+    width: 38px;
+    height: 38px;
+    border: 4px solid var(--rh-surface);
+    border-radius: 50% 50% 50% 8px;
+    background: #173d2c;
+    color: white;
+    font-size: 19px;
+    box-shadow: 0 4px 14px rgb(0 0 0 / 0.3);
+    transform: rotate(-45deg);
+  }
 	.map-shell {
 		position: fixed;
 		z-index: 1;
@@ -387,12 +569,12 @@
 		pointer-events: auto;
 	}
 
-	.map-surface :global(.mapboxgl-map) {
+	.map-surface :global(.maplibregl-map) {
 		width: 100% !important;
 		height: 100% !important;
 	}
 
-	.map-surface :global(.mapboxgl-ctrl-top-right) {
+	.map-surface :global(.maplibregl-ctrl-top-right) {
 		top: 10px;
 		right: 10px;
 	}
@@ -567,7 +749,7 @@
 		}
 	}
 
-	/* A legible, neutral rail and properly themed Mapbox control surfaces. */
+	/* A legible, neutral rail and properly themed MapLibre control surfaces. */
 	.area-panel, .map-surface { border: 1px solid var(--rh-border); box-shadow: var(--rh-shadow); }
 	.area-panel { background: var(--rh-surface); color: var(--rh-text); backdrop-filter: none; }
 	.area-panel-heading strong, .selected-area strong { color: var(--rh-text); font-size: 13px; }
@@ -577,9 +759,9 @@
 	}
 	.legend { gap: 10px; margin-top: 16px; padding-top: 14px; border-color: var(--rh-border); }
 	.selected-area { padding: 12px; margin-top: 16px; background: var(--rh-surface-soft); }
-	.map-surface :global(.mapboxgl-ctrl-group) {
+	.map-surface :global(.maplibregl-ctrl-group) {
 		background: var(--rh-surface); border: 1px solid var(--rh-border);
 	}
-	.map-surface :global(.mapboxgl-ctrl-group button) { border-color: var(--rh-border); }
-	.map-surface :global(.mapboxgl-ctrl-group button:hover) { background: var(--rh-raised); }
+	.map-surface :global(.maplibregl-ctrl-group button) { border-color: var(--rh-border); }
+	.map-surface :global(.maplibregl-ctrl-group button:hover) { background: var(--rh-raised); }
 </style>
