@@ -140,3 +140,61 @@ export function buildHistoricalRescueFixtures() {
   return result;
 }
 
+
+/** Eight explicitly fictional, current NSW-day completed examples for Dispatch.
+ * These are separate from the 200 older archive cases. Their original report
+ * dates are deliberately earlier: today's queue must filter completion date.
+ * Stable per-day IDs permit safe reruns without duplicating anything.
+ */
+export function buildTodayCompletedFixtures(now = Date.now()) {
+  const instant = new Date(now);
+  if (!Number.isFinite(instant.getTime())) throw new Error('Invalid demo completion time.');
+  const dayParts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Australia/Sydney', year: 'numeric', month: '2-digit', day: '2-digit'
+  }).formatToParts(instant);
+  const field = key => dayParts.find(part => part.type === key)?.value;
+  const today = field('year') + '-' + field('month') + '-' + field('day');
+  // A short, fixed set covers multiple final outcomes without creating
+  // unbounded or indefinitely current synthetic cases.
+  const chosen = [0, 1, 8, 9, 16, 17, 18, 19];
+  const source = buildHistoricalRescueFixtures();
+  return chosen.map((index, ordinal) => {
+    const original = source[index];
+    const number = String(ordinal + 1).padStart(2, '0');
+    const id = 'demo-today-completed-' + today + '-' + number;
+    const animalId = 'demo-today-animal-' + today + '-' + number;
+    const eventId = 'demo-today-outcome-' + today + '-' + number;
+    const createdAt = new Date(now - (ordinal + 2) * 86400000).toISOString();
+    const pickedUpAt = new Date(now - (ordinal + 1) * 86400000).toISOString();
+    // Exact current instant ensures the case is *always* completed today NSW.
+    const finishedAt = instant.toISOString();
+    const rescue = {
+      ...original.rescue,
+      pk: 'RESCUE#' + id, id, quickAnimalId: animalId,
+      createdAt, pickedUpAt, updatedAt: finishedAt, completedAt: finishedAt,
+      gsi1sk: createdAt + '#' + id,
+      gsi2sk: createdAt + '#' + id,
+      demoTodaySeed: true
+    };
+    const animal = {
+      ...original.animal,
+      pk: 'ANIMAL#' + animalId, id: animalId, rescueId: id,
+      createdAt: pickedUpAt, updatedAt: finishedAt,
+      gsi2pk: 'RESCUE_ANIMALS#' + id,
+      gsi2sk: pickedUpAt + '#' + animalId,
+      ...(original.animal.releasedAt ? { releasedAt: finishedAt } : {}),
+      demoTodaySeed: true
+    };
+    const event = {
+      ...original.event,
+      pk: 'ANIMAL#' + animalId,
+      sk: 'EVENT#' + finishedAt + '#' + eventId,
+      id: eventId, animalId, originalRescueId: id,
+      originalLatitude: rescue.latitude,
+      originalLongitude: rescue.longitude,
+      createdAt: finishedAt,
+      demoTodaySeed: true
+    };
+    return { rescue, animal, event };
+  });
+}
