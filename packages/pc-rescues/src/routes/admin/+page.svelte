@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { matchesRescuePeriod, rescueNSWDay, rescueTodayNSW, shiftRescueDay, rescueDayLabel, sortRescueRecords, RESCUE_LIST_PAGE_SIZE, type RescuePeriod, type RescueOrder } from '$lib/rescue-list';
+  import { rescueNSWDay, rescueTodayNSW, shiftRescueDay, rescueDayLabel, type RescuePeriod, type RescueOrder } from '$lib/rescue-list';
   import AdminOperatingAreas from '$lib/components/AdminOperatingAreas.svelte';
   import AdminRescueHistoryMap from '$lib/components/AdminRescueHistoryMap.svelte';
   import type { PageData } from './$types';
@@ -35,7 +35,14 @@
   let rescuePeriod = $state<RescuePeriod | 'selected_day'>('all');
   let rescueOrder = $state<RescueOrder>('newest');
   let rescueOrganisation = $state('all');
-  let rescuePage = $state(1);
+  let archiveRows = $state<PageData['rescues']>([]);
+  let archiveNextToken = $state<string | null>(null);
+  let archiveHasMore = $state(false);
+  let archiveLoading = $state(false);
+  let archiveLoaded = $state(false);
+  let archiveError = $state('');
+  let archiveExamined = $state(0);
+  let archiveController: AbortController | null = null;
   let rescueDate = $state(rescueTodayNSW());
   let rescueDayItems = $state<PageData['rescues']>([]);
   let rescueDayLoaded = $state(false);
@@ -218,27 +225,78 @@
     })
   );
 
-  // List searches the recent register by default. Selecting a specific date
-  // uses the complete server-side day query, not the 200-item recent snapshot.
-  const registerSource = $derived(
-    rescuePeriod === 'selected_day' ? (rescueDayLoaded ? rescueDayItems : []) : data.rescues
-  );
-  const visibleRescues = $derived(sortRescueRecords(registerSource.filter((rescue) => {
-    const query = rescueSearch.trim().toLowerCase();
-    return (rescueStatus === 'all' || (rescueStatus === 'active' && ['PENDING', 'ASSIGNED'].includes(rescue.status)) || rescue.status === rescueStatus)
-      && (rescueOrganisation === 'all' || rescue.organisationId === rescueOrganisation)
-      && (rescuePeriod === 'selected_day' || matchesRescuePeriod(rescue, rescuePeriod))
-      && (!query || [rescue.id, rescue.type, rescue.breed ?? '', rescue.location ?? '', rescue.injury ?? '', rescue.status,
-          rescue.animalStatus ?? '', assignedRescuerName(rescue.assignedUserId), organisationName(rescue.organisationId ?? undefined)]
-          .join(' ').toLowerCase().includes(query));
-  }), rescueOrder));
-  const rescuePageCount = $derived(Math.max(1, Math.ceil(visibleRescues.length / RESCUE_LIST_PAGE_SIZE)));
-  const visibleRescuePage = $derived(visibleRescues.slice((rescuePage - 1) * RESCUE_LIST_PAGE_SIZE, rescuePage * RESCUE_LIST_PAGE_SIZE));
-  $effect(() => { rescueSearch; rescueStatus; rescuePeriod; rescueDate; rescueOrder; rescueOrganisation; rescuePage = 1; });
+  const archiveFilterKey = $derived(JSON.stringify({
+    q: rescueSearch, status: rescueStatus, period: rescuePeriod,
+    date: rescueDate, organisation: rescueOrganisation, order: rescueOrder
+  }));
+  function archiveParams(cursor?: string): URLSearchParams {
+    const params = new URLSearchParams({
+      q: rescueSearch, status: rescueStatus, period: rescuePeriod,
+      date: rescueDate, organisation: rescueOrganisation, order: rescueOrder
+    });
+    if (cursor) params.set('cursor', cursor);
+    return params;
+  }
+  async function fetchArchivePage(controller: AbortController, reset: boolean): Promise<void> {
+    if (archiveLoading && !reset) return;
+    archiveLoading = true;
+    archiveError = '';
+    try {
+      const params = archiveParams(reset ? undefined : archiveNextToken ?? undefined);
+      const response = await fetch(`/api/admin/rescues/search?${params.toString()}`, {
+        signal: controller.signal, cache: 'no-store'
+      });
+      const payload = await response.json() as {
+        items?: PageData['rescues'];
+        nextToken?: string | null;
+        hasMore?: boolean;
+        examined?: number;
+        error?: string;
+      };
+      if (!response.ok) throw new Error(payload.error ?? `Archive search HTTP ${response.status}`);
+      if (controller.signal.aborted) return;
+      const nextItems = payload.items ?? [];
+      archiveRows = reset ? nextItems : [...archiveRows, ...nextItems];
+      archiveExamined = reset ? (payload.examined ?? 0) : archiveExamined + (payload.examined ?? 0);
+      archiveNextToken = payload.nextToken ?? null;
+      archiveHasMore = Boolean(payload.hasMore && payload.nextToken);
+      archiveLoaded = true;
+    } catch (error) {
+      if (!controller.signal.aborted) archiveError = error instanceof Error ? error.message : 'Archive search failed';
+    } finally {
+      if (!controller.signal.aborted) archiveLoading = false;
+    }
+  }
+  $effect(() => {
+    // The archive API, not the browser or the operational 200-row snapshot,
+    // owns all filtering and continuation through historical cases.
+    if (section !== 'rescues' || rescueView !== 'list') return;
+    archiveFilterKey;
+    archiveController?.abort();
+    const controller = new AbortController();
+    archiveController = controller;
+    archiveRows = [];
+    archiveNextToken = null;
+    archiveHasMore = false;
+    archiveLoaded = false;
+    archiveLoading = false;
+    archiveError = '';
+    archiveExamined = 0;
+    const timer = setTimeout(() => void fetchArchivePage(controller, true), rescueSearch.trim() ? 280 : 0);
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+      if (archiveController === controller) archiveController = null;
+    };
+  });
+  function loadMoreArchive() {
+    if (!archiveController || archiveLoading || !archiveHasMore) return;
+    void fetchArchivePage(archiveController, false);
+  }
   // The map always shows every case reported on the selected day, regardless of
   // the list's search, status or period filters.
   $effect(() => {
-    if (section !== 'rescues' || (rescueView !== 'map' && rescuePeriod !== 'selected_day')) return;
+    if (section !== 'rescues' || rescueView !== 'map') return;
     const day = rescueDate;
     const organisation = rescueOrganisation;
     const controller = new AbortController();
@@ -644,15 +702,20 @@
             <option value="newest">Newest first</option><option value="oldest">Oldest first</option>
           </select></label>
         </div>
-        <p class="rescue-register-count" role="status">{rescuePeriod === 'selected_day' ? (rescueDayLoaded ? `${visibleRescues.length} matching rescues on ${rescueDayLabel(rescueDate)}` : 'Loading day records…') : `${visibleRescues.length} matching rescues in recent records`}</p>
-        {#if rescueDayError && rescuePeriod === 'selected_day'}
-          <p class="rescue-day-error" role="alert">Could not retrieve this date: {rescueDayError}</p>
+        <p class="rescue-register-count" role="status">
+          {#if archiveLoading && !archiveLoaded}Searching rescue history…
+          {:else if archiveHasMore}Showing {archiveRows.length} matching rescues so far · more history available
+          {:else if archiveLoaded}Found {archiveRows.length} matching rescues across the entire selected archive
+          {:else}Search pending{/if}
+        </p>
+        {#if archiveError}
+          <p class="rescue-day-error" role="alert">{archiveError}</p>
         {/if}
-        {#if visibleRescues.length}
+        {#if archiveRows.length}
           <div class="table-wrap"><table>
             <thead><tr><th>Animal / Case</th><th>Location</th><th>Status</th><th>Assigned</th><th>Reported</th><th>Updated</th><th>Map</th></tr></thead>
             <tbody>
-              {#each visibleRescuePage as rescue (rescue.id)}
+              {#each archiveRows as rescue (rescue.id)}
                 <tr>
                   <td><strong>{rescue.type}</strong>
                     {#if rescue.breed}<span>{rescue.breed}</span>{/if}
@@ -667,15 +730,17 @@
               {/each}
             </tbody>
           </table></div>
-          {#if rescuePageCount > 1}
-            <div class="rescue-register-pagination">
-              <button type="button" disabled={rescuePage <= 1} onclick={() => (rescuePage -= 1)}>Previous</button>
-              <span>Page {rescuePage} of {rescuePageCount}</span>
-              <button type="button" disabled={rescuePage >= rescuePageCount} onclick={() => (rescuePage += 1)}>Next</button>
-            </div>
-          {/if}
-        {:else}
+        {:else if archiveLoaded && !archiveHasMore}
           <div class="empty-state large"><strong>No matching rescues</strong><span>Try changing the search or filters.</span></div>
+        {/if}
+        {#if archiveHasMore}
+          <div class="rescue-register-pagination">
+            <button type="button" disabled={archiveLoading} onclick={loadMoreArchive}>
+              {archiveLoading ? 'Searching more records…' : archiveRows.length ? 'Load 25 more matches' : 'Continue searching history'}
+            </button>
+            <span>{archiveExamined} archive records examined in this search</span>
+          </div>
+        {/if}
         {/if}
         {/if}
       </section>
