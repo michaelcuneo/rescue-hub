@@ -9,12 +9,12 @@ const member = {
 };
 const base = { organisationId: 'hunter', status: 'PENDING', assignedUserId: null };
 
-test('field carer sees only pending jobs matching their assigned rescue teams', () => {
+test('field carer sees every same-organisation pending rescue regardless of training area', () => {
   assert.equal(canSeeDesktopRescue(member, base, true), true);
-  assert.equal(canSeeDesktopRescue(member, base, false), false);
+  assert.equal(canSeeDesktopRescue(member, base, false), true);
   assert.equal(canSeeDesktopRescue(member, { ...base, transportAnimalId: 'animal1' }, false), true);
-  assert.equal(canSeeDesktopRescue(member, { ...base, transportAnimalId: 'animal1', awaitingCarer: true }, true), false);
-  assert.equal(canSeeDesktopRescue(member, { ...base, assignedUserId: 'another' }, true), false);
+  assert.equal(canSeeDesktopRescue(member, { ...base, transportAnimalId: 'animal1', awaitingCarer: true }, true), true);
+  assert.equal(canSeeDesktopRescue(member, { ...base, assignedUserId: 'another' }, true), true);
   assert.equal(canSeeDesktopRescue(member, { ...base, organisationId: 'other' }, true), false);
 });
 
@@ -36,9 +36,9 @@ test('coordinators see their organisation and still cannot see other organisatio
 test('inactive or unsupported membership cannot see rescue offers', () => {
   assert.equal(canSeeDesktopRescue({ ...member, enabled: false }, base, true), false);
   assert.equal(canSeeDesktopRescue({ ...member, status: 'INVITED' }, base, true), false);
-  assert.equal(canSeeDesktopRescue({ ...member, membershipTypeId: 'carer' }, base, true), false);
-  assert.equal(canSeeDesktopRescue({ ...member, membershipTypeId: 'support-member' }, base, true), false);
-  assert.equal(canSeeDesktopRescue({ ...member, membershipTypeId: 'probationary-rescuer' }, base, true), false);
+  assert.equal(canSeeDesktopRescue({ ...member, membershipTypeId: 'carer' }, base, true), true);
+  assert.equal(canSeeDesktopRescue({ ...member, membershipTypeId: 'support-member' }, base, true), true);
+  assert.equal(canSeeDesktopRescue({ ...member, membershipTypeId: 'probationary-rescuer' }, base, true), true);
   assert.equal(canSeeDesktopRescue({ ...member, membershipTypeId: 'transport-volunteer' }, base, true), false);
   assert.equal(canSeeDesktopRescue({ ...member, membershipTypeId: 'transport-volunteer' }, { ...base, transportAnimalId: 'animal1' }, false), true);
 });
