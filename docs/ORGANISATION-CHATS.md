@@ -25,3 +25,9 @@ Messages are permanent in DynamoDB under an organisation/channel partition, with
 - All messages stay in the originating organisation. No unaffiliated public reporter has group-channel access.
 - Current channel membership is evaluated server-side for every request. Chat links referencing animals must be checked against the requesting organisation.
 - API and UI are committed and CI checked, but AWS deployment and real-world iOS/Android/desktop cross-device testing are outstanding. Retention/deletion governance, moderation and explicit NPWS reporting requirements should be agreed with participating organisations before production adoption.
+
+## Animal group colours
+
+Desktop and Expo chat lists derive their animal-group colours from the **same `RESCUE_PIN_GROUPS` constants as the Operations map legend** using `packages/core/chat-channel-colours.ts`. Animal channels get a coloured avatar and an edge accent, while Administration, Q&A, Trading Post, transport and direct conversations retain neutral styling.
+
+The combined **Reptiles** chat covers both non-venomous and venomous reptile teams. Its desktop avatar has a split two-colour fill; the mobile avatar uses a two-colour edge. These colours are identification aids, not authorisation indicators. Chat membership and message access are unchanged and remain server-enforced.
