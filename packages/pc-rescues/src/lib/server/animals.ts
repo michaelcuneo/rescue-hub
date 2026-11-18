@@ -14,6 +14,7 @@ export type AnimalRecord = {
   status: AnimalStatus; currentCustodianUserId?: string; currentLocation?: string;
   releaseLatitude?: number; releaseLongitude?: number; releaseLocation?: string;
   releaseReason?: 'ORIGINAL_SITE' | 'RELOCATION'; releasedAt?: string;
+  lastGpsLatitude?: number; lastGpsLongitude?: number; lastGpsAt?: string; lastGpsPhase?: string;
   physicalCustodianType?: 'RESCUER' | 'VET'; physicalCustodianName?: string; vetClinicId?: string;
   vetStage?: 'AWAITING_ASSESSMENT' | 'ASSESSED_AWAITING_TRANSPORT';
   pendingTransferId?: string; activeTransportRescueId?: string; reservedCarerUserId?: string; registrationVoidedAt?: string; version: number; createdAt: string; updatedAt: string;
