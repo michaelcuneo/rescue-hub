@@ -53,6 +53,7 @@
   let rescueDayLoading = $state(false);
   let rescueDayError = $state('');
   let rescueMapSelectedId = $state<string | null>(null);
+  let rescueMapFocusedRescue = $state<PageData['rescues'][number] | null>(null);
 
   let peopleSearch = $state('');
   let positionOrganisationId = $state('');
@@ -140,14 +141,18 @@
     if (date > rescueTodayNSW()) return;
     rescueDate = date;
     rescueMapSelectedId = null;
+    rescueMapFocusedRescue = null;
   }
   function showRescueOnMap(rescue: PageData['rescues'][number]) {
     const day = rescueNSWDay(rescue.createdAt);
     if (!day) return;
+    // The archive's date index is the original report date, not the last
+    // status change. Carry the selected case while its historical page loads.
     selectRescueDate(day);
     rescueMapMode = 'single';
+    rescueMapFocusedRescue = rescue;
     rescueMapSelectedId = rescue.id;
-    if (canChooseOrganisation && rescue.organisationId) rescueOrganisation = rescue.organisationId;
+    if (canChooseOrganisation) rescueOrganisation = rescue.organisationId ?? 'all';
     chooseRescueView('map');
   }
   function choosePeopleView(next: PeopleView) {
@@ -721,7 +726,11 @@
           {/if}
           <AdminRescueHistoryMap rescues={rescueDayItems}
             selectedId={rescueMapSelectedId}
-            onSelect={(id) => (rescueMapSelectedId = id)} />
+            focusedRescue={rescueMapFocusedRescue}
+            onSelect={(id) => {
+              rescueMapSelectedId = id;
+              if (id !== rescueMapFocusedRescue?.id) rescueMapFocusedRescue = null;
+            }} />
         {:else}
         <div class="panel-heading table-heading">
           <div><p class="eyebrow">Operational register</p><h2>Wildlife rescues</h2>
