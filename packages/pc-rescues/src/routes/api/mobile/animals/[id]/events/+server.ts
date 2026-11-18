@@ -3,7 +3,7 @@ import { getUserById } from '$lib/server/auth';
 import { getOrganisationMembershipConfig } from '$lib/server/membership';
 import { getAnimal, recordAnimalEvent, changeAnimalState, AnimalConflict } from '$lib/server/animals';
 import { getRescue } from '$lib/server/graphql';
-import { validateAnimalReleasePoint } from '../../../../../../../core/release-location';
+import { validateAnimalReleasePoint } from '../../../../../../../../core/release-location';
 import type { RequestHandler } from './$types';
 
 const notesTypes = new Set(['OBSERVATION', 'VET_ASSESSMENT', 'TREATMENT', 'FEEDING', 'WEIGHT', 'REVIEW']);
