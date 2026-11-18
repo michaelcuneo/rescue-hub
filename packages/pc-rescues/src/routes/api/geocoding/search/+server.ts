@@ -1,6 +1,6 @@
 import { json } from '@sveltejs/kit';
 import { searchRescueAddresses } from '$lib/server/rescue-geocoding';
-import { validRescueCoordinates } from '../../../../core/rescue-location';
+import { validRescueCoordinates } from '../../../../../../core/rescue-location';
 import type { RequestHandler } from './$types';
 
 /** Not an unrestricted public geocoding proxy: only verified dispatch staff. */
