@@ -99,20 +99,67 @@
     }
   }
 
+  // Map clicks, mouse dragging and keyboard nudges all update the same
+  // draft coordinates. The selected address is not retained after moving.
+  function setMapDraftPin(latitude: number, longitude: number) {
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude) ||
+        Math.abs(latitude) > 90 || Math.abs(longitude) > 180) return;
+    draftLocation.set({
+      latitude,
+      longitude,
+      label: `Map pin at ${latitude.toFixed(5)}, ${longitude.toFixed(5)}`,
+      source: 'MAP'
+    });
+  }
+
   function setDraftMarker(location: DraftLocation | null) {
     if (!mapReady || !mapInstance || !mapLibreModule) return;
-    draftMarker?.remove();
-    draftMarker = undefined;
-    if (!location || !Number.isFinite(location.latitude) || !Number.isFinite(location.longitude)) return;
+    if (!get(intakeOpen) || !location ||
+        !Number.isFinite(location.latitude) || !Number.isFinite(location.longitude)) {
+      draftMarker?.remove();
+      draftMarker = undefined;
+      return;
+    }
+
+    // Reuse one draggable marker. Rebuilding it on every dragend would
+    // interrupt the gesture and reset focus for keyboard users.
+    if (draftMarker) {
+      if (!draftMarker.isDragging?.()) {
+        draftMarker.setLngLat([location.longitude, location.latitude]);
+      }
+      return;
+    }
 
     const element = document.createElement('div');
     element.className = 'rescue-draft-map-marker';
     element.textContent = '+';
-    element.setAttribute('role', 'img');
-    element.setAttribute('aria-label', 'New rescue pin');
-    draftMarker = new mapLibreModule.Marker({ element, anchor: 'center' })
-      .setLngLat([location.longitude, location.latitude])
-      .addTo(mapInstance);
+    element.tabIndex = 0;
+    element.setAttribute('role', 'button');
+    element.setAttribute('aria-label', 'Move rescue pin: drag or use arrow keys');
+    element.title = 'Drag this pin to adjust the rescue location';
+    element.addEventListener('keydown', (event: KeyboardEvent) => {
+      const direction: Record<string, [number, number]> = {
+        ArrowUp: [1, 0], ArrowDown: [-1, 0],
+        ArrowRight: [0, 1], ArrowLeft: [0, -1]
+      };
+      const delta = direction[event.key];
+      if (!delta || !draftMarker) return;
+      event.preventDefault();
+      event.stopPropagation();
+      const coordinate = draftMarker.getLngLat();
+      const step = event.shiftKey ? 0.001 : 0.0001;
+      setMapDraftPin(
+        Math.max(-90, Math.min(90, coordinate.lat + delta[0] * step)),
+        Math.max(-180, Math.min(180, coordinate.lng + delta[1] * step))
+      );
+    });
+    draftMarker = new mapLibreModule.Marker({
+      element, anchor: 'center', draggable: true
+    }).setLngLat([location.longitude, location.latitude]).addTo(mapInstance);
+    draftMarker.on('dragend', () => {
+      const coordinate = draftMarker?.getLngLat();
+      if (coordinate) setMapDraftPin(coordinate.lat, coordinate.lng);
+    });
   }
 
   let mapLibreModule: any;
@@ -316,6 +363,12 @@
 
   function registerInteractions(map: any) {
     map.on('click', (event: any) => {
+      // While dispatch intake is open, every map click positions its draft
+      // pin, even when clicking over an existing rescue or NSW area.
+      if (get(intakeOpen)) {
+        setMapDraftPin(event.lngLat.lat, event.lngLat.lng);
+        return;
+      }
       const rescueHit = hit(map, event.point, [
         'rescue-operations-animal-gps', 'rescue-operations-status', 'rescue-operations-initials', 'rescue-operations-main'
       ]);
@@ -338,22 +391,13 @@
         };
       }
 
-      // A dispatcher may drop a new location pin on any empty portion of
-      // the basemap (including an operating-area polygon).
-      if (get(intakeOpen)) {
-        draftLocation.set({
-          longitude: event.lngLat.lng,
-          latitude: event.lngLat.lat,
-          label: 'Dropped map pin'
-        });
-      }
     });
 
     map.on('mousemove', (event: any) => {
       const feature = hit(map, event.point, [
         'rescue-operations-animal-gps', 'rescue-operations-main', 'rescue-operations-status', 'nsw-operating-areas-fill'
       ]);
-      map.getCanvas().style.cursor = feature ? 'pointer' : get(intakeOpen) ? 'crosshair' : '';
+      map.getCanvas().style.cursor = get(intakeOpen) ? 'crosshair' : feature ? 'pointer' : '';
     });
   }
 
@@ -462,7 +506,8 @@
   });
   $effect(() => {
     const location = $draftLocation;
-    if (mapReady) setDraftMarker(location);
+    const isIntakeOpen = $intakeOpen;
+    if (mapReady) setDraftMarker(isIntakeOpen ? location : null);
   });
 </script>
 
@@ -565,7 +610,13 @@
     color: white;
     font-size: 19px;
     box-shadow: 0 4px 14px rgb(0 0 0 / 0.3);
-    transform: rotate(-45deg);
+    cursor: grab;
+    touch-action: none;
+  }
+  .map-surface :global(.rescue-draft-map-marker:active) { cursor: grabbing; }
+  .map-surface :global(.rescue-draft-map-marker:focus-visible) {
+    outline: 3px solid var(--rh-focus);
+    outline-offset: 4px;
   }
 	.map-shell {
 		position: fixed;

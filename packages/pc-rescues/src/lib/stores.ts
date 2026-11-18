@@ -58,6 +58,8 @@ export type DraftLocation = {
 	longitude: number;
 	latitude: number;
 	label: string;
+	// An address is trustworthy only until the pin is manually repositioned.
+	source?: 'ADDRESS' | 'MAP' | 'CENTER';
 };
 
 export const coords = writable<[number, number]>([151.771274, -32.927406]);
