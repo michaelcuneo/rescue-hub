@@ -1,3 +1,5 @@
+import { shouldShowRescuePin } from '../../../../core/case-map-visibility';
+
 /**
  * Shared display-only rescue list organisation.
  * Filters use the original report time rather than updatedAt: an old case
@@ -121,4 +123,26 @@ export function completedOnNSWDay(
 ): boolean {
   return item.status === 'COMPLETED'
     && rescueNSWDay(item.completedAt ?? item.updatedAt) === day;
+}
+
+/**
+ * Operational map pin visibility mirrors the queue:
+ * - pending/assigned pins disappear after physical collection (existing rule)
+ * - completed pins stay inspectable for their NSW completion day, even if
+ *   the animal had previously been collected
+ * - older completed history belongs on the Administration archive map
+ *
+ * Do not use the original incident/report day for completion filtering.
+ */
+export function shouldShowOperationsMapPin(
+  item: {
+    status?: string | null;
+    pickedUpAt?: string | null;
+    awaitingCarer?: boolean | null;
+    completedAt?: string | null;
+    updatedAt?: string | null;
+  },
+  today: string
+): boolean {
+  return completedOnNSWDay(item, today) || shouldShowRescuePin(item);
 }
