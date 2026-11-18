@@ -4,6 +4,7 @@
  * Dry-run by default. NEVER invoked during SST deployment or server start.
  *
  * npx sst shell --stage michael -- node packages/pc-rescues/scripts/seed-historical-rescues.mjs --stage michael
+ * Or use --stage demo for the deployed demonstration database.
  * Append --write to commit records after interactive confirmation.
  */
 import { createInterface } from 'node:readline/promises';
@@ -15,12 +16,12 @@ import { Resource } from 'sst';
 const stageFlag = process.argv.indexOf('--stage');
 const stage = stageFlag >= 0 ? process.argv[stageFlag + 1] : undefined;
 const write = process.argv.includes('--write');
-if (stage !== 'michael' || (process.env.SST_STAGE && process.env.SST_STAGE !== stage)) {
-  throw new Error('Historical seed supports only SST stage michael; the linked SST_STAGE must match when present.');
+if (!['michael', 'demo'].includes(stage) || (process.env.SST_STAGE && process.env.SST_STAGE !== stage)) {
+  throw new Error('Historical seed supports only stages michael and demo; the linked SST_STAGE must match.');
 }
 const table = Resource.RescueHubData?.name;
-if (!table || !table.toLowerCase().includes('michael')) {
-  throw new Error('Refusing to seed: linked RescueHubData table does not contain stage michael.');
+if (!table || !table.toLowerCase().includes(stage.toLowerCase())) {
+  throw new Error('Refusing to seed: linked RescueHubData table name does not contain the requested stage.');
 }
 if (process.argv.some(a => /^--(delete|force|overwrite)$/.test(a))) {
   throw new Error('Destructive/overwriting seed operations are not available.');
@@ -28,9 +29,11 @@ if (process.argv.some(a => /^--(delete|force|overwrite)$/.test(a))) {
 const db = DynamoDBDocumentClient.from(new DynamoDBClient({}), {
   marshallOptions: { removeUndefinedValues: true }
 });
-import { buildHistoricalRescueFixtures } from '../../core/historical-rescue-fixtures.mjs';
+import { buildHistoricalRescueFixtures, buildTodayCompletedFixtures } from '../../core/historical-rescue-fixtures.mjs';
 
-const fixtures = buildHistoricalRescueFixtures();
+const historicalFixtures = buildHistoricalRescueFixtures();
+const todayFixtures = buildTodayCompletedFixtures();
+const fixtures = [...historicalFixtures, ...todayFixtures];
 const outcomes = fixtures.reduce((a, item) => {
   const label = item.event.outcome === 'RELEASED'
     ? item.event.releaseReason : item.event.outcome;
@@ -39,19 +42,20 @@ const outcomes = fixtures.reduce((a, item) => {
 }, {});
 console.log('Synthetic Rescue Hub historical archive dataset');
 console.log('SST stage:', stage, 'table:', table);
-console.log('Rescues:', fixtures.length, '| outcomes:', JSON.stringify(outcomes));
-console.log('Date range:', fixtures[0].rescue.createdAt, 'to', fixtures.at(-1).rescue.createdAt);
+console.log('Historical rescues:', historicalFixtures.length, '| completed today (NSW):', todayFixtures.length);
+console.log('Total:', fixtures.length, '| outcomes:', JSON.stringify(outcomes));
+console.log('Historical date range:', historicalFixtures[0].rescue.createdAt, 'to', historicalFixtures.at(-1).rescue.createdAt);
 console.log('All incidents are fictional and carry demo=true + historicalSeed=true.');
 if (!write) {
-  console.log('DRY RUN ONLY. Append --write to insert these 200 deterministic historical records.');
+  console.log('DRY RUN ONLY. Append --write to insert 200 historical and eight completed-today records.');
   process.exit(0);
 }
 if (!stdin.isTTY) throw new Error('Interactive confirmation requires a real terminal.');
 const rl = createInterface({ input: stdin, output: stdout });
 let answer;
-try { answer = await rl.question('Type SEED 200 michael to create the historical dataset: '); }
+try { answer = await rl.question('Type SEED 208 ' + stage + ' to create the synthetic dataset: '); }
 finally { rl.close(); }
-if (answer !== 'SEED 200 michael') throw new Error('Cancelled: nothing written.');
+if (answer !== 'SEED 208 ' + stage) throw new Error('Cancelled: nothing written.');
 
 let inserted = 0, skipped = 0;
 for (const { rescue, animal, event } of fixtures) {
@@ -77,4 +81,5 @@ for (const { rescue, animal, event } of fixtures) {
   if (inserted % 25 === 0) console.log('Inserted', inserted, 'of', fixtures.length);
 }
 console.log('Finished:', inserted, 'inserted;', skipped, 'previously seeded and left unchanged.');
-console.log('Open Administration > Rescues > Map > All rescues to view the history.');
+console.log('Open Administration > Rescues > Map > All rescues for history.');
+console.log('Open Operations > Completed for the eight cases completed today in NSW.');
