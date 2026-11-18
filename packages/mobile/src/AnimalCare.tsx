@@ -45,6 +45,15 @@ export default function AnimalCare({ rescue, userId, roles, onBack, onUnclaim }:
     setReleaseMapOpen(false);
   }
   const [releaseNotes, setReleaseNotes] = useState('');
+  // A GPS point belongs to one animal's final outcome. Never carry a previous
+  // animal's relocation destination into the next animal's release form.
+  useEffect(() => {
+    setReleaseCoords(null);
+    setReleaseReason('ORIGINAL_SITE');
+    setReleaseLocation('');
+    setReleaseNotes('');
+    setReleaseMapOpen(false);
+  }, [rescue.id, guideAnimalId, selected?.id]);
 
   const [deliveryInfo, setDeliveryInfo] = useState<(CareDeliveryDestination & { carerUserId: string }) | null>(null);
   const [collected, setCollected] = useState(Boolean(rescue.pickedUpAt));
