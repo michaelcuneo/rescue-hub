@@ -1396,7 +1396,7 @@
   }
 
   .backend-warning {
-    margin-top: 22px;
+    margin-top: 0;
     display: grid;
     gap: 5px;
     padding: 14px 16px;
@@ -1426,7 +1426,7 @@
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 12px;
-    margin-top: 24px;
+    margin-top: 0;
   }
 
   .metrics article {
@@ -1680,9 +1680,11 @@
     line-height: 1.55;
   }
 
+  /* Align right-hand Administration content with the sidebar and the
+     Documentation workspace; spacing belongs inside panels, not above them. */
   .page-panel,
   .feature-grid {
-    margin-top: 24px;
+    margin-top: 0;
   }
 
   .table-heading {
