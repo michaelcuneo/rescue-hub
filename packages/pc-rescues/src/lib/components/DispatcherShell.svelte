@@ -1,15 +1,13 @@
 <script lang="ts">
 	import { env } from '$env/dynamic/public';
-import { onMount } from 'svelte';
 	import { australianAnimalNames } from '$lib/data/australian-animals';
 import { reportChannelLabel } from '../../../../core/report-channel';
 	import { pinForRescue } from '../../../../core/rescue-pin-groups';
 	import RescueAddress from './RescueAddress.svelte';
-import { rescueReportedNSWDay, rescueNSWDay, rescueTodayNSW, shiftRescueDay, rescueDayLabel, sortRescueRecords, isWaitingFourHours, RESCUE_LIST_PAGE_SIZE, type RescueOrder } from '$lib/rescue-list';
+import { rescueNSWDay, rescueTodayNSW, sortRescueRecords, isWaitingFourHours, RESCUE_LIST_PAGE_SIZE, type RescueOrder } from '$lib/rescue-list';
 		import type { OrganisationMembershipConfig } from '$lib/server/membership';
 	import {
 		Search,
-		ChevronLeft,
 		Plus,
 		MapPin,
 		Clock3,
@@ -66,16 +64,10 @@ import { rescueReportedNSWDay, rescueNSWDay, rescueTodayNSW, shiftRescueDay, res
 	};
 
 	let tab = $state<RescueTab>('pending');
-  // Operational dates are NSW calendar days, not rolling 24-hour windows.
+  // Pending and Assigned are all unresolved cases; Completed is today in NSW.
   let todayNSW = $state(rescueTodayNSW());
-  let selectedDay = $state(todayNSW);
   let order = $state<RescueOrder>('oldest');
   let visibleLimit = $state(RESCUE_LIST_PAGE_SIZE);
-  let carryoverLimit = $state(10);
-  let carryoverExpanded = $state(true);
-  let daySnapshot = $state<{ day: string; items: RescueItem[] } | null>(null);
-  let dayLoading = $state(false);
-  let dayError = $state('');
 	let species = $state('');
 	let speciesSuggestionsOpen = $state(false);
 	const speciesMatches = $derived(species.trim() ? australianAnimalNames.filter((name) => name.toLowerCase().includes(species.trim().toLowerCase())).slice(0, 12) : australianAnimalNames.slice(0, 12));
@@ -102,89 +94,32 @@ import { rescueReportedNSWDay, rescueNSWDay, rescueTodayNSW, shiftRescueDay, res
 	]);
 
 
-  const isCurrentDay = $derived(selectedDay === todayNSW);
-  // A day's complete archive is fetched on demand; live records override
-  // earlier snapshots if dispatch status has since changed.
-  const selectedDayCases = $derived.by(() => {
-    const result = new Map<string, RescueItem>();
-    if (daySnapshot?.day === selectedDay) {
-      for (const item of daySnapshot.items) result.set(item.id, item);
-    }
-    for (const item of allRescues) {
-      if (rescueReportedNSWDay(item) === selectedDay) result.set(item.id, item);
-    }
-    return [...result.values()];
-  });
-  const dailyPending = $derived(selectedDayCases.filter(item => item.status === 'PENDING'));
-  const dailyAssigned = $derived(selectedDayCases.filter(item => item.status === 'ASSIGNED'));
-  const dailyCompleted = $derived(selectedDayCases.filter(item => item.status === 'COMPLETED'));
   const currentItems = $derived(
-    tab === 'pending' ? dailyPending : tab === 'assigned' ? dailyAssigned : dailyCompleted
+    tab === 'pending' ? $data.pending :
+    tab === 'assigned' ? $data.assigned :
+    $data.completed.filter(item =>
+      rescueNSWDay(item.completedAt ?? item.updatedAt) === todayNSW)
   );
   const visibleItems = $derived(sortRescueRecords(
-    currentItems,
-    tab === 'completed' ? 'newest' : order
+    currentItems, tab === 'completed' ? 'newest' : order
   ));
   const shownItems = $derived(visibleItems.slice(0, visibleLimit));
-  const carryoverItems = $derived(isCurrentDay ? sortRescueRecords(
-    [...$data.pending, ...$data.assigned].filter(item =>
-      rescueReportedNSWDay(item) !== selectedDay
-    ), 'oldest'
-  ) : []);
-  const visibleCarryovers = $derived(carryoverItems.slice(0, carryoverLimit));
   const selected = $derived($selectedRescue);
+  // Routing exceptions have not become rescue cases yet. Keep all unresolved
+  // exceptions visible under Pending, no matter when they were reported.
   const unmatchedReports = $derived(
-    tab === 'pending' && userCanDispatch ? $routingExceptions.filter(report =>
-      rescueNSWDay(report.createdAt) === selectedDay
-    ) : []
+    tab === 'pending' && userCanDispatch ? $routingExceptions : []
   );
-  const carriedRoutingReports = $derived(
-    isCurrentDay && userCanDispatch ? $routingExceptions.filter(report =>
-      rescueNSWDay(report.createdAt) !== selectedDay
-    ) : []
-  );
-  const carriedRoutingVisible = $derived(carriedRoutingReports.slice(0, carryoverLimit));
-  $effect(() => { tab; selectedDay; order; visibleLimit = RESCUE_LIST_PAGE_SIZE; });
-  $effect(() => { selectedDay; carryoverLimit = 10; });
+  $effect(() => { tab; order; visibleLimit = RESCUE_LIST_PAGE_SIZE; });
+
+  // Refresh the Completed "today" filter after midnight or browser wake.
   $effect(() => {
-    const date = selectedDay;
-    const controller = new AbortController();
-    dayLoading = true; dayError = ''; daySnapshot = null;
-    void fetch(`/api/rescues/day?date=${encodeURIComponent(date)}`, {
-      signal: controller.signal, cache: 'no-store'
-    }).then(async response => {
-      if (!response.ok) throw new Error(`Day records unavailable (HTTP ${response.status})`);
-      const payload = await response.json() as { items: RescueItem[] };
-      if (controller.signal.aborted) return;
-      daySnapshot = { day: date, items: payload.items.map(item => ({
-        ...item, color: pinForRescue(item).color.slice(1), disabled: false
-      })) };
-    }).catch(error => {
-      if (!controller.signal.aborted) dayError = error instanceof Error ? error.message : 'Unable to load this day';
-    }).finally(() => { if (!controller.signal.aborted) dayLoading = false; });
-    return () => controller.abort();
-  });
-  onMount(() => {
-    const syncDay = () => {
+    const timer = setInterval(() => {
       const current = rescueTodayNSW();
-      if (current === todayNSW) return;
-      if (selectedDay === todayNSW) selectedDay = current;
-      todayNSW = current;
-    };
-    const visibilityChanged = () => { if (document.visibilityState === 'visible') syncDay(); };
-    syncDay();
-    const timer = window.setInterval(syncDay, 30_000);
-    document.addEventListener('visibilitychange', visibilityChanged);
-    window.addEventListener('focus', syncDay);
-    return () => {
-      clearInterval(timer);
-      document.removeEventListener('visibilitychange', visibilityChanged);
-      window.removeEventListener('focus', syncDay);
-    };
+      if (current !== todayNSW) todayNSW = current;
+    }, 30_000);
+    return () => clearInterval(timer);
   });
-  function goToDay(day: string) {
-    if (userCanDispatch && day && day <= todayNSW) selectedDay = day;
-  }
 
 	async function retryPublicRouting(id: string) {
 		if (routeBusy) return;
@@ -476,92 +411,28 @@ import { rescueReportedNSWDay, rescueNSWDay, rescueTodayNSW, shiftRescueDay, res
 		{#if dispatchNotice}
 			<p role="status" class="dispatch-notice">{dispatchNotice}</p>
 		{/if}
-        {#if userCanDispatch}
-        <div class="queue-day-nav" aria-label="Dispatch calendar day">
-          <button type="button" aria-label="Previous day" onclick={() => goToDay(shiftRescueDay(selectedDay, -1))}><ChevronLeft size={16} /></button>
-          <label><span>Dispatch day · NSW</span>
-            <input type="date" value={selectedDay} max={todayNSW}
-              onchange={(event) => goToDay(event.currentTarget.value)} />
-          </label>
-          <button type="button" aria-label="Next day" disabled={selectedDay >= todayNSW}
-            onclick={() => goToDay(shiftRescueDay(selectedDay, 1))}><ChevronRight size={16} /></button>
-          {#if !isCurrentDay}<button class="today-button" type="button" onclick={() => goToDay(todayNSW)}>Today</button>{/if}
-        </div>
-        {/if}
-        <div class="queue-day-context" role="status">
-          <strong>{isCurrentDay ? 'Today' : rescueDayLabel(selectedDay)}</strong>
-          <span>{isCurrentDay ? 'Daily intake and unresolved carry-overs' : 'Cases reported this day · current case status'}</span>
-        </div>
 		<div class="tabs" role="tablist" aria-label="Rescue state">
 			<button class:active={tab === 'pending'} type="button" onclick={() => (tab = 'pending')}>
 				<span>Pending</span>
-				<strong>{dailyPending.length + (userCanDispatch ? $routingExceptions.filter(report => rescueNSWDay(report.createdAt) === selectedDay).length : 0)}</strong>
+				<strong>{$data.pending.length + (userCanDispatch ? $routingExceptions.length : 0)}</strong>
 			</button>
 			<button class:active={tab === 'assigned'} type="button" onclick={() => (tab = 'assigned')}>
 				<span>Assigned</span>
-				<strong>{dailyAssigned.length}</strong>
+				<strong>{$data.assigned.length}</strong>
 			</button>
 			<button class:active={tab === 'completed'} type="button" onclick={() => (tab = 'completed')}>
 				<span>Completed</span>
-				<strong>{dailyCompleted.length}</strong>
+				<strong>{currentItems.length === -1 ? 0 : $data.completed.filter(item => rescueNSWDay(item.completedAt ?? item.updatedAt) === todayNSW).length}</strong>
 			</button>
 		</div>
 
         <div class="queue-results">
-          <span>{visibleItems.length} {tab} rescue{visibleItems.length === 1 ? '' : 's'} for this day</span>
+          <span>{visibleItems.length} {tab} rescue{visibleItems.length === 1 ? '' : 's'} · {tab === 'completed' ? 'completed today' : 'all open cases'}</span>
           <label>Sort <select bind:value={order} disabled={tab === 'completed'}>
             <option value="oldest">Oldest first</option><option value="newest">Newest first</option>
           </select></label>
         </div>
-        {#if dayLoading}<p class="queue-day-loading" role="status">Loading daily cases…</p>{/if}
-        {#if dayError}<p class="queue-day-error" role="alert">{dayError}. Showing available recent records.</p>{/if}
 		<div class="rescue-list">
-            {#if isCurrentDay && (carryoverItems.length || carriedRoutingReports.length)}
-              <section class="queue-carryovers" aria-label="Unresolved rescues carried forward">
-                <button class="queue-carryover-header" type="button" aria-expanded={carryoverExpanded}
-                  onclick={() => (carryoverExpanded = !carryoverExpanded)}>
-                  <span>Carry-over rescues <strong>{carryoverItems.length + carriedRoutingReports.length}</strong></span>
-                  <small>{carryoverExpanded ? 'Hide' : 'Show'} unresolved cases</small>
-                </button>
-                {#if carryoverExpanded}
-                  <p class="queue-carryover-explainer">Older pending and assigned rescues remain visible until resolved.</p>
-                  {#each carriedRoutingVisible as report (report.id)}
-                    <article class="rescue-card routing-exception" aria-label="Older report awaiting GPS routing">
-                      <span class="rescue-dot state-pending"></span>
-                      <div class="rescue-content">
-                        <span class="source-label">Carry-over · Online report · GPS routing needed</span>
-                        <strong>{report.animal}</strong>
-                        <span class="rescue-injury">{report.condition}</span>
-                        <small class="rescue-injury">Reported {rescueDayLabel(rescueNSWDay(report.createdAt) ?? todayNSW)}</small>
-                        <button class="retry-route" type="button" disabled={Boolean(routeBusy)}
-                          onclick={() => void retryPublicRouting(report.id)}>
-                          {routeBusy === report.id ? 'Checking GPS…' : 'Retry GPS routing'}
-                        </button>
-                      </div>
-                    </article>
-                  {/each}
-                  {#each visibleCarryovers as item (item.id)}
-                    <button type="button" class="rescue-card carryover-card"
-                      class:selected={selected?.id === item.id}
-                      style:--species-color={pinForRescue(item).color}
-                      onclick={() => selectRescue(item)}>
-                      <span class="rescue-dot state-{item.status?.toLowerCase() ?? 'pending'}"></span>
-                      <span class="rescue-content">
-                        <span class="rescue-title"><i class="species-dot" aria-hidden="true"></i><strong>{item.type}</strong></span>
-                        <span class="rescue-location"><MapPin size={12} /><RescueAddress id={item.id} latitude={item.latitude}
-                          longitude={item.longitude} fallback={item.location} compact /></span>
-                        <span class="rescue-injury">{item.status === 'ASSIGNED' ? 'Assigned' : 'Pending'} · Reported {rescueDayLabel(rescueReportedNSWDay(item) ?? todayNSW)}</span>
-                        {#if item.assignedUserId}<span class="rescue-assignment">{assigneeName(item.assignedUserId)} · {rescueProgress(item)}</span>{/if}
-                      </span>
-                      <ChevronRight size={15} class="chevron" />
-                    </button>
-                  {/each}
-                  {#if carryoverItems.length > visibleCarryovers.length || carriedRoutingReports.length > carriedRoutingVisible.length}
-                    <button class="queue-load-more" type="button" onclick={() => (carryoverLimit += 10)}>Show more carry-overs</button>
-                  {/if}
-                {/if}
-              </section>
-            {/if}
 			{#if tab === 'pending' && unmatchedReports.length}
 				{#each unmatchedReports as report (report.id)}
 					<article class="rescue-card routing-exception" aria-label="Online public report awaiting GPS routing">
@@ -630,8 +501,8 @@ import { rescueReportedNSWDay, rescueNSWDay, rescueTodayNSW, shiftRescueDay, res
 		</div>
 
         <div class="queue-footer">
-          <span><i class="pending"></i>{dailyPending.length} pending this day</span>
-          <span><i class="assigned"></i>{dailyAssigned.length} assigned this day</span>
+          <span><i class="pending"></i>{$data.pending.length} pending</span>
+          <span><i class="assigned"></i>{$data.assigned.length} assigned</span>
         </div>
 	</aside>
 
@@ -924,25 +795,9 @@ import { rescueReportedNSWDay, rescueNSWDay, rescueTodayNSW, shiftRescueDay, res
 		cursor: pointer;
 	}
 
-  .queue-day-nav { display:flex; align-items:end; gap:6px; padding:9px 16px 0; }
-  .queue-day-nav label { display:grid; flex:1; min-width:0; gap:3px; color:var(--rh-muted); font-size:11px; font-weight:750; }
-  .queue-day-nav input { width:100%; height:34px; min-width:0; padding:5px; border:1px solid var(--rh-border); border-radius:8px; background:var(--rh-field); color:var(--rh-text); font:inherit; font-size:12px; }
-  .queue-day-nav button { flex:0 0 auto; display:grid; place-items:center; min-width:34px; height:34px; padding:5px; border:1px solid var(--rh-border); border-radius:8px; background:var(--rh-surface-soft); color:var(--rh-text); cursor:pointer; }
-  .queue-day-nav button:disabled { opacity:.4; cursor:not-allowed; }
-  .queue-day-nav .today-button { font-size:11px; font-weight:800; }
-  .queue-day-context { display:grid; gap:2px; padding:7px 16px 0; font-size:11px; color:var(--rh-muted); }
-  .queue-day-context strong { color:var(--rh-text); font-size:12px; }
   .queue-results { display:flex; justify-content:space-between; align-items:center; gap:6px; padding:6px 16px; color:var(--rh-muted); font-size:11px; }
   .queue-results label { display:flex; align-items:center; gap:5px; white-space:nowrap; }
   .queue-results select { min-width:0; max-width:110px; padding:5px 3px; border:1px solid var(--rh-border); border-radius:7px; background:var(--rh-field); color:var(--rh-text); font:inherit; font-size:11px; }
-  .queue-day-loading, .queue-day-error { margin:6px 16px; font-size:11px; color:var(--rh-muted); }
-  .queue-day-error { color:var(--rh-danger-text); }
-  .queue-carryovers { margin-bottom:12px; border:1px solid var(--rh-border); border-radius:9px; overflow:hidden; }
-  .queue-carryover-header { display:flex; justify-content:space-between; align-items:center; gap:5px; width:100%; padding:10px; border:0; background:var(--rh-surface-soft); color:var(--rh-text); font:inherit; font-size:12px; font-weight:750; text-align:left; cursor:pointer; }
-  .queue-carryover-header strong { display:inline-block; min-width:20px; padding:2px 5px; border-radius:999px; background:var(--rh-raised); text-align:center; }
-  .queue-carryover-header small { color:var(--rh-muted); font-size:10px; font-weight:500; }
-  .queue-carryover-explainer { margin:8px 10px; color:var(--rh-muted); font-size:11px; line-height:1.4; }
-  .carryover-card { padding:10px 8px; }
   .queue-waiting { display:block; margin-top:4px; color:var(--rh-danger-text); font-size:11px; font-weight:700; }
   .queue-load-more { display:block; margin:12px auto; padding:9px 14px; border:1px solid var(--rh-border); border-radius:9px; background:var(--rh-surface-soft); color:var(--rh-text); cursor:pointer; font:inherit; font-size:12px; font-weight:700; }
 	.tabs {
