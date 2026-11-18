@@ -1,6 +1,6 @@
 import { json } from '@sveltejs/kit';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
-import { DynamoDBDocumentClient, TransactWriteCommand } from '@aws-sdk/lib-dynamodb';
+import { DynamoDBDocumentClient, TransactWriteCommand, type TransactWriteCommandInput } from '@aws-sdk/lib-dynamodb';
 import { Resource } from 'sst';
 import { getAnimal } from '$lib/server/animals';
 import { publishRescueChange } from '$lib/server/realtime';
@@ -34,7 +34,7 @@ export const POST: RequestHandler = async ({ locals, params, request }) => {
   const now = new Date().toISOString();
   const eventId = crypto.randomUUID();
   try {
-    const writes: ConstructorParameters<typeof TransactWriteCommand>[0]['TransactItems'] = [
+    const writes: NonNullable<TransactWriteCommandInput['TransactItems']> = [
         { Update: {
           TableName: table, Key: { pk: `ANIMAL#${animal.id}`, sk: 'META' },
           UpdateExpression: 'SET lastGpsLatitude = :lat, lastGpsLongitude = :lon, lastGpsAt = :at, lastGpsPhase = :phase',
