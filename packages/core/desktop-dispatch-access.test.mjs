@@ -18,10 +18,11 @@ test('field carer sees only pending jobs matching their assigned rescue teams', 
   assert.equal(canSeeDesktopRescue(member, { ...base, organisationId: 'other' }, true), false);
 });
 
-test('volunteer sees only own assigned and completed history, never colleagues cases', () => {
+test('organisation volunteers see all assigned/completed summaries, but not cases in other organisations', () => {
   for (const status of ['ASSIGNED', 'COMPLETED']) {
     assert.equal(canSeeDesktopRescue(member, { ...base, status, assignedUserId: 'chris' }, false), true);
-    assert.equal(canSeeDesktopRescue(member, { ...base, status, assignedUserId: 'somebody-else' }, true), false);
+    assert.equal(canSeeDesktopRescue(member, { ...base, status, assignedUserId: 'somebody-else' }, true), true);
+    assert.equal(canSeeDesktopRescue(member, { ...base, status, assignedUserId: 'somebody-else', organisationId: 'other' }, true), false);
   }
   assert.equal(canSeeDesktopRescue(member, { ...base, status: 'CANCELLED', assignedUserId: 'chris' }, false), false);
 });
