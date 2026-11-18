@@ -66,7 +66,7 @@ export function parseArchiveFilters(params: URLSearchParams, permittedOrganisati
   const period = params.get('period') ?? 'all';
   const order = params.get('order') ?? 'newest';
   const day = params.get('date') || todayNSW();
-  const query = (params.get('q') ?? '').trim().replace(/\s+/g, ' ').toLocaleLowerCase('en-AU');
+  const query = (params.get('q') ?? '').trim().replace(/^#/, '').replace(/\s+/g, ' ').toLocaleLowerCase('en-AU');
   const org = (params.get('organisation') ?? 'all').trim();
   if (!['all', 'active', 'PENDING', 'ASSIGNED', 'COMPLETED', 'CANCELLED'].includes(status))
     throw new ArchiveRequestError('Invalid rescue status filter.');
@@ -155,7 +155,7 @@ function recordMatches(row: Record<string, any>, filters: ArchiveFilters, people
   } else if (filters.status !== 'all' && row.status !== filters.status) return false;
   if (!filters.query) return true;
   const name = typeof row.assignedUserId === 'string' ? (peopleNames.get(row.assignedUserId) ?? '') : '';
-  // Case-insensitive whole-phrase match. Search never relies on the first
+  // Case-insensitive text matching. Search never relies on the first
   // 200 results and continues through the entire selected index.
   const haystack = [
     row.id, row.type, row.breed, row.location, row.injury,
