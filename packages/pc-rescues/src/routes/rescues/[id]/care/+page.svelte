@@ -6,7 +6,7 @@
   import { formatReleaseCoordinates, isValidReleasePoint, type AnimalReleaseReason } from '../../../../../../core/release-location';
   let { data }: { data: PageData } = $props();
   type Animal = { id: string; species: string; status: string; currentCustodianUserId?: string; currentCustodianName?: string; currentLocation?: string; physicalCustodianType?: 'RESCUER' | 'VET'; physicalCustodianName?: string; pendingTransferId?: string; activeTransportRescueId?: string };
-  type Event = { id: string; type: string; notes?: string; actorUserId?: string; actorName?: string; createdAt: string; occurredAt?: string; reportedByName?: string; source?: string; outcome?: string; location?: string; latitude?: number; longitude?: number; releaseReason?: AnimalReleaseReason };
+  type Event = { id: string; type: string; phase?: string; notes?: string; actorUserId?: string; actorName?: string; createdAt: string; occurredAt?: string; reportedByName?: string; source?: string; outcome?: string; location?: string; latitude?: number; longitude?: number; releaseReason?: AnimalReleaseReason };
   let animals = $state<Animal[]>([]);
   let selected = $state<Animal | null>(null);
   let events = $state<Event[]>([]);
