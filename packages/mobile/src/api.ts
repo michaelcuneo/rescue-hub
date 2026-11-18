@@ -432,6 +432,7 @@ export type AnimalEvent = {
   id: string; type: string; actorUserId: string; notes?: string;
   createdAt: string; occurredAt?: string; outcome?: string;
   location?: string; latitude?: number; longitude?: number; releaseReason?: 'ORIGINAL_SITE' | 'RELOCATION';
+  phase?: AnimalGpsPhase; accuracy?: number;
   toUserId?: string; fromUserId?: string;
   callerName?: string; callerRole?: string; source?: string; transportRescueId?: string;
   callbackPermitted?: boolean; callbackPhone?: string;
