@@ -45,6 +45,13 @@ export default function AnimalCare({ rescue, userId, roles, onBack, onUnclaim }:
     setReleaseMapOpen(false);
   }
   const [releaseNotes, setReleaseNotes] = useState('');
+
+  const [deliveryInfo, setDeliveryInfo] = useState<(CareDeliveryDestination & { carerUserId: string }) | null>(null);
+  const [collected, setCollected] = useState(Boolean(rescue.pickedUpAt));
+  const [collectionNotes, setCollectionNotes] = useState('');
+  const [reporterContact, setReporterContact] = useState<{ reportId: string; allowMessages: boolean; contactPhone: string | null } | null>(null);
+  const [animals, setAnimals] = useState<Animal[]>([]);
+  const [selected, setSelected] = useState<Animal | null>(null);
   // A GPS point belongs to one animal's final outcome. Never carry a previous
   // animal's relocation destination into the next animal's release form.
   useEffect(() => {
@@ -55,12 +62,6 @@ export default function AnimalCare({ rescue, userId, roles, onBack, onUnclaim }:
     setReleaseMapOpen(false);
   }, [rescue.id, guideAnimalId, selected?.id]);
 
-  const [deliveryInfo, setDeliveryInfo] = useState<(CareDeliveryDestination & { carerUserId: string }) | null>(null);
-  const [collected, setCollected] = useState(Boolean(rescue.pickedUpAt));
-  const [collectionNotes, setCollectionNotes] = useState('');
-  const [reporterContact, setReporterContact] = useState<{ reportId: string; allowMessages: boolean; contactPhone: string | null } | null>(null);
-  const [animals, setAnimals] = useState<Animal[]>([]);
-  const [selected, setSelected] = useState<Animal | null>(null);
   const [events, setEvents] = useState<AnimalEvent[]>([]);
   const [species, setSpecies] = useState(rescue.type ?? '');
   const [description, setDescription] = useState('');
