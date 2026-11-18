@@ -16,9 +16,9 @@ export type DesktopRescueCase = {
   transportAnimalId?: string | null;
 };
 
-/** Dispatchers coordinate organisation jobs. Volunteers do not browse others'
- * assignments or completed records. Team/capability matching is applied only
- * to unclaimed, available species rescue work.
+/** Operational worklists show the organisation's pending, assigned and
+ * today's completed cases. Assignment/care mutation rights remain separate.
+ * Team eligibility still constrains which PENDING jobs may be claimed.
  */
 export function canSeeDesktopRescue(
   viewer: DesktopRescueViewer,
@@ -32,8 +32,10 @@ export function canSeeDesktopRescue(
   if (viewer.roles.some(role =>
     ['PLATFORM_ADMIN', 'AUTHORITY_ADMIN', 'ORG_ADMIN', 'DISPATCHER'].includes(role))) return true;
 
-  if (rescue.assignedUserId === viewer.id &&
-      (rescue.status === 'ASSIGNED' || rescue.status === 'COMPLETED')) return true;
+  // The queue may display colleague assignments and today's completed jobs.
+  // This grants read-only queue visibility, not case ownership or care rights.
+  if ((rescue.status === 'ASSIGNED' || rescue.status === 'COMPLETED') &&
+      viewer.roles.some(role => ['RESCUER', 'CARER'].includes(role))) return true;
 
   if (rescue.status !== 'PENDING' || rescue.assignedUserId || rescue.awaitingCarer) return false;
 
