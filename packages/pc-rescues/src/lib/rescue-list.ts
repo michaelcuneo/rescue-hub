@@ -33,11 +33,12 @@ export function matchesRescuePeriod(
   now = Date.now()
 ): boolean {
   if (period === 'all') return true;
-  const timestamp = rescueCreatedAt(item);
-  if (!timestamp) return false;
-  if (period === 'today') return timestamp >= localMidnight(now);
-  const weekStart = localMidnight(now, 6);
-  return period === 'seven_days' ? timestamp >= weekStart : timestamp < weekStart;
+  const day = rescueReportedNSWDay(item);
+  if (!day) return false;
+  const today = rescueTodayNSW(now);
+  if (period === 'today') return day === today;
+  const start = shiftRescueDay(today, -6);
+  return period === 'seven_days' ? day >= start && day <= today : day < start;
 }
 
 export function rescueDayGroup(
