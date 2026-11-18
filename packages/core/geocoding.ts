@@ -1,4 +1,4 @@
-import { validRescueCoordinates, type MappedAddress, type RescueCoordinates } from './rescue-location';
+import { validRescueCoordinates, type MappedAddress, type RescueCoordinates } from './rescue-location.ts';
 
 /** Wire contract for our independent, G-NAF-derived geocoder. No Mapbox data. */
 export type AddressSuggestion = {
