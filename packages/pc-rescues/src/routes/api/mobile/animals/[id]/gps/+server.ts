@@ -3,6 +3,7 @@ import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, TransactWriteCommand } from '@aws-sdk/lib-dynamodb';
 import { Resource } from 'sst';
 import { getAnimal } from '$lib/server/animals';
+import { publishRescueChange } from '$lib/server/realtime';
 import { validateAnimalGpsPosition, isActiveAnimalForGps } from '../../../../../../../../core/animal-gps';
 import type { RequestHandler } from './$types';
 
@@ -69,6 +70,7 @@ export const POST: RequestHandler = async ({ locals, params, request }) => {
         }}
       ]
     }));
+    await publishRescueChange().catch(error => console.error('GPS saved but realtime notification failed:', error));
     return json({ ok: true, recordedAt: now, point });
   } catch (error) {
     if (error instanceof Error && error.name === 'TransactionCanceledException')
