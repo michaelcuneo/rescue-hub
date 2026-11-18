@@ -1,7 +1,5 @@
 <script lang="ts">
-  import { onDestroy } from 'svelte';
-  import { env } from '$env/dynamic/public';
-  import { Map, controls } from '@beyonk/svelte-mapbox';
+  import { onMount } from 'svelte';
   import { resolvedTheme } from '$lib/theme';
   import { pinForRescue, RESCUE_PIN_GROUPS } from '../../../../core/rescue-pin-groups';
   import type { Rescue } from '$lib/server/graphql';
@@ -20,12 +18,17 @@
 
   const SOURCE = 'historical-rescue-pins';
   const AREA_SOURCE = 'historical-operating-areas';
-  const accessToken = env.PUBLIC_MAPBOX_ACCESS_TOKEN ?? '';
-  const { NavigationControl, ScaleControl } = controls;
-  let mapRef: any = $state(undefined);
+  // POC only: use a pinned, browser-only MapLibre module so the rest of
+  // Rescue Hub and its current npm lockfile stay completely unchanged.
+  const MAPLIBRE_ESM = 'https://unpkg.com/maplibre-gl@6.18.0/dist/maplibre-gl.mjs';
+  const LIGHT_STYLE = 'https://tiles.openfreemap.org/styles/liberty';
+  const DARK_STYLE = 'https://tiles.openfreemap.org/styles/dark';
+  let container: HTMLDivElement | undefined;
+  let mapInstance: any;
   let mapReady = $state(false);
-  let center: [number, number] = $state([151.66, -32.95]);
-  let zoom = $state(8);
+  let mapError = $state('');
+  let listenersInstalled = false;
+  let cachedAreaCollection: AreaCollection | null = null;
   let boundaryStatus = $state<'loading' | 'ready' | 'partial' | 'error'>('loading');
   let areaCount = $state(0);
   let surface: HTMLDivElement | undefined;
@@ -49,7 +52,7 @@
   groupColours.push('#455665');
 
   function getMap(): any {
-    return mapRef?.getMap?.();
+    return mapInstance;
   }
   function rescueGeoJSON(): any {
     return {
@@ -157,6 +160,9 @@
       });
     }
 
+    if (listenersInstalled) return;
+    listenersInstalled = true;
+
     const selectFeature = (event: any) => {
       const id = event.features?.[0]?.properties?.id;
       if (typeof id === 'string') onSelect?.(id);
@@ -185,9 +191,13 @@
     boundaryStatus = 'loading';
     areaCount = 0;
     try {
-      const response = await fetch('/api/operating-areas', { cache: 'no-store' });
-      if (!response.ok) throw new Error(`Operating areas HTTP ${response.status}`);
-      const collection = await response.json() as AreaCollection;
+      let collection = cachedAreaCollection;
+      if (!collection) {
+        const response = await fetch('/api/operating-areas', { cache: 'no-store' });
+        if (!response.ok) throw new Error(`Operating areas HTTP ${response.status}`);
+        collection = await response.json() as AreaCollection;
+        cachedAreaCollection = collection;
+      }
       areaCount = collection.features.length;
       if (!areaCount) throw new Error('No operating-area features were returned');
       if (!map.getSource(AREA_SOURCE)) {
@@ -230,25 +240,79 @@
     }
   }
 
-  async function handleReady() {
-    const map = getMap();
-    if (!map) return;
-    mapReady = false;
-    if (typeof map.isStyleLoaded === 'function' && !map.isStyleLoaded()) {
-      await new Promise<void>(resolve => map.once('load', () => resolve()));
-    }
-    if (surface && typeof ResizeObserver !== 'undefined') {
+  onMount(() => {
+    let disposed = false;
+    let unsubscribeTheme: (() => void) | undefined;
+    const init = async () => {
+      try {
+        // MapLibre 6 ships an ESM browser bundle and runs its worker from the
+        // same-origin Blob URL; it does not require a Mapbox token or SDK.
+        const lib = await import(/* @vite-ignore */ MAPLIBRE_ESM);
+        if (disposed || !container) return;
+
+        let activeTheme = $resolvedTheme;
+        const map = new lib.Map({
+          container,
+          style: activeTheme === 'dark' ? DARK_STYLE : LIGHT_STYLE,
+          center: [151.66, -32.95],
+          zoom: 8,
+          attributionControl: true
+        });
+        mapInstance = map;
+        map.addControl(new lib.NavigationControl(), 'top-right');
+        map.addControl(new lib.ScaleControl(), 'bottom-left');
+
+        map.on('style.load', () => {
+          if (disposed) return;
+          try {
+            installPinLayers(map);
+            mapReady = true;
+            mapError = '';
+            updatePins();
+            fitAll();
+            void loadOperatingAreas(map);
+          } catch (error) {
+            console.error('Unable to configure MapLibre rescue layers', error);
+            mapError = error instanceof Error ? error.message : 'Unable to configure rescue layers';
+          }
+        });
+        map.on('error', (event: any) => {
+          // Keep displaying the existing map when an individual tile fails.
+          if (!mapReady) {
+            console.error('MapLibre basemap error', event.error);
+            mapError = event.error?.message ?? 'Map tiles could not load';
+          }
+        });
+
+        if (surface && typeof ResizeObserver !== 'undefined') {
+          resizeObserver = new ResizeObserver(() => map.resize());
+          resizeObserver.observe(surface);
+        }
+        map.resize();
+
+        unsubscribeTheme = resolvedTheme.subscribe(theme => {
+          if (disposed || theme === activeTheme) return;
+          activeTheme = theme;
+          mapReady = false;
+          listenersInstalled = true; // MapLibre preserves delegated event handlers.
+          map.setStyle(theme === 'dark' ? DARK_STYLE : LIGHT_STYLE);
+        });
+      } catch (error) {
+        if (disposed) return;
+        console.error('MapLibre experiment could not start', error);
+        mapError = error instanceof Error ? error.message : 'Unable to load MapLibre';
+      }
+    };
+    void init();
+    return () => {
+      disposed = true;
+      unsubscribeTheme?.();
       resizeObserver?.disconnect();
-      resizeObserver = new ResizeObserver(() => map.resize?.());
-      resizeObserver.observe(surface);
-    }
-    map.resize?.();
-    installPinLayers(map);
-    mapReady = true;
-    updatePins();
-    fitAll();
-    void loadOperatingAreas(map);
-  }
+      mapReady = false;
+      mapInstance?.remove();
+      mapInstance = undefined;
+    };
+  });
 
   $effect(() => {
     pins;
@@ -265,8 +329,6 @@
       duration: 450
     });
   });
-  onDestroy(() => resizeObserver?.disconnect());
-
   function formatted(value?: string | null): string {
     if (!value) return 'Not recorded';
     const time = new Date(value);
@@ -277,23 +339,18 @@
   }
 </script>
 
+<svelte:head>
+  <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@6.18.0/dist/maplibre-gl.css" />
+</svelte:head>
+
 <div class="historical-map-layout">
   <div class="historical-map-surface" bind:this={surface}>
-    {#if !accessToken}
-      <p role="alert" class="map-unavailable">Mapbox access token is not configured.</p>
-    {:else}
-      {#key $resolvedTheme}
-        <Map bind:this={mapRef} bind:center bind:zoom
-          accessToken={accessToken}
-          style={$resolvedTheme === 'dark'
-            ? 'mapbox://styles/mapbox/dark-v11'
-            : 'mapbox://styles/michaelcuneo/ckzzecgy7005j14qvpzd53fgn'}
-          onready={handleReady}
-        >
-          <NavigationControl />
-          <ScaleControl />
-        </Map>
-      {/key}
+    <div class="maplibre-container" bind:this={container}
+      role="region" aria-label="Historical rescue locations on MapLibre"></div>
+    {#if mapError}
+      <p class="map-unavailable" role="alert">MapLibre: {mapError}</p>
+    {:else if !mapReady}
+      <p class="map-loading" role="status">Loading MapLibre and the basemap…</p>
     {/if}
     {#if pins.length > 0}
       <button type="button" class="fit-pins" onclick={fitAll}>Show all pins</button>
@@ -302,6 +359,7 @@
   <aside class="historical-map-panel" aria-label="Historical rescue map details">
     <div class="historical-map-count">
       <strong>{rescues.length} rescue{rescues.length === 1 ? '' : 's'} loaded</strong>
+      <span>MapLibre proof of concept · OpenFreeMap basemap</span>
       <span>{pins.length} plotted on the map</span>
       {#if missingCoordinates}<small>{missingCoordinates} without usable coordinates</small>{/if}
       <span class="boundary-status">
@@ -342,9 +400,11 @@
 <style>
   .historical-map-layout { display:grid; grid-template-columns:minmax(0,1fr) minmax(230px,290px); gap:14px; min-height:580px; margin-top:18px; }
   .historical-map-surface { position:relative; min-width:0; height:620px; min-height:480px; overflow:hidden; border:1px solid var(--rh-border); border-radius:13px; background:var(--rh-map-background); }
-  .historical-map-surface :global(.mapboxgl-map) { height:100% !important; width:100% !important; }
+  .maplibre-container { position:absolute; inset:0; width:100%; height:100%; }
+  .maplibre-container :global(.maplibregl-map) { height:100%; width:100%; }
+  .map-loading, .map-unavailable { position:absolute; z-index:3; left:14px; top:14px; max-width:calc(100% - 28px); margin:0; padding:10px 12px; border:1px solid var(--rh-border); border-radius:9px; background:var(--rh-surface); color:var(--rh-text); font-size:12px; box-shadow:var(--rh-shadow); }
   .fit-pins { position:absolute; z-index:2; left:12px; top:12px; padding:8px 12px; border:1px solid var(--rh-border); border-radius:8px; background:var(--rh-surface); color:var(--rh-text); font:inherit; font-size:12px; cursor:pointer; }
-  .map-unavailable { margin:20px; color:var(--rh-danger-text); }
+  .map-unavailable { color:var(--rh-danger-text); }
   .historical-map-panel { display:grid; align-content:start; gap:16px; min-width:0; padding:17px; border:1px solid var(--rh-border); border-radius:13px; background:var(--rh-surface-soft); color:var(--rh-text); }
   .historical-map-count { display:grid; gap:5px; padding-bottom:15px; border-bottom:1px solid var(--rh-border); }
   .historical-map-count strong { font-size:20px; }
