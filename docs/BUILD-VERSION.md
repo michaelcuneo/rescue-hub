@@ -22,8 +22,13 @@ and the time the bundle was generated (UTC).
 
 Use `npm run check --workspace=website` and
 `npm run build --workspace=website` to verify the SvelteKit build.
-You can inspect `/settings` after deployment. The current build version
-is `0.0.1` until the website package version is explicitly changed.
+You can inspect `/settings` after deployment. The web app, Expo app and
+repository package metadata are aligned at **v1.0.0**, the major testing
+baseline. The web Settings page shows `v1.0.0` once this revision is
+built and deployed. Earlier deployed builds still show their original version.
+
+Version `1.0.0` is a testing milestone, not a declaration that the public
+deployment or mobile builds have passed release acceptance.
 Different SST stages may have different revisions while deployments are
 underway. This metadata does not change any stage configuration or
 run any deployment/seeding commands.
