@@ -60,3 +60,25 @@ server-verified `devBootstrap` account marker, `PLATFORM_ADMIN` and
 For real organisation staff or a deployed environment, choose/enter an
 explicit operating organisation. The existing `/demo/hunter` context switch
 remains available to an authorised platform administrator.
+
+
+## Existing platform administrators without organisation membership
+
+An existing `PLATFORM_ADMIN` or `AUTHORITY_ADMIN` may legitimately have
+no member organisation. The root Operations loader must **not** silently
+pick an organisation or automatically widen permissions: the existing root
+guard is intentional.
+
+Instead, the top **Operations** link for an unaffiliated platform/authority
+administrator leads to the already-authorised `/demo/hunter` route, which
+explicitly sets the limited Hunter demo context and redirects to
+`/`. This also works for a normal administrator who was **not** created
+by the special development bootstrap script. Organisation members retain
+a normal `/` link. The link uses a full navigation so the cookie is set
+before the Operations page loads.
+
+The demo endpoint already verifies platform/authority permission; this
+change does not grant cross-organisation browsing or alter any DynamoDB
+account, invitation, or rescue data. The actual database records remain
+isolated by SST stage. Real organisations still require appropriate
+membership and server-side authorisation before field operations.
