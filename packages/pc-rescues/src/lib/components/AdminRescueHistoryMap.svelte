@@ -33,7 +33,8 @@
   const pins = $derived(rescues.filter(item =>
     Number.isFinite(item.latitude) && Number.isFinite(item.longitude) &&
     item.latitude >= -90 && item.latitude <= 90 &&
-    item.longitude >= -180 && item.longitude <= 180
+    item.longitude >= -180 && item.longitude <= 180 &&
+    !(item.latitude === 0 && item.longitude === 0)
   ));
   const missingCoordinates = $derived(rescues.length - pins.length);
   const selected = $derived(pins.find(item => item.id === selectedId) ?? null);
