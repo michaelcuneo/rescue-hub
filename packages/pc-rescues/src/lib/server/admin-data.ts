@@ -86,6 +86,10 @@ export async function listAdminRescues(): Promise<Rescue[]> {
   const recentHistory = await queryIndex('RESCUES', 200);
   const combined = [...activePages.flat(), ...recentHistory];
   const items = [...new Map(combined.map(item => [String(item.id), item])).values()];
+  return mapRescueItems(items);
+}
+
+function mapRescueItems(items: Record<string, any>[]): Rescue[] {
   return items.map((item) => ({
 		id: String(item.id),
 		organisationId: item.organisationId ? String(item.organisationId) : null,
@@ -106,6 +110,57 @@ export async function listAdminRescues(): Promise<Rescue[]> {
 		createdAt: String(item.createdAt),
 		updatedAt: String(item.updatedAt)
 	}));
+}
+
+/**
+ * A Sydney dispatch calendar day spans either 23, 24 or 25 hours when DST
+ * switches. Calculate both boundaries independently so the historical query
+ * includes every event on that local day.
+ */
+function sydneyMidnightUtc(day: string): string {
+  const [year, month, date] = day.split('-').map(Number);
+  const noon = new Date(Date.UTC(year, month - 1, date, 12));
+  const zoneLabel = new Intl.DateTimeFormat('en-AU', {
+    timeZone: 'Australia/Sydney', timeZoneName: 'longOffset'
+  }).formatToParts(noon).find(part => part.type === 'timeZoneName')?.value ?? '';
+  const match = /^GMT([+-])(\\d{2}):(\\d{2})$/.exec(zoneLabel);
+  if (!match) throw new Error('Cannot determine Sydney UTC offset');
+  const offset = (match[1] === '+' ? 1 : -1) * (Number(match[2]) * 60 + Number(match[3]));
+  return new Date(Date.UTC(year, month - 1, date) - offset * 60_000).toISOString();
+}
+
+export async function listRescuesForNSWDay(day: string): Promise<Rescue[]> {
+  if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(day) ||
+      new Date(`${day}T12:00:00Z`).toISOString().slice(0, 10) !== day) {
+    throw new Error('Invalid NSW dispatch date');
+  }
+  const nextDate = new Date(`${day}T12:00:00Z`);
+  nextDate.setUTCDate(nextDate.getUTCDate() + 1);
+  const following = nextDate.toISOString().slice(0, 10);
+  const startUtc = sydneyMidnightUtc(day);
+  const endUtc = sydneyMidnightUtc(following);
+  const rows: Record<string, any>[] = [];
+  let cursor: Record<string, any> | undefined;
+  do {
+    const result = await db.send(new QueryCommand({
+      TableName: tableName,
+      IndexName: 'gsi2',
+      KeyConditionExpression: 'gsi2pk = :pk AND gsi2sk BETWEEN :start AND :end',
+      ExpressionAttributeValues: {
+        ':pk': 'RESCUES',
+        ':start': `${startUtc}#`,
+        ':end': `${endUtc}#`
+      },
+      ScanIndexForward: false,
+      ExclusiveStartKey: cursor
+    }));
+    rows.push(...(result.Items ?? []));
+    cursor = result.LastEvaluatedKey;
+  } while (cursor);
+  // The upper bound is exclusive in calendar terms.
+  return mapRescueItems(rows.filter(row =>
+    typeof row.createdAt === 'string' && row.createdAt >= startUtc && row.createdAt < endUtc
+  ));
 }
 
 export async function listAdminAuditEvents(): Promise<AuditEvent[]> {
