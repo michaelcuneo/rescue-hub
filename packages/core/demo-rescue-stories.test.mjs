@@ -84,10 +84,10 @@ test('no stories are generated for real rescue IDs or pending demo jobs', () => 
   assert.equal(buildHunterDemoStory({ ...rescueFor('001'), status:'PENDING', assignedUserId:'' }), null);
 });
 
-test('seed writes animal histories only in michael and demo stages', () => {
+test('seed writes animal histories in all three explicit demo stages', () => {
   const seed = readFileSync(new URL('../infra/demo.ts', import.meta.url), 'utf8');
-  assert.match(seed, /\$app\.stage === "demo"/);
-  assert.match(seed, /\$app\.stage === "michael"/);
+  assert.match(seed, /STORY_SEED_STAGES = new Set\(\["michael", "michaelcuneo", "demo"\]\)/);
+  assert.match(seed, /STORY_SEED_STAGES\.has\(\$app\.stage\)/);
   assert.match(seed, /status === "ASSIGNED" \|\| status === "COMPLETED"/);
   assert.match(seed, /put\(`DemoStoryAnimal-\$\{n\}`/);
   assert.match(seed, /put\(`DemoStoryEvent-\$\{n\}-/);
