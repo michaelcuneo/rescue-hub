@@ -57,10 +57,36 @@ export async function listAdminOrganisations(): Promise<OrganisationDirectoryEnt
 	}));
 }
 
+/**
+ * Always read every operational case, even when there are thousands of newer
+ * closed cases. Historical cases remain bounded here until the dedicated
+ * paginated register endpoint is added; never silently omit active work.
+ */
 export async function listAdminRescues(): Promise<Rescue[]> {
-	const items = await queryIndex('RESCUES', 200);
-
-	return items.map((item) => ({
+  const activeStatuses = ['PENDING', 'ASSIGNED'];
+  const activePages = await Promise.all(activeStatuses.map(async status => {
+    const items: Record<string, any>[] = [];
+    let cursor: Record<string, any> | undefined;
+    do {
+      const result = await db.send(new QueryCommand({
+        TableName: tableName,
+        IndexName: 'gsi1',
+        KeyConditionExpression: 'gsi1pk = :status',
+        ExpressionAttributeValues: { ':status': `STATUS#${status}` },
+        ScanIndexForward: false,
+        ExclusiveStartKey: cursor
+      }));
+      items.push(...(result.Items ?? []));
+      cursor = result.LastEvaluatedKey;
+    } while (cursor);
+    return items;
+  }));
+  // Keep a recent history snapshot for the dispatch panel; the full archive
+  // needs a cursor-based API, not a full-table query on every realtime event.
+  const recentHistory = await queryIndex('RESCUES', 200);
+  const combined = [...activePages.flat(), ...recentHistory];
+  const items = [...new Map(combined.map(item => [String(item.id), item])).values()];
+  return items.map((item) => ({
 		id: String(item.id),
 		organisationId: item.organisationId ? String(item.organisationId) : null,
 		type: String(item.type),
