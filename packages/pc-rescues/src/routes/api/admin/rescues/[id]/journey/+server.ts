@@ -70,6 +70,10 @@ export const GET: RequestHandler = async ({ locals, params }) => {
       Math.abs(lat) <= 90 && Math.abs(lon) <= 180 &&
       (lat !== 0 || lon !== 0) ? { latitude: lat, longitude: lon } : null;
 
+    const gpsPoints: Array<{
+      id: string; animalId: string; type: string; phase: string;
+      latitude: number; longitude: number; at: string; accuracy: number | null
+    }> = [];
     const history: Array<{
       id: string; type: string; at: string; animalId: string | null;
       actorName: string | null; fromName: string | null; toName: string | null;
@@ -93,7 +97,20 @@ export const GET: RequestHandler = async ({ locals, params }) => {
 
     const animalDetails = await Promise.all(animals.map(async animal => {
       const events = await listAnimalEvents(animal.id);
-      for (const event of events) addEvent(event, animal.id);
+      for (const event of events) {
+        addEvent(event, animal.id);
+        if (event.type === 'GPS_CHECKPOINT') {
+          const point = safeGps(event.latitude, event.longitude);
+          if (point) gpsPoints.push({
+            id: String(event.id ?? event.sk ?? ''),
+            animalId: animal.id, type: 'GPS_CHECKPOINT',
+            phase: typeof event.phase === 'string' ? event.phase : 'CHECKPOINT',
+            ...point,
+            at: String(event.createdAt ?? ''),
+            accuracy: typeof event.accuracy === 'number' ? event.accuracy : null
+          });
+        }
+      }
       // Release GPS comes from the permanent animal record. The append-only
       // outcome event also supports older records where META lacked fields.
       const final = events.find(row => row.type === 'FINAL_OUTCOME' && row.outcome === 'RELEASED');
@@ -112,6 +129,7 @@ export const GET: RequestHandler = async ({ locals, params }) => {
     }));
 
     history.sort((a, b) => a.at.localeCompare(b.at));
+    gpsPoints.sort((a, b) => a.at.localeCompare(b.at));
     const collected = rescueEvents.find(event =>
       event.type === 'ANIMAL_COLLECTED' || event.type === 'TRANSPORT_ANIMAL_COLLECTED');
     return json({
@@ -123,6 +141,7 @@ export const GET: RequestHandler = async ({ locals, params }) => {
       // Do not misrepresent the original incident point as verified pickup GPS.
       pickupGpsRecorded: false,
       animals: animalDetails,
+      gpsPoints,
       history
     }, { headers: { 'cache-control': 'private, no-store' } });
   } catch (error) {
