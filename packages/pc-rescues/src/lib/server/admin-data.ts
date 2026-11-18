@@ -119,7 +119,8 @@ function mapRescueItems(items: Record<string, any>[]): Rescue[] {
  */
 function sydneyMidnightUtc(day: string): string {
   const [year, month, date] = day.split('-').map(Number);
-  const noon = new Date(Date.UTC(year, month - 1, date, 12));
+  // Previous-day UTC noon is 22:00/23:00 Sydney, before any 02:00 DST change.
+  const noon = new Date(Date.UTC(year, month - 1, date - 1, 12));
   const zoneLabel = new Intl.DateTimeFormat('en-AU', {
     timeZone: 'Australia/Sydney', timeZoneName: 'longOffset'
   }).formatToParts(noon).find(part => part.type === 'timeZoneName')?.value ?? '';
