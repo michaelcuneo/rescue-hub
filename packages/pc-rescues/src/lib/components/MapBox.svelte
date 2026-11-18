@@ -1,4 +1,9 @@
 <script lang="ts">
+  import {
+    OPERATING_AREA_FILL_OPACITY,
+    OPERATING_AREA_LINE_OPACITY,
+    OPERATING_AREA_LINE_WIDTH
+  } from '../../../../core/operating-area-visual';
   import { onMount } from 'svelte';
   import { get } from 'svelte/store';
   import { resolvedTheme } from '$lib/theme';
@@ -283,11 +288,7 @@
           'wires', '#517da8',
           '#50a971'
         ],
-        'fill-opacity': [
-          'case',
-          ['==', ['get', 'organisationId'], 'native-animal-trust-fund'],
-          0.22, 0.08
-        ]
+        'fill-opacity': OPERATING_AREA_FILL_OPACITY
       }
     }, before);
     map.addLayer({
@@ -301,12 +302,8 @@
           'wires', '#31597f',
           '#2d7148'
         ],
-        'line-width': [
-          'case',
-          ['==', ['get', 'organisationId'], 'native-animal-trust-fund'],
-          2.5, 1
-        ],
-        'line-opacity': 0.85
+        'line-width': OPERATING_AREA_LINE_WIDTH,
+        'line-opacity': OPERATING_AREA_LINE_OPACITY
       }
     }, before);
     map.addLayer({

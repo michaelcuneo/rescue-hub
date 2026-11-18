@@ -1,4 +1,9 @@
 <script lang="ts">
+  import {
+    OPERATING_AREA_FILL_OPACITY,
+    OPERATING_AREA_LINE_OPACITY,
+    OPERATING_AREA_LINE_WIDTH
+  } from '../../../../core/operating-area-visual';
 	import { env } from '$env/dynamic/public';
 	import { Map, controls } from '@beyonk/svelte-mapbox';
   import type { FeedbackNotice } from '../../../../core/admin-feedback';
@@ -64,12 +69,7 @@
 						'#517da8',
 						'#50a971'
 					],
-					'fill-opacity': [
-						'case',
-						['==', ['get', 'organisationId'], 'native-animal-trust-fund'],
-						0.28,
-						0.11
-					]
+					'fill-opacity': OPERATING_AREA_FILL_OPACITY
 				}
 			});
 
@@ -86,13 +86,8 @@
 						'#31597f',
 						'#2d7148'
 					],
-					'line-width': [
-						'case',
-						['==', ['get', 'organisationId'], 'native-animal-trust-fund'],
-						2.4,
-						1
-					],
-					'line-opacity': 0.9
+					'line-width': OPERATING_AREA_LINE_WIDTH,
+					'line-opacity': OPERATING_AREA_LINE_OPACITY
 				}
 			});
 

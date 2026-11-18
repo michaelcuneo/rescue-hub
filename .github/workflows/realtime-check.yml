@@ -98,6 +98,8 @@ jobs:
         run: node --experimental-strip-types --test packages/core/rescue-phone-update.test.mjs
       - name: GIS routing unit tests
         run: node --experimental-strip-types --test packages/core/operating-area-routing.test.mjs
+      - name: Operating-area map opacity and boundary interaction tests
+        run: node --experimental-strip-types --test packages/core/operating-area-visual.test.mjs
       - name: AppSync websocket protocol test
         run: node --experimental-strip-types --test packages/core/realtime-client.test.mjs
       - name: Workspace visual consistency regression checks

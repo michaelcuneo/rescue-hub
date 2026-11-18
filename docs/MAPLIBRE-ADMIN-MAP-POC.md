@@ -273,3 +273,18 @@ use `https://tiles.openfreemap.org/styles/dark`. The desktop theme's
 light-mode UI palette and the Expo/Mapbox-based mobile map are unchanged.
 Check label legibility, NSW boundary overlays and the pin palette in both
 themes before release.
+
+
+## Subdued organisation boundary overlays
+
+Desktop Operations, Administration → Operating Areas, and Administration →
+Rescue map share `packages/core/operating-area-visual.ts`. Organisation
+polygons use low-opacity fills (Hunter 5.5%, other groups 2.5%) and faint
+outlines (Hunter 42%, other groups 28%). Slightly stronger Hunter boundaries
+help with geographic orientation, but the animals and dispatch-status pins
+remain the foreground. Region hit-testing/selection and GIS routing are
+unaffected; visibility is a rendering choice only.
+
+Mobile Expo/Mapbox map paint settings have **not** been changed. Validate
+light and dark desktop basemaps visually after deploying, especially where
+different organisations overlap and where maps have dense animal pins.

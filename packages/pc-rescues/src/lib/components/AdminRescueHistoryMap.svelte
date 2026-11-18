@@ -1,4 +1,9 @@
 <script lang="ts">
+  import {
+    OPERATING_AREA_FILL_OPACITY,
+    OPERATING_AREA_LINE_OPACITY,
+    OPERATING_AREA_LINE_WIDTH
+  } from '../../../../core/operating-area-visual';
   import { onMount } from 'svelte';
   import { X } from '@lucide/svelte';
   import { resolvedTheme } from '$lib/theme';
@@ -391,7 +396,7 @@
               'wires', '#517da8',
               '#50a971'
             ],
-            'fill-opacity': 0.10
+            'fill-opacity': OPERATING_AREA_FILL_OPACITY
           }
         }, 'historical-rescue-clusters');
         map.addLayer({
@@ -403,7 +408,8 @@
               'wires', '#31597f',
               '#2d7148'
             ],
-            'line-width': 1.8, 'line-opacity': 0.85
+            'line-width': OPERATING_AREA_LINE_WIDTH,
+            'line-opacity': OPERATING_AREA_LINE_OPACITY
           }
         }, 'historical-rescue-clusters');
         map.addLayer({
