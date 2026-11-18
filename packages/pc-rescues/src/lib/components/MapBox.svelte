@@ -11,7 +11,7 @@
   // Same pinned, browser-only proof of concept as Administration → Rescues → Map.
   // Keep the npm lockfile and Mapbox-based Expo application untouched for now.
   const MAPLIBRE_ESM = 'https://unpkg.com/maplibre-gl@6.18.0/dist/maplibre-gl.mjs';
-  const LIGHT_STYLE = 'https://tiles.openfreemap.org/styles/liberty';
+  const LIGHT_STYLE = 'https://tiles.openfreemap.org/styles/positron';
   const DARK_STYLE = 'https://tiles.openfreemap.org/styles/dark';
   const PIN_SOURCE = 'rescue-operations-pins';
   const ANIMAL_SOURCE = 'live-animal-gps-checkpoints';
