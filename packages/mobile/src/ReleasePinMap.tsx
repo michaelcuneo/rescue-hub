@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import WebView, { type WebViewMessageEvent } from 'react-native-webview';
 import { formatReleaseCoordinates, isValidReleasePoint } from '../../core/release-location';
@@ -48,6 +48,12 @@ export default function ReleasePinMap({ visible, original, selected, onChoose, o
   const [pending, setPending] = useState<Point | null>(selected);
   const [ready, setReady] = useState(false);
   const [error, setError] = useState('');
+  useEffect(() => {
+    if (!visible) return;
+    setPending(selected);
+    setReady(false);
+    setError('');
+  }, [visible, original.latitude, original.longitude]);
   const source = useMemo(() => ({
     html: mapHtml(original, selected), baseUrl: 'https://tiles.openfreemap.org'
   }), [original.latitude, original.longitude, selected?.latitude, selected?.longitude]);
