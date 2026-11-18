@@ -1,6 +1,7 @@
 <script lang="ts">
-  import { matchesRescuePeriod, sortRescueRecords, RESCUE_LIST_PAGE_SIZE, type RescuePeriod, type RescueOrder } from '$lib/rescue-list';
+  import { matchesRescuePeriod, rescueNSWDay, rescueTodayNSW, shiftRescueDay, rescueDayLabel, sortRescueRecords, RESCUE_LIST_PAGE_SIZE, type RescuePeriod, type RescueOrder } from '$lib/rescue-list';
   import AdminOperatingAreas from '$lib/components/AdminOperatingAreas.svelte';
+  import AdminRescueHistoryMap from '$lib/components/AdminRescueHistoryMap.svelte';
   import type { PageData } from './$types';
   import { page } from '$app/state';
   import { goto } from '$app/navigation';
@@ -22,9 +23,12 @@
     | 'audit';
 
   type PeopleView = 'people' | 'positions' | 'clinics';
+  type RescueView = 'list' | 'map';
   let section = $state<Section>('overview');
   let peopleView = $state<PeopleView>('people');
   let peopleNavOpen = $state(true);
+  let rescueView = $state<RescueView>('list');
+  let rescueNavOpen = $state(true);
   let organisationSearch = $state('');
   let rescueSearch = $state('');
   let rescueStatus = $state<'active' | 'all' | 'PENDING' | 'ASSIGNED' | 'COMPLETED' | 'CANCELLED'>('active');
@@ -32,6 +36,12 @@
   let rescueOrder = $state<RescueOrder>('newest');
   let rescueOrganisation = $state('all');
   let rescuePage = $state(1);
+  let rescueDate = $state(rescueTodayNSW());
+  let rescueDayItems = $state<PageData['rescues']>([]);
+  let rescueDayLoaded = $state(false);
+  let rescueDayLoading = $state(false);
+  let rescueDayError = $state('');
+  let rescueMapSelectedId = $state<string | null>(null);
 
   let peopleSearch = $state('');
   let positionOrganisationId = $state('');
@@ -86,15 +96,38 @@
     if (target && ['overview','organisations','rescues','regions','people','audit'].includes(target))
       section = target as Section;
     const subsection = page.url.searchParams.get('sub');
-    if (subsection && ['people','positions','clinics'].includes(subsection))
+    if (target === 'rescues' && subsection && ['list','map'].includes(subsection))
+      rescueView = subsection as RescueView;
+    if (target === 'people' && subsection && ['people','positions','clinics'].includes(subsection))
       peopleView = subsection as PeopleView;
   });
   function chooseSection(next: Section) {
     section = next;
     const url = new URL(page.url);
     url.searchParams.set('section', next);
-    if (next !== 'people') url.searchParams.delete('sub');
+    if (next === 'rescues') url.searchParams.set('sub', rescueView);
+    else if (next === 'people') url.searchParams.set('sub', peopleView);
+    else url.searchParams.delete('sub');
     void goto(url.pathname + url.search, { replaceState: true, noScroll: true, keepFocus: true, invalidateAll: false });
+  }
+  function chooseRescueView(next: RescueView) {
+    section = 'rescues';
+    rescueView = next;
+    rescueNavOpen = true;
+    const url = new URL(page.url);
+    url.searchParams.set('section', 'rescues');
+    url.searchParams.set('sub', next);
+    void goto(url.pathname + url.search, { replaceState: true, noScroll: true, keepFocus: false, invalidateAll: false });
+  }
+  function toggleRescueNavigation() {
+    if (section === 'rescues') rescueNavOpen = !rescueNavOpen;
+    else chooseRescueView(rescueView);
+  }
+  function selectRescueDate(date: string) {
+    if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(date) || !Number.isFinite(Date.parse(`${date}T12:00:00Z`))) return;
+    if (new Date(`${date}T12:00:00Z`).toISOString().slice(0, 10) !== date) return;
+    rescueDate = date;
+    rescueMapSelectedId = null;
   }
   function choosePeopleView(next: PeopleView) {
     section = 'people';
@@ -176,18 +209,50 @@
     })
   );
 
-  const visibleRescues = $derived(sortRescueRecords(data.rescues.filter((rescue) => {
+  // List searches the recent register by default. Selecting a specific date
+  // uses the complete server-side day query, not the 200-item recent snapshot.
+  const registerSource = $derived(
+    rescuePeriod === 'selected_day' ? (rescueDayLoaded ? rescueDayItems : []) : data.rescues
+  );
+  const visibleRescues = $derived(sortRescueRecords(registerSource.filter((rescue) => {
     const query = rescueSearch.trim().toLowerCase();
     return (rescueStatus === 'all' || (rescueStatus === 'active' && ['PENDING', 'ASSIGNED'].includes(rescue.status)) || rescue.status === rescueStatus)
       && (rescueOrganisation === 'all' || rescue.organisationId === rescueOrganisation)
-      && matchesRescuePeriod(rescue, rescuePeriod)
+      && (rescuePeriod === 'selected_day' || matchesRescuePeriod(rescue, rescuePeriod))
       && (!query || [rescue.id, rescue.type, rescue.breed ?? '', rescue.location ?? '', rescue.injury ?? '', rescue.status,
           rescue.animalStatus ?? '', assignedRescuerName(rescue.assignedUserId), organisationName(rescue.organisationId ?? undefined)]
           .join(' ').toLowerCase().includes(query));
   }), rescueOrder));
   const rescuePageCount = $derived(Math.max(1, Math.ceil(visibleRescues.length / RESCUE_LIST_PAGE_SIZE)));
   const visibleRescuePage = $derived(visibleRescues.slice((rescuePage - 1) * RESCUE_LIST_PAGE_SIZE, rescuePage * RESCUE_LIST_PAGE_SIZE));
-  $effect(() => { rescueSearch; rescueStatus; rescuePeriod; rescueOrder; rescueOrganisation; rescuePage = 1; });
+  $effect(() => { rescueSearch; rescueStatus; rescuePeriod; rescueDate; rescueOrder; rescueOrganisation; rescuePage = 1; });
+  // The map always shows every case reported on the selected day, regardless of
+  // the list's search, status or period filters.
+  $effect(() => {
+    if (section !== 'rescues' || (rescueView !== 'map' && rescuePeriod !== 'selected_day')) return;
+    const day = rescueDate;
+    const organisation = rescueOrganisation;
+    const controller = new AbortController();
+    rescueDayLoading = true;
+    rescueDayLoaded = false;
+    rescueDayError = '';
+    rescueDayItems = [];
+    void fetch(`/api/admin/rescues/day?date=${encodeURIComponent(day)}&organisation=${encodeURIComponent(organisation)}`, {
+      signal: controller.signal,
+      cache: 'no-store'
+    }).then(async response => {
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const payload = await response.json() as { items: PageData['rescues'] };
+      if (controller.signal.aborted) return;
+      rescueDayItems = payload.items;
+      rescueDayLoaded = true;
+    }).catch(error => {
+      if (!controller.signal.aborted) rescueDayError = error instanceof Error ? error.message : 'Could not load history';
+    }).finally(() => {
+      if (!controller.signal.aborted) rescueDayLoading = false;
+    });
+    return () => controller.abort();
+  });
 
   const navigation: Array<{ id: Section; label: string; short: string }> = [
     { id: 'overview', label: 'Overview', short: 'OV' },
