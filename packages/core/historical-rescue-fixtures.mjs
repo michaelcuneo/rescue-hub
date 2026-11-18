@@ -97,6 +97,13 @@ export function buildHistoricalRescueFixtures() {
       pickedUpAt, completedAt: finishedAt, createdAt, updatedAt: finishedAt,
       intakeSource: i % 2 === 0 ? 'PHONE' : 'ONLINE',
       animalStatus: outcome, demo: true, historicalSeed: true,
+      historicalOutcome: outcome,
+      ...(outcome === 'RELEASED' ? {
+        historicalReleaseReason: reason,
+        historicalReleaseLatitude: release.latitude,
+        historicalReleaseLongitude: release.longitude,
+        historicalReleaseLocation: releaseName
+      } : {}),
       gsi1pk: 'STATUS#COMPLETED', gsi1sk: createdAt + '#' + id,
       gsi2pk: 'RESCUES', gsi2sk: createdAt + '#' + id
     };
