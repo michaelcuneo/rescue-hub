@@ -1,3 +1,4 @@
+import { dev } from '$app/environment';
 import type { Cookies } from '@sveltejs/kit';
 import type { RescueHubUser } from '$lib/server/auth';
 
@@ -11,7 +12,7 @@ export function canUseHunterDemo(user: RescueHubUser | null | undefined) {
 export function getHunterDemo(cookies: Cookies, user: RescueHubUser | null | undefined) {
 	if (!canUseHunterDemo(user)) return false;
 	return cookies.get(COOKIE) === HUNTER_DEMO_ORGANISATION ||
-    (user?.devBootstrap === true && !user.organisationId &&
+    (dev && user?.devBootstrap === true && !user.organisationId &&
       user.roles.includes('PLATFORM_ADMIN'));
 }
 
