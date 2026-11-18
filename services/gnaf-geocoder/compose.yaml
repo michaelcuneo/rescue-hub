@@ -1,0 +1,18 @@
+services:
+  gnaf-geocoder:
+    build: .
+    restart: unless-stopped
+    environment:
+      GNAF_TOKEN: ${GNAF_TOKEN:?Provide a long, random GNAF_TOKEN}
+      GNAF_DB: /data/gnaf.sqlite
+      GNAF_HOST: 0.0.0.0
+    volumes:
+      - ${GNAF_DATA_DIR:?Set GNAF_DATA_DIR}:/data:ro
+    ports:
+      # Loopback only. Publish separately through a restricted TLS proxy for SST Lambda.
+      - "127.0.0.1:8765:8765"
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
