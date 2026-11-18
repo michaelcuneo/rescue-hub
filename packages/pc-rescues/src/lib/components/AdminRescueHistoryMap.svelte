@@ -22,6 +22,7 @@
   const RELEASE_SOURCE = 'historical-relocation-pins';
   const SELECTED_RELEASE_SOURCE = 'historical-selected-release-point';
   const JOURNEY_SOURCE = 'historical-selected-gps-journey';
+  const LAST_GPS_SOURCE = 'historical-last-known-animal-gps';
   const AREA_SOURCE = 'historical-operating-areas';
   // POC only: use a pinned, browser-only MapLibre module so the rest of
   // Rescue Hub and its current npm lockfile stay completely unchanged.
@@ -183,6 +184,25 @@
     }
     return { type: 'FeatureCollection', features };
   }
+  function lastRecordedGpsGeoJSON(): any {
+    return {
+      type: 'FeatureCollection',
+      features: pins.filter(item => item.latestAnimalGps &&
+        Number.isFinite(item.latestAnimalGps.latitude) && Number.isFinite(item.latestAnimalGps.longitude) &&
+        Math.abs(item.latestAnimalGps.latitude) <= 90 &&
+        Math.abs(item.latestAnimalGps.longitude) <= 180).map(item => ({
+          type: 'Feature',
+          properties: {
+            id: item.id, animalId: item.latestAnimalGps!.animalId,
+            phase: item.latestAnimalGps!.phase, recordedAt: item.latestAnimalGps!.recordedAt
+          },
+          geometry: {
+            type: 'Point',
+            coordinates: [item.latestAnimalGps!.longitude, item.latestAnimalGps!.latitude]
+          }
+        }))
+    };
+  }
   function journeyGeoJSON(): any {
     if (!selected || journey?.rescueId !== selected.id) return { type: 'FeatureCollection', features: [] };
     const byAnimal = new Map<string, typeof journey.gpsPoints>();
@@ -214,6 +234,7 @@
     map.getSource(RELEASE_SOURCE)?.setData(relocationGeoJSON());
     map.getSource(SELECTED_RELEASE_SOURCE)?.setData(selectedReleaseGeoJSON());
     map.getSource(JOURNEY_SOURCE)?.setData(journeyGeoJSON());
+    map.getSource(LAST_GPS_SOURCE)?.setData(lastRecordedGpsGeoJSON());
   }
 
   function fitAll() {
@@ -253,6 +274,7 @@
       map.addSource(SELECTED_RELEASE_SOURCE, { type: 'geojson', data: selectedReleaseGeoJSON() });
     }
     if (!map.getSource(JOURNEY_SOURCE)) map.addSource(JOURNEY_SOURCE, { type: 'geojson', data: journeyGeoJSON() });
+    if (!map.getSource(LAST_GPS_SOURCE)) map.addSource(LAST_GPS_SOURCE, { type: 'geojson', data: lastRecordedGpsGeoJSON() });
     if (!map.getLayer('historical-rescue-clusters')) {
       map.addLayer({
         id: 'historical-rescue-clusters',
@@ -308,6 +330,11 @@
         paint: { 'circle-radius': 5.5, 'circle-color': '#1d72ba', 'circle-stroke-width': 1.5, 'circle-stroke-color': '#fff' }
       });
       map.addLayer({
+        id: 'historical-last-known-gps', source: LAST_GPS_SOURCE, type: 'circle',
+        paint: { 'circle-radius': 8, 'circle-color': '#1d72ba',
+          'circle-stroke-color': '#fff', 'circle-stroke-width': 2 }
+      });
+      map.addLayer({
         id: 'historical-rescue-status',
         source: SOURCE,
         type: 'circle',
@@ -339,6 +366,7 @@
     map.on('click', 'historical-rescue-status', selectFeature);
     map.on('click', 'historical-relocations', selectFeature);
     map.on('click', 'historical-selected-release', selectFeature);
+    map.on('click', 'historical-last-known-gps', selectFeature);
     map.on('click', 'historical-rescue-clusters', (event: any) => {
       const feature = event.features?.[0];
       const id = feature?.properties?.cluster_id;
@@ -351,7 +379,7 @@
         duration: 400
       });
     });
-    for (const layer of ['historical-rescue-points', 'historical-rescue-status', 'historical-rescue-clusters', 'historical-relocations', 'historical-selected-release']) {
+    for (const layer of ['historical-rescue-points', 'historical-rescue-status', 'historical-rescue-clusters', 'historical-relocations', 'historical-selected-release', 'historical-last-known-gps']) {
       map.on('mouseenter', layer, () => { map.getCanvas().style.cursor = 'pointer'; });
       map.on('mouseleave', layer, () => { map.getCanvas().style.cursor = ''; });
     }
@@ -677,7 +705,7 @@
       <span><i style:background-color="#c18a12"></i>Assigned</span>
       <span><i style:background-color="#50a971"></i>Completed</span>
       <span><i style:background-color="#8547a0"></i>Relocation destination</span>
-      <span><i style:background-color="#1d72ba"></i>Recorded GPS checkpoints</span>
+      <span><i style:background-color="#1d72ba"></i>Last recorded animal GPS / route</span>
       {#if groups.length}
         <strong class="animal-legend-heading">Animal groups</strong>
         {#each groups as [key, group] (key)}
