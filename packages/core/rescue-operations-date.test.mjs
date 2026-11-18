@@ -25,16 +25,16 @@ test('Older completed case must not reappear in today view after a later update'
     status: 'COMPLETED',
     completedAt: '2026-11-17T04:00:00.000Z',
     updatedAt: '2026-11-18T04:00:00.000Z'
-  }, false), false);
+  }, '2026-11-18'), false);
 });
 
 test('Legacy completed rows can use updatedAt until completedAt is backfilled', () => {
   assert.equal(completedOnNSWDay({
     status: 'COMPLETED', updatedAt: '2026-11-18T04:00:00.000Z'
-  }, false), true);
+  }, '2026-11-18'), true);
   assert.equal(completedOnNSWDay({
     status: 'ASSIGNED', updatedAt: '2026-11-18T04:00:00.000Z'
-  }, false), false);
+  }, '2026-11-18'), false);
 });
 
 test('NSW calendar dates handle daylight-saving jump and midnight', () => {
@@ -57,11 +57,11 @@ test('Operations MapLibre displays completed rescues for their completion day, e
 });
 
 test('Operations keeps picked-up active jobs hidden, but shows uncollected pending and assigned', () => {
-  assert.equal(shouldShowOperationsMapPin({ status: 'PENDING' }, false), true);
-  assert.equal(shouldShowOperationsMapPin({ status: 'ASSIGNED' }, false), true);
+  assert.equal(shouldShowOperationsMapPin({ status: 'PENDING' }, '2026-11-18'), true);
+  assert.equal(shouldShowOperationsMapPin({ status: 'ASSIGNED' }, '2026-11-18'), true);
   assert.equal(shouldShowOperationsMapPin({
     status: 'ASSIGNED', pickedUpAt: '2026-11-18T00:00:00.000Z'
-  }, false), false);
-  assert.equal(shouldShowOperationsMapPin({ status: 'PENDING', awaitingCarer: true }, false), false);
-  assert.equal(shouldShowOperationsMapPin({ status: 'CANCELLED' }, false), false);
+  }, '2026-11-18'), false);
+  assert.equal(shouldShowOperationsMapPin({ status: 'PENDING', awaitingCarer: true }, '2026-11-18'), false);
+  assert.equal(shouldShowOperationsMapPin({ status: 'CANCELLED' }, '2026-11-18'), false);
 });
