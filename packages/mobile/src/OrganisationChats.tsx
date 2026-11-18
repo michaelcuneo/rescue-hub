@@ -3,13 +3,16 @@ import { ActivityIndicator, FlatList, Modal, ScrollView, Pressable,
   SafeAreaView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { KeyboardAwareView, KeyboardAwareTextInput } from './KeyboardAware';
 import { getChatChannels, getChannelMessages, markChannelRead,
-  sendChannelMessage, getChatMembers, openDirectChat,
-  type ChatMember, type ChatChannel, type ChatMessage, type ChatOrganisation } from './api';
+  sendChannelMessage, getChatMembers, openDirectChat, searchChatMentions,
+  type ChatMember, type ChatChannel, type ChatMessage, type ChatOrganisation, type ChatMention } from './api';
 import { subscribeRescueChanges } from '../../core/realtime-client';
 import { getRealtimeConfig } from './api';
+import { chatChannelColours } from '../../core/chat-channel-colours';
+import { currentMentionQuery, insertChatMention, usableChatMentions, splitChatMentions } from '../../core/chat-mentions';
 
-type Props = { userId: string; initialChannelId?: string; onOpenAnimal?: (animalId: string) => void };
-export default function OrganisationChats({ userId, initialChannelId, onOpenAnimal }: Props) {
+type Props = { userId: string; initialChannelId?: string;
+  onOpenAnimal?: (animalId: string) => void; onOpenRescue?: (rescueId: string) => void };
+export default function OrganisationChats({ userId, initialChannelId, onOpenAnimal, onOpenRescue }: Props) {
   const [channels, setChannels] = useState<ChatChannel[]>([]);
   const [members, setMembers] = useState<ChatMember[]>([]);
   const [directoryMode, setDirectoryMode] = useState<'chats' | 'people'>('chats');
@@ -24,6 +27,9 @@ export default function OrganisationChats({ userId, initialChannelId, onOpenAnim
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
+  const [mentionRefs, setMentionRefs] = useState<ChatMention[]>([]);
+  const [mentionOptions, setMentionOptions] = useState<ChatMention[]>([]);
+  const [mentionLoading, setMentionLoading] = useState(false);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -31,6 +37,32 @@ export default function OrganisationChats({ userId, initialChannelId, onOpenAnim
   const selectedRef = useRef<string | null>(selected);
   useEffect(() => { organisationRef.current = organisationId; }, [organisationId]);
   const listRef = useRef<FlatList<ChatMessage>>(null);
+  const query = currentMentionQuery(draft);
+  useEffect(() => {
+    if (query === null || !selected) {
+      setMentionOptions([]); setMentionLoading(false); return;
+    }
+    let disposed = false;
+    setMentionLoading(true);
+    const scope = organisationId;
+    const timer = setTimeout(() => {
+      void searchChatMentions(selected, query, scope || undefined)
+        .then(result => { if (!disposed) setMentionOptions(result.items); })
+        .catch(() => { if (!disposed) setMentionOptions([]); })
+        .finally(() => { if (!disposed) setMentionLoading(false); });
+    }, 250);
+    return () => { disposed = true; clearTimeout(timer); };
+  }, [query, selected, organisationId]);
+  const changeDraft = (text: string) => {
+    setDraft(text);
+    setMentionRefs(previous => usableChatMentions(text, previous));
+  };
+  const chooseMention = (mention: ChatMention) => {
+    const next = insertChatMention(draft, mention);
+    setDraft(next);
+    setMentionRefs(previous => usableChatMentions(next, [...previous, mention]));
+    setMentionOptions([]);
+  };
   useEffect(() => { selectedRef.current = selected; }, [selected]);
 
   const refreshChannels = useCallback(async () => {
@@ -107,6 +139,7 @@ export default function OrganisationChats({ userId, initialChannelId, onOpenAnim
   useEffect(() => {
     if (!selected) return;
     setMessages([]); setCursor(null); setChannelMembers([]); setShowChannelPeople(false); setError('');
+    setDraft(''); setMentionRefs([]); setMentionOptions([]);
     void refreshChannelMembers(selected).catch(() => {});
     void refreshMessages(selected).catch(e => setError(e instanceof Error ? e.message : 'Cannot read channel.'));
   }, [selected, refreshMessages, refreshChannelMembers]);
@@ -127,8 +160,9 @@ export default function OrganisationChats({ userId, initialChannelId, onOpenAnim
     if (!selected || !draft.trim() || busy || busyRecipient) return;
     setBusy(true); setError('');
     try {
-      await sendChannelMessage(selected, draft.trim(), undefined, organisationRef.current || undefined);
-      setDraft('');
+      await sendChannelMessage(selected, draft.trim(), undefined, organisationRef.current || undefined,
+        usableChatMentions(draft.trim(), mentionRefs));
+      setDraft(''); setMentionRefs([]); setMentionOptions([]);
       await Promise.all([refreshMessages(selected), refreshChannels(), refreshMembers()]);
       requestAnimationFrame(() => listRef.current?.scrollToEnd({ animated: true }));
     } catch (e) { setError(e instanceof Error ? e.message : 'Unable to send message.'); }
@@ -152,7 +186,7 @@ export default function OrganisationChats({ userId, initialChannelId, onOpenAnim
     setMessages([]);
     setChannelMembers([]); setShowChannelPeople(false);
     setCursor(null);
-    setDraft('');
+    setDraft(''); setMentionRefs([]); setMentionOptions([]);
     setError('');
     setLoading(true);
     void Promise.all([refreshChannels(), refreshMembers()]).catch(e => setError(e instanceof Error ? e.message : 'Unable to open organisation chats.'))
@@ -192,8 +226,16 @@ export default function OrganisationChats({ userId, initialChannelId, onOpenAnim
           ListEmptyComponent={!loading ? <Text style={styles.subtitle}>No conversations yet. Open People to message a member.</Text> : undefined}
           renderItem={({ item }) => <Pressable accessibilityRole="button"
             accessibilityLabel={item.name + (item.unread ? ', new messages' : '')}
-            style={styles.channel} onPress={() => setSelected(item.id)}>
-            <View style={styles.avatar}><Text style={styles.avatarText}>{item.name.slice(0, 1).toUpperCase()}</Text></View>
+            style={[styles.channel, chatChannelColours(item.id, Boolean(item.recipientUserId))
+              ? { borderLeftWidth: 5, borderLeftColor: chatChannelColours(item.id)![0] }
+              : null]} onPress={() => setSelected(item.id)}>
+            <View style={[styles.avatar, chatChannelColours(item.id, Boolean(item.recipientUserId))
+              ? { backgroundColor: chatChannelColours(item.id)![0],
+                  borderRightColor: chatChannelColours(item.id)![1] ?? chatChannelColours(item.id)![0],
+                  borderRightWidth: chatChannelColours(item.id)![1] ? 8 : 0 } : null]}>
+              <Text style={[styles.avatarText, chatChannelColours(item.id, Boolean(item.recipientUserId))
+                ? { color: '#fff' } : null]}>{item.name.slice(0, 1).toUpperCase()}</Text>
+            </View>
             <View style={styles.channelBody}>
               <Text style={styles.channelName}>{item.name}</Text>
               <Text style={styles.preview} numberOfLines={1}>
@@ -273,7 +315,20 @@ export default function OrganisationChats({ userId, initialChannelId, onOpenAnim
               onPress={() => void openMember(item.senderUserId)}>
               <Text style={styles.author}>{item.senderName}</Text>
             </Pressable> : null}
-            <Text style={mine ? styles.myText : styles.messageText}>{item.text}</Text>
+            <Text style={mine ? styles.myText : styles.messageText}>
+              {splitChatMentions(item.text, item.mentions).map((segment, index) =>
+                segment.mention ? <Text key={index} style={styles.mentionText}
+                  accessibilityRole="link"
+                  onPress={() => {
+                    if (segment.mention?.kind === 'person') void openMember(segment.mention.id);
+                    else if (segment.mention?.kind === 'animal' && onOpenAnimal)
+                      onOpenAnimal(segment.mention.id);
+                    else if (segment.mention?.rescueId && onOpenRescue)
+                      onOpenRescue(segment.mention.rescueId);
+                  }}>{segment.text}</Text>
+                  : <Text key={index}>{segment.text}</Text>
+              )}
+            </Text>
             <Text style={[styles.timestamp, mine && styles.myTime]}>{new Date(item.createdAt).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' })}</Text>
             {item.animalId && onOpenAnimal ? <Pressable accessibilityRole="button"
               onPress={() => onOpenAnimal(item.animalId!)}>
@@ -283,9 +338,21 @@ export default function OrganisationChats({ userId, initialChannelId, onOpenAnim
         }} />
       <View>
         {busyRecipient ? <Text style={styles.busyNotice}>This member is busy. Private messages are paused until they are available.</Text> : null}
+        {mentionOptions.length > 0 || mentionLoading ? <ScrollView style={styles.mentionSuggestions}
+          keyboardShouldPersistTaps="always" nestedScrollEnabled>
+          {mentionOptions.length ? mentionOptions.map(option => <Pressable key={option.kind + option.id}
+            accessibilityRole="button"
+            accessibilityLabel={`Mention ${option.label}, ${option.kind}`}
+            onPress={() => chooseMention(option)} style={styles.mentionSuggestion}>
+            <Text style={styles.mentionLabel}>@{option.handle}</Text>
+            <Text style={styles.mentionDetail} numberOfLines={1}>
+              {option.kind === 'person' ? 'Person' : option.kind === 'animal' ? 'Animal' : 'Rescue'} · {option.label}
+            </Text>
+          </Pressable>) : <Text style={styles.mentionDetail}>Searching…</Text>}
+        </ScrollView> : null}
         <View style={styles.composer}>
-          <KeyboardAwareTextInput style={styles.input} value={draft} onChangeText={setDraft}
-            multiline maxLength={2000} placeholder={activeChannel?.recipientUserId ? "Write a private message…" : "Message your group…"}
+          <KeyboardAwareTextInput style={styles.input} value={draft} onChangeText={changeDraft}
+            multiline maxLength={2000} placeholder={activeChannel?.recipientUserId ? "Write a private message… Use @" : "Message your group… Use @"}
             accessibilityLabel="Chat message" />
           <Pressable accessibilityRole="button" accessibilityLabel="Send message"
             disabled={busy || busyRecipient || !draft.trim()} style={[styles.send, (busy || busyRecipient || !draft.trim()) && styles.disabled]}
@@ -388,6 +455,12 @@ const styles=StyleSheet.create({
   myTime:{color:'#507862'},animalLink:{color:'#256b4c',fontWeight:'700'},
   composer:{backgroundColor:'#fff',borderTopColor:'#dce6de',borderTopWidth:1,padding:10,flexDirection:'row',gap:8,alignItems:'flex-end'},
   input:{flex:1,minHeight:42,maxHeight:115,borderRadius:22,backgroundColor:'#f1f5f2',paddingHorizontal:15,paddingVertical:10,fontSize:15},
+  mentionSuggestions:{maxHeight:185,backgroundColor:'#fff',borderTopWidth:1,borderTopColor:'#dce6de'},
+  mentionSuggestion:{minHeight:48,paddingVertical:9,paddingHorizontal:15,borderBottomWidth:1,
+    borderBottomColor:'#e7eeea',flexDirection:'row',justifyContent:'space-between',gap:8},
+  mentionLabel:{fontSize:13,fontWeight:'800',color:'#24583f'},
+  mentionDetail:{fontSize:11,color:'#68766d',flexShrink:1},
+  mentionText:{color:'#1768a7',fontWeight:'800',textDecorationLine:'underline'},
   send:{paddingVertical:12,paddingHorizontal:15,backgroundColor:'#173d2c',borderRadius:22},
   sendText:{color:'#fff',fontWeight:'800'},disabled:{opacity:.5},
   loadMore:{textAlign:'center',padding:12,color:'#236b4b',fontWeight:'700'},

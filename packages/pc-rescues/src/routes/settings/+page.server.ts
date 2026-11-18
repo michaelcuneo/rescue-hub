@@ -1,4 +1,5 @@
 import { redirect } from '@sveltejs/kit';
+import { buildInfo } from '$lib/build-info';
 import { defaultAvailabilityPolicy, effectiveAvailability } from '$lib/server/availability';
 import { getOrganisationMembershipConfig } from '$lib/server/membership';
 import { getPushDeviceRegistrationCount } from '$lib/server/push';
@@ -35,6 +36,7 @@ export const load: PageServerLoad = async ({ locals }) => {
     canManageAvailability,
     availability: user.availabilityPolicy ?? defaultAvailabilityPolicy(user.availabilityStatus),
     availabilityStatus: effectiveAvailability(user),
-    registeredDevices: devices
+    registeredDevices: devices,
+    buildInfo
   };
 };

@@ -493,7 +493,17 @@ export default function App() {
 
     const available = session.user.availabilityStatus === 'AVAILABLE';
   if (view === 'chats') return <SafeAreaView style={styles.root}>
-    <OrganisationChats userId={session.user.id} />
+    <OrganisationChats userId={session.user.id}
+      onOpenRescue={(rescueId) => {
+        const rescue = rescues.find(item => item.id === rescueId);
+        if (!rescue) {
+          Alert.alert('Rescue not available',
+            'This rescue is not in your accessible rescue feed. Ask dispatch if you need access.');
+          return;
+        }
+        setSelectedMapRescue(rescue);
+        setView('map');
+      }} />
     {bottom('chats')}
   </SafeAreaView>;
 

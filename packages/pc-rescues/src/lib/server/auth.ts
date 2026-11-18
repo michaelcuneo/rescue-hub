@@ -54,6 +54,8 @@ export type RescueHubUser = {
 	emailVerified: boolean;
 	organisationId?: string;
   vetClinicId?: string;
+  /** Set only by the guarded development account bootstrap CLI. */
+  devBootstrap?: boolean;
 	roles: RescueHubRole[];
 	membershipTypeId?: string;
 	positionTitle?: string;
@@ -122,6 +124,7 @@ function toUser(item: Record<string, unknown>): RescueHubUser {
 		emailVerified: Boolean(item.emailVerified),
 		organisationId: item.organisationId ? String(item.organisationId) : undefined,
     vetClinicId: typeof item.vetClinicId === 'string' ? item.vetClinicId : undefined,
+    devBootstrap: item.devBootstrap === true,
 		roles: Array.isArray(item.roles) ? item.roles.map(String) as RescueHubRole[] : [],
 		membershipTypeId: item.membershipTypeId ? String(item.membershipTypeId) : undefined,
 		positionTitle: typeof item.positionTitle === 'string' ? item.positionTitle : undefined,

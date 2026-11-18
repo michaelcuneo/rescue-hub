@@ -1,7 +1,7 @@
 import { redirect } from '@sveltejs/kit';
 import { hasCompletedBootstrap, listUsers } from '$lib/server/auth';
 import { getHunterDemo, HUNTER_DEMO_ORGANISATION } from '$lib/server/demo';
-import { listAdminRescues } from '$lib/server/admin-data';
+import { listDispatchRescues } from '$lib/server/admin-data';
 import { classifyDispatchCapability, getOrganisationMembershipConfig, memberCanReceiveCapability } from '$lib/server/membership';
 import { canSeeDesktopRescue } from '../../../core/desktop-dispatch-access';
 import { completedOnNSWDay, rescueTodayNSW } from '$lib/rescue-list';
@@ -34,7 +34,7 @@ export const load: PageServerLoad = async ({ locals, cookies }) => {
 	const canCoordinate = viewer.roles.some(role =>
 		['PLATFORM_ADMIN', 'AUTHORITY_ADMIN', 'ORG_ADMIN', 'DISPATCHER'].includes(role));
 	const [rescueResult, usersResult, exceptionsResult] = await Promise.allSettled([
-		listAdminRescues(),
+		listDispatchRescues(),
 		canCoordinate ? listUsers() : Promise.resolve([]),
 		listPendingRoutingExceptions(locals.user)
 	]);

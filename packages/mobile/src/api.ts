@@ -335,8 +335,10 @@ export type ChatChannel = {
 export type ChatMessage = {
   id: string; channelId: string; senderUserId: string;
   senderName: string; text: string; createdAt: string; animalId?: string;
+  mentions?: ChatMention[];
   kind?: 'MESSAGE' | 'SYSTEM';
 };
+export type ChatMention = import('../../core/chat-mentions').ChatMention;
 export type ChatOrganisation = { id: string; name: string };
 export type ChatMember = {
   id: string; name: string; availability: 'AVAILABLE' | 'BUSY' | 'OFFLINE';
@@ -359,6 +361,13 @@ export async function getChatMembers(organisationId?: string, channelId?: string
   if (channelId) params.set('channelId', channelId);
   return request<{ members: ChatMember[] }>('/api/mobile/chats/members' + (params.size ? `?${params.toString()}` : ''));
 }
+export async function searchChatMentions(channelId: string, query: string, organisationId?: string) {
+  const params = new URLSearchParams();
+  params.set('channelId', channelId);
+  params.set('q', query);
+  if (organisationId) params.set('organisationId', organisationId);
+  return request<{items: ChatMention[]}>(`/api/mobile/chats/mentions?${params.toString()}`);
+}
 export async function openDirectChat(recipientUserId: string, organisationId?: string) {
   return request<{ channelId: string }>('/api/mobile/chats/direct' + chatQuery(organisationId), {
     method: 'POST', body: JSON.stringify({ recipientUserId })
@@ -369,9 +378,10 @@ export async function getChannelMessages(channelId: string, before?: string, org
     `/api/mobile/chats/${encodeURIComponent(channelId)}` + chatQuery(organisationId, before)
   );
 }
-export async function sendChannelMessage(channelId: string, text: string, animalId?: string, organisationId?: string) {
+export async function sendChannelMessage(channelId: string, text: string, animalId?: string, organisationId?: string, mentions: ChatMention[] = []) {
   return request<{ message: ChatMessage }>(`/api/mobile/chats/${encodeURIComponent(channelId)}` + chatQuery(organisationId), {
-    method: 'POST', body: JSON.stringify({ text, ...(animalId ? { animalId } : {}) })
+    method: 'POST', body: JSON.stringify({ text, ...(animalId ? { animalId } : {}),
+      ...(mentions.length ? { mentions } : {}) })
   });
 }
 export async function markChannelRead(channelId: string, messageId: string, organisationId?: string) {
@@ -418,6 +428,8 @@ export type Animal = {
   status: 'IN_RESCUE' | 'IN_TRANSIT' | 'AT_VET' | 'IN_CARE' | 'RELEASED' | 'EUTHANISED' | 'DECEASED';
   currentCustodianUserId?: string; currentLocation?: string; physicalCustodianType?: 'RESCUER' | 'VET'; physicalCustodianName?: string; pendingTransferId?: string; activeTransportRescueId?: string; reservedCarerUserId?: string;
   pendingTransferToUserId?: string;
+  releaseLatitude?: number; releaseLongitude?: number; releaseLocation?: string;
+  releaseReason?: 'ORIGINAL_SITE' | 'RELOCATION'; releasedAt?: string;
   vetStage?: 'AWAITING_ASSESSMENT' | 'ASSESSED_AWAITING_TRANSPORT';
   version?: number; createdAt: string; updatedAt: string;
 };
@@ -429,6 +441,8 @@ export async function correctAnimalIdentification(id: string, species: string, d
 export type AnimalEvent = {
   id: string; type: string; actorUserId: string; notes?: string;
   createdAt: string; occurredAt?: string; outcome?: string;
+  location?: string; latitude?: number; longitude?: number; releaseReason?: 'ORIGINAL_SITE' | 'RELOCATION';
+  phase?: AnimalGpsPhase; accuracy?: number;
   toUserId?: string; fromUserId?: string;
   callerName?: string; callerRole?: string; source?: string; transportRescueId?: string;
   callbackPermitted?: boolean; callbackPhone?: string;
@@ -441,6 +455,16 @@ export async function registerAnimal(rescueId: string, species: string, descript
     method: 'POST', body: JSON.stringify({ species, description })
   });
 }
+export type AnimalGpsPhase = 'PICKUP' | 'IN_TRANSIT' | 'VET_ARRIVAL' | 'CARER_HANDOVER' | 'IN_CARE' | 'RELEASE_SITE' | 'CHECKPOINT';
+export async function recordAnimalGps(id: string, point: {
+  latitude: number; longitude: number; accuracy?: number; phase: AnimalGpsPhase
+}) {
+  return request<{ ok: true; recordedAt: string }>(
+    `/api/mobile/animals/${encodeURIComponent(id)}/gps`,
+    { method: 'POST', body: JSON.stringify(point) }
+  );
+}
+
 export async function getAnimalHistory(id: string) {
   return request<{ animal: Animal; events: AnimalEvent[] }>(`/api/mobile/animals/${encodeURIComponent(id)}`);
 }
@@ -488,7 +512,7 @@ export async function getEligibleCarers(rescueId?: string) {
 }
 export async function recordAnimalOutcome(
   id: string, status: 'RELEASED' | 'EUTHANISED' | 'DECEASED', notes: string,
-  release?: { location: string; latitude?: number; longitude?: number; releaseReason?: 'RELOCATION' }
+  release?: { location: string; latitude?: number; longitude?: number; releaseReason?: 'ORIGINAL_SITE' | 'RELOCATION' }
 ) {
   return request<{ animal: Animal }>(`/api/mobile/animals/${encodeURIComponent(id)}/events`, {
     method: 'POST', body: JSON.stringify({ kind: 'OUTCOME', status, notes, ...(release ?? {}) })

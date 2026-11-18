@@ -2,9 +2,11 @@
   import { onMount } from 'svelte';
   import { env } from '$env/dynamic/public';
   import type { PageData } from './$types';
+  import ReleaseLocationPicker from '$lib/components/ReleaseLocationPicker.svelte';
+  import { formatReleaseCoordinates, isValidReleasePoint, type AnimalReleaseReason } from '../../../../../../core/release-location';
   let { data }: { data: PageData } = $props();
   type Animal = { id: string; species: string; status: string; currentCustodianUserId?: string; currentCustodianName?: string; currentLocation?: string; physicalCustodianType?: 'RESCUER' | 'VET'; physicalCustodianName?: string; pendingTransferId?: string; activeTransportRescueId?: string };
-  type Event = { id: string; type: string; notes?: string; actorUserId?: string; actorName?: string; createdAt: string; occurredAt?: string; reportedByName?: string; source?: string };
+  type Event = { id: string; type: string; phase?: string; notes?: string; actorUserId?: string; actorName?: string; createdAt: string; occurredAt?: string; reportedByName?: string; source?: string; outcome?: string; location?: string; latitude?: number; longitude?: number; releaseReason?: AnimalReleaseReason };
   let animals = $state<Animal[]>([]);
   let selected = $state<Animal | null>(null);
   let events = $state<Event[]>([]);
@@ -69,6 +71,30 @@
   let recipientId = $state('');
   let location = $state('');
   let outcome = $state('RELEASED');
+  let releaseReason = $state<AnimalReleaseReason>('ORIGINAL_SITE');
+  let releasePoint = $state<{ latitude: number; longitude: number } | null>(null);
+  let releaseLabel = $state('');
+  let releaseMapOpen = $state(false);
+  const incidentPoint = $derived({ latitude: data.rescue.latitude, longitude: data.rescue.longitude });
+  function selectOriginalRelease() {
+    if (!isValidReleasePoint(incidentPoint)) return;
+    releaseReason = 'ORIGINAL_SITE';
+    releasePoint = incidentPoint;
+    releaseLabel = 'Original rescue site';
+  }
+  function selectRelocationRelease() {
+    releaseReason = 'RELOCATION';
+    releasePoint = null;
+    releaseLabel = '';
+    releaseMapOpen = true;
+  }
+  function chooseReleasePin(point: {latitude: number; longitude: number}) {
+    releasePoint = point;
+    releaseReason = point.latitude === incidentPoint.latitude && point.longitude === incidentPoint.longitude
+      ? 'ORIGINAL_SITE' : 'RELOCATION';
+    releaseMapOpen = false;
+    if (releaseReason === 'ORIGINAL_SITE') releaseLabel = 'Original rescue site';
+  }
   let errorMessage = $state('');
   let busy = $state(false);
   const initialPickedUp = () => Boolean(data.rescue.pickedUpAt);
@@ -137,6 +163,10 @@
   });
   async function openAnimal(animal: Animal) {
     selected = animal;
+    releasePoint = null;
+    releaseLabel = '';
+    releaseReason = 'ORIGINAL_SITE';
+    releaseMapOpen = false;
     phoneEvents = [];
     phoneSaved = '';
     requestTransport = false;
@@ -190,6 +220,10 @@
 <svelte:head><title>Animal Records &amp; Phone Updates · Rescue Hub</title></svelte:head>
 <main class="care">
   <a href="/">← Rescue queue</a>
+  {#if releaseMapOpen}
+    <ReleaseLocationPicker original={incidentPoint} selected={releasePoint}
+      onChoose={chooseReleasePin} onCancel={() => (releaseMapOpen = false)} />
+  {/if}
   <header>
     <div><p class="eyebrow">RESCUE HUB · ANIMAL RECORDS &amp; PHONE UPDATES</p><h1>{data.rescue.type}</h1><p>{data.rescue.location || 'Location not recorded'} · Response: {data.rescue.status}</p></div>
     <span class="tag">{animals.length} animal{animals.length === 1 ? '' : 's'}</span>
@@ -368,7 +402,20 @@
         <h3>Care timeline</h3>
         <ol class="timeline">
           {#each events.filter(event => event.type !== 'PHONE_UPDATE') as event (event.id)}
-            <li><strong>{event.type.replaceAll('_', ' ')}</strong><small>{new Date(event.occurredAt || event.createdAt).toLocaleString('en-AU')}{#if event.actorName} · {event.actorName}{/if}</small>{#if event.notes}<p>{event.notes}</p>{/if}{#if event.source}<small>Source: {event.source} · {event.reportedByName || 'Not specified'}</small>{/if}</li>
+            <li><strong>{event.type === 'FINAL_OUTCOME' && event.outcome === 'RELEASED' ? event.releaseReason === 'RELOCATION' ? 'Released · Relocation' : 'Released into the wild' : event.type.replaceAll('_', ' ')}</strong>
+              <small>{new Date(event.occurredAt || event.createdAt).toLocaleString('en-AU')}{#if event.actorName} · {event.actorName}{/if}</small>
+              {#if event.notes}<p>{event.notes}</p>{/if}
+              {#if event.type === 'GPS_CHECKPOINT' && typeof event.latitude === 'number' && typeof event.longitude === 'number'}
+                <p>Measured GPS {event.phase ? event.phase.replaceAll('_', ' ') : 'checkpoint'} · {event.latitude.toFixed(6)}, {event.longitude.toFixed(6)}</p>
+              {/if}
+              {#if event.type === 'FINAL_OUTCOME' && event.outcome === 'RELEASED'}
+                <p>Release location: {event.location || 'GPS location'}</p>
+                {#if isValidReleasePoint(event)}
+                  <small>Release pin: {formatReleaseCoordinates(event)}</small>
+                {/if}
+              {/if}
+              {#if event.source}<small>Source: {event.source} · {event.reportedByName || 'Not specified'}</small>{/if}
+            </li>
           {/each}
         </ol>
         {#if !final}
@@ -382,8 +429,36 @@
             <form onsubmit={(e) => { e.preventDefault(); void submit(() => api(`/api/mobile/animals/${selected!.id}/events`, { kind: 'TRANSFER', recipientUserId: recipientId, location })); }}>
               <h3>Request handover</h3><label>Receiving member ID<input required bind:value={recipientId}/></label><label>Destination<input maxlength="250" bind:value={location}/></label><button class="primary" disabled={busy}>Request custody transfer</button>
             </form>
-            <form onsubmit={(e) => { e.preventDefault(); void submit(() => api(`/api/mobile/animals/${selected!.id}/events`, { kind: 'OUTCOME', status: outcome, notes: note })); }}>
-              <h3>Final outcome</h3><label>Outcome<select bind:value={outcome}>{#each ['RELEASED', 'EUTHANISED', 'DECEASED'] as value}<option value={value}>{value}</option>{/each}</select></label><label>Reason / details<textarea required bind:value={note}></textarea></label><button class="primary" disabled={busy || !note.trim()}>Record final outcome</button>
+            <form onsubmit={(e) => { e.preventDefault(); void submit(() => api(`/api/mobile/animals/${selected!.id}/events`, {
+              kind: 'OUTCOME', status: outcome, notes: note,
+              ...(outcome === 'RELEASED' && releasePoint ? {
+                ...releasePoint, releaseReason,
+                location: releaseLabel.trim() || `GPS ${formatReleaseCoordinates(releasePoint)}`
+              } : {})
+            })); }}>
+              <h3>Final outcome</h3>
+              <label>Outcome<select bind:value={outcome}>{#each ['RELEASED', 'EUTHANISED', 'DECEASED'] as value}<option value={value}>{value}</option>{/each}</select></label>
+              {#if outcome === 'RELEASED'}
+                <fieldset class="release-site">
+                  <legend>Where was this animal released?</legend>
+                  <p>Release is a separate location from the original rescue. No street address is required.</p>
+                  <div class="release-actions">
+                    <button type="button" onclick={selectOriginalRelease}>Original rescue location</button>
+                    <button type="button" onclick={selectRelocationRelease}>Relocation · Drop map pin</button>
+                  </div>
+                  {#if releasePoint}
+                    <p><strong>{releaseReason === 'RELOCATION' ? 'Relocation pin' : 'Original rescue location'}:</strong> {formatReleaseCoordinates(releasePoint)}</p>
+                    <button type="button" onclick={() => (releaseMapOpen = true)}>Adjust release pin</button>
+                    <label>Release site description <small>(optional · forest, reserve, bushland)</small>
+                      <input maxlength="250" bind:value={releaseLabel} placeholder="e.g. Bushland off forest trail" />
+                    </label>
+                  {:else}
+                    <p class="notice">Select the original location or drop an exact release pin before saving.</p>
+                  {/if}
+                </fieldset>
+              {/if}
+              <label>Reason / details<textarea required maxlength="4000" bind:value={note}></textarea></label>
+              <button class="primary" disabled={busy || !note.trim() || (outcome === 'RELEASED' && !releasePoint)}>Record final outcome</button>
             </form>
           {:else if selected.pendingTransferId && !isCustodian}
             <button class="primary" disabled={busy} onclick={() => void submit(() => api(`/api/mobile/animals/${selected!.id}/events`, { kind: 'ACCEPT_TRANSFER' }))}>Accept custody (nominated recipient only)</button>
@@ -395,6 +470,10 @@
 </main>
 <style>
   :global(body){margin:0;background:var(--rh-t240, #f1f4f1);color:var(--rh-t241, #1b2d24);font-family:system-ui,sans-serif}
+  .release-site { margin:18px 0; border:1px solid var(--rh-border); border-radius:10px; padding:15px; }
+  .release-site legend { font-weight:750; padding:0 6px; }
+  .release-actions { display:flex; gap:8px; flex-wrap:wrap; }
+  .release-actions button, .release-site > button { padding:10px 13px; border:1px solid var(--rh-border); border-radius:8px; background:var(--rh-surface-soft); color:var(--rh-text); font:inherit; cursor:pointer; }
   .quick-rescue-panel { padding:24px; margin:12px 0 22px; border:2px solid var(--rh-border-strong);
     border-radius:16px; background:var(--rh-surface); color:var(--rh-text); }
   .quick-rescue-panel h2 { margin:0 0 10px; font-size:23px; }

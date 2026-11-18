@@ -3,6 +3,7 @@ import { getUserById } from '$lib/server/auth';
 import { getOrganisationMembershipConfig } from '$lib/server/membership';
 import { getAnimal, recordAnimalEvent, changeAnimalState, AnimalConflict } from '$lib/server/animals';
 import { getRescue } from '$lib/server/graphql';
+import { validateAnimalReleasePoint } from '../../../../../../../../core/release-location';
 import type { RequestHandler } from './$types';
 
 const notesTypes = new Set(['OBSERVATION', 'VET_ASSESSMENT', 'TREATMENT', 'FEEDING', 'WEIGHT', 'REVIEW']);
@@ -81,20 +82,21 @@ export const POST: RequestHandler = async ({ locals, params, request }) => {
     if (body.kind === 'OUTCOME') {
       if (!finalStatuses.has(String(body.status))) return json({ error: 'Invalid final outcome.' }, { status: 400 });
       const location = typeof body.location === 'string' ? body.location.trim() : '';
-      const latitude = body.latitude, longitude = body.longitude;
-      if (body.status === 'RELEASED' && (!location || location.length > 250))
-        return json({ error: 'A release location is required.' }, { status: 400 });
-      if (latitude !== undefined || longitude !== undefined) {
-        if (typeof latitude !== 'number' || typeof longitude !== 'number' ||
-            !Number.isFinite(latitude) || latitude < -90 || latitude > 90 ||
-            !Number.isFinite(longitude) || longitude < -180 || longitude > 180)
-          return json({ error: 'Invalid release GPS coordinates.' }, { status: 400 });
+      let release: ReturnType<typeof validateAnimalReleasePoint> | undefined;
+      if (body.status === 'RELEASED') {
+        if (!source) return json({ error: 'Original rescue location is unavailable.' }, { status: 409 });
+        try {
+          release = validateAnimalReleasePoint({
+            latitude: body.latitude, longitude: body.longitude,
+            location: body.location, releaseReason: body.releaseReason
+          }, { latitude: source.latitude, longitude: source.longitude });
+        } catch (error) {
+          return json({ error: error instanceof Error ? error.message : 'Choose a valid release pin.' }, { status: 400 });
+        }
       }
       return json({ animal: await changeAnimalState(animal, user.id, {
-        kind: 'OUTCOME', status: body.status as 'RELEASED', notes, location,
-        releaseReason: body.releaseReason === 'RELOCATION' ? 'RELOCATION' : undefined,
-        latitude: typeof latitude === 'number' ? latitude : undefined,
-        longitude: typeof longitude === 'number' ? longitude : undefined
+        kind: 'OUTCOME', status: body.status as 'RELEASED', notes,
+        ...(release ? release : { location })
       }) });
     }
     return json({ error: 'Unknown event kind.' }, { status: 400 });

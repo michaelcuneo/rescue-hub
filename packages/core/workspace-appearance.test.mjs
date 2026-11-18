@@ -21,7 +21,7 @@ test('operations, administration and documentation use one persistent top bar', 
   assert.doesNotMatch(documentation, /<header class="global-header">/);
 });
 
-test('appearance uses neutral surfaces and full dark Mapbox tiles', () => {
+test('appearance uses neutral surfaces and dark MapLibre tiles in Operations', () => {
   const styles = read('routes/global.css');
   const map = read('lib/components/MapBox.svelte');
   const operations = read('lib/components/DispatcherShell.svelte');
@@ -32,8 +32,9 @@ test('appearance uses neutral surfaces and full dark Mapbox tiles', () => {
   assert.match(styles, /--rh-surface:\s*#1c222b/);
   assert.match(styles, /--rh-border:\s*#424d5b/);
   assert.match(styles, /--rh-text:\s*#f3f6f9/);
-  assert.match(map, /mapbox:\/\/styles\/mapbox\/dark-v11/);
-  assert.match(map, /\{#key \$resolvedTheme\}/);
+  assert.match(map, /https:\/\/tiles\.openfreemap\.org\/styles\/dark/);
+  assert.match(map, /resolvedTheme\.subscribe/);
+  assert.match(map, /map\.setStyle\(theme === 'dark' \? DARK_STYLE : LIGHT_STYLE\)/);
   assert.match(map, /background:var\(--rh-surface\)/);
   assert.match(operations, /background: var\(--rh-surface\)/);
   assert.match(admin, /--ink: var\(--rh-text\)/);

@@ -12,6 +12,9 @@ export type AnimalStatus = 'IN_RESCUE' | 'IN_TRANSIT' | 'AT_VET' | 'IN_CARE' | '
 export type AnimalRecord = {
   id: string; rescueId: string; organisationId: string; species: string; description?: string;
   status: AnimalStatus; currentCustodianUserId?: string; currentLocation?: string;
+  releaseLatitude?: number; releaseLongitude?: number; releaseLocation?: string;
+  releaseReason?: 'ORIGINAL_SITE' | 'RELOCATION'; releasedAt?: string;
+  lastGpsLatitude?: number; lastGpsLongitude?: number; lastGpsAt?: string; lastGpsPhase?: string;
   physicalCustodianType?: 'RESCUER' | 'VET'; physicalCustodianName?: string; vetClinicId?: string;
   vetStage?: 'AWAITING_ASSESSMENT' | 'ASSESSED_AWAITING_TRANSPORT';
   pendingTransferId?: string; activeTransportRescueId?: string; reservedCarerUserId?: string; registrationVoidedAt?: string; version: number; createdAt: string; updatedAt: string;
@@ -163,7 +166,7 @@ export async function getPendingAnimalTransfer(animal: AnimalRecord) {
 
 export async function changeAnimalState(animal: AnimalRecord, actorUserId: string, input: {
   kind: 'TRANSFER' | 'ACCEPT_TRANSFER' | 'OUTCOME' | 'SELF_CARE' | 'VET_TRANSPORT_STARTED' | 'VET_DROPOFF' | 'VET_ASSESSED';
-  recipientUserId?: string; location?: string; clinicId?: string; latitude?: number; longitude?: number; releaseReason?: 'RELOCATION'; status?: AnimalStatus; notes?: string; purpose?: 'CARE' | 'TRANSPORT';
+  recipientUserId?: string; location?: string; clinicId?: string; latitude?: number; longitude?: number; releaseReason?: 'ORIGINAL_SITE' | 'RELOCATION'; status?: AnimalStatus; notes?: string; purpose?: 'CARE' | 'TRANSPORT';
 }) {
   if (terminal.has(animal.status)) throw new AnimalConflict('Animal already has a final outcome.');
   const now = new Date().toISOString(), eventId = crypto.randomUUID();
@@ -172,6 +175,7 @@ export async function changeAnimalState(animal: AnimalRecord, actorUserId: strin
   };
   let type = '', extra: Record<string, unknown> = {};
   let linkedClinicId: string | undefined;
+  let sourceRescuePoint: { latitude: number; longitude: number } | undefined;
   if (input.kind === 'TRANSFER') {
     if (animal.pendingTransferId) throw new AnimalConflict('A transfer is already pending.');
     if (!input.recipientUserId || input.recipientUserId === actorUserId || actorUserId !== animal.currentCustodianUserId) throw new AnimalConflict('Current custodian must nominate a different recipient.');
@@ -264,27 +268,42 @@ export async function changeAnimalState(animal: AnimalRecord, actorUserId: strin
     if (actorUserId !== animal.currentCustodianUserId) throw new AnimalConflict('Only current custodian can record outcome.');
     if (!input.notes?.trim()) throw new AnimalConflict('Outcome notes are required.');
     if (input.status === 'RELEASED') {
-      if (!input.location?.trim() || input.location.length > 250)
-        throw new AnimalConflict('Record the actual release location.');
-      if ((input.latitude === undefined) !== (input.longitude === undefined) ||
-          (input.latitude !== undefined && (!Number.isFinite(input.latitude) || input.latitude < -90 || input.latitude > 90 ||
-          !Number.isFinite(input.longitude) || input.longitude! < -180 || input.longitude! > 180)))
-        throw new AnimalConflict('Release coordinates must be valid GPS coordinates.');
       const originalRescue = await getRescue(animal.rescueId);
       if (!originalRescue?.pickedUpAt)
         throw new AnimalConflict('Confirm physical collection before releasing the animal.');
+      sourceRescuePoint = { latitude: originalRescue.latitude, longitude: originalRescue.longitude };
+      const { validateAnimalReleasePoint } = await import('../../../../core/release-location');
+      try {
+        const release = validateAnimalReleasePoint({
+          location: input.location, latitude: input.latitude, longitude: input.longitude,
+          releaseReason: input.releaseReason
+        }, { latitude: originalRescue.latitude, longitude: originalRescue.longitude });
+        input.location = release.location;
+        input.latitude = release.latitude;
+        input.longitude = release.longitude;
+        input.releaseReason = release.releaseReason;
+      } catch (error) {
+        throw new AnimalConflict(error instanceof Error ? error.message : 'Invalid release pin.');
+      }
     }
     condition += ' AND currentCustodianUserId = :actor AND attribute_not_exists(pendingTransferId)';
     values[':actor'] = actorUserId;
     type = 'FINAL_OUTCOME';
     update = input.status === 'RELEASED'
-      ? 'SET #status = :care, currentLocation = :location, updatedAt = :now, version = :next REMOVE activeTransportRescueId'
+      ? 'SET #status = :care, currentLocation = :location, releaseLocation = :location, releaseLatitude = :releaseLat, releaseLongitude = :releaseLng, releaseReason = :releaseReason, releasedAt = :now, updatedAt = :now, version = :next REMOVE activeTransportRescueId'
       : 'SET #status = :care, updatedAt = :now, version = :next REMOVE activeTransportRescueId';
     values[':care'] = input.status;
-    if (input.status === 'RELEASED') values[':location'] = input.location!.trim();
+    if (input.status === 'RELEASED') {
+      values[':location'] = input.location!.trim();
+      values[':releaseLat'] = input.latitude;
+      values[':releaseLng'] = input.longitude;
+      values[':releaseReason'] = input.releaseReason;
+    }
     extra = { outcome: input.status, location: input.location ?? '', notes: input.notes,
       ...(input.status === 'RELEASED' ? { ...(input.releaseReason ? { releaseReason: input.releaseReason } : {}),
         originalRescueId: animal.rescueId,
+        originalLatitude: sourceRescuePoint?.latitude,
+        originalLongitude: sourceRescuePoint?.longitude,
         ...(input.latitude !== undefined ? { latitude: input.latitude, longitude: input.longitude } : {}) } : {}) };
   }
   const event = {
@@ -298,6 +317,25 @@ export async function changeAnimalState(animal: AnimalRecord, actorUserId: strin
       ExpressionAttributeValues: values }},
     { Put: { TableName: table, Item: event, ConditionExpression: 'attribute_not_exists(pk)' }}
   ];
+  // An authorised Administration map needs release destinations without
+  // issuing N+1 animal queries for every historical rescue pin. Persist the
+  // release as a projection on its original rescue in the same atomic outcome
+  // transaction. A rescue can contain multiple animals/release destinations.
+  // The animal META and append-only FINAL_OUTCOME remain the source of truth.
+  if (input.kind === 'OUTCOME' && input.status === 'RELEASED') {
+    writes.push({ Update: {
+      TableName: table, Key: { pk: `RESCUE#${animal.rescueId}`, sk: 'META' },
+      UpdateExpression: 'SET releaseSites = list_append(if_not_exists(releaseSites, :empty), :site)',
+      ConditionExpression: 'attribute_exists(pk) AND organisationId = :org',
+      ExpressionAttributeValues: {
+        ':org': animal.organisationId, ':empty': [],
+        ':site': [{
+          animalId: animal.id, latitude: input.latitude, longitude: input.longitude,
+          reason: input.releaseReason, location: input.location, releasedAt: now
+        }]
+      }
+    }});
+  }
   if (linkedClinicId) {
     writes.push({ Put: {
       TableName: table,

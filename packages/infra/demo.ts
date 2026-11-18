@@ -2,6 +2,8 @@ import { putSeedItem } from "./seed";
 import { buildHunterDemoStory } from "../core/demo-rescue-stories";
 
 const HUNTER_ORG = "native-animal-trust-fund";
+// Only explicitly approved synthetic-data stages receive linked care histories.
+const STORY_SEED_STAGES = new Set(["michael", "michaelcuneo", "demo"]);
 const S = (value: string) => ({ S: value });
 const N = (value: number) => ({ N: String(value) });
 const B = (value: boolean) => ({ BOOL: value });
@@ -147,9 +149,9 @@ allDemoRescues.forEach((r, index) => {
   const id = `demo-hunter-rescue-${n}`;
   const at = new Date(Date.UTC(2026, 10, 5, 9, 0) - index * 17 * 60_000).toISOString();
 
-  // The detailed care histories belong to the demo stack ONLY. Do not add
-  // synthetic treatment, custody or outcomes to non-demo deployments.
-  const story = $app.stage === "demo" && (status === "ASSIGNED" || status === "COMPLETED")
+  // Populate realistic synthetic wildlife histories only for the three
+  // explicit test stages. Never seed fake care records to other deployments.
+  const story = STORY_SEED_STAGES.has($app.stage) && (status === "ASSIGNED" || status === "COMPLETED")
     ? buildHunterDemoStory({ id, type, breed, location, assignedUserId, status })
     : null;
   const createdAt = story?.createdAt ?? at;
@@ -267,7 +269,7 @@ for (const [id, name, capabilityCode, receivesAllRescues] of hunterTeams) {
 // Additional clearly synthetic, open reptile rescues for the demo mobile map.
 // Stable IDs/timestamps make repeated deployments idempotent. Never seed these
 // extra demo incidents into production.
-if ($app.stage === "demo") {
+if (STORY_SEED_STAGES.has($app.stage)) {
   const reptileDemoRescues = [
     ["blue-tongue-new-lambton", "Blue-tongue lizard", "Eastern blue-tongue", "New Lambton", -32.9272, 151.7121, "Caught in garden netting; alert and responsive"],
     ["python-kotara", "Diamond python", "Diamond python", "Kotara", -32.9441, 151.6963, "Snake reported inside a backyard shed; requires safe relocation"],

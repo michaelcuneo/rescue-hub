@@ -6,6 +6,7 @@ import {
   shiftRescueDay,
   completedOnNSWDay
 } from '../pc-rescues/src/lib/rescue-list.ts';
+import { shouldShowOperationsMapPin } from './case-map-visibility.ts';
 
 test('Operations completion date is the completion date, not the original report date', () => {
   const item = {
@@ -42,4 +43,25 @@ test('NSW calendar dates handle daylight-saving jump and midnight', () => {
   assert.equal(rescueTodayNSW(Date.parse('2026-11-18T13:30:00.000Z')), '2026-11-19');
   assert.equal(shiftRescueDay('2026-07-13', 1), '2026-07-14');
   assert.equal(shiftRescueDay('2026-07-13', -1), '2026-07-12');
+});
+
+test('Operations MapLibre displays completed rescues for their completion day, even after pickup', () => {
+  const completed = {
+    status: 'COMPLETED',
+    pickedUpAt: '2026-11-17T01:00:00.000Z',
+    completedAt: '2026-11-18T01:10:00.000Z',
+    updatedAt: '2026-11-18T03:10:00.000Z'
+  };
+  assert.equal(shouldShowOperationsMapPin(completed, completedOnNSWDay(completed, '2026-11-18')), true);
+  assert.equal(shouldShowOperationsMapPin(completed, completedOnNSWDay(completed, '2026-11-19')), false);
+});
+
+test('Operations retains original pins after collection, including assigned transport', () => {
+  assert.equal(shouldShowOperationsMapPin({ status: 'PENDING' }, false), true);
+  assert.equal(shouldShowOperationsMapPin({ status: 'ASSIGNED' }, false), true);
+  assert.equal(shouldShowOperationsMapPin({
+    status: 'ASSIGNED', pickedUpAt: '2026-11-18T00:00:00.000Z'
+  }, false), true);
+  assert.equal(shouldShowOperationsMapPin({ status: 'PENDING', awaitingCarer: true }, false), true);
+  assert.equal(shouldShowOperationsMapPin({ status: 'CANCELLED' }, false), false);
 });

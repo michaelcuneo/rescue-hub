@@ -2,7 +2,8 @@
 	import { env } from '$env/dynamic/public';
 	import { australianAnimalNames } from '$lib/data/australian-animals';
 import { reportChannelLabel } from '../../../../core/report-channel';
-	import { pinForRescue } from '../../../../core/rescue-pin-groups';
+	import { currentAnimalPin } from '../../../../core/current-animal-pin';
+  import { pinForRescue } from '../../../../core/rescue-pin-groups';
 	import RescueAddress from './RescueAddress.svelte';
 import { completedOnNSWDay, rescueTodayNSW, sortRescueRecords, isWaitingFourHours, RESCUE_LIST_PAGE_SIZE, type RescueOrder } from '$lib/rescue-list';
 		import type { OrganisationMembershipConfig } from '$lib/server/membership';
@@ -181,7 +182,7 @@ import { completedOnNSWDay, rescueTodayNSW, sortRescueRecords, isWaitingFourHour
 		const rawMap = $mapRef?.getMap?.();
 
 		rawMap?.flyTo?.({
-			center: [Number(item.longitude), Number(item.latitude)],
+			center: [currentAnimalPin(item).longitude, currentAnimalPin(item).latitude],
 			zoom: Math.max(rawMap.getZoom?.() ?? 11, 13),
 			duration: 550
 		});
@@ -272,7 +273,8 @@ import { completedOnNSWDay, rescueTodayNSW, sortRescueRecords, isWaitingFourHour
 		$draftLocation = {
 			longitude: result.longitude,
 			latitude: result.latitude,
-			label: result.label
+			label: result.label,
+			source: 'ADDRESS'
 		};
 
 		$mapRef?.getMap?.()?.flyTo?.({
@@ -289,7 +291,8 @@ import { completedOnNSWDay, rescueTodayNSW, sortRescueRecords, isWaitingFourHour
 		$draftLocation = {
 			longitude,
 			latitude,
-			label: 'Current map location'
+			label: 'Current map location',
+			source: 'CENTER'
 		};
 
 		$mapRef?.getMap?.()?.flyTo?.({
@@ -324,7 +327,7 @@ import { completedOnNSWDay, rescueTodayNSW, sortRescueRecords, isWaitingFourHour
 					type: species.trim(),
 					breed: breed.trim(),
 					injury: injury.trim(),
-					location: addressQuery.trim() || location.label,
+					location: location.label,
 					longitude: location.longitude,
 					latitude: location.latitude,
 					callerName: callerName.trim(),
@@ -384,6 +387,14 @@ import { completedOnNSWDay, rescueTodayNSW, sortRescueRecords, isWaitingFourHour
 			saving = false;
 		}
 	}
+
+	$effect(() => {
+		const draft = $draftLocation;
+		if (draft?.source === 'MAP' || draft?.source === 'CENTER') {
+			addressQuery = '';
+			addressResults = [];
+		}
+	});
 </script>
 
 <div class="dispatcher-shell">
@@ -560,7 +571,6 @@ import { completedOnNSWDay, rescueTodayNSW, sortRescueRecords, isWaitingFourHour
 	{/if}
 
 	{#if $intakeOpen && userCanDispatch}
-		<div class="intake-backdrop" role="presentation" onclick={closeIntake}></div>
 		<section class="intake" aria-label="Create rescue">
 			<header>
 				<div>
@@ -607,7 +617,7 @@ import { completedOnNSWDay, rescueTodayNSW, sortRescueRecords, isWaitingFourHour
 							<Crosshair size={14} />
 							Use current map position
 						</button>
-						<span>or click directly on the map while this panel is open</span>
+						<span>Click the map to place or move the pin, then drag the pin to adjust it</span>
 					</div>
 
 					{#if $draftLocation}
@@ -1145,14 +1155,6 @@ import { completedOnNSWDay, rescueTodayNSW, sortRescueRecords, isWaitingFourHour
 		color:white;
 	}
 
-	.intake-backdrop {
-		position: absolute;
-		inset: 0;
-		z-index: 40;
-		background:rgb(17 38 27 / 0.22);
-		pointer-events: auto;
-	}
-
 	.intake {
 		position: absolute;
 		z-index: 50;
@@ -1312,6 +1314,7 @@ import { completedOnNSWDay, rescueTodayNSW, sortRescueRecords, isWaitingFourHour
 
 	.location-tools {
 		display: flex;
+		flex-wrap: wrap;
 		align-items: center;
 		gap: 9px;
 		margin-top: 9px;

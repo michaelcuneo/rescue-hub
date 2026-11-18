@@ -122,3 +122,4 @@ export function completedOnNSWDay(
   return item.status === 'COMPLETED'
     && rescueNSWDay(item.completedAt ?? item.updatedAt) === day;
 }
+
