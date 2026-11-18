@@ -83,6 +83,8 @@ jobs:
         run: node --experimental-strip-types --test packages/core/desktop-dispatch-access.test.mjs
       - name: NSW operational completion and date boundary tests
         run: node --experimental-strip-types --test packages/core/rescue-operations-date.test.mjs
+      - name: Animal release and relocation pin validation tests
+        run: node --experimental-strip-types --test packages/core/release-location.test.mjs
       - name: Role assignment and administrator privilege boundary tests
         run: node --experimental-strip-types --test packages/core/portal-admin-roles.test.mjs
       - name: Independent care claim and delivery tests
