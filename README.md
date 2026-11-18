@@ -60,6 +60,13 @@ The product direction is documented here:
 
 These documents are the source of truth for the intended behaviour of Rescue Hub. Implementation decisions should preserve the tenancy, regional-authority and audit requirements described there.
 
+## Build identification
+
+The desktop Settings page shows the web package version, exact compiled Git
+commit, branch and build time. See
+[Build version and deployment diagnostics](docs/BUILD-VERSION.md).
+This does not poll GitHub and does not redeploy an SST stage.
+
 ## Development
 
 Install dependencies:

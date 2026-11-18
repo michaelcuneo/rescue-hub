@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { PageData } from './$types';
   import type { AvailabilityPolicy, Weekday } from '$lib/server/availability';
-  import { Check, Clock3, Smartphone, UserRound, ShieldCheck } from '@lucide/svelte';
+  import { Check, Clock3, GitCommit, Smartphone, UserRound, ShieldCheck } from '@lucide/svelte';
   import ThemeSwitcher from '$lib/components/ThemeSwitcher.svelte';
   import { invalidateAll } from '$app/navigation';
 
@@ -114,6 +114,38 @@
         <p class="help">To register or repair push notifications, use Settings on your iOS or Android device.</p>
       </section>
       {/if}
+
+      <section class="settings-panel" aria-labelledby="app-version-heading">
+        <div class="section-heading">
+          <GitCommit size={21} aria-hidden="true" />
+          <h2 id="app-version-heading">Application version</h2>
+        </div>
+        <dl class="account-details">
+          <div><dt>Version</dt><dd>v{data.buildInfo.version}</dd></div>
+          <div>
+            <dt>Git commit</dt>
+            <dd>
+              {#if data.buildInfo.gitCommit}
+                <a
+                  class="commit-link"
+                  href={`https://github.com/michaelcuneo/rescue-hub/commit/${data.buildInfo.gitCommit}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label={`View commit ${data.buildInfo.gitCommit} on GitHub`}
+                ><code>{data.buildInfo.gitCommit.slice(0, 12)}</code></a>
+              {:else}
+                Not recorded
+              {/if}
+            </dd>
+          </div>
+          <div><dt>Branch</dt><dd>{data.buildInfo.gitBranch ?? 'Not recorded'}</dd></div>
+          <div>
+            <dt>Built</dt>
+            <dd><time datetime={data.buildInfo.builtAt}>{data.buildInfo.builtAt.slice(0, 16).replace('T', ' ')} UTC</time></dd>
+          </div>
+        </dl>
+        <p class="help">These details identify the code running in this installation. New GitHub commits will only appear after a new build is deployed.</p>
+      </section>
     </div>
     <div class="settings-main">
     {#if data.canManageAvailability}
@@ -227,6 +259,7 @@
   dt { color:var(--rh-muted); font-size:13px; }
   dd { margin:0; font-weight:700; font-size:13px; overflow-wrap:anywhere; }
   .help { color:var(--rh-muted); line-height:1.5; font-size:12px; }
+  .commit-link { color:var(--rh-primary); text-decoration:underline; text-underline-offset:3px; }
   .availability-panel { min-width:0; }
   .availability-current { display:flex; align-items:center; gap:9px; font-weight:750; }
   .status-dot { width:9px; height:9px; border-radius:50%; background:#b65c2f; }
