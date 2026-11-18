@@ -130,3 +130,49 @@ All. Open cases with and without linked animal records; confirm no invented
 destination pins for free-text addresses, and verify an actual off-site
 release draws a purple pin. Close with Escape or the X and ensure map camera
 and pins are retained.
+
+## Original report, physical pickup and release location switcher
+
+The historic archive remains status-inclusive: its query explicitly uses
+`status=all` (Pending, Assigned and Completed are kept regardless of physical
+pickup). Open **All rescues · any dates**, then inspect the Pending / Assigned /
+Completed counters in the map's right rail to distinguish an archive query
+returning no records from a map rendering problem. A specific-day filter uses
+the **original report date**, not the date of later assignment or completion.
+Large pin concentrations cluster until zoomed in.
+
+The rescue detail modal now has **Reported / pickup area**, **Release site**,
+and **Show both pins** controls, plus an animal-specific release selector
+when multiple destination records exist. The original reported coordinate
+does not necessarily equal the actual physical collection location: the
+present pickup workflow stores collection time and user, not a second pickup
+GPS position. The distinction is explained in the modal.
+
+New release outcomes atomically append actual GPS coordinates to
+`RESCUE#.../META.releaseSites` in addition to storing them in the permanent
+animal record and append-only outcome event. This allows the archive map to
+draw real purple release pins across the entire selected historical date
+range without querying every animal individually. A release back at the
+original site does not duplicate the original rescue pin. The older synthetic
+fixtures continue to use their retained historical release fields.
+
+**Older real releases:** cases finalised before this projection existed
+may have release GPS in `ANIMAL#.../META` but none on their rescue archive
+projection. To inspect and optionally repair the projection without modifying
+animal histories, use the stage-guarded script:
+
+```bash
+npx sst shell --stage michael -- node packages/pc-rescues/scripts/backfill-release-map-pins.mjs --stage michael
+# After reviewing the dry-run:
+npx sst shell --stage michael -- node packages/pc-rescues/scripts/backfill-release-map-pins.mjs --stage michael --write
+```
+
+For the demo stage, replace both occurrences of `michael` with `demo`.
+Write confirmation is `BACKFILL RELEASES michael` (or `demo`).
+The script only reads source GPS in real finalised animal records and
+conditionally fills a missing archive projection. No source animal/care
+records are changed and no location is geocoded or guessed. It is not
+run by `sst deploy`.
+
+No actual DynamoDB stage was accessed from GitHub, so the app must still be
+tested against the selected stage after deploying/pulling the updated code.
