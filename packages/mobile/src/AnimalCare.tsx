@@ -726,6 +726,9 @@ export default function AnimalCare({ rescue, userId, roles, onBack, onUnclaim }:
               <Text style={styles.muted}>{new Date(event.occurredAt || event.createdAt).toLocaleString()}</Text>
               {event.type === 'PHONE_UPDATE' && event.callerName ? <Text style={styles.muted}>Caller: {event.callerName} · {event.callerRole ?? 'Phone'}</Text> : null}
               {event.notes ? <Text style={styles.body}>{event.notes}</Text> : null}
+              {event.type === 'GPS_CHECKPOINT' && typeof event.latitude === 'number' && typeof event.longitude === 'number' ? (
+                <Text style={styles.muted}>Measured {event.phase?.replace(/_/g, ' ') ?? 'checkpoint'} · {event.latitude.toFixed(6)}, {event.longitude.toFixed(6)}{typeof event.accuracy === 'number' ? ' · ±' + Math.round(event.accuracy) + 'm' : ''}</Text>
+              ) : null}
               {event.type === 'PHONE_UPDATE' && event.callbackPermitted && event.callbackPhone ? (
                 <Pressable accessibilityRole="button" onPress={() => void Linking.openURL('tel:' + event.callbackPhone)}>
                   <Text style={styles.link}>Call consenting caller: {event.callbackPhone}</Text>
