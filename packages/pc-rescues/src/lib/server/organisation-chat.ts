@@ -7,6 +7,8 @@ import { getUserById, listUsers, type RescueHubUser } from './auth';
 import { effectiveAvailability } from './availability';
 import { canDirectChat, directChannelId, displayMemberLabels, isDirectChatChannelId } from '../../../../core/chat-direct';
 import { listAdminOrganisations } from './admin-data';
+import { type ChatMention } from '../../../../core/chat-mentions';
+import { validateChatMentions } from './chat-mention-lookup';
 import {
   buildChatChannels, canAccessChat, canSelectChatOrganisation, isPlatformOversightUser,
   isValidChatChannelId, validateChatText,
@@ -29,6 +31,7 @@ export type ChatMessage = {
   text: string;
   createdAt: string;
   animalId?: string;
+  mentions?: ChatMention[];
   kind?: 'MESSAGE' | 'SYSTEM';
 };
 export type ChatSummary = ChatChannel & {
@@ -360,6 +363,7 @@ export async function readChatPage(
     text: String(item.text),
     createdAt: String(item.createdAt),
     ...(typeof item.animalId === 'string' ? { animalId: item.animalId } : {}),
+    ...(Array.isArray(item.mentions) ? { mentions: item.mentions as ChatMention[] } : {}),
     kind: item.kind === 'SYSTEM' ? 'SYSTEM' as const : 'MESSAGE' as const
   })).reverse();
   return {
@@ -371,7 +375,7 @@ export async function readChatPage(
 }
 
 export async function postChatMessage(
-  user: RescueHubUser, channelId: string, input: { text: unknown; animalId?: unknown },
+  user: RescueHubUser, channelId: string, input: { text: unknown; animalId?: unknown; mentions?: unknown },
   selectedOrganisationId?: string
 ): Promise<ChatMessage> {
   const { organisationId } = await requireChannel(user, channelId, selectedOrganisationId);
@@ -401,11 +405,13 @@ export async function postChatMessage(
       throw new ChatAccessError('Linked animal is not available in your organisation.');
     }
   }
+  const mentions = await validateChatMentions(user, channelId, organisationId, text, input.mentions);
   const createdAt = new Date().toISOString(), id = crypto.randomUUID();
   const message: ChatMessage = {
     id, channelId, text, senderUserId: user.id,
     senderName: user.name, createdAt, kind: 'MESSAGE',
-    ...(typeof animalId === 'string' ? { animalId } : {})
+    ...(typeof animalId === 'string' ? { animalId } : {}),
+    ...(mentions.length ? { mentions } : {})
   };
   await db.send(new PutCommand({
     TableName: table,
