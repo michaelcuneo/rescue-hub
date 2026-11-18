@@ -7,6 +7,7 @@ import { getChatChannels, getChannelMessages, markChannelRead,
   type ChatMember, type ChatChannel, type ChatMessage, type ChatOrganisation } from './api';
 import { subscribeRescueChanges } from '../../core/realtime-client';
 import { getRealtimeConfig } from './api';
+import { chatChannelColours } from '../../core/chat-channel-colours';
 
 type Props = { userId: string; initialChannelId?: string; onOpenAnimal?: (animalId: string) => void };
 export default function OrganisationChats({ userId, initialChannelId, onOpenAnimal }: Props) {
@@ -192,8 +193,16 @@ export default function OrganisationChats({ userId, initialChannelId, onOpenAnim
           ListEmptyComponent={!loading ? <Text style={styles.subtitle}>No conversations yet. Open People to message a member.</Text> : undefined}
           renderItem={({ item }) => <Pressable accessibilityRole="button"
             accessibilityLabel={item.name + (item.unread ? ', new messages' : '')}
-            style={styles.channel} onPress={() => setSelected(item.id)}>
-            <View style={styles.avatar}><Text style={styles.avatarText}>{item.name.slice(0, 1).toUpperCase()}</Text></View>
+            style={[styles.channel, chatChannelColours(item.id, Boolean(item.recipientUserId))
+              ? { borderLeftWidth: 5, borderLeftColor: chatChannelColours(item.id)![0] }
+              : null]} onPress={() => setSelected(item.id)}>
+            <View style={[styles.avatar, chatChannelColours(item.id, Boolean(item.recipientUserId))
+              ? { backgroundColor: chatChannelColours(item.id)![0],
+                  borderRightColor: chatChannelColours(item.id)![1] ?? chatChannelColours(item.id)![0],
+                  borderRightWidth: chatChannelColours(item.id)![1] ? 8 : 0 } : null]}>
+              <Text style={[styles.avatarText, chatChannelColours(item.id, Boolean(item.recipientUserId))
+                ? { color: '#fff' } : null]}>{item.name.slice(0, 1).toUpperCase()}</Text>
+            </View>
             <View style={styles.channelBody}>
               <Text style={styles.channelName}>{item.name}</Text>
               <Text style={styles.preview} numberOfLines={1}>

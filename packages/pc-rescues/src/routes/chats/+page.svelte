@@ -3,6 +3,7 @@
   import { subscribeRescueChanges, type RealtimeConfig } from '../../../../core/realtime-client';
   import type { PageData } from './$types';
   import { shouldSendChatOnKey } from '../../../../core/chat-composer-keyboard';
+  import { chatChannelColours } from '../../../../core/chat-channel-colours';
   let { data }: { data: PageData } = $props();
   type Channel = {
     id: string; name: string; description: string; unread: boolean;
@@ -202,8 +203,16 @@
       {#if listMode === 'channels'}
         {#if loading}<p class="muted">Loading conversations…</p>{/if}
         {#each channels as channel (channel.id)}
-          <button class:active={selectedId === channel.id} onclick={() => void selectChannel(channel.id)}>
-            <span class="avatar" aria-hidden="true">{channel.name.slice(0,1)}</span>
+          {@const colours = chatChannelColours(channel.id, Boolean(channel.recipientUserId))}
+          <button class:active={selectedId === channel.id}
+            class:animal-channel={Boolean(colours)}
+            style:--animal-channel-colour={colours?.[0] ?? 'transparent'}
+            onclick={() => void selectChannel(channel.id)}>
+            <span class="avatar" class:animal-avatar={Boolean(colours)}
+              style:background={colours
+                ? colours[1] ? `linear-gradient(135deg, ${colours[0]} 50%, ${colours[1]} 50%)` : colours[0]
+                : undefined}
+              aria-hidden="true">{channel.name.slice(0,1)}</span>
             <span class="channel-detail">
               <strong>{channel.name}</strong>
               <small>{channel.latest ? `${channel.latest.senderName}: ${channel.latest.text}` : channel.description}</small>
@@ -313,6 +322,8 @@
   aside button{display:flex;align-items:center;gap:12px;padding:12px;width:100%;border:0;background:var(--rh-t6, white);border-radius:12px;text-align:left;cursor:pointer;color:inherit}
   aside button:hover,aside button.active{background:var(--rh-t165, #eff6f1)}
   .avatar{height:42px;width:42px;border-radius:50%;display:grid;place-items:center;background:var(--rh-t166, #dcebe0);font-size:18px;font-weight:800}
+  aside button.animal-channel { border-left:4px solid var(--animal-channel-colour); padding-left:8px; }
+  .avatar.animal-avatar { color:#fff; text-shadow:0 1px 2px rgb(0 0 0 / 0.4); }
   .channel-detail{min-width:0;flex:1;display:grid;gap:3px}
   .channel-detail strong{font-size:14px}
   .channel-detail small{font-size:12px;color:var(--rh-t167, #738379);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
