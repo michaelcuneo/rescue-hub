@@ -182,7 +182,6 @@
 
 <svelte:head><title>Organisation Chats · Rescue Hub</title></svelte:head>
 <main class="page">
-  <div class="chat-heading"><h1>Chats</h1><p>Organisation conversations and care groups</p></div>
   {#if data.canSelectOrganisation}
     <div class="org-selector">
       <label for="chat-organisation">Viewing organisation chats</label>
@@ -192,7 +191,6 @@
           <option value={organisation.id}>{organisation.name}</option>
         {/each}
       </select>
-      <span>Platform oversight · organisation-scoped messages</span>
     </div>
   {/if}
   <div class="chat-layout">
@@ -291,15 +289,11 @@
 </main>
 <style>
   :global(body){margin:0;background:var(--rh-background);color:var(--rh-text);font-family:system-ui,sans-serif}
-  .page{min-height:100dvh;width:100%;padding:var(--rh-content-top) var(--rh-gutter) var(--rh-gutter);background:var(--rh-background);color:var(--rh-text)}
+  .page{height:100dvh;min-height:0;width:100%;display:flex;flex-direction:column;gap:0;padding:var(--rh-content-top) var(--rh-gutter) var(--rh-gutter);background:var(--rh-background);color:var(--rh-text)}
   .org-selector{display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin-bottom:16px}
   .org-selector label{font-weight:750;font-size:14px}
   .org-selector select{min-height:44px;min-width:220px;max-width:100%;border:1px solid var(--rh-t159, #b7c8bd);border-radius:10px;background:var(--rh-t6, white);color:var(--rh-t3, #173d2c);padding:8px 12px;font:inherit}
-  .org-selector span{font-size:12px;color:var(--rh-t160, #718077)}
-  .chat-heading{display:flex;flex-direction:column;gap:3px;margin-bottom:16px;}
-  .chat-heading h1{font-size:27px;margin:0;color:var(--rh-text)}
-  .chat-heading p{font-size:13px;margin:0;color:var(--rh-muted)}
-  .chat-layout{display:grid;grid-template-columns:minmax(260px,350px) minmax(0,1fr);height:calc(100dvh - var(--rh-content-top) - 84px);min-height:430px;background:var(--rh-surface);color:var(--rh-text);border:1px solid var(--rh-border);box-shadow:var(--rh-shadow);border-radius:16px;overflow:hidden}
+  .chat-layout{display:grid;grid-template-columns:minmax(260px,350px) minmax(0,1fr);flex:1 1 auto;min-height:0;background:var(--rh-surface);color:var(--rh-text);border:1px solid var(--rh-border);box-shadow:var(--rh-shadow);border-radius:16px;overflow:hidden}
   .chat-list-tabs{display:flex;gap:5px;padding:6px 8px 12px}
   .chat-list-tabs button{justify-content:center;width:50%;min-height:40px;font-weight:750;border:1px solid var(--rh-border)}
   .chat-list-tabs button.active-tab{background:var(--rh-nav-active);color:var(--rh-text)}
@@ -341,5 +335,5 @@
   .placeholder{margin:auto;padding:30px;text-align:center;color:var(--rh-t177, #687b6d)}
   .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
   .mobile-back{display:none}
-  @media(max-width:680px){.page{padding:var(--rh-content-top) var(--rh-gutter) var(--rh-gutter)}.chat-heading{margin-bottom:8px}.chat-layout{display:block;height:calc(100dvh - var(--rh-content-top) - 80px);min-height:350px;border-radius:12px}.chat-layout aside,.chat-layout section{height:100%;border:0}.hide-mobile{display:none!important}.mobile-back{display:block;background:transparent;border:0;font-size:30px;color:var(--rh-t171, #286343);cursor:pointer}.messages{padding:12px}article{max-width:88%}}
+  @media(max-width:680px){.page{padding:var(--rh-content-top) var(--rh-gutter) var(--rh-gutter)}.chat-layout{display:block;min-height:0;border-radius:12px}.chat-layout aside,.chat-layout section{height:100%;border:0}.hide-mobile{display:none!important}.mobile-back{display:block;background:transparent;border:0;font-size:30px;color:var(--rh-t171, #286343);cursor:pointer}.messages{padding:12px}article{max-width:88%}}
 </style>
