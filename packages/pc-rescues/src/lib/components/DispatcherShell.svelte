@@ -4,6 +4,7 @@
 import { reportChannelLabel } from '../../../../core/report-channel';
 	import { pinForRescue } from '../../../../core/rescue-pin-groups';
 	import RescueAddress from './RescueAddress.svelte';
+import { completedOnNSWDay, rescueTodayNSW, sortRescueRecords, isWaitingFourHours, RESCUE_LIST_PAGE_SIZE, type RescueOrder } from '$lib/rescue-list';
 		import type { OrganisationMembershipConfig } from '$lib/server/membership';
 	import {
 		Search,
@@ -63,7 +64,10 @@ import { reportChannelLabel } from '../../../../core/report-channel';
 	};
 
 	let tab = $state<RescueTab>('pending');
-	let search = $state('');
+  // Pending and Assigned are all unresolved cases; Completed is today in NSW.
+  let todayNSW = $state(rescueTodayNSW());
+  let order = $state<RescueOrder>('oldest');
+  let visibleLimit = $state(RESCUE_LIST_PAGE_SIZE);
 	let species = $state('');
 	let speciesSuggestionsOpen = $state(false);
 	const speciesMatches = $derived(species.trim() ? australianAnimalNames.filter((name) => name.toLowerCase().includes(species.trim().toLowerCase())).slice(0, 12) : australianAnimalNames.slice(0, 12));
@@ -89,30 +93,34 @@ import { reportChannelLabel } from '../../../../core/report-channel';
 		...$data.completed.map((item) => ({ ...item, status: 'COMPLETED' }))
 	]);
 
-	const currentItems = $derived(
-		tab === 'pending' ? $data.pending : tab === 'assigned' ? $data.assigned : $data.completed
-	);
 
-	const visibleItems = $derived(
-		currentItems.filter((item) => {
-			const query = search.trim().toLowerCase();
-			if (!query) return true;
+  const currentItems = $derived(
+    tab === 'pending' ? $data.pending :
+    tab === 'assigned' ? $data.assigned :
+    $data.completed.filter(item =>
+      completedOnNSWDay(item, todayNSW))
+  );
+  const visibleItems = $derived(sortRescueRecords(
+    currentItems, tab === 'completed' ? 'newest' : order
+  ));
+  const shownItems = $derived(visibleItems.slice(0, visibleLimit));
+  const selected = $derived($selectedRescue);
+  // Routing exceptions have not become rescue cases yet. Keep all unresolved
+  // exceptions visible under Pending, no matter when they were reported.
+  const unmatchedReports = $derived(
+    tab === 'pending' && userCanDispatch ? $routingExceptions : []
+  );
+  $effect(() => { tab; order; visibleLimit = RESCUE_LIST_PAGE_SIZE; });
 
-			return [item.type, item.breed, item.location, item.injury]
-				.join(' ')
-				.toLowerCase()
-				.includes(query);
-		})
-	);
+  // Refresh the Completed "today" filter after midnight or browser wake.
+  $effect(() => {
+    const timer = setInterval(() => {
+      const current = rescueTodayNSW();
+      if (current !== todayNSW) todayNSW = current;
+    }, 30_000);
+    return () => clearInterval(timer);
+  });
 
-	const selected = $derived($selectedRescue);
-	const unmatchedReports = $derived(
-		tab === 'pending' && userCanDispatch ? $routingExceptions.filter(report => {
-			const query = search.trim().toLowerCase();
-			return !query || [report.animal, report.condition, report.areaLabel, report.routingReason]
-				.filter(Boolean).join(' ').toLowerCase().includes(query);
-		}) : []
-	);
 	async function retryPublicRouting(id: string) {
 		if (routeBusy) return;
 		routeBusy = id; routeError = '';
@@ -403,11 +411,6 @@ import { reportChannelLabel } from '../../../../core/report-channel';
 		{#if dispatchNotice}
 			<p role="status" class="dispatch-notice">{dispatchNotice}</p>
 		{/if}
-		<label class="queue-search">
-			<Search size={15} />
-			<input bind:value={search} placeholder="Search animal, suburb, condition…" />
-		</label>
-
 		<div class="tabs" role="tablist" aria-label="Rescue state">
 			<button class:active={tab === 'pending'} type="button" onclick={() => (tab = 'pending')}>
 				<span>Pending</span>
@@ -419,10 +422,16 @@ import { reportChannelLabel } from '../../../../core/report-channel';
 			</button>
 			<button class:active={tab === 'completed'} type="button" onclick={() => (tab = 'completed')}>
 				<span>Completed</span>
-				<strong>{$data.completed.length}</strong>
+				<strong>{$data.completed.filter(item => completedOnNSWDay(item, todayNSW)).length}</strong>
 			</button>
 		</div>
 
+        <div class="queue-results">
+          <span>{visibleItems.length} {tab} rescue{visibleItems.length === 1 ? '' : 's'} · {tab === 'completed' ? 'completed today' : 'all open cases'}</span>
+          <label>Sort <select bind:value={order} disabled={tab === 'completed'}>
+            <option value="oldest">Oldest first</option><option value="newest">Newest first</option>
+          </select></label>
+        </div>
 		<div class="rescue-list">
 			{#if tab === 'pending' && unmatchedReports.length}
 				{#each unmatchedReports as report (report.id)}
@@ -443,7 +452,7 @@ import { reportChannelLabel } from '../../../../core/report-channel';
 				{/each}
 			{/if}
 			{#if routeError}<p role="alert" class="dispatch-notice">{routeError}</p>{/if}
-			{#each visibleItems as item (item.id)}
+			{#each shownItems as item (item.id)}
 				<button
 					type="button"
 					class:selected={selected?.id === item.id}
@@ -464,6 +473,7 @@ import { reportChannelLabel } from '../../../../core/report-channel';
 								fallback={item.location} compact />
 						</span>
 						<span class="rescue-injury">{item.injury || 'Condition not recorded'}</span>
+                        {#if tab === 'pending' && isWaitingFourHours(item)}<span class="queue-waiting">Awaiting response 4+ hours</span>{/if}
 						<span class="source-label">{reportChannelLabel(item)}</span>
 						{#if item.assignedUserId}
 							<span class="rescue-assignment">
@@ -485,12 +495,15 @@ import { reportChannelLabel } from '../../../../core/report-channel';
 					<span>Nothing matches the current filter.</span>
 				</div>
 			{/each}
+            {#if visibleItems.length > shownItems.length}
+              <button class="queue-load-more" type="button" onclick={() => (visibleLimit += RESCUE_LIST_PAGE_SIZE)}>Show {Math.min(RESCUE_LIST_PAGE_SIZE, visibleItems.length - shownItems.length)} more</button>
+            {/if}
 		</div>
 
-		<div class="queue-footer">
-			<span><i class="pending"></i>{$data.pending.length + (userCanDispatch ? $routingExceptions.length : 0)} awaiting dispatch</span>
-			<span><i class="assigned"></i>{$data.assigned.length} assigned</span>
-		</div>
+        <div class="queue-footer">
+          <span><i class="pending"></i>{$data.pending.length} pending</span>
+          <span><i class="assigned"></i>{$data.assigned.length} assigned</span>
+        </div>
 	</aside>
 
 	{#if selected}
@@ -782,29 +795,11 @@ import { reportChannelLabel } from '../../../../core/report-channel';
 		cursor: pointer;
 	}
 
-	.queue-search {
-		margin: 0 16px;
-		height: 38px;
-		display: flex;
-		align-items: center;
-		gap: 8px;
-		padding: 0 10px;
-		border:1px solid var(--rh-t23, #dce3df);
-		border-radius: 10px;
-		background:var(--rh-t24, #f8faf9);
-		color:var(--rh-t25, #728078);
-	}
-
-	.queue-search input {
-		min-width: 0;
-		flex: 1;
-		border:0;
-		outline: 0;
-		background:transparent;
-		color:var(--rh-t7, #17211d);
-		font-size: 13px;
-	}
-
+  .queue-results { display:flex; justify-content:space-between; align-items:center; gap:6px; padding:6px 16px; color:var(--rh-muted); font-size:11px; }
+  .queue-results label { display:flex; align-items:center; gap:5px; white-space:nowrap; }
+  .queue-results select { min-width:0; max-width:110px; padding:5px 3px; border:1px solid var(--rh-border); border-radius:7px; background:var(--rh-field); color:var(--rh-text); font:inherit; font-size:11px; }
+  .queue-waiting { display:block; margin-top:4px; color:var(--rh-danger-text); font-size:11px; font-weight:700; }
+  .queue-load-more { display:block; margin:12px auto; padding:9px 14px; border:1px solid var(--rh-border); border-radius:9px; background:var(--rh-surface-soft); color:var(--rh-text); cursor:pointer; font:inherit; font-size:12px; font-weight:700; }
 	.tabs {
 		display: grid;
 		grid-template-columns: repeat(3, 1fr);
@@ -1465,7 +1460,7 @@ import { reportChannelLabel } from '../../../../core/report-channel';
 		box-shadow: var(--rh-shadow);
 	}
 	.intake > header { background: var(--rh-surface); color: var(--rh-text); }
-	.queue-footer, .queue-search, .tabs, .detail-location, .detail-status {
+	.queue-footer, .tabs, .detail-location, .detail-status {
 		background: var(--rh-surface-soft);
 	}
 	.rescue-card { color: var(--rh-text); }

@@ -1,5 +1,7 @@
 <script lang="ts">
+  import { rescueNSWDay, rescueTodayNSW, shiftRescueDay, rescueDayLabel, type RescuePeriod, type RescueOrder } from '$lib/rescue-list';
   import AdminOperatingAreas from '$lib/components/AdminOperatingAreas.svelte';
+  import AdminRescueHistoryMap from '$lib/components/AdminRescueHistoryMap.svelte';
   import type { PageData } from './$types';
   import { page } from '$app/state';
   import { goto } from '$app/navigation';
@@ -21,11 +23,36 @@
     | 'audit';
 
   type PeopleView = 'people' | 'positions' | 'clinics';
+  type RescueView = 'list' | 'map';
   let section = $state<Section>('overview');
   let peopleView = $state<PeopleView>('people');
   let peopleNavOpen = $state(true);
+  let rescueView = $state<RescueView>('list');
+  let rescueNavOpen = $state(true);
   let organisationSearch = $state('');
   let rescueSearch = $state('');
+  let rescueStatus = $state<'active' | 'all' | 'PENDING' | 'ASSIGNED' | 'COMPLETED' | 'CANCELLED'>('active');
+  let rescuePeriod = $state<RescuePeriod | 'selected_day'>('all');
+  let rescueOrder = $state<RescueOrder>('newest');
+  let rescueOrganisation = $state('all');
+  let archiveRows = $state<PageData['rescues']>([]);
+  let archiveNextToken = $state<string | null>(null);
+  let archiveHasMore = $state(false);
+  let archiveLoading = $state(false);
+  let archiveLoaded = $state(false);
+  let archiveError = $state('');
+  let archiveExamined = $state(0);
+  let archiveController: AbortController | null = null;
+  let rescueDate = $state(rescueTodayNSW());
+  let rescueMapMode = $state<'all' | 'single' | 'range'>('all');
+  let rescueRangeFrom = $state(shiftRescueDay(rescueTodayNSW(), -6));
+  let rescueRangeTo = $state(rescueTodayNSW());
+  let rescueMapExamined = $state(0);
+  let rescueDayItems = $state<PageData['rescues']>([]);
+  let rescueDayLoaded = $state(false);
+  let rescueDayLoading = $state(false);
+  let rescueDayError = $state('');
+  let rescueMapSelectedId = $state<string | null>(null);
 
   let peopleSearch = $state('');
   let positionOrganisationId = $state('');
@@ -80,15 +107,48 @@
     if (target && ['overview','organisations','rescues','regions','people','audit'].includes(target))
       section = target as Section;
     const subsection = page.url.searchParams.get('sub');
-    if (subsection && ['people','positions','clinics'].includes(subsection))
+    if (target === 'rescues' && subsection && ['list','map'].includes(subsection))
+      rescueView = subsection as RescueView;
+    if (target === 'people' && subsection && ['people','positions','clinics'].includes(subsection))
       peopleView = subsection as PeopleView;
   });
   function chooseSection(next: Section) {
     section = next;
     const url = new URL(page.url);
     url.searchParams.set('section', next);
-    if (next !== 'people') url.searchParams.delete('sub');
+    if (next === 'rescues') url.searchParams.set('sub', rescueView);
+    else if (next === 'people') url.searchParams.set('sub', peopleView);
+    else url.searchParams.delete('sub');
     void goto(url.pathname + url.search, { replaceState: true, noScroll: true, keepFocus: true, invalidateAll: false });
+  }
+  function chooseRescueView(next: RescueView) {
+    section = 'rescues';
+    rescueView = next;
+    rescueNavOpen = true;
+    const url = new URL(page.url);
+    url.searchParams.set('section', 'rescues');
+    url.searchParams.set('sub', next);
+    void goto(url.pathname + url.search, { replaceState: true, noScroll: true, keepFocus: false, invalidateAll: false });
+  }
+  function toggleRescueNavigation() {
+    if (section === 'rescues') rescueNavOpen = !rescueNavOpen;
+    else chooseRescueView(rescueView);
+  }
+  function selectRescueDate(date: string) {
+    if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(date) || !Number.isFinite(Date.parse(`${date}T12:00:00Z`))) return;
+    if (new Date(`${date}T12:00:00Z`).toISOString().slice(0, 10) !== date) return;
+    if (date > rescueTodayNSW()) return;
+    rescueDate = date;
+    rescueMapSelectedId = null;
+  }
+  function showRescueOnMap(rescue: PageData['rescues'][number]) {
+    const day = rescueNSWDay(rescue.createdAt);
+    if (!day) return;
+    selectRescueDate(day);
+    rescueMapMode = 'single';
+    rescueMapSelectedId = rescue.id;
+    if (canChooseOrganisation && rescue.organisationId) rescueOrganisation = rescue.organisationId;
+    chooseRescueView('map');
   }
   function choosePeopleView(next: PeopleView) {
     section = 'people';
@@ -170,24 +230,136 @@
     })
   );
 
-  const visibleRescues = $derived(
-    data.rescues.filter((rescue) => {
-      const query = rescueSearch.trim().toLowerCase();
-      if (!query) return true;
+  const archiveFilterKey = $derived(JSON.stringify({
+    q: rescueSearch, status: rescueStatus, period: rescuePeriod,
+    date: rescueDate, organisation: rescueOrganisation, order: rescueOrder
+  }));
+  function archiveParams(cursor?: string): URLSearchParams {
+    const params = new URLSearchParams({
+      q: rescueSearch, status: rescueStatus, period: rescuePeriod,
+      date: rescueDate, organisation: rescueOrganisation, order: rescueOrder
+    });
+    if (cursor) params.set('cursor', cursor);
+    return params;
+  }
+  async function fetchArchivePage(controller: AbortController, reset: boolean): Promise<void> {
+    if (archiveLoading && !reset) return;
+    archiveLoading = true;
+    archiveError = '';
+    try {
+      const params = archiveParams(reset ? undefined : archiveNextToken ?? undefined);
+      const response = await fetch(`/api/admin/rescues/search?${params.toString()}`, {
+        signal: controller.signal, cache: 'no-store'
+      });
+      const payload = await response.json() as {
+        items?: PageData['rescues'];
+        nextToken?: string | null;
+        hasMore?: boolean;
+        examined?: number;
+        error?: string;
+      };
+      if (!response.ok) throw new Error(payload.error ?? `Archive search HTTP ${response.status}`);
+      if (controller.signal.aborted) return;
+      const nextItems = payload.items ?? [];
+      archiveRows = reset ? nextItems : [...archiveRows, ...nextItems];
+      archiveExamined = reset ? (payload.examined ?? 0) : archiveExamined + (payload.examined ?? 0);
+      archiveNextToken = payload.nextToken ?? null;
+      archiveHasMore = Boolean(payload.hasMore && payload.nextToken);
+      archiveLoaded = true;
+    } catch (error) {
+      if (!controller.signal.aborted) archiveError = error instanceof Error ? error.message : 'Archive search failed';
+    } finally {
+      if (!controller.signal.aborted) archiveLoading = false;
+    }
+  }
+  $effect(() => {
+    // The archive API, not the browser or the operational 200-row snapshot,
+    // owns all filtering and continuation through historical cases.
+    if (section !== 'rescues' || rescueView !== 'list') return;
+    archiveFilterKey;
+    archiveController?.abort();
+    const controller = new AbortController();
+    archiveController = controller;
+    archiveRows = [];
+    archiveNextToken = null;
+    archiveHasMore = false;
+    archiveLoaded = false;
+    archiveLoading = false;
+    archiveError = '';
+    archiveExamined = 0;
+    const timer = setTimeout(() => void fetchArchivePage(controller, true), rescueSearch.trim() ? 280 : 0);
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+      if (archiveController === controller) archiveController = null;
+    };
+  });
+  function loadMoreArchive() {
+    if (!archiveController || archiveLoading || !archiveHasMore) return;
+    void fetchArchivePage(archiveController, false);
+  }
+  // The map has its own complete paginated archive query; List search remains
+  // unchanged. Each filter change cancels any previous in-flight map request.
+  $effect(() => {
+    if (section !== 'rescues' || rescueView !== 'map') return;
+    const mode = rescueMapMode;
+    const day = rescueDate;
+    const from = rescueRangeFrom;
+    const to = rescueRangeTo;
+    const organisation = rescueOrganisation;
+    const controller = new AbortController();
+    rescueDayLoading = true;
+    rescueDayLoaded = false;
+    rescueDayError = '';
+    rescueDayItems = [];
+    rescueMapExamined = 0;
 
-      return [
-        rescue.type,
-        rescue.breed ?? '',
-        rescue.location ?? '',
-        rescue.status,
-        rescue.assignedUserId ?? '',
-        assignedRescuerName(rescue.assignedUserId)
-      ]
-        .join(' ')
-        .toLowerCase()
-        .includes(query);
-    })
-  );
+    if (mode === 'range' && (from > to || to > rescueTodayNSW())) {
+      rescueDayLoading = false;
+      rescueDayError = 'The date range must start on or before its end, and cannot extend into the future.';
+      return () => controller.abort();
+    }
+    void (async () => {
+      let cursor: string | null = null;
+      const seenCursors = new Set<string>();
+      const collected = new Map<string, PageData['rescues'][number]>();
+      do {
+        const params = new URLSearchParams({
+          period: mode === 'all' ? 'all' : mode === 'single' ? 'selected_day' : 'range',
+          organisation,
+          date: day,
+          from,
+          to
+        });
+        if (cursor) params.set('cursor', cursor);
+        const response = await fetch(`/api/admin/rescues/map?${params.toString()}`, {
+          cache: 'no-store', signal: controller.signal
+        });
+        const payload = await response.json() as {
+          items?: PageData['rescues'];
+          examined?: number;
+          nextToken?: string | null;
+          hasMore?: boolean;
+          error?: string;
+        };
+        if (!response.ok) throw new Error(payload.error || `Map archive HTTP ${response.status}`);
+        if (controller.signal.aborted) return;
+        for (const record of payload.items ?? []) collected.set(record.id, record);
+        rescueDayItems = [...collected.values()];
+        rescueMapExamined += payload.examined ?? 0;
+        const next = payload.hasMore ? payload.nextToken ?? null : null;
+        if (next && seenCursors.has(next)) throw new Error('Archive continuation repeated unexpectedly');
+        if (next) seenCursors.add(next);
+        cursor = next;
+      } while (cursor && !controller.signal.aborted);
+      if (!controller.signal.aborted) rescueDayLoaded = true;
+    })().catch(error => {
+      if (!controller.signal.aborted) rescueDayError = error instanceof Error ? error.message : 'Unable to load rescue map';
+    }).finally(() => {
+      if (!controller.signal.aborted) rescueDayLoading = false;
+    });
+    return () => controller.abort();
+  });
 
   const navigation: Array<{ id: Section; label: string; short: string }> = [
     { id: 'overview', label: 'Overview', short: 'OV' },
@@ -233,7 +405,8 @@
   const formatDate = (value: string) =>
     new Intl.DateTimeFormat('en-AU', {
       dateStyle: 'medium',
-      timeStyle: 'short'
+      timeStyle: 'short',
+      timeZone: 'Australia/Sydney'
     }).format(new Date(value));
 </script>
 
@@ -258,15 +431,24 @@
         <button
           class:active={section === item.id}
           type="button"
-          aria-expanded={item.id === 'people' ? section === 'people' && peopleNavOpen : undefined}
-          onclick={() => item.id === 'people' ? togglePeopleNavigation() : chooseSection(item.id)}
+          aria-expanded={item.id === 'people' ? section === 'people' && peopleNavOpen : item.id === 'rescues' ? section === 'rescues' && rescueNavOpen : undefined}
+          onclick={() => item.id === 'people' ? togglePeopleNavigation() : item.id === 'rescues' ? toggleRescueNavigation() : chooseSection(item.id)}
         >
           <span class="nav-icon">{item.short}</span>
           <span>{item.label}</span>
-          {#if item.id === 'people'}
-            <span class="people-caret" aria-hidden="true">{section === 'people' && peopleNavOpen ? '▾' : '▸'}</span>
+          {#if item.id === 'people' || item.id === 'rescues'}
+            <span class="people-caret" aria-hidden="true">{section === item.id && (item.id === 'rescues' ? rescueNavOpen : peopleNavOpen) ? '▾' : '▸'}</span>
           {/if}
         </button>
+        {#if item.id === 'rescues' && section === 'rescues' && rescueNavOpen}
+          <div class="people-subnav" role="group" aria-label="Rescue administration views">
+            {#each [{ id: 'list', label: 'List' }, { id: 'map', label: 'Map' }] as child}
+              <button type="button" class:active={rescueView === child.id}
+                aria-current={rescueView === child.id ? 'page' : undefined}
+                onclick={() => chooseRescueView(child.id as RescueView)}>{child.label}</button>
+            {/each}
+          </div>
+        {/if}
         {#if item.id === 'people' && section === 'people' && peopleNavOpen}
           <div class="people-subnav" role="group" aria-label="People and access sections">
             {#each [
@@ -488,51 +670,133 @@
       </section>
     {:else if section === 'rescues'}
       <section class="panel page-panel">
-        <div class="panel-heading table-heading">
-          <div>
-            <p class="eyebrow">Operational register</p>
-            <h2>Wildlife rescues</h2>
-            <p class="intro">All rescue activity visible to the governing NSW administration role.</p>
+        {#if rescueView === 'map'}
+          <div class="panel-heading table-heading">
+            <div>
+              <p class="eyebrow">Historical rescue map</p>
+              <h2>Rescue locations</h2>
+              <p class="intro">Explore every rescue location, or filter by an NSW calendar day or date range. Completed cases stay in the historical map.</p>
+            </div>
           </div>
-          <label class="search">
-            <span>Search rescues</span>
-            <input bind:value={rescueSearch} placeholder="Animal, location or status…" />
-          </label>
-        </div>
-
-        {#if visibleRescues.length}
-          <div class="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Animal</th>
-                  <th>Location</th>
-                  <th>Status</th>
-                  <th>Assigned</th>
-                  <th>Updated</th>
-                </tr>
-              </thead>
-              <tbody>
-                {#each visibleRescues as rescue}
-                  <tr>
-                    <td>
-                      <strong>{rescue.type}</strong>
-                      {#if rescue.breed}<span>{rescue.breed}</span>{/if}
-                    </td>
-                    <td>{rescue.location || 'Location not recorded'}</td>
-                    <td><span class="rescue-status status-{rescue.status.toLowerCase()}">{statusLabel(rescue.status)}</span></td>
-                    <td>{assignedRescuerName(rescue.assignedUserId)}</td>
-                    <td>{formatDate(rescue.updatedAt)}</td>
-                  </tr>
-                {/each}
-              </tbody>
-            </table>
+          <div class="rescue-map-toolbar">
+            <label><span>Map history</span>
+              <select bind:value={rescueMapMode} aria-label="Rescue map date filter">
+                <option value="all">All rescues · any dates</option>
+                <option value="single">Specific day</option>
+                <option value="range">Date range</option>
+              </select>
+            </label>
+            {#if rescueMapMode === 'single'}
+              <button type="button" aria-label="Previous day" onclick={() => selectRescueDate(shiftRescueDay(rescueDate, -1))}>Previous</button>
+              <label><span>Report date · NSW</span>
+                <input type="date" value={rescueDate} max={rescueTodayNSW()}
+                  onchange={(event) => selectRescueDate(event.currentTarget.value)} />
+              </label>
+              <button type="button" aria-label="Next day" disabled={rescueDate >= rescueTodayNSW()}
+                onclick={() => selectRescueDate(shiftRescueDay(rescueDate, 1))}>Next</button>
+              <button type="button" onclick={() => selectRescueDate(rescueTodayNSW())}>Today</button>
+            {:else if rescueMapMode === 'range'}
+              <label><span>From · NSW</span><input type="date" bind:value={rescueRangeFrom} max={rescueTodayNSW()} /></label>
+              <label><span>To · NSW</span><input type="date" bind:value={rescueRangeTo} max={rescueTodayNSW()} /></label>
+            {/if}
+            {#if canChooseOrganisation}
+              <label><span>Organisation</span>
+                <select bind:value={rescueOrganisation}>
+                  <option value="all">All organisations</option>
+                  {#each data.organisations as organisation (organisation.id)}
+                    <option value={organisation.id}>{organisation.displayName}</option>
+                  {/each}
+                </select>
+              </label>
+            {/if}
           </div>
+          <p class="rescue-map-date" role="status" aria-live="polite">
+            {rescueMapMode === 'all' ? 'All dates' : rescueMapMode === 'single' ? rescueDayLabel(rescueDate) : `${rescueRangeFrom} to ${rescueRangeTo}`}
+            · {rescueDayItems.length} rescues loaded
+            {rescueDayLoading ? ` · loading more locations (${rescueMapExamined} records examined)…` : ''}
+            {rescueDayLoaded ? ' · archive loaded' : ''}
+          </p>
+          {#if rescueDayError}
+            <p class="rescue-day-error" role="alert">Historical map loading issue: {rescueDayError}</p>
+          {/if}
+          <AdminRescueHistoryMap rescues={rescueDayItems}
+            selectedId={rescueMapSelectedId}
+            onSelect={(id) => (rescueMapSelectedId = id)} />
         {:else}
-          <div class="empty-state large">
-            <strong>No rescue records yet</strong>
-            <span>New rescue reports will appear here as they are created.</span>
+        <div class="panel-heading table-heading">
+          <div><p class="eyebrow">Operational register</p><h2>Wildlife rescues</h2>
+            <p class="intro">Search active and historical rescue records by status, organisation and report date.</p>
           </div>
+        </div>
+        <div class="rescue-register-toolbar">
+          <label class="search"><span>Search rescues</span><input bind:value={rescueSearch} placeholder="Case ID, animal, suburb, responder…" /></label>
+          <label><span>Status</span><select bind:value={rescueStatus}>
+            <option value="active">Active rescues</option><option value="all">All statuses</option>
+            <option value="PENDING">Pending</option><option value="ASSIGNED">Assigned</option>
+            <option value="COMPLETED">Completed</option><option value="CANCELLED">Cancelled</option>
+          </select></label>
+          <label><span>Reported</span><select bind:value={rescuePeriod}>
+            <option value="all">Any date</option><option value="today">Today</option>
+            <option value="seven_days">Last 7 days</option><option value="older">Older than 7 days</option>
+            <option value="selected_day">Specific calendar day</option>
+          </select></label>
+          {#if canChooseOrganisation}
+            <label><span>Organisation</span><select bind:value={rescueOrganisation}>
+              <option value="all">All organisations</option>
+              {#each data.organisations as organisation (organisation.id)}
+                <option value={organisation.id}>{organisation.displayName}</option>
+              {/each}
+            </select></label>
+          {/if}
+          {#if rescuePeriod === 'selected_day'}
+            <label><span>NSW report date</span>
+              <input type="date" value={rescueDate} max={rescueTodayNSW()}
+                onchange={(event) => selectRescueDate(event.currentTarget.value)} />
+            </label>
+          {/if}
+          <label><span>Sort</span><select bind:value={rescueOrder}>
+            <option value="newest">Newest first</option><option value="oldest">Oldest first</option>
+          </select></label>
+        </div>
+        <p class="rescue-register-count" role="status">
+          {#if archiveLoading && !archiveLoaded}Searching rescue history…
+          {:else if archiveHasMore}Showing {archiveRows.length} matching rescues so far · more history available
+          {:else if archiveLoaded}Found {archiveRows.length} matching rescues across the entire selected archive
+          {:else}Search pending{/if}
+        </p>
+        {#if archiveError}
+          <p class="rescue-day-error" role="alert">{archiveError}</p>
+        {/if}
+        {#if archiveRows.length}
+          <div class="table-wrap"><table>
+            <thead><tr><th>Animal / Case</th><th>Location</th><th>Status</th><th>Assigned</th><th>Reported</th><th>Updated</th><th>Map</th></tr></thead>
+            <tbody>
+              {#each archiveRows as rescue (rescue.id)}
+                <tr>
+                  <td><strong>{rescue.type}</strong>
+                    {#if rescue.breed}<span>{rescue.breed}</span>{/if}
+                    <span title={rescue.id}>#{rescue.id.length > 18 ? rescue.id.slice(-12) : rescue.id}</span>
+                  </td>
+                  <td>{rescue.location || 'Location not recorded'}</td>
+                  <td><span class="rescue-status status-{rescue.status.toLowerCase()}">{statusLabel(rescue.status)}</span></td>
+                  <td>{assignedRescuerName(rescue.assignedUserId)}</td>
+                  <td>{formatDate(rescue.createdAt)}</td><td>{formatDate(rescue.updatedAt)}</td>
+                  <td><button type="button" class="rescue-view-map" onclick={() => showRescueOnMap(rescue)}>View pin</button></td>
+                </tr>
+              {/each}
+            </tbody>
+          </table></div>
+        {:else if archiveLoaded && !archiveHasMore}
+          <div class="empty-state large"><strong>No matching rescues</strong><span>Try changing the search or filters.</span></div>
+        {/if}
+        {#if archiveHasMore}
+          <div class="rescue-register-pagination">
+            <button type="button" disabled={archiveLoading} onclick={loadMoreArchive}>
+              {archiveLoading ? 'Searching more records…' : archiveRows.length ? 'Load 25 more matches' : 'Continue searching history'}
+            </button>
+            <span>{archiveExamined} archive records examined in this search</span>
+          </div>
+        {/if}
         {/if}
       </section>
     {:else if section === 'regions'}
@@ -1453,6 +1717,24 @@
     box-shadow: 0 0 0 3px rgba(110, 148, 126, 0.12);
   }
 
+  .rescue-view-map { padding:7px 9px; border:1px solid var(--rh-border); border-radius:8px; background:var(--rh-surface-soft); color:var(--rh-text); font:inherit; font-size:12px; font-weight:750; cursor:pointer; white-space:nowrap; }
+  .rescue-view-map:hover { border-color:var(--rh-border-strong); background:var(--rh-raised); }
+  .rescue-map-toolbar { display:flex; flex-wrap:wrap; align-items:end; gap:10px; margin-top:18px; }
+  .rescue-map-toolbar label { display:grid; gap:5px; flex:0 1 230px; min-width:170px; color:var(--rh-muted); font-size:12px; font-weight:750; }
+  .rescue-map-toolbar button { min-height:38px; padding:8px 12px; border:1px solid var(--rh-border); border-radius:9px; background:var(--rh-surface-soft); color:var(--rh-text); cursor:pointer; font:inherit; font-size:12px; font-weight:750; }
+  .rescue-map-toolbar button:disabled { opacity:.45; cursor:not-allowed; }
+  .rescue-map-toolbar input, .rescue-map-toolbar select, .rescue-register-toolbar input[type=date] { min-height:38px; padding:8px 10px; border:1px solid var(--rh-border); border-radius:9px; background:var(--rh-field); color:var(--rh-text); font:inherit; font-size:13px; }
+  .rescue-map-date { margin:14px 0 0; color:var(--rh-muted); font-size:13px; }
+  .rescue-day-error { margin:12px 0; color:var(--rh-danger-text); font-size:13px; }
+  .rescue-map-placeholder { margin-top:18px; display:grid; place-items:center; min-height:300px; border:1px dashed var(--rh-border); border-radius:12px; color:var(--rh-muted); font-size:14px; }
+  .rescue-register-toolbar { display:flex; align-items:end; flex-wrap:wrap; gap:10px; margin:18px 0 12px; }
+  .rescue-register-toolbar > label { display:grid; gap:5px; min-width:135px; color:var(--rh-muted); font-size:12px; font-weight:700; }
+  .rescue-register-toolbar > label.search { flex:2 1 240px; min-width:190px; }
+  .rescue-register-toolbar select { min-height:38px; padding:8px; border:1px solid var(--rh-border); border-radius:9px; background:var(--rh-field); color:var(--rh-text); font:inherit; font-size:13px; }
+  .rescue-register-count { color:var(--rh-muted); font-size:13px; }
+  .rescue-register-pagination { display:flex; gap:14px; justify-content:center; align-items:center; padding:16px; font-size:13px; color:var(--rh-muted); }
+  .rescue-register-pagination button { padding:8px 12px; border:1px solid var(--rh-border); border-radius:8px; background:var(--rh-surface-soft); color:var(--rh-text); cursor:pointer; }
+  .rescue-register-pagination button:disabled { opacity:.45; cursor:not-allowed; }
   .table-wrap {
     overflow-x: auto;
   }

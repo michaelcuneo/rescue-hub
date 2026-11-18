@@ -3,6 +3,7 @@ import { listAdminRescues } from '$lib/server/admin-data';
 import { getHunterDemo, HUNTER_DEMO_ORGANISATION } from '$lib/server/demo';
 import type { RequestHandler } from './$types';
 import { canSeeDesktopRescue } from '../../../../../../core/desktop-dispatch-access';
+import { completedOnNSWDay, rescueTodayNSW } from '$lib/rescue-list';
 import { classifyDispatchCapability, getOrganisationMembershipConfig, memberCanReceiveCapability } from '$lib/server/membership';
 import { listPendingRoutingExceptions } from '$lib/server/pending-routing-exceptions';
 
@@ -25,8 +26,9 @@ export const GET: RequestHandler = async ({ locals, cookies }) => {
   ]);
   return json({
     routingExceptions,
-    items: rescues.filter(rescue => canSeeDesktopRescue(
-      viewer, rescue,
+    items: rescues.filter(rescue =>
+      (rescue.status !== 'COMPLETED' || completedOnNSWDay(rescue, rescueTodayNSW())) &&
+      canSeeDesktopRescue(viewer, rescue,
       memberCanReceiveCapability(
         viewer.teamIds, membership,
         classifyDispatchCapability(rescue.type, rescue.breed ?? '')

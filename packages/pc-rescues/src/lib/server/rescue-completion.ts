@@ -43,7 +43,7 @@ export async function completeRescueIfAllAnimalsFinal(
     await db.send(new TransactWriteCommand({ TransactItems: [
       { Update: {
         TableName: table, Key: { pk: `RESCUE#${rescueId}`, sk: 'META' },
-        UpdateExpression: 'SET #status = :completed, gsi1pk = :index, updatedAt = :now',
+        UpdateExpression: 'SET #status = :completed, gsi1pk = :index, updatedAt = :now, completedAt = :now',
         ConditionExpression: 'organisationId = :org AND #status = :previous AND (attribute_not_exists(animalCount) OR animalCount = :count)',
         ExpressionAttributeNames: { '#status': 'status' },
         ExpressionAttributeValues: {

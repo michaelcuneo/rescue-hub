@@ -5,6 +5,7 @@ import {
 	UpdateCommand
 } from '@aws-sdk/lib-dynamodb';
 import { Resource } from 'sst';
+import { rescueNSWDay, rescueTodayNSW } from '$lib/rescue-list';
 import type {
 	OrganisationDirectoryEntry,
 	Rescue
@@ -57,10 +58,44 @@ export async function listAdminOrganisations(): Promise<OrganisationDirectoryEnt
 	}));
 }
 
+/**
+ * Always read every operational case, even when there are thousands of newer
+ * closed cases. Historical cases remain bounded here until the dedicated
+ * paginated register endpoint is added; never silently omit active work.
+ */
 export async function listAdminRescues(): Promise<Rescue[]> {
-	const items = await queryIndex('RESCUES', 200);
+  const currentDay = rescueTodayNSW();
+  const indexedStatuses = ['PENDING', 'ASSIGNED', 'COMPLETED'];
+  const statusPages = await Promise.all(indexedStatuses.map(async status => {
+    const items: Record<string, any>[] = [];
+    let cursor: Record<string, any> | undefined;
+    do {
+      const result = await db.send(new QueryCommand({
+        TableName: tableName,
+        IndexName: 'gsi1',
+        KeyConditionExpression: 'gsi1pk = :status',
+        ExpressionAttributeValues: { ':status': `STATUS#${status}` },
+        ScanIndexForward: false,
+        ExclusiveStartKey: cursor
+      }));
+      for (const item of result.Items ?? []) {
+        if (status !== 'COMPLETED' ||
+            rescueNSWDay(item.completedAt ?? item.updatedAt) === currentDay) items.push(item);
+      }
+      cursor = result.LastEvaluatedKey;
+    } while (cursor);
+    return items;
+  }));
+  // Keep recent history for administrative overview metrics only. The
+  // searchable register has its own complete cursor-based archive endpoint.
+  const recentHistory = await queryIndex('RESCUES', 200);
+  const combined = [...statusPages.flat(), ...recentHistory];
+  const items = [...new Map(combined.map(item => [String(item.id), item])).values()];
+  return mapRescueItems(items);
+}
 
-	return items.map((item) => ({
+export function mapRescueItems(items: Record<string, any>[]): Rescue[] {
+  return items.map((item) => ({
 		id: String(item.id),
 		organisationId: item.organisationId ? String(item.organisationId) : null,
 		type: String(item.type),
@@ -74,12 +109,65 @@ export async function listAdminRescues(): Promise<Rescue[]> {
 		intakeSource: item.intakeSource ? String(item.intakeSource) as Rescue['intakeSource'] : null,
 		assignedUserId: item.assignedUserId ? String(item.assignedUserId) : null,
     pickedUpAt: item.pickedUpAt ? String(item.pickedUpAt) : null,
+    completedAt: item.completedAt ? String(item.completedAt) : null,
     awaitingCarer: Boolean(item.awaitingCarer),
     transportAnimalId: item.transportAnimalId ? String(item.transportAnimalId) : null,
     transportSourceRescueId: item.transportSourceRescueId ? String(item.transportSourceRescueId) : null,
 		createdAt: String(item.createdAt),
 		updatedAt: String(item.updatedAt)
 	}));
+}
+
+/**
+ * A Sydney dispatch calendar day spans either 23, 24 or 25 hours when DST
+ * switches. Calculate both boundaries independently so the historical query
+ * includes every event on that local day.
+ */
+export function sydneyMidnightUtc(day: string): string {
+  const [year, month, date] = day.split('-').map(Number);
+  // Previous-day UTC noon is 22:00/23:00 Sydney, before any 02:00 DST change.
+  const noon = new Date(Date.UTC(year, month - 1, date - 1, 12));
+  const zoneLabel = new Intl.DateTimeFormat('en-AU', {
+    timeZone: 'Australia/Sydney', timeZoneName: 'longOffset'
+  }).formatToParts(noon).find(part => part.type === 'timeZoneName')?.value ?? '';
+  const match = /^GMT([+-])(\d{2}):(\d{2})$/.exec(zoneLabel);
+  if (!match) throw new Error('Cannot determine Sydney UTC offset');
+  const offset = (match[1] === '+' ? 1 : -1) * (Number(match[2]) * 60 + Number(match[3]));
+  return new Date(Date.UTC(year, month - 1, date) - offset * 60_000).toISOString();
+}
+
+export async function listRescuesForNSWDay(day: string): Promise<Rescue[]> {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day) ||
+      new Date(`${day}T12:00:00Z`).toISOString().slice(0, 10) !== day) {
+    throw new Error('Invalid NSW dispatch date');
+  }
+  const nextDate = new Date(`${day}T12:00:00Z`);
+  nextDate.setUTCDate(nextDate.getUTCDate() + 1);
+  const following = nextDate.toISOString().slice(0, 10);
+  const startUtc = sydneyMidnightUtc(day);
+  const endUtc = sydneyMidnightUtc(following);
+  const rows: Record<string, any>[] = [];
+  let cursor: Record<string, any> | undefined;
+  do {
+    const result = await db.send(new QueryCommand({
+      TableName: tableName,
+      IndexName: 'gsi2',
+      KeyConditionExpression: 'gsi2pk = :pk AND gsi2sk BETWEEN :start AND :end',
+      ExpressionAttributeValues: {
+        ':pk': 'RESCUES',
+        ':start': `${startUtc}#`,
+        ':end': `${endUtc}#`
+      },
+      ScanIndexForward: false,
+      ExclusiveStartKey: cursor
+    }));
+    rows.push(...(result.Items ?? []));
+    cursor = result.LastEvaluatedKey;
+  } while (cursor);
+  // The upper bound is exclusive in calendar terms.
+  return mapRescueItems(rows.filter(row =>
+    typeof row.createdAt === 'string' && row.createdAt >= startUtc && row.createdAt < endUtc
+  ));
 }
 
 export async function listAdminAuditEvents(): Promise<AuditEvent[]> {

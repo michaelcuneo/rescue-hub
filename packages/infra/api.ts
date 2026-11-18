@@ -68,8 +68,9 @@ api.addResolver("Mutation createRescue", {
 
 api.addResolver("Mutation updateRescueStatus", {
   dataSource: dynamo.name,
-  requestTemplate: `#set($input=$ctx.args.input)#set($now=$util.time.nowISO8601())
-{"version":"2018-05-29","operation":"UpdateItem","key":{"pk":$util.dynamodb.toDynamoDBJson("RESCUE#$input.id"),"sk":$util.dynamodb.toDynamoDBJson("META")},"update":{"expression":"SET #status = :status, #gsi1pk = :gsi1pk, #updatedAt = :updatedAt","expressionNames":{"#status":"status","#gsi1pk":"gsi1pk","#updatedAt":"updatedAt"},"expressionValues":{":status":$util.dynamodb.toDynamoDBJson($input.status),":gsi1pk":$util.dynamodb.toDynamoDBJson("STATUS#$input.status"),":updatedAt":$util.dynamodb.toDynamoDBJson($now)}},"condition":{"expression":"attribute_exists(pk)"}}`,
+  requestTemplate: `#set($input=$ctx.args.input)#set($now=$util.time.nowISO8601())#set($completedSet = "")
+#if($input.status == "COMPLETED")#set($completedSet = ", completedAt = :updatedAt")#end
+{"version":"2018-05-29","operation":"UpdateItem","key":{"pk":$util.dynamodb.toDynamoDBJson("RESCUE#$input.id"),"sk":$util.dynamodb.toDynamoDBJson("META")},"update":{"expression":"SET #status = :status, #gsi1pk = :gsi1pk, #updatedAt = :updatedAt$completedSet","expressionNames":{"#status":"status","#gsi1pk":"gsi1pk","#updatedAt":"updatedAt"},"expressionValues":{":status":$util.dynamodb.toDynamoDBJson($input.status),":gsi1pk":$util.dynamodb.toDynamoDBJson("STATUS#$input.status"),":updatedAt":$util.dynamodb.toDynamoDBJson($now)}},"condition":{"expression":"attribute_exists(pk)"}}`,
   responseTemplate: `$util.toJson($ctx.result)`,
 });
 
