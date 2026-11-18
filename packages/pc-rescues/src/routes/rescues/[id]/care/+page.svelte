@@ -75,7 +75,7 @@
   let releasePoint = $state<{ latitude: number; longitude: number } | null>(null);
   let releaseLabel = $state('');
   let releaseMapOpen = $state(false);
-  const incidentPoint = { latitude: data.rescue.latitude, longitude: data.rescue.longitude };
+  const incidentPoint = $derived({ latitude: data.rescue.latitude, longitude: data.rescue.longitude });
   function selectOriginalRelease() {
     if (!isValidReleasePoint(incidentPoint)) return;
     releaseReason = 'ORIGINAL_SITE';
