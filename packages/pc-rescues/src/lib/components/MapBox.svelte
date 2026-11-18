@@ -2,7 +2,8 @@
   import {
     OPERATING_AREA_FILL_OPACITY,
     OPERATING_AREA_LINE_OPACITY,
-    OPERATING_AREA_LINE_WIDTH
+    OPERATING_AREA_LINE_WIDTH,
+    OPERATING_AREA_LABEL_PAINT
   } from '../../../../core/operating-area-visual';
   import { onMount } from 'svelte';
   import { get } from 'svelte/store';
@@ -317,11 +318,7 @@
         'text-max-width': 16,
         'text-allow-overlap': false
       },
-      paint: {
-        'text-color': '#173d2c',
-        'text-halo-color': '#ffffff',
-        'text-halo-width': 1.5
-      }
+      paint: OPERATING_AREA_LABEL_PAINT
     }, before);
   }
 

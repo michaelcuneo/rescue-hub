@@ -18,3 +18,17 @@ export const OPERATING_AREA_LINE_OPACITY = [
 export const OPERATING_AREA_LINE_WIDTH = [
   'case', HUNTER, 1.4, 0.85
 ] as const;
+
+/**
+ * Organisation names are background context, not rescue labels.
+ * Pale off-white glyphs, reduced opacity, and a diffuse charcoal halo read
+ * as a soft drop shadow instead of black type with a stark white outline.
+ * These Mapbox Style paint properties also work in MapLibre.
+ */
+export const OPERATING_AREA_LABEL_PAINT = {
+  'text-color': '#edf4f6',
+  'text-opacity': 0.64,
+  'text-halo-color': 'rgba(12,20,26,0.50)',
+  'text-halo-width': 1.1,
+  'text-halo-blur': 1.3
+} as const;

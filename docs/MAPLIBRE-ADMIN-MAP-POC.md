@@ -288,3 +288,15 @@ unaffected; visibility is a rendering choice only.
 Mobile Expo/Mapbox map paint settings have **not** been changed. Validate
 light and dark desktop basemaps visually after deploying, especially where
 different organisations overlap and where maps have dense animal pins.
+
+
+## Quiet operating-area names
+
+The organisation/region labels on all three desktop maps now share
+`OPERATING_AREA_LABEL_PAINT` from `core/operating-area-visual.ts`.
+They use translucent off-white lettering (64% opacity) and a soft,
+blurred charcoal halo rather than black text with a hard white outline.
+The shadow helps the same labels remain identifiable on the light
+Positron basemap as well as the dark MapLibre basemap. These are
+background labels only: animal and rescue-pin labels are unaffected.
+The MapLibre and Mapbox renderers both support these style properties.
