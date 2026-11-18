@@ -59,6 +59,41 @@
   let journey = $state<Journey | null>(null);
   let journeyLoading = $state(false);
   let journeyError = $state('');
+  let mapFocus = $state<'reported' | 'release' | 'both'>('reported');
+  let focusedReleaseAnimalId = $state<string | null>(null);
+  const statusCounts = $derived({
+    pending: rescues.filter(item => item.status === 'PENDING').length,
+    assigned: rescues.filter(item => item.status === 'ASSIGNED').length,
+    completed: rescues.filter(item => item.status === 'COMPLETED').length
+  });
+  const releaseChoices = $derived.by(() => {
+    if (!selected) return [] as Array<{ animalId: string; point: { latitude: number; longitude: number }; name: string }>;
+    const choices: Array<{ animalId: string; point: { latitude: number; longitude: number }; name: string }> = [];
+    const seen = new Set<string>();
+    const add = (id: string, latitude: number, longitude: number, name: string) => {
+      if (!Number.isFinite(latitude) || !Number.isFinite(longitude) || Math.abs(latitude) > 90 ||
+        Math.abs(longitude) > 180 || (latitude === 0 && longitude === 0)) return;
+      const key = id + ':' + latitude + ':' + longitude;
+      if (seen.has(key)) return;
+      seen.add(key);
+      choices.push({ animalId: id, point: { latitude, longitude }, name });
+    };
+    for (const site of selected.releaseSites ?? []) {
+      add(site.animalId, site.latitude, site.longitude, site.location || 'Wildlife release site');
+    }
+    if (typeof selected.historicalReleaseLatitude === 'number' &&
+      typeof selected.historicalReleaseLongitude === 'number') {
+      add('historical', selected.historicalReleaseLatitude, selected.historicalReleaseLongitude,
+        selected.historicalReleaseLocation ?? 'Synthetic release site');
+    }
+    if (journey?.rescueId === selected.id) {
+      for (const animal of journey.animals) if (animal.releasePoint) {
+        add(animal.id, animal.releasePoint.latitude, animal.releasePoint.longitude,
+          animal.releaseLocation ?? animal.species + ' release site');
+      }
+    }
+    return choices;
+  });
   const mappedRescues = $derived(focusedRescue && focusedRescue.id === selectedId && !rescues.some(item => item.id === focusedRescue.id)
     ? [focusedRescue, ...rescues] : rescues);
   const pins = $derived(mappedRescues.filter(item =>
@@ -118,24 +153,33 @@
     return featureCollection;
   }
   function relocationGeoJSON(): any {
-    return {
-      type: 'FeatureCollection',
-      features: pins.filter(item =>
-        item.historicalOutcome === 'RELEASED' &&
-        item.historicalReleaseReason === 'RELOCATION' &&
+    const features: Array<{ type: 'Feature'; properties: { id: string; animalId: string; releaseSite: string };
+      geometry: { type: 'Point'; coordinates: number[] } }> = [];
+    const seen = new Set<string>();
+    for (const item of pins) {
+      const add = (animalId: string, lat: number, lon: number, label: string) => {
+        if (!Number.isFinite(lat) || !Number.isFinite(lon) || Math.abs(lat) > 90 ||
+          Math.abs(lon) > 180 || (lat === 0 && lon === 0)) return;
+        // Returning an animal to the original rescue site is represented by
+        // the existing rescue pin. Do not hide or replace that rescue pin.
+        if (lat === item.latitude && lon === item.longitude) return;
+        const key = item.id + ':' + animalId + ':' + lat + ':' + lon;
+        if (seen.has(key)) return;
+        seen.add(key);
+        features.push({ type: 'Feature', properties: { id: item.id, animalId, releaseSite: label },
+          geometry: { type: 'Point', coordinates: [lon, lat] } });
+      };
+      for (const site of item.releaseSites ?? []) {
+        add(site.animalId, site.latitude, site.longitude, site.location ?? 'Wildlife release');
+      }
+      if (item.historicalOutcome === 'RELEASED' &&
         typeof item.historicalReleaseLatitude === 'number' &&
-        typeof item.historicalReleaseLongitude === 'number' &&
-        Number.isFinite(item.historicalReleaseLatitude) &&
-        Number.isFinite(item.historicalReleaseLongitude)
-      ).map(item => ({
-        type: 'Feature',
-        properties: { id: item.id, type: item.type, releaseSite: item.historicalReleaseLocation ?? '' },
-        geometry: {
-          type: 'Point',
-          coordinates: [item.historicalReleaseLongitude, item.historicalReleaseLatitude]
-        }
-      }))
-    };
+        typeof item.historicalReleaseLongitude === 'number') {
+        add('historical', item.historicalReleaseLatitude, item.historicalReleaseLongitude,
+          item.historicalReleaseLocation ?? 'Synthetic release');
+      }
+    }
+    return { type: 'FeatureCollection', features };
   }
   function updatePins() {
     const map = getMap();
@@ -410,14 +454,33 @@
       if (!selectedId) fitAll();
     }
   });
+  function focusLocation(mode: 'reported' | 'release' | 'both', animalId?: string) {
+    mapFocus = mode;
+    if (animalId) focusedReleaseAnimalId = animalId;
+    const map = getMap();
+    const rescue = selected;
+    if (!mapReady || !map || !rescue) return;
+    const release = releaseChoices.find(point => point.animalId === focusedReleaseAnimalId) ?? releaseChoices[0];
+    if (mode === 'reported' || !release) {
+      map.flyTo({ center: [rescue.longitude, rescue.latitude], zoom: Math.max(map.getZoom?.() ?? 8, 13), duration: 450 });
+    } else if (mode === 'release') {
+      map.flyTo({ center: [release.point.longitude, release.point.latitude], zoom: Math.max(map.getZoom?.() ?? 8, 13), duration: 450 });
+    } else {
+      const west = Math.min(rescue.longitude, release.point.longitude);
+      const east = Math.max(rescue.longitude, release.point.longitude);
+      const south = Math.min(rescue.latitude, release.point.latitude);
+      const north = Math.max(rescue.latitude, release.point.latitude);
+      if (west === east && south === north) {
+        map.flyTo({ center: [rescue.longitude, rescue.latitude], zoom: 13, duration: 450 });
+      } else {
+        map.fitBounds([[west, south], [east, north]], { padding: 95, maxZoom: 13, duration: 450 });
+      }
+    }
+  }
   function focusSelected() {
     const map = getMap();
     if (!mapReady || !map || !selected) return;
-    map.flyTo({
-      center: [selected.longitude, selected.latitude],
-      zoom: Math.max(map.getZoom?.() ?? 8, 13),
-      duration: 450
-    });
+    focusLocation(mapFocus);
   }
   $effect(() => {
     if (!mapReady || !selected) return;
@@ -426,6 +489,8 @@
 
   $effect(() => {
     const id = selected?.id;
+    mapFocus = 'reported';
+    focusedReleaseAnimalId = null;
     if (!id) {
       journey = null;
       journeyError = '';
@@ -523,8 +588,10 @@
     </div>
     <div class="map-pin-summary">
       <strong>{rescues.length} rescue{rescues.length === 1 ? '' : 's'} loaded</strong>
+      <span>Pending: {statusCounts.pending} · Assigned: {statusCounts.assigned} · Completed: {statusCounts.completed}</span>
       <span>{pins.length} plotted on the map</span>
       {#if missingCoordinates}<small>{missingCoordinates} without usable coordinates</small>{/if}
+      {#if rescues.length === 0}<small>No rescues returned for the selected archive date and organisation filters.</small>{/if}
     </div>
     <div class="historical-map-legend" aria-label="Rescue pin legend">
       <strong>Rescue status</strong>
@@ -578,6 +645,37 @@
           {/if}
           <div><dt>Case ID</dt><dd class="case-id">{selected.id}</dd></div>
         </dl>
+        <div class="location-switcher" aria-label="Rescue and release map locations">
+          <h4>Map locations</h4>
+          <div class="location-actions">
+            <button type="button" class:active={mapFocus === 'reported'}
+              onclick={() => focusLocation('reported')}>Reported / pickup area</button>
+            {#if releaseChoices.length}
+              <button type="button" class:active={mapFocus === 'release'}
+                onclick={() => focusLocation('release')}>Release site</button>
+              <button type="button" class:active={mapFocus === 'both'}
+                onclick={() => focusLocation('both')}>Show both pins</button>
+            {/if}
+          </div>
+          {#if releaseChoices.length > 1}
+            <label class="release-choice"><span>Animal release destination</span>
+              <select value={focusedReleaseAnimalId ?? releaseChoices[0]?.animalId}
+                onchange={(event) => { focusedReleaseAnimalId = event.currentTarget.value; focusLocation(mapFocus === 'reported' ? 'release' : mapFocus); }}>
+                {#each releaseChoices as option, index (option.animalId + ':' + index)}
+                  <option value={option.animalId}>{option.name}</option>
+                {/each}
+              </select>
+            </label>
+          {/if}
+          <p class="journey-note">
+            {#if releaseChoices.length}
+              Original reported point and recorded release location can be viewed separately.
+            {:else}
+              No release GPS is recorded for this rescue. Only the original report location can be plotted.
+            {/if}
+            A distinct pickup GPS location is not recorded by the current collection workflow.
+          </p>
+        </div>
         <div class="journey-details" aria-live="polite">
           <h4>Pickup, transport &amp; care journey</h4>
           {#if journeyLoading}
@@ -720,6 +818,14 @@
     position:absolute; width:1px; height:1px; overflow:hidden;
     clip:rect(0,0,0,0); white-space:nowrap;
   }
+  .location-switcher { margin-top:18px; padding:14px 0; border-top:1px solid var(--rh-border); }
+  .location-switcher h4 { font-size:14px; margin:0 0 10px; }
+  .location-actions { display:flex; flex-wrap:wrap; gap:8px; }
+  .location-actions button { min-height:36px; padding:7px 11px; border-radius:9px; border:1px solid var(--rh-border); background:var(--rh-surface-soft); color:var(--rh-text); font:inherit; font-size:12px; cursor:pointer; }
+  .location-actions button.active { border-color:#8547a0; box-shadow:inset 0 0 0 1px #8547a0; }
+  .release-choice { display:grid; gap:5px; margin-top:12px; font-size:12px; }
+  .release-choice select { min-width:0; width:100%; min-height:37px; padding:6px; border:1px solid var(--rh-border); border-radius:8px; background:var(--rh-surface); color:var(--rh-text); }
+  .location-switcher .journey-note { margin:10px 0 0; color:var(--rh-muted); font-size:12px; }
   .journey-details { margin-top:18px; padding-top:16px; border-top:1px solid var(--rh-border); }
   .journey-details h4 { margin:12px 0 9px; font-size:14px; }
   .journey-details p { margin:7px 0; font-size:12px; line-height:1.55; }
