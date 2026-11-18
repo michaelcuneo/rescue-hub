@@ -34,8 +34,7 @@ export const POST: RequestHandler = async ({ locals, params, request }) => {
   const now = new Date().toISOString();
   const eventId = crypto.randomUUID();
   try {
-    await db.send(new TransactWriteCommand({
-      TransactItems: [
+    const writes: ConstructorParameters<typeof TransactWriteCommand>[0]['TransactItems'] = [
         { Update: {
           TableName: table, Key: { pk: `ANIMAL#${animal.id}`, sk: 'META' },
           UpdateExpression: 'SET lastGpsLatitude = :lat, lastGpsLongitude = :lon, lastGpsAt = :at, lastGpsPhase = :phase',
@@ -69,8 +68,24 @@ export const POST: RequestHandler = async ({ locals, params, request }) => {
           },
           ConditionExpression: 'attribute_not_exists(pk)'
         }}
-      ]
-    }));
+      ];
+    // If the animal is being transported under a distinct active pickup job,
+    // publish its current GPS there too. The original rescue keeps its own
+    // historical position and full animal timeline.
+    if (animal.activeTransportRescueId && animal.activeTransportRescueId !== animal.rescueId) {
+      writes.push({ Update: {
+        TableName: table,
+        Key: { pk: `RESCUE#${animal.activeTransportRescueId}`, sk: 'META' },
+        UpdateExpression: 'SET latestAnimalGps = :point',
+        ConditionExpression: 'attribute_exists(pk) AND organisationId = :org',
+        ExpressionAttributeValues: { ':org': animal.organisationId,
+          ':point': {
+            animalId: animal.id, latitude: point.latitude, longitude: point.longitude,
+            recordedAt: now, phase: point.phase
+          } }
+      }});
+    }
+    await db.send(new TransactWriteCommand({ TransactItems: writes }));
     await publishRescueChange().catch(error => console.error('GPS saved but realtime notification failed:', error));
     return json({ ok: true, recordedAt: now, point });
   } catch (error) {
