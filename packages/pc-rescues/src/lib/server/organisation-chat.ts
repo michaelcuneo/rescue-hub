@@ -423,6 +423,21 @@ export async function postChatMessage(
     ConditionExpression: 'attribute_not_exists(pk)'
   }));
   await publishRescueChange();
+  // A saved message must not be rolled back if the optional push provider is
+  // unavailable. People who are BUSY or OFFLINE receive no mention push.
+  const mentionedUsers = mentions.filter(mention => mention.kind === 'person')
+    .map(mention => mention.id);
+  if (mentionedUsers.length) {
+    try {
+      const { notifyChatMentionedPeople } = await import('./push');
+      await notifyChatMentionedPeople({
+        organisationId, channelId, senderUserId: user.id,
+        senderName: user.name, recipientUserIds: mentionedUsers
+      });
+    } catch (error) {
+      console.warn('Chat mention push not delivered:', error);
+    }
+  }
   return message;
 }
 

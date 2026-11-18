@@ -148,3 +148,39 @@ export async function notifyEligibleRescuers(input: {
 		errors
 	};
 }
+
+
+// Best-effort mention notifications. Only explicitly resolved channel members
+// may be mentioned; never include animal whereabouts or message contents.
+export async function notifyChatMentionedPeople(input: {
+  organisationId: string;
+  channelId: string;
+  senderUserId: string;
+  senderName: string;
+  recipientUserIds: string[];
+}): Promise<void> {
+  const unique = [...new Set(input.recipientUserIds)].filter(id => id !== input.senderUserId).slice(0, 10);
+  if (!unique.length) return;
+  const { getUserById } = await import('./auth');
+  const users = await Promise.all(unique.map(id => getUserById(id)));
+  const recipients = users.filter((member): member is RescueHubUser =>
+    Boolean(member && member.organisationId === input.organisationId &&
+      member.enabled && member.status === 'ACTIVE' &&
+      !member.roles.includes('PUBLIC_REPORTER') &&
+      !member.roles.includes('VET_STAFF') &&
+      effectiveAvailability(member) === 'AVAILABLE'));
+  const tokens = [...new Set((await Promise.all(recipients.map(member =>
+    pushTokensForUser(member.id)))).flat())];
+  if (!tokens.length) return;
+  const response = await fetch('https://exp.host/--/api/v2/push/send', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', accept: 'application/json' },
+    body: JSON.stringify(tokens.map(to => ({
+      to, sound: 'default', title: 'You were mentioned in Rescue Hub',
+      body: `${input.senderName} mentioned you in an organisation chat.`,
+      data: { type: 'CHAT_MENTION', organisationId: input.organisationId,
+        channelId: input.channelId }
+    })))
+  });
+  if (!response.ok) throw new Error(`Chat mention notification request failed: ${response.status}`);
+}
