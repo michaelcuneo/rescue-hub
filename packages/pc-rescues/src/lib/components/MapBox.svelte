@@ -13,6 +13,7 @@
   const LIGHT_STYLE = 'https://tiles.openfreemap.org/styles/liberty';
   const DARK_STYLE = 'https://tiles.openfreemap.org/styles/dark';
   const PIN_SOURCE = 'rescue-operations-pins';
+  const ANIMAL_SOURCE = 'live-animal-gps-checkpoints';
   const AREA_SOURCE = 'nsw-operating-areas';
 
   type AreaSelection = {
@@ -80,10 +81,31 @@
     };
   }
 
+  function currentAnimalLocations(items: RescueItem[]) {
+    return {
+      type: 'FeatureCollection',
+      features: items.filter(item => validPin(item) &&
+        item.latestAnimalGps && Number.isFinite(item.latestAnimalGps.latitude) &&
+        Number.isFinite(item.latestAnimalGps.longitude) &&
+        Math.abs(item.latestAnimalGps.latitude) <= 90 &&
+        Math.abs(item.latestAnimalGps.longitude) <= 180 &&
+        (item.latestAnimalGps.latitude !== 0 || item.latestAnimalGps.longitude !== 0)
+      ).map(item => ({
+        type: 'Feature', properties: {
+          id: item.id, animalId: item.latestAnimalGps!.animalId,
+          phase: item.latestAnimalGps!.phase
+        },
+        geometry: {
+          type: 'Point', coordinates: [item.latestAnimalGps!.longitude, item.latestAnimalGps!.latitude]
+        }
+      }))
+    };
+  }
   function updateRescueSource(items: RescueItem[]) {
     const map = mapInstance;
     if (!mapReady || !map?.getSource?.(PIN_SOURCE)) return;
     map.getSource(PIN_SOURCE).setData(pinCollection(items));
+    map.getSource(ANIMAL_SOURCE)?.setData(currentAnimalLocations(items));
   }
 
   function updateSelectedPin(id: string) {
@@ -143,6 +165,10 @@
         data: pinCollection([...snapshot.pending, ...snapshot.assigned, ...snapshot.completed])
       });
     }
+    if (!map.getSource(ANIMAL_SOURCE)) {
+      const snapshot = get(data);
+      map.addSource(ANIMAL_SOURCE, { type: 'geojson', data: currentAnimalLocations([...snapshot.pending, ...snapshot.assigned, ...snapshot.completed]) });
+    }
     if (map.getLayer('rescue-operations-main')) return;
     // Native GPU layers stay attached to geographic coordinates across
     // pan/zoom/rotation. The ring, initials and small status dot match the
@@ -181,6 +207,11 @@
         'text-halo-width': 0.2,
         'text-halo-color': '#173d2c'
       }
+    });
+    map.addLayer({
+      id: 'rescue-operations-animal-gps', type: 'circle', source: ANIMAL_SOURCE,
+      paint: { 'circle-radius': 9, 'circle-color': '#1d72ba',
+        'circle-stroke-color': '#ffffff', 'circle-stroke-width': 2.5 }
     });
     map.addLayer({
       id: 'rescue-operations-status', type: 'circle', source: PIN_SOURCE,
@@ -302,7 +333,7 @@
   function registerInteractions(map: any) {
     map.on('click', (event: any) => {
       const rescueHit = hit(map, event.point, [
-        'rescue-operations-status', 'rescue-operations-initials', 'rescue-operations-main'
+        'rescue-operations-animal-gps', 'rescue-operations-status', 'rescue-operations-initials', 'rescue-operations-main'
       ]);
       const id = rescueHit?.properties?.id;
       if (typeof id === 'string') {
@@ -336,7 +367,7 @@
 
     map.on('mousemove', (event: any) => {
       const feature = hit(map, event.point, [
-        'rescue-operations-main', 'rescue-operations-status', 'nsw-operating-areas-fill'
+        'rescue-operations-animal-gps', 'rescue-operations-main', 'rescue-operations-status', 'nsw-operating-areas-fill'
       ]);
       map.getCanvas().style.cursor = feature ? 'pointer' : get(intakeOpen) ? 'crosshair' : '';
     });
@@ -491,6 +522,7 @@
       <span><i class="swatch other"></i>Other rehabilitation groups</span>
     </div>
     <div class="species-legend" aria-label="Rescue marker animal groups">
+      <small>Original rescue pins remain visible after pickup. Blue pins show the last voluntarily recorded animal GPS position.</small>
       <strong>Animal groups</strong>
       <div class="species-legend-items">
         {#each Object.entries(RESCUE_PIN_GROUPS) as [group, pinGroup]}
