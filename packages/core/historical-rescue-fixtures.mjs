@@ -75,7 +75,10 @@ export function buildHistoricalRescueFixtures() {
     // 40% relocation, 40% original-site release, 15% euthanasia, 5% death.
     const outcome = category < 8 ? 'RELEASED' : category < 16 ? 'RELEASED' : category < 19 ? 'EUTHANISED' : 'DECEASED';
     const relocation = category < 8;
-    const release = relocation ? point(place[1], place[2], rand, 0.12) : origin;
+    let release = relocation ? point(place[1], place[2], rand, 0.12) : origin;
+    if (relocation && Math.hypot(release.latitude - origin.latitude, release.longitude - origin.longitude) < 0.012) {
+      release = { latitude: Number((origin.latitude + 0.018).toFixed(6)), longitude: Number((origin.longitude + 0.018).toFixed(6)) };
+    }
     const reason = relocation ? 'RELOCATION' : 'ORIGINAL_SITE';
     const releaseName = relocation ? 'Synthetic bushland release site near ' + place[0] : 'Original rescue site near ' + place[0];
     const notes = outcome === 'RELEASED'
