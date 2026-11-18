@@ -162,7 +162,8 @@ function recordMatches(row: Record<string, any>, filters: ArchiveFilters, people
     row.status, row.animalStatus, row.assignedUserId,
     row.organisationId, name
   ].filter(Boolean).join(' ').toLocaleLowerCase('en-AU');
-  return haystack.includes(filters.query);
+  // A multi-word search matches all entered terms, even across fields.
+  return filters.query.split(' ').every(word => haystack.includes(word));
 }
 
 export async function searchRescueArchive(
@@ -211,21 +212,19 @@ export async function searchRescueArchive(
     }));
     const rows = (page.Items ?? []) as Record<string, any>[];
     let finishedBatch = true;
-    for (const row of rows) {
+    for (const [position, row] of rows.entries()) {
       examined++;
       lastRead = row;
       if (recordMatches(row, filters, peopleNames)) results.push(row);
       if (results.length === PAGE_SIZE) {
         finishedBatch = false;
+        // If this was the final DynamoDB row and DynamoDB returned no cursor,
+        // the result set really is complete; don't show a phantom next page.
+        hasMore = position < rows.length - 1 || Boolean(page.LastEvaluatedKey);
         break;
       }
     }
-    if (!finishedBatch) {
-      // There might still be items after the last examined record, whether
-      // in this DynamoDB page or in the next.
-      hasMore = true;
-      break;
-    }
+    if (!finishedBatch) break;
     if (!page.LastEvaluatedKey || !rows.length) {
       hasMore = false;
       break;
