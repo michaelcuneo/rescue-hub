@@ -115,6 +115,8 @@ jobs:
         run: node --experimental-strip-types --test packages/core/field-rescue-progress.test.mjs
       - name: Chat composer keyboard regression tests
         run: node --experimental-strip-types --test packages/core/chat-composer-keyboard.test.mjs
+      - name: Structured person and animal mention regression tests
+        run: node --experimental-strip-types --test packages/core/chat-mentions.test.mjs
       - name: SES invitation status regression tests
         run: node --experimental-strip-types --test packages/core/invitation-delivery.test.mjs
       - name: Removed and pending invitation email re-use regression tests
