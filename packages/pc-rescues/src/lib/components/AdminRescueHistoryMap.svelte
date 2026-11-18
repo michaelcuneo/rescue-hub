@@ -535,21 +535,37 @@
       return;
     }
     const controller = new AbortController();
+    let fetching = false;
     journey = null;
     journeyError = '';
     journeyLoading = true;
-    void fetch(`/api/admin/rescues/${encodeURIComponent(id)}/journey`, {
-      signal: controller.signal, cache: 'no-store'
-    }).then(async response => {
-      const payload = await response.json() as Journey & { error?: string };
-      if (!response.ok) throw new Error(payload.error ?? 'Unable to load care journey');
-      if (!controller.signal.aborted) journey = payload;
-    }).catch(error => {
-      if (!controller.signal.aborted) journeyError = error instanceof Error ? error.message : 'Unable to load journey';
-    }).finally(() => {
-      if (!controller.signal.aborted) journeyLoading = false;
-    });
-    return () => controller.abort();
+    const refresh = async () => {
+      if (fetching || controller.signal.aborted ||
+        (typeof document !== 'undefined' && document.visibilityState === 'hidden')) return;
+      fetching = true;
+      try {
+        const response = await fetch(`/api/admin/rescues/${encodeURIComponent(id)}/journey`, {
+          signal: controller.signal, cache: 'no-store'
+        });
+        const payload = await response.json() as Journey & { error?: string };
+        if (!response.ok) throw new Error(payload.error ?? 'Unable to load care journey');
+        if (!controller.signal.aborted) {
+          journey = payload;
+          journeyError = '';
+        }
+      } catch (error) {
+        if (!controller.signal.aborted)
+          journeyError = error instanceof Error ? error.message : 'Unable to load journey';
+      } finally {
+        fetching = false;
+        if (!controller.signal.aborted) journeyLoading = false;
+      }
+    };
+    void refresh();
+    // Lightweight selected-case refresh: GPS updates can arrive while a
+    // dispatcher watches the map, but no per-animal polling runs for all pins.
+    const timer = setInterval(() => void refresh(), 20_000);
+    return () => { clearInterval(timer); controller.abort(); };
   });
   $effect(() => {
     journey;
