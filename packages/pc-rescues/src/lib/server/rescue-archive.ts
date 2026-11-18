@@ -16,13 +16,15 @@ const QUERY_BATCH_SIZE = 100;
 const MAX_EVALUATED_PER_REQUEST = 2000;
 
 export type ArchiveStatus = RescueStatus | 'active' | 'all';
-export type ArchivePeriod = 'all' | 'today' | 'seven_days' | 'older' | 'selected_day';
+export type ArchivePeriod = 'all' | 'today' | 'seven_days' | 'older' | 'selected_day' | 'range';
 export type ArchiveOrder = 'oldest' | 'newest';
 export type ArchiveFilters = {
   query: string;
   status: ArchiveStatus;
   period: ArchivePeriod;
   day: string;
+  from: string;
+  to: string;
   order: ArchiveOrder;
   organisationId: string | null;
 };
@@ -103,17 +105,21 @@ export function parseArchiveFilters(params: URLSearchParams, permittedOrganisati
   const period = params.get('period') ?? 'all';
   const order = params.get('order') ?? 'newest';
   const day = params.get('date') || todayNSW();
+  const from = params.get('from') || day;
+  const to = params.get('to') || day;
   const query = (params.get('q') ?? '').trim().replace(/^#/, '').replace(/\s+/g, ' ').toLocaleLowerCase('en-AU');
   const org = (params.get('organisation') ?? 'all').trim();
   if (!['all', 'active', 'PENDING', 'ASSIGNED', 'COMPLETED', 'CANCELLED'].includes(status))
     throw new ArchiveRequestError('Invalid rescue status filter.');
-  if (!['all', 'today', 'seven_days', 'older', 'selected_day'].includes(period))
+  if (!['all', 'today', 'seven_days', 'older', 'selected_day', 'range'].includes(period))
     throw new ArchiveRequestError('Invalid report date filter.');
   if (!['newest', 'oldest'].includes(order))
     throw new ArchiveRequestError('Invalid archive sort order.');
   if (query.length > 140 || /[\u0000-\u001f\u007f]/.test(query))
     throw new ArchiveRequestError('Search must be 140 characters or less.');
   if (!validDay(day) || day > todayNSW()) throw new ArchiveRequestError('Invalid NSW report date.');
+  if (period === 'range' && (!validDay(from) || !validDay(to) || from > to || to > todayNSW()))
+    throw new ArchiveRequestError('Choose a valid NSW date range.');
   if (org.length > 180) throw new ArchiveRequestError('Invalid organisation.');
   if (permittedOrganisation && org !== 'all' && org !== permittedOrganisation)
     throw new ArchiveRequestError('Organisation is not accessible.');
@@ -122,6 +128,8 @@ export function parseArchiveFilters(params: URLSearchParams, permittedOrganisati
     status: status as ArchiveStatus,
     period: period as ArchivePeriod,
     day,
+    from,
+    to,
     order: order as ArchiveOrder,
     organisationId: permittedOrganisation ?? (org === 'all' ? null : org)
   };
@@ -139,6 +147,9 @@ function dateRange(filters: ArchiveFilters): { start?: string; end?: string } {
   };
   if (filters.period === 'older') return {
     end: sydneyMidnightUtc(utcDayShift(today, -6))
+  };
+  if (filters.period === 'range') return {
+    start: sydneyMidnightUtc(filters.from), end: sydneyMidnightUtc(utcDayShift(filters.to, 1))
   };
   return {
     start: sydneyMidnightUtc(filters.day), end: sydneyMidnightUtc(utcDayShift(filters.day, 1))
@@ -204,8 +215,10 @@ function recordMatches(row: Record<string, any>, filters: ArchiveFilters, people
 }
 
 export async function searchRescueArchive(
-  filters: ArchiveFilters, token?: string, peopleNames: Map<string, string> = new Map()
+  filters: ArchiveFilters, token?: string, peopleNames: Map<string, string> = new Map(), pageSize = PAGE_SIZE
 ): Promise<ArchivePage> {
+  if (!Number.isInteger(pageSize) || pageSize < 1 || pageSize > 250)
+    throw new ArchiveRequestError('Invalid archive page size.');
   const index: 'gsi1' | 'gsi2' =
     ['PENDING', 'ASSIGNED', 'COMPLETED', 'CANCELLED'].includes(filters.status) ? 'gsi1' : 'gsi2';
   const partition = index === 'gsi1' ? `STATUS#${filters.status}` : 'RESCUES';
@@ -221,7 +234,7 @@ export async function searchRescueArchive(
 
   // Invariant: lastRead is the last item *examined*, not DynamoDB's
   // LastEvaluatedKey, so no records are skipped when a batch overfills.
-  while (results.length < PAGE_SIZE && examined < MAX_EVALUATED_PER_REQUEST) {
+  while (results.length < pageSize && examined < MAX_EVALUATED_PER_REQUEST) {
     const names: Record<string, string> = { '#pk': pk };
     const values: Record<string, unknown> = { ':pk': partition };
     let expression = '#pk = :pk';
@@ -253,7 +266,7 @@ export async function searchRescueArchive(
       examined++;
       lastRead = row;
       if (recordMatches(row, filters, peopleNames)) results.push(row);
-      if (results.length === PAGE_SIZE) {
+      if (results.length === pageSize) {
         finishedBatch = false;
         // If this was the final DynamoDB row and DynamoDB returned no cursor,
         // the result set really is complete; don't show a phantom next page.
