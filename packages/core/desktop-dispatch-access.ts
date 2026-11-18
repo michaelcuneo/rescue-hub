@@ -40,6 +40,8 @@ export function canSeeDesktopRescue(
   if (rescue.status !== 'PENDING') return false;
   // Rescue jobs are visible across trained species teams; authorisation to
   // claim, transport or manage an animal is independently enforced by the API.
-  return viewer.roles.some(role => ['RESCUER', 'CARER'].includes(role))
+  const trainedFieldMember = viewer.roles.some(role => ['RESCUER', 'CARER'].includes(role))
+    && !['support-member', 'probationary-rescuer', 'transport-volunteer'].includes(viewer.membershipTypeId ?? '');
+  return trainedFieldMember
     || (viewer.membershipTypeId === 'transport-volunteer' && Boolean(rescue.transportAnimalId));
 }
