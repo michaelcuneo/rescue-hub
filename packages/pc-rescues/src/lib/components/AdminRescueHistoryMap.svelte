@@ -36,7 +36,7 @@
   let areaCount = $state(0);
   let surface: HTMLDivElement | undefined;
   let resizeObserver: ResizeObserver | undefined;
-  let detailsDialog: HTMLDialogElement | undefined;
+  let detailsDialog = $state<HTMLDialogElement | undefined>(undefined);
   const mappedRescues = $derived(focusedRescue && focusedRescue.id === selectedId && !rescues.some(item => item.id === focusedRescue.id)
     ? [focusedRescue, ...rescues] : rescues);
   const pins = $derived(mappedRescues.filter(item =>
