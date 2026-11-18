@@ -4,9 +4,10 @@
   import { pinForRescue, RESCUE_PIN_GROUPS } from '../../../../core/rescue-pin-groups';
   import type { Rescue } from '$lib/server/graphql';
 
-  let { rescues, selectedId = null, onSelect }: {
+  let { rescues, selectedId = null, focusedRescue = null, onSelect }: {
     rescues: Rescue[];
     selectedId?: string | null;
+    focusedRescue?: Rescue | null;
     onSelect?: (id: string) => void;
   } = $props();
 
@@ -33,7 +34,9 @@
   let areaCount = $state(0);
   let surface: HTMLDivElement | undefined;
   let resizeObserver: ResizeObserver | undefined;
-  const pins = $derived(rescues.filter(item =>
+  const mappedRescues = $derived(focusedRescue && focusedRescue.id === selectedId && !rescues.some(item => item.id === focusedRescue.id)
+    ? [focusedRescue, ...rescues] : rescues);
+  const pins = $derived(mappedRescues.filter(item =>
     Number.isFinite(item.latitude) && Number.isFinite(item.longitude) &&
     item.latitude >= -90 && item.latitude <= 90 &&
     item.longitude >= -180 && item.longitude <= 180 &&
@@ -269,7 +272,8 @@
             mapReady = true;
             mapError = '';
             updatePins();
-            fitAll();
+            if (selected) focusSelected();
+            else fitAll();
             void loadOperatingAreas(map);
           } catch (error) {
             console.error('Unable to configure MapLibre rescue layers', error);
@@ -321,13 +325,18 @@
       if (!selectedId) fitAll();
     }
   });
-  $effect(() => {
-    if (!mapReady || !selected) return;
-    getMap()?.flyTo?.({
+  function focusSelected() {
+    const map = getMap();
+    if (!mapReady || !map || !selected) return;
+    map.flyTo({
       center: [selected.longitude, selected.latitude],
-      zoom: Math.max(getMap()?.getZoom?.() ?? 8, 10),
+      zoom: Math.max(map.getZoom?.() ?? 8, 13),
       duration: 450
     });
+  }
+  $effect(() => {
+    if (!mapReady || !selected) return;
+    focusSelected();
   });
   function formatted(value?: string | null): string {
     if (!value) return 'Not recorded';
