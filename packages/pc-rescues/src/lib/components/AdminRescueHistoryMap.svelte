@@ -18,6 +18,7 @@
   };
 
   const SOURCE = 'historical-rescue-pins';
+  const RELEASE_SOURCE = 'historical-relocation-pins';
   const AREA_SOURCE = 'historical-operating-areas';
   // POC only: use a pinned, browser-only MapLibre module so the rest of
   // Rescue Hub and its current npm lockfile stay completely unchanged.
@@ -73,10 +74,31 @@
     };
   }
 
+  function relocationGeoJSON(): any {
+    return {
+      type: 'FeatureCollection',
+      features: pins.filter(item =>
+        item.historicalOutcome === 'RELEASED' &&
+        item.historicalReleaseReason === 'RELOCATION' &&
+        typeof item.historicalReleaseLatitude === 'number' &&
+        typeof item.historicalReleaseLongitude === 'number' &&
+        Number.isFinite(item.historicalReleaseLatitude) &&
+        Number.isFinite(item.historicalReleaseLongitude)
+      ).map(item => ({
+        type: 'Feature',
+        properties: { id: item.id, type: item.type, releaseSite: item.historicalReleaseLocation ?? '' },
+        geometry: {
+          type: 'Point',
+          coordinates: [item.historicalReleaseLongitude, item.historicalReleaseLatitude]
+        }
+      }))
+    };
+  }
   function updatePins() {
     const map = getMap();
     if (!mapReady || !map?.getSource?.(SOURCE)) return;
     map.getSource(SOURCE).setData(rescueGeoJSON());
+    map.getSource(RELEASE_SOURCE)?.setData(relocationGeoJSON());
   }
 
   function fitAll() {
@@ -108,6 +130,9 @@
         clusterRadius: 45,
         clusterMaxZoom: 13
       });
+    }
+    if (!map.getSource(RELEASE_SOURCE)) {
+      map.addSource(RELEASE_SOURCE, { type: 'geojson', data: relocationGeoJSON() });
     }
     if (!map.getLayer('historical-rescue-clusters')) {
       map.addLayer({
@@ -143,6 +168,12 @@
         }
       });
       map.addLayer({
+        id: 'historical-relocations', source: RELEASE_SOURCE,
+        type: 'circle',
+        paint: { 'circle-radius': 8, 'circle-color': '#8547a0',
+          'circle-stroke-color': '#ffffff', 'circle-stroke-width': 2.5 }
+      });
+      map.addLayer({
         id: 'historical-rescue-status',
         source: SOURCE,
         type: 'circle',
@@ -172,6 +203,7 @@
     };
     map.on('click', 'historical-rescue-points', selectFeature);
     map.on('click', 'historical-rescue-status', selectFeature);
+    map.on('click', 'historical-relocations', selectFeature);
     map.on('click', 'historical-rescue-clusters', (event: any) => {
       const feature = event.features?.[0];
       const id = feature?.properties?.cluster_id;
@@ -184,7 +216,7 @@
         duration: 400
       });
     });
-    for (const layer of ['historical-rescue-points', 'historical-rescue-status', 'historical-rescue-clusters']) {
+    for (const layer of ['historical-rescue-points', 'historical-rescue-status', 'historical-rescue-clusters', 'historical-relocations']) {
       map.on('mouseenter', layer, () => { map.getCanvas().style.cursor = 'pointer'; });
       map.on('mouseleave', layer, () => { map.getCanvas().style.cursor = ''; });
     }
@@ -388,6 +420,15 @@
           <div><dt>Last updated</dt><dd>{formatted(selected.updatedAt)}</dd></div>
           <div><dt>Location</dt><dd>{selected.location || 'Coordinates only'}</dd></div>
           <div><dt>Condition</dt><dd>{selected.injury || 'Not recorded'}</dd></div>
+          {#if selected.historicalOutcome}
+            <div><dt>Animal outcome · Synthetic fixture</dt><dd>{selected.historicalOutcome === 'RELEASED' ? selected.historicalReleaseReason === 'RELOCATION' ? 'Relocated into the wild' : 'Returned to original site' : selected.historicalOutcome === 'EUTHANISED' ? 'Euthanised following veterinary assessment' : 'Deceased in care'}</dd></div>
+            {#if selected.historicalReleaseLocation}
+              <div><dt>Release site</dt><dd>{selected.historicalReleaseLocation}</dd></div>
+            {/if}
+            {#if typeof selected.historicalReleaseLatitude === 'number' && typeof selected.historicalReleaseLongitude === 'number'}
+              <div><dt>Release GPS</dt><dd>{selected.historicalReleaseLatitude.toFixed(6)}, {selected.historicalReleaseLongitude.toFixed(6)}</dd></div>
+            {/if}
+          {/if}
           <div><dt>Case ID</dt><dd class="case-id">{selected.id}</dd></div>
         </dl>
       </div>
@@ -400,7 +441,7 @@
         {#each groups as [key, group] (key)}
           <span><i style:background-color={group.color}></i>{group.label}</span>
         {/each}
-        <small>Marker colour identifies the animal group. The smaller dot shows its current rescue status.</small>
+        <small>Marker colour identifies the animal group. The smaller dot shows rescue status. Purple pins mark synthetic relocation destinations; click either pin to inspect the case.</small>
       </div>
     {/if}
   </aside>
