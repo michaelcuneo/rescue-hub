@@ -67,3 +67,45 @@ export function isWaitingFourHours(item: DatedRescue, now = Date.now()): boolean
   const timestamp = rescueCreatedAt(item);
   return timestamp > 0 && now - timestamp >= 4 * 60 * 60 * 1000;
 }
+
+
+/** Dispatch boards follow NSW calendar dates, regardless of the viewer's device timezone. */
+export function rescueNSWDay(value?: string | number | Date | null): string | null {
+  if (value == null || value === '') return null;
+  const timestamp = new Date(value).getTime();
+  if (!Number.isFinite(timestamp)) return null;
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Australia/Sydney',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).formatToParts(timestamp);
+  const field = (name: string) => parts.find(part => part.type === name)?.value;
+  return `${field('year')}-${field('month')}-${field('day')}`;
+}
+
+export function rescueTodayNSW(now = Date.now()): string {
+  return rescueNSWDay(now)!;
+}
+
+/** Uses UTC noon to avoid DST transitions while navigating a calendar date. */
+export function shiftRescueDay(day: string, amount: number): string {
+  const [year, month, date] = day.split('-').map(Number);
+  return new Date(Date.UTC(year, month - 1, date + amount, 12)).toISOString().slice(0, 10);
+}
+
+export function rescueDayLabel(day: string): string {
+  const [year, month, date] = day.split('-').map(Number);
+  return new Intl.DateTimeFormat('en-AU', {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    timeZone: 'UTC'
+  }).format(new Date(Date.UTC(year, month - 1, date, 12)));
+}
+
+/** Determines the day a rescue was reported, never the day its record last changed. */
+export function rescueReportedNSWDay(item: Pick<DatedRescue, 'createdAt' | 'updatedAt'>): string | null {
+  return rescueNSWDay(item.createdAt ?? item.updatedAt);
+}
