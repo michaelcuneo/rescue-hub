@@ -615,6 +615,11 @@ export default function AnimalCare({ rescue, userId, roles, onBack, onUnclaim }:
               ) : null}
               {event.transportRescueId ? <Text style={styles.muted}>A transport job was offered to volunteers for this animal.</Text> : null}
               {event.outcome ? <Text style={styles.body}>Outcome: {event.outcome}</Text> : null}
+              {event.outcome === 'RELEASED' ? <>
+                <Text style={styles.body}>{event.releaseReason === 'RELOCATION' ? 'Wildlife relocation' : 'Released at original site'}</Text>
+                <Text style={styles.muted}>Release site: {event.location || 'GPS location'}</Text>
+                {isValidReleasePoint(event) ? <Text style={styles.muted}>Release GPS: {formatReleaseCoordinates(event)}</Text> : null}
+              </> : null}
             </View>
           ))}
           {isCustodian && !isFinal && !selected.pendingTransferId ? (
