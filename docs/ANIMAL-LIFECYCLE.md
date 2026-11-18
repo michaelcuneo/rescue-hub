@@ -114,6 +114,29 @@ offline use. Confirm ecological relocation authorisation and suitability
 with the relevant licensed wildlife organisation; a software pin is a
 record of what happened, not an approval to relocate wildlife.
 
+## Enriched Hunter demonstration histories (18 November 2026)
+
+The fixed fictional Hunter dataset includes **15 assigned** and **15 completed**
+rescues with one animal each. All 15 assigned animals now carry six extra
+species-aware, status-appropriate timeline records in addition to their
+original pickup, care and phone history. They cover reassessment, responder
+calls, dispatch coordination, welfare observation or veterinary review,
+care-progress calls, and a documented next action.
+
+- Open **Operations → Assigned**, choose a rescue, then open its **Animal
+  Records & Phone Updates** page to explore the expanded timeline.
+- The animal remains **ASSIGNED** and has *no invented final outcome*.
+  Likewise, the original rescue site, custody and specialist status are
+  unchanged; the added content is clearly fictional.
+- Deterministic timestamps, IDs and ordering make redeployments repeatable.
+  No real or previously entered care history is generated.
+- These richer fixture records are created by infrastructure seed declarations
+  only on the explicit **`demo`** or **`michael`** SST stages. They are not
+  enabled for production or other arbitrary stages.
+
+This is an implementation fixture for demonstrations, not veterinary guidance
+or a substitute for professional notes in real cases.
+
 ## Separate domain objects
 
 - **RescueIncident / RescueCase:** the initial report, response, geographic/organisation authority, claimant and response milestones. One incident may involve multiple animals.
