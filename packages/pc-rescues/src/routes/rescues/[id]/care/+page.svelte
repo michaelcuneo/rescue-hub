@@ -405,6 +405,9 @@
             <li><strong>{event.type === 'FINAL_OUTCOME' && event.outcome === 'RELEASED' ? event.releaseReason === 'RELOCATION' ? 'Released · Relocation' : 'Released into the wild' : event.type.replaceAll('_', ' ')}</strong>
               <small>{new Date(event.occurredAt || event.createdAt).toLocaleString('en-AU')}{#if event.actorName} · {event.actorName}{/if}</small>
               {#if event.notes}<p>{event.notes}</p>{/if}
+              {#if event.type === 'GPS_CHECKPOINT' && typeof event.latitude === 'number' && typeof event.longitude === 'number'}
+                <p>Measured GPS {event.phase ? event.phase.replaceAll('_', ' ') : 'checkpoint'} · {event.latitude.toFixed(6)}, {event.longitude.toFixed(6)}</p>
+              {/if}
               {#if event.type === 'FINAL_OUTCOME' && event.outcome === 'RELEASED'}
                 <p>Release location: {event.location || 'GPS location'}</p>
                 {#if isValidReleasePoint(event)}
