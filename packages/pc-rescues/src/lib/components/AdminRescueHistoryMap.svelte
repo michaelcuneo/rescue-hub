@@ -139,7 +139,7 @@
 
 <style>
   .historical-map-layout { display:grid; grid-template-columns:minmax(0,1fr) minmax(230px,290px); gap:14px; min-height:580px; margin-top:18px; }
-  .historical-map-surface { position:relative; min-width:0; min-height:580px; overflow:hidden; border:1px solid var(--rh-border); border-radius:13px; background:var(--rh-map-background); }
+  .historical-map-surface { position:relative; min-width:0; height:620px; min-height:480px; overflow:hidden; border:1px solid var(--rh-border); border-radius:13px; background:var(--rh-map-background); }
   .historical-map-surface :global(.mapboxgl-map) { height:100% !important; width:100% !important; }
   .fit-pins { position:absolute; z-index:2; left:12px; top:12px; padding:8px 12px; border:1px solid var(--rh-border); border-radius:8px; background:var(--rh-surface); color:var(--rh-text); font:inherit; font-size:12px; cursor:pointer; }
   .map-unavailable { margin:20px; color:var(--rh-danger-text); }
@@ -162,6 +162,6 @@
   .historical-map-legend small { color:var(--rh-muted); line-height:1.5; }
   @media(max-width:920px) {
     .historical-map-layout { grid-template-columns:1fr; }
-    .historical-map-surface { min-height:480px; }
+    .historical-map-surface { height:480px; }
   }
 </style>
