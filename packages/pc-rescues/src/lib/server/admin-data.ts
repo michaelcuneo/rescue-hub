@@ -145,6 +145,8 @@ export function mapRescueItems(items: Record<string, any>[]): Rescue[] {
       Number.isFinite(site.latitude) && Number.isFinite(site.longitude) &&
       Math.abs(site.latitude) <= 90 && Math.abs(site.longitude) <= 180 &&
       (site.latitude !== 0 || site.longitude !== 0)) : [],
+    latestAnimalGps: item.latestAnimalGps && Number.isFinite(item.latestAnimalGps.latitude) && Number.isFinite(item.latestAnimalGps.longitude)
+      ? item.latestAnimalGps : null,
     transportAnimalId: item.transportAnimalId ? String(item.transportAnimalId) : null,
     transportSourceRescueId: item.transportSourceRescueId ? String(item.transportSourceRescueId) : null,
 		createdAt: String(item.createdAt),
