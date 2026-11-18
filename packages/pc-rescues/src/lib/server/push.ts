@@ -168,7 +168,7 @@ export async function notifyChatMentionedPeople(input: {
       member.enabled && member.status === 'ACTIVE' &&
       !member.roles.includes('PUBLIC_REPORTER') &&
       !member.roles.includes('VET_STAFF') &&
-      effectiveAvailability(member) === 'AVAILABLE'));
+      effectiveAvailability(member) !== 'BUSY'));
   const tokens = [...new Set((await Promise.all(recipients.map(member =>
     pushTokensForUser(member.id)))).flat())];
   if (!tokens.length) return;
