@@ -123,14 +123,14 @@ function sydneyMidnightUtc(day: string): string {
   const zoneLabel = new Intl.DateTimeFormat('en-AU', {
     timeZone: 'Australia/Sydney', timeZoneName: 'longOffset'
   }).formatToParts(noon).find(part => part.type === 'timeZoneName')?.value ?? '';
-  const match = /^GMT([+-])(\\d{2}):(\\d{2})$/.exec(zoneLabel);
+  const match = /^GMT([+-])(\d{2}):(\d{2})$/.exec(zoneLabel);
   if (!match) throw new Error('Cannot determine Sydney UTC offset');
   const offset = (match[1] === '+' ? 1 : -1) * (Number(match[2]) * 60 + Number(match[3]));
   return new Date(Date.UTC(year, month - 1, date) - offset * 60_000).toISOString();
 }
 
 export async function listRescuesForNSWDay(day: string): Promise<Rescue[]> {
-  if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(day) ||
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day) ||
       new Date(`${day}T12:00:00Z`).toISOString().slice(0, 10) !== day) {
     throw new Error('Invalid NSW dispatch date');
   }
