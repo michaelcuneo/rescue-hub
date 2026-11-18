@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { matchesRescuePeriod, rescueTodayNSW, shiftRescueDay, rescueDayLabel, sortRescueRecords, RESCUE_LIST_PAGE_SIZE, type RescuePeriod, type RescueOrder } from '$lib/rescue-list';
+  import { matchesRescuePeriod, rescueNSWDay, rescueTodayNSW, shiftRescueDay, rescueDayLabel, sortRescueRecords, RESCUE_LIST_PAGE_SIZE, type RescuePeriod, type RescueOrder } from '$lib/rescue-list';
   import AdminOperatingAreas from '$lib/components/AdminOperatingAreas.svelte';
   import AdminRescueHistoryMap from '$lib/components/AdminRescueHistoryMap.svelte';
   import type { PageData } from './$types';
@@ -126,8 +126,17 @@
   function selectRescueDate(date: string) {
     if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(date) || !Number.isFinite(Date.parse(`${date}T12:00:00Z`))) return;
     if (new Date(`${date}T12:00:00Z`).toISOString().slice(0, 10) !== date) return;
+    if (date > rescueTodayNSW()) return;
     rescueDate = date;
     rescueMapSelectedId = null;
+  }
+  function showRescueOnMap(rescue: PageData['rescues'][number]) {
+    const day = rescueNSWDay(rescue.createdAt);
+    if (!day) return;
+    selectRescueDate(day);
+    rescueMapSelectedId = rescue.id;
+    if (canChooseOrganisation && rescue.organisationId) rescueOrganisation = rescue.organisationId;
+    chooseRescueView('map');
   }
   function choosePeopleView(next: PeopleView) {
     section = 'people';
@@ -640,7 +649,7 @@
         {/if}
         {#if visibleRescues.length}
           <div class="table-wrap"><table>
-            <thead><tr><th>Animal / Case</th><th>Location</th><th>Status</th><th>Assigned</th><th>Reported</th><th>Updated</th></tr></thead>
+            <thead><tr><th>Animal / Case</th><th>Location</th><th>Status</th><th>Assigned</th><th>Reported</th><th>Updated</th><th>Map</th></tr></thead>
             <tbody>
               {#each visibleRescuePage as rescue (rescue.id)}
                 <tr>
@@ -652,6 +661,7 @@
                   <td><span class="rescue-status status-{rescue.status.toLowerCase()}">{statusLabel(rescue.status)}</span></td>
                   <td>{assignedRescuerName(rescue.assignedUserId)}</td>
                   <td>{formatDate(rescue.createdAt)}</td><td>{formatDate(rescue.updatedAt)}</td>
+                  <td><button type="button" class="rescue-view-map" onclick={() => showRescueOnMap(rescue)}>View pin</button></td>
                 </tr>
               {/each}
             </tbody>
@@ -1586,6 +1596,8 @@
     box-shadow: 0 0 0 3px rgba(110, 148, 126, 0.12);
   }
 
+  .rescue-view-map { padding:7px 9px; border:1px solid var(--rh-border); border-radius:8px; background:var(--rh-surface-soft); color:var(--rh-text); font:inherit; font-size:12px; font-weight:750; cursor:pointer; white-space:nowrap; }
+  .rescue-view-map:hover { border-color:var(--rh-border-strong); background:var(--rh-raised); }
   .rescue-map-toolbar { display:flex; flex-wrap:wrap; align-items:end; gap:10px; margin-top:18px; }
   .rescue-map-toolbar label { display:grid; gap:5px; flex:0 1 230px; min-width:170px; color:var(--rh-muted); font-size:12px; font-weight:750; }
   .rescue-map-toolbar button { min-height:38px; padding:8px 12px; border:1px solid var(--rh-border); border-radius:9px; background:var(--rh-surface-soft); color:var(--rh-text); cursor:pointer; font:inherit; font-size:12px; font-weight:750; }
