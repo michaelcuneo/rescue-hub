@@ -16,9 +16,9 @@ export type DesktopRescueCase = {
   transportAnimalId?: string | null;
 };
 
-/** Operational worklists show the organisation's pending, assigned and
- * today's completed cases. Assignment/care mutation rights remain separate.
- * Team eligibility still constrains which PENDING jobs may be claimed.
+/** Operational visibility is organisation-scoped: all pending, assigned,
+ * and (today's) completed rescue summaries. Claim eligibility and care write
+ * access remain separate server-side checks.
  */
 export function canSeeDesktopRescue(
   viewer: DesktopRescueViewer,
@@ -37,17 +37,9 @@ export function canSeeDesktopRescue(
   if ((rescue.status === 'ASSIGNED' || rescue.status === 'COMPLETED') &&
       viewer.roles.some(role => ['RESCUER', 'CARER'].includes(role))) return true;
 
-  if (rescue.status !== 'PENDING' || rescue.assignedUserId || rescue.awaitingCarer) return false;
-
-  // Keep eligibility independent of the app/server module graph so this
-  // pure policy runs identically under Node's strip-types test runner.
-  const fieldRescuer = (!viewer.membershipTypeId ||
-    viewer.membershipTypeId === 'active-rescuer') &&
-    viewer.roles.some(role => ['RESCUER', 'CARER', 'ORG_ADMIN'].includes(role));
-
-  if (rescue.transportAnimalId) {
-    return fieldRescuer || viewer.membershipTypeId === 'transport-volunteer';
-  }
-
-  return fieldRescuer && suitableSpeciesTeam;
+  if (rescue.status !== 'PENDING') return false;
+  // Rescue jobs are visible across trained species teams; authorisation to
+  // claim, transport or manage an animal is independently enforced by the API.
+  return viewer.roles.some(role => ['RESCUER', 'CARER'].includes(role))
+    || (viewer.membershipTypeId === 'transport-volunteer' && Boolean(rescue.transportAnimalId));
 }
