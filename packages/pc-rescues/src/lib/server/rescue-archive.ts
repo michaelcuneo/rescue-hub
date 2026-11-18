@@ -41,6 +41,43 @@ type Cursor = {
 
 export class ArchiveRequestError extends Error {}
 
+// Archive searches may match a responder's name, including a responder who
+// joined years ago. Fetch the complete projected name directory (not the
+// first 1 MB from listUsers) and reuse it briefly within warm Lambda instances.
+const responderNameCache = new Map<string, {
+  expiresAt: number;
+  names: Map<string, string>;
+}>();
+
+export async function listArchiveResponderNames(organisationId: string | null): Promise<Map<string, string>> {
+  const cacheKey = organisationId ?? 'ALL';
+  const cache = responderNameCache.get(cacheKey);
+  if (cache && cache.expiresAt > Date.now()) return cache.names;
+
+  const names = new Map<string, string>();
+  let cursor: Record<string, any> | undefined;
+  do {
+    const result = await db.send(new QueryCommand({
+      TableName: tableName,
+      IndexName: 'gsi2',
+      KeyConditionExpression: 'gsi2pk = :users',
+      ExpressionAttributeValues: { ':users': 'USERS' },
+      ExpressionAttributeNames: { '#name': 'name' },
+      ProjectionExpression: 'id, #name, organisationId',
+      ExclusiveStartKey: cursor
+    }));
+    for (const row of result.Items ?? []) {
+      if (typeof row.id !== 'string' || typeof row.name !== 'string') continue;
+      if (organisationId && row.organisationId !== organisationId) continue;
+      names.set(row.id, row.name);
+    }
+    cursor = result.LastEvaluatedKey;
+  } while (cursor);
+
+  responderNameCache.set(cacheKey, { names, expiresAt: Date.now() + 60_000 });
+  return names;
+}
+
 function utcDayShift(day: string, amount: number): string {
   const date = new Date(`${day}T12:00:00Z`);
   date.setUTCDate(date.getUTCDate() + amount);
