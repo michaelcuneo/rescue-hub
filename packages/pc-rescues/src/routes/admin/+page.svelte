@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { matchesRescuePeriod, rescueNSWDay, rescueTodayNSW, shiftRescueDay, rescueDayLabel, sortRescueRecords, RESCUE_LIST_PAGE_SIZE, type RescuePeriod, type RescueOrder } from '$lib/rescue-list';
+  import { matchesRescuePeriod, rescueTodayNSW, shiftRescueDay, rescueDayLabel, sortRescueRecords, RESCUE_LIST_PAGE_SIZE, type RescuePeriod, type RescueOrder } from '$lib/rescue-list';
   import AdminOperatingAreas from '$lib/components/AdminOperatingAreas.svelte';
   import AdminRescueHistoryMap from '$lib/components/AdminRescueHistoryMap.svelte';
   import type { PageData } from './$types';
@@ -32,7 +32,7 @@
   let organisationSearch = $state('');
   let rescueSearch = $state('');
   let rescueStatus = $state<'active' | 'all' | 'PENDING' | 'ASSIGNED' | 'COMPLETED' | 'CANCELLED'>('active');
-  let rescuePeriod = $state<RescuePeriod>('all');
+  let rescuePeriod = $state<RescuePeriod | 'selected_day'>('all');
   let rescueOrder = $state<RescueOrder>('newest');
   let rescueOrganisation = $state('all');
   let rescuePage = $state(1);
@@ -323,15 +323,24 @@
         <button
           class:active={section === item.id}
           type="button"
-          aria-expanded={item.id === 'people' ? section === 'people' && peopleNavOpen : undefined}
-          onclick={() => item.id === 'people' ? togglePeopleNavigation() : chooseSection(item.id)}
+          aria-expanded={item.id === 'people' ? section === 'people' && peopleNavOpen : item.id === 'rescues' ? section === 'rescues' && rescueNavOpen : undefined}
+          onclick={() => item.id === 'people' ? togglePeopleNavigation() : item.id === 'rescues' ? toggleRescueNavigation() : chooseSection(item.id)}
         >
           <span class="nav-icon">{item.short}</span>
           <span>{item.label}</span>
-          {#if item.id === 'people'}
-            <span class="people-caret" aria-hidden="true">{section === 'people' && peopleNavOpen ? '▾' : '▸'}</span>
+          {#if item.id === 'people' || item.id === 'rescues'}
+            <span class="people-caret" aria-hidden="true">{section === item.id && (item.id === 'rescues' ? rescueNavOpen : peopleNavOpen) ? '▾' : '▸'}</span>
           {/if}
         </button>
+        {#if item.id === 'rescues' && section === 'rescues' && rescueNavOpen}
+          <div class="people-subnav" role="group" aria-label="Rescue administration views">
+            {#each [{ id: 'list', label: 'List' }, { id: 'map', label: 'Map' }] as child}
+              <button type="button" class:active={rescueView === child.id}
+                aria-current={rescueView === child.id ? 'page' : undefined}
+                onclick={() => chooseRescueView(child.id as RescueView)}>{child.label}</button>
+            {/each}
+          </div>
+        {/if}
         {#if item.id === 'people' && section === 'people' && peopleNavOpen}
           <div class="people-subnav" role="group" aria-label="People and access sections">
             {#each [
@@ -553,6 +562,43 @@
       </section>
     {:else if section === 'rescues'}
       <section class="panel page-panel">
+        {#if rescueView === 'map'}
+          <div class="panel-heading table-heading">
+            <div>
+              <p class="eyebrow">Historical rescue map</p>
+              <h2>Rescue locations by date</h2>
+              <p class="intro">Select a NSW calendar day to show every reported rescue and its pin, including completed cases.</p>
+            </div>
+          </div>
+          <div class="rescue-map-toolbar">
+            <button type="button" aria-label="Previous day" onclick={() => selectRescueDate(shiftRescueDay(rescueDate, -1))}>Previous day</button>
+            <label><span>Report date · NSW</span>
+              <input type="date" value={rescueDate} max={rescueTodayNSW()} onchange={(event) => selectRescueDate(event.currentTarget.value)} />
+            </label>
+            <button type="button" aria-label="Next day" disabled={rescueDate >= rescueTodayNSW()}
+              onclick={() => selectRescueDate(shiftRescueDay(rescueDate, 1))}>Next day</button>
+            <button type="button" onclick={() => selectRescueDate(rescueTodayNSW())}>Today</button>
+            {#if canChooseOrganisation}
+              <label><span>Organisation</span>
+                <select bind:value={rescueOrganisation}>
+                  <option value="all">All organisations</option>
+                  {#each data.organisations as organisation (organisation.id)}
+                    <option value={organisation.id}>{organisation.displayName}</option>
+                  {/each}
+                </select>
+              </label>
+            {/if}
+          </div>
+          <p class="rescue-map-date" role="status">{rescueDayLabel(rescueDate)} · {rescueDayLoading ? 'Loading rescue locations…' : rescueDayLoaded ? `${rescueDayItems.length} reported rescues` : 'No data loaded'}</p>
+          {#if rescueDayError}<p class="rescue-day-error" role="alert">Could not load the selected date: {rescueDayError}</p>{/if}
+          {#if rescueDayLoaded}
+            <AdminRescueHistoryMap rescues={rescueDayItems}
+              selectedId={rescueMapSelectedId}
+              onSelect={(id) => (rescueMapSelectedId = id)} />
+          {:else if rescueDayLoading}
+            <div class="rescue-map-placeholder" role="status">Loading historical rescues and map pins…</div>
+          {/if}
+        {:else}
         <div class="panel-heading table-heading">
           <div><p class="eyebrow">Operational register</p><h2>Wildlife rescues</h2>
             <p class="intro">Search active and historical rescue records by status, organisation and report date.</p>
@@ -568,6 +614,7 @@
           <label><span>Reported</span><select bind:value={rescuePeriod}>
             <option value="all">Any date</option><option value="today">Today</option>
             <option value="seven_days">Last 7 days</option><option value="older">Older than 7 days</option>
+            <option value="selected_day">Specific calendar day</option>
           </select></label>
           {#if canChooseOrganisation}
             <label><span>Organisation</span><select bind:value={rescueOrganisation}>
@@ -577,11 +624,20 @@
               {/each}
             </select></label>
           {/if}
+          {#if rescuePeriod === 'selected_day'}
+            <label><span>NSW report date</span>
+              <input type="date" value={rescueDate} max={rescueTodayNSW()}
+                onchange={(event) => selectRescueDate(event.currentTarget.value)} />
+            </label>
+          {/if}
           <label><span>Sort</span><select bind:value={rescueOrder}>
             <option value="newest">Newest first</option><option value="oldest">Oldest first</option>
           </select></label>
         </div>
-        <p class="rescue-register-count" role="status">{visibleRescues.length} matching rescues in loaded records</p>
+        <p class="rescue-register-count" role="status">{rescuePeriod === 'selected_day' ? (rescueDayLoaded ? `${visibleRescues.length} matching rescues on ${rescueDayLabel(rescueDate)}` : 'Loading day records…') : `${visibleRescues.length} matching rescues in recent records`}</p>
+        {#if rescueDayError && rescuePeriod === 'selected_day'}
+          <p class="rescue-day-error" role="alert">Could not retrieve this date: {rescueDayError}</p>
+        {/if}
         {#if visibleRescues.length}
           <div class="table-wrap"><table>
             <thead><tr><th>Animal / Case</th><th>Location</th><th>Status</th><th>Assigned</th><th>Reported</th><th>Updated</th></tr></thead>
@@ -609,6 +665,7 @@
           {/if}
         {:else}
           <div class="empty-state large"><strong>No matching rescues</strong><span>Try changing the search or filters.</span></div>
+        {/if}
         {/if}
       </section>
     {:else if section === 'regions'}
@@ -1529,6 +1586,14 @@
     box-shadow: 0 0 0 3px rgba(110, 148, 126, 0.12);
   }
 
+  .rescue-map-toolbar { display:flex; flex-wrap:wrap; align-items:end; gap:10px; margin-top:18px; }
+  .rescue-map-toolbar label { display:grid; gap:5px; flex:0 1 230px; min-width:170px; color:var(--rh-muted); font-size:12px; font-weight:750; }
+  .rescue-map-toolbar button { min-height:38px; padding:8px 12px; border:1px solid var(--rh-border); border-radius:9px; background:var(--rh-surface-soft); color:var(--rh-text); cursor:pointer; font:inherit; font-size:12px; font-weight:750; }
+  .rescue-map-toolbar button:disabled { opacity:.45; cursor:not-allowed; }
+  .rescue-map-toolbar input, .rescue-map-toolbar select, .rescue-register-toolbar input[type=date] { min-height:38px; padding:8px 10px; border:1px solid var(--rh-border); border-radius:9px; background:var(--rh-field); color:var(--rh-text); font:inherit; font-size:13px; }
+  .rescue-map-date { margin:14px 0 0; color:var(--rh-muted); font-size:13px; }
+  .rescue-day-error { margin:12px 0; color:var(--rh-danger-text); font-size:13px; }
+  .rescue-map-placeholder { margin-top:18px; display:grid; place-items:center; min-height:300px; border:1px dashed var(--rh-border); border-radius:12px; color:var(--rh-muted); font-size:14px; }
   .rescue-register-toolbar { display:flex; align-items:end; flex-wrap:wrap; gap:10px; margin:18px 0 12px; }
   .rescue-register-toolbar > label { display:grid; gap:5px; min-width:135px; color:var(--rh-muted); font-size:12px; font-weight:700; }
   .rescue-register-toolbar > label.search { flex:2 1 240px; min-width:190px; }
