@@ -742,7 +742,6 @@
           </div>
         {/if}
         {/if}
-        {/if}
       </section>
     {:else if section === 'regions'}
       <section class="feature-grid">
