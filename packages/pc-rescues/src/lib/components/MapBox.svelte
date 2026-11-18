@@ -3,7 +3,7 @@
   import { get } from 'svelte/store';
   import { resolvedTheme } from '$lib/theme';
   import { mapRef, data, selectedRescue, intakeOpen, draftLocation, coords, type RescueItem, type DraftLocation } from '$lib/stores';
-  import { shouldShowRescuePin } from '../../../../core/case-map-visibility';
+  import { shouldShowOperationsMapPin, rescueTodayNSW } from '$lib/rescue-list';
   import { RESCUE_PIN_GROUPS, pinForRescue } from '../../../../core/rescue-pin-groups';
 
   // Same pinned, browser-only proof of concept as Administration → Rescues → Map.
@@ -44,6 +44,7 @@
   let selectedArea: AreaSelection | null = $state(null);
   let cachedAreas: OperatingAreaCollection | null = null;
   let fittedInitialArea = false;
+  let currentNSWDay = $state(rescueTodayNSW());
 
   const colourExpression: unknown[] = ['match', ['get', 'group']];
   for (const [group, definition] of Object.entries(RESCUE_PIN_GROUPS)) {
@@ -52,7 +53,7 @@
   colourExpression.push('#455665');
 
   function validPin(item: RescueItem): boolean {
-    return shouldShowRescuePin(item) &&
+    return shouldShowOperationsMapPin(item, currentNSWDay) &&
       Number.isFinite(item.latitude) && Number.isFinite(item.longitude) &&
       Math.abs(item.latitude) <= 90 && Math.abs(item.longitude) <= 180 &&
       !(item.latitude === 0 && item.longitude === 0);
@@ -138,7 +139,7 @@
       const snapshot = get(data);
       map.addSource(PIN_SOURCE, {
         type: 'geojson',
-        data: pinCollection([...snapshot.pending, ...snapshot.assigned])
+        data: pinCollection([...snapshot.pending, ...snapshot.assigned, ...snapshot.completed])
       });
     }
     if (map.getLayer('rescue-operations-main')) return;
@@ -305,7 +306,7 @@
       const id = rescueHit?.properties?.id;
       if (typeof id === 'string') {
         const snapshot = get(data);
-        const item = [...snapshot.pending, ...snapshot.assigned].find(rescue => rescue.id === id);
+        const item = [...snapshot.pending, ...snapshot.assigned, ...snapshot.completed].find(rescue => rescue.id === id);
         if (item) selectedRescue.set(item);
         return;
       }
@@ -341,6 +342,10 @@
   }
 
   onMount(() => {
+    const dayTimer = setInterval(() => {
+      const next = rescueTodayNSW();
+      if (next !== currentNSWDay) currentNSWDay = next;
+    }, 30_000);
     let disposed = false;
     let unsubscribeTheme: (() => void) | undefined;
     const init = async () => {
@@ -382,7 +387,7 @@
             mapReady = true;
             mapError = '';
             const snapshot = get(data);
-            updateRescueSource([...snapshot.pending, ...snapshot.assigned]);
+            updateRescueSource([...snapshot.pending, ...snapshot.assigned, ...snapshot.completed]);
             updateSelectedPin(get(selectedRescue)?.id ?? '');
             setDraftMarker(get(draftLocation));
             void loadOperatingAreas(map);
@@ -416,6 +421,7 @@
     void init();
     return () => {
       disposed = true;
+      clearInterval(dayTimer);
       unsubscribeTheme?.();
       resizeObserver?.disconnect();
       draftMarker?.remove();
@@ -430,7 +436,9 @@
   $effect(() => {
     const pending = $data.pending;
     const assigned = $data.assigned;
-    if (mapReady) updateRescueSource([...pending, ...assigned]);
+    const completed = $data.completed;
+    currentNSWDay;
+    if (mapReady) updateRescueSource([...pending, ...assigned, ...completed]);
   });
   $effect(() => {
     const selected = $selectedRescue?.id ?? '';
