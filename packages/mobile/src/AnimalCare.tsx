@@ -1,13 +1,13 @@
 import ReporterConversation from './ReporterConversation';
-import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Linking, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, Alert, AppState, Linking, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import * as Location from 'expo-location';
 import { KeyboardAwareScrollView, KeyboardAwareTextInput } from './KeyboardAware';
 import RescueAddress from './RescueAddress';
 import ReleasePinMap from './ReleasePinMap';
 import { formatReleaseCoordinates, isValidReleasePoint, type AnimalReleaseReason } from '../../core/release-location';
 import {
-  acceptAnimalTransfer, addAnimalNote, getAnimalHistory, getRescueAnimals, confirmRescuePickup, getCareDelivery, type CareDeliveryDestination,
+  acceptAnimalTransfer, addAnimalNote, getAnimalHistory, getRescueAnimals, confirmRescuePickup, getCareDelivery, recordAnimalGps, type AnimalGpsPhase, type CareDeliveryDestination,
   recordAnimalOutcome, registerAnimal, requestAnimalTransfer, startVetTransport, recordVetDropoff, recordVetAssessment, unclaimRescue,
   correctAnimalIdentification, correctReportedRescue, getRescuerReporterContact, quickVetProgress,
   getEligibleCarers, getVetClinics, correctMistakenPickup, startPersonalCare, type VetClinicOption, type Animal, type AnimalEvent, type Rescue
@@ -89,6 +89,99 @@ export default function AnimalCare({ rescue, userId, roles, onBack, onUnclaim }:
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [gpsRecording, setGpsRecording] = useState(false);
+  const [gpsMessage, setGpsMessage] = useState('');
+  const gpsSubscription = useRef<Location.LocationSubscription | null>(null);
+  const gpsActive = useRef(false);
+  const gpsSending = useRef(false);
+  const gpsLastPoint = useRef<{ latitude: number; longitude: number; at: number } | null>(null);
+  const gpsAnimalId = useRef<string | null>(null);
+  const stopGps = useCallback(() => {
+    gpsActive.current = false;
+    gpsSubscription.current?.remove();
+    gpsSubscription.current = null;
+    gpsAnimalId.current = null;
+    setGpsRecording(false);
+  }, []);
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', state => {
+      if (state !== 'active') {
+        stopGps();
+        setGpsMessage('GPS tracking paused when the app left the foreground.');
+      }
+    });
+    return () => { stopGps(); subscription.remove(); };
+  }, [stopGps]);
+  useEffect(() => {
+    if (gpsAnimalId.current && (selected?.id !== gpsAnimalId.current ||
+        selected.currentCustodianUserId !== userId ||
+        !['IN_RESCUE','IN_TRANSIT','AT_VET','IN_CARE'].includes(selected.status))) stopGps();
+  }, [selected?.id, selected?.status, selected?.currentCustodianUserId, userId, stopGps]);
+  function gpsPhase(): AnimalGpsPhase {
+    if (selected?.status === 'IN_TRANSIT') return 'IN_TRANSIT';
+    if (selected?.status === 'AT_VET') return 'VET_ARRIVAL';
+    if (selected?.status === 'IN_CARE') return 'IN_CARE';
+    return 'PICKUP';
+  }
+  async function saveGpsPosition(animalId: string, coords: Location.LocationObjectCoords,
+    phase: AnimalGpsPhase, automatic = false) {
+    const last = gpsLastPoint.current;
+    const at = Date.now();
+    if (automatic && last && at - last.at < 12000) return;
+    if (gpsSending.current) return;
+    gpsSending.current = true;
+    try {
+      await recordAnimalGps(animalId, {
+        latitude: coords.latitude, longitude: coords.longitude,
+        accuracy: coords.accuracy ?? undefined, phase
+      });
+      gpsLastPoint.current = { latitude: coords.latitude, longitude: coords.longitude, at };
+      setGpsMessage('GPS checkpoint saved · ' + new Date().toLocaleTimeString());
+    } catch (error) {
+      setGpsMessage(error instanceof Error ? error.message : 'GPS checkpoint could not be saved.');
+      if (automatic) stopGps();
+    } finally {
+      gpsSending.current = false;
+    }
+  }
+  async function captureGpsCheckpoint() {
+    if (!selected || selected.currentCustodianUserId !== userId) return;
+    try {
+      const permission = await Location.requestForegroundPermissionsAsync();
+      if (!permission.granted) throw new Error('Foreground location permission is required.');
+      const location = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+      await saveGpsPosition(selected.id, location.coords, gpsPhase());
+    } catch (error) { setGpsMessage(error instanceof Error ? error.message : 'Cannot read GPS.'); }
+  }
+  async function startGpsTracking() {
+    if (!selected || selected.currentCustodianUserId !== userId || gpsActive.current) return;
+    const animalId = selected.id;
+    try {
+      const permission = await Location.requestForegroundPermissionsAsync();
+      if (!permission.granted) throw new Error('Foreground location permission is required.');
+      gpsActive.current = true;
+      gpsAnimalId.current = animalId;
+      gpsLastPoint.current = null;
+      setGpsMessage('Saving GPS checkpoints while this screen stays open.');
+      // Foreground only: stop on app background, leaving the animal, custody
+      // transfer, or terminal outcome. No background-permission request.
+      const current = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+      if (!gpsActive.current || gpsAnimalId.current !== animalId) return;
+      await saveGpsPosition(animalId, current.coords, gpsPhase());
+      if (!gpsActive.current || gpsAnimalId.current !== animalId) return;
+      const sub = await Location.watchPositionAsync({
+        accuracy: Location.Accuracy.High, timeInterval: 15000, distanceInterval: 30
+      }, location => {
+        if (gpsActive.current && gpsAnimalId.current === animalId)
+          void saveGpsPosition(animalId, location.coords, 'CHECKPOINT', true);
+      });
+      if (!gpsActive.current || gpsAnimalId.current !== animalId) sub.remove();
+      else { gpsSubscription.current = sub; setGpsRecording(true); }
+    } catch (error) {
+      stopGps();
+      setGpsMessage(error instanceof Error ? error.message : 'GPS tracking unavailable.');
+    }
+  }
 
   useEffect(() => {
     void getVetClinics().then(result => setVetClinics(result.clinics)).catch(() => {});
@@ -580,6 +673,21 @@ export default function AnimalCare({ rescue, userId, roles, onBack, onUnclaim }:
         ) : null}
       </> : (
         <>
+          {isCustodian && !isFinal ? <View style={styles.card}>
+            <Text style={styles.section}>Animal movement GPS</Text>
+            <Text style={styles.muted}>With your permission, save this animal's actual route from pickup through transport, veterinary care and handover. Tracking works only while this app is open and this animal is in your custody; it stops automatically when you leave this screen or background the app.</Text>
+            <Pressable style={styles.secondaryButton} accessibilityRole="button" disabled={busy}
+              onPress={() => void captureGpsCheckpoint()}>
+              <Text style={styles.secondaryButtonText}>Save current GPS checkpoint</Text>
+            </Pressable>
+            <Pressable style={gpsRecording ? styles.releaseButton : styles.button} accessibilityRole="button"
+              onPress={() => gpsRecording ? stopGps() : void startGpsTracking()}>
+              <Text style={gpsRecording ? styles.releaseText : styles.buttonText}>
+                {gpsRecording ? 'Stop GPS journey tracking' : 'Start foreground GPS journey tracking'}
+              </Text>
+            </Pressable>
+            {gpsMessage ? <Text style={styles.muted}>{gpsMessage}</Text> : null}
+          </View> : null}
           <Pressable style={styles.advancedToggle} accessibilityRole="button" accessibilityState={{expanded:showAdvanced}}
             onPress={() => setShowAdvanced(value => !value)}>
             <Text style={styles.advancedToggleText}>{showAdvanced ? 'Hide detailed care forms' : 'More options: detailed care records and transfers'}</Text>
