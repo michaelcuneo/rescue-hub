@@ -418,6 +418,8 @@ export type Animal = {
   status: 'IN_RESCUE' | 'IN_TRANSIT' | 'AT_VET' | 'IN_CARE' | 'RELEASED' | 'EUTHANISED' | 'DECEASED';
   currentCustodianUserId?: string; currentLocation?: string; physicalCustodianType?: 'RESCUER' | 'VET'; physicalCustodianName?: string; pendingTransferId?: string; activeTransportRescueId?: string; reservedCarerUserId?: string;
   pendingTransferToUserId?: string;
+  releaseLatitude?: number; releaseLongitude?: number; releaseLocation?: string;
+  releaseReason?: 'ORIGINAL_SITE' | 'RELOCATION'; releasedAt?: string;
   vetStage?: 'AWAITING_ASSESSMENT' | 'ASSESSED_AWAITING_TRANSPORT';
   version?: number; createdAt: string; updatedAt: string;
 };
@@ -429,6 +431,7 @@ export async function correctAnimalIdentification(id: string, species: string, d
 export type AnimalEvent = {
   id: string; type: string; actorUserId: string; notes?: string;
   createdAt: string; occurredAt?: string; outcome?: string;
+  location?: string; latitude?: number; longitude?: number; releaseReason?: 'ORIGINAL_SITE' | 'RELOCATION';
   toUserId?: string; fromUserId?: string;
   callerName?: string; callerRole?: string; source?: string; transportRescueId?: string;
   callbackPermitted?: boolean; callbackPhone?: string;
@@ -488,7 +491,7 @@ export async function getEligibleCarers(rescueId?: string) {
 }
 export async function recordAnimalOutcome(
   id: string, status: 'RELEASED' | 'EUTHANISED' | 'DECEASED', notes: string,
-  release?: { location: string; latitude?: number; longitude?: number; releaseReason?: 'RELOCATION' }
+  release?: { location: string; latitude?: number; longitude?: number; releaseReason?: 'ORIGINAL_SITE' | 'RELOCATION' }
 ) {
   return request<{ animal: Animal }>(`/api/mobile/animals/${encodeURIComponent(id)}/events`, {
     method: 'POST', body: JSON.stringify({ kind: 'OUTCOME', status, notes, ...(release ?? {}) })
