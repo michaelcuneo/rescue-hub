@@ -20,6 +20,7 @@
 
   const SOURCE = 'historical-rescue-pins';
   const RELEASE_SOURCE = 'historical-relocation-pins';
+  const SELECTED_RELEASE_SOURCE = 'historical-selected-release-point';
   const AREA_SOURCE = 'historical-operating-areas';
   // POC only: use a pinned, browser-only MapLibre module so the rest of
   // Rescue Hub and its current npm lockfile stay completely unchanged.
@@ -37,6 +38,27 @@
   let surface: HTMLDivElement | undefined;
   let resizeObserver: ResizeObserver | undefined;
   let detailsDialog = $state<HTMLDialogElement | undefined>(undefined);
+  type JourneyEvent = {
+    id: string; type: string; at: string; animalId: string | null;
+    actorName: string | null; fromName: string | null; toName: string | null;
+    destination: string | null; outcome: string | null;
+  };
+  type JourneyAnimal = {
+    id: string; species: string; status: string;
+    currentLocation: string | null; custodianName: string | null;
+    physicalCustodianName: string | null; releasedAt: string | null;
+    releaseLocation: string | null; releaseReason: string | null;
+    releasePoint: { latitude: number; longitude: number } | null;
+  };
+  type Journey = {
+    rescueId: string;
+    assignedResponderName: string | null; pickupAt: string | null;
+    pickedUpByName: string | null; pickupGpsRecorded: boolean;
+    animals: JourneyAnimal[]; history: JourneyEvent[];
+  };
+  let journey = $state<Journey | null>(null);
+  let journeyLoading = $state(false);
+  let journeyError = $state('');
   const mappedRescues = $derived(focusedRescue && focusedRescue.id === selectedId && !rescues.some(item => item.id === focusedRescue.id)
     ? [focusedRescue, ...rescues] : rescues);
   const pins = $derived(mappedRescues.filter(item =>
@@ -76,6 +98,25 @@
     };
   }
 
+  function selectedReleaseGeoJSON(): any {
+    const featureCollection: { type: 'FeatureCollection'; features: Array<{
+      type: 'Feature'; geometry: { type: 'Point'; coordinates: number[] };
+      properties: { id: string; species: string }
+    }> } = { type: 'FeatureCollection', features: [] };
+    if (!selected || !journey || journey.rescueId !== selected.id) return featureCollection;
+    for (const animal of journey.animals) {
+      const point = animal.releasePoint;
+      // A release destination is not the original rescue marker. It is drawn
+      // only when an authorised admin has opened the corresponding case.
+      if (!point || !Number.isFinite(point.latitude) || !Number.isFinite(point.longitude) ||
+        (point.latitude === selected.latitude && point.longitude === selected.longitude)) continue;
+      featureCollection.features.push({
+        type: 'Feature', properties: { id: selected.id, species: animal.species },
+        geometry: { type: 'Point', coordinates: [point.longitude, point.latitude] }
+      });
+    }
+    return featureCollection;
+  }
   function relocationGeoJSON(): any {
     return {
       type: 'FeatureCollection',
@@ -101,6 +142,7 @@
     if (!mapReady || !map?.getSource?.(SOURCE)) return;
     map.getSource(SOURCE).setData(rescueGeoJSON());
     map.getSource(RELEASE_SOURCE)?.setData(relocationGeoJSON());
+    map.getSource(SELECTED_RELEASE_SOURCE)?.setData(selectedReleaseGeoJSON());
   }
 
   function fitAll() {
@@ -135,6 +177,9 @@
     }
     if (!map.getSource(RELEASE_SOURCE)) {
       map.addSource(RELEASE_SOURCE, { type: 'geojson', data: relocationGeoJSON() });
+    }
+    if (!map.getSource(SELECTED_RELEASE_SOURCE)) {
+      map.addSource(SELECTED_RELEASE_SOURCE, { type: 'geojson', data: selectedReleaseGeoJSON() });
     }
     if (!map.getLayer('historical-rescue-clusters')) {
       map.addLayer({
@@ -176,6 +221,11 @@
           'circle-stroke-color': '#ffffff', 'circle-stroke-width': 2.5 }
       });
       map.addLayer({
+        id: 'historical-selected-release', source: SELECTED_RELEASE_SOURCE, type: 'circle',
+        paint: { 'circle-radius': 11, 'circle-color': '#8547a0',
+          'circle-stroke-color': '#ffffff', 'circle-stroke-width': 3 }
+      });
+      map.addLayer({
         id: 'historical-rescue-status',
         source: SOURCE,
         type: 'circle',
@@ -206,6 +256,7 @@
     map.on('click', 'historical-rescue-points', selectFeature);
     map.on('click', 'historical-rescue-status', selectFeature);
     map.on('click', 'historical-relocations', selectFeature);
+    map.on('click', 'historical-selected-release', selectFeature);
     map.on('click', 'historical-rescue-clusters', (event: any) => {
       const feature = event.features?.[0];
       const id = feature?.properties?.cluster_id;
@@ -218,7 +269,7 @@
         duration: 400
       });
     });
-    for (const layer of ['historical-rescue-points', 'historical-rescue-status', 'historical-rescue-clusters', 'historical-relocations']) {
+    for (const layer of ['historical-rescue-points', 'historical-rescue-status', 'historical-rescue-clusters', 'historical-relocations', 'historical-selected-release']) {
       map.on('mouseenter', layer, () => { map.getCanvas().style.cursor = 'pointer'; });
       map.on('mouseleave', layer, () => { map.getCanvas().style.cursor = ''; });
     }
@@ -373,6 +424,36 @@
     focusSelected();
   });
 
+  $effect(() => {
+    const id = selected?.id;
+    if (!id) {
+      journey = null;
+      journeyError = '';
+      journeyLoading = false;
+      return;
+    }
+    const controller = new AbortController();
+    journey = null;
+    journeyError = '';
+    journeyLoading = true;
+    void fetch(`/api/admin/rescues/${encodeURIComponent(id)}/journey`, {
+      signal: controller.signal, cache: 'no-store'
+    }).then(async response => {
+      const payload = await response.json() as Journey & { error?: string };
+      if (!response.ok) throw new Error(payload.error ?? 'Unable to load care journey');
+      if (!controller.signal.aborted) journey = payload;
+    }).catch(error => {
+      if (!controller.signal.aborted) journeyError = error instanceof Error ? error.message : 'Unable to load journey';
+    }).finally(() => {
+      if (!controller.signal.aborted) journeyLoading = false;
+    });
+    return () => controller.abort();
+  });
+  $effect(() => {
+    journey;
+    if (mapReady) updatePins();
+  });
+
   function closeDetails() {
     onSelect?.(null);
   }
@@ -481,6 +562,9 @@
           <div><dt>Status</dt><dd>{selected.status}</dd></div>
           <div><dt>Reported</dt><dd>{formatted(selected.createdAt)}</dd></div>
           <div><dt>Last updated</dt><dd>{formatted(selected.updatedAt)}</dd></div>
+          <div><dt>Assigned responder</dt>
+            <dd>{journey?.assignedResponderName ?? (selected.assignedUserId ? 'Looking up responder…' : 'Not assigned')}</dd></div>
+          <div><dt>Collected</dt><dd>{selected.pickedUpAt ? formatted(selected.pickedUpAt) : 'Not collected'}</dd></div>
           <div><dt>Location</dt><dd>{selected.location || 'Coordinates only'}</dd></div>
           <div><dt>Condition</dt><dd>{selected.injury || 'Not recorded'}</dd></div>
           {#if selected.historicalOutcome}
@@ -494,6 +578,48 @@
           {/if}
           <div><dt>Case ID</dt><dd class="case-id">{selected.id}</dd></div>
         </dl>
+        <div class="journey-details" aria-live="polite">
+          <h4>Pickup, transport &amp; care journey</h4>
+          {#if journeyLoading}
+            <p>Loading animal custody history…</p>
+          {:else if journeyError}
+            <p role="alert">Care history unavailable: {journeyError}</p>
+          {:else if journey}
+            <p><strong>Collected by:</strong> {journey.pickedUpByName ?? (journey.pickupAt ? journey.assignedResponderName ?? 'Rescuer name unavailable' : 'Not collected')}</p>
+            <p><strong>Collection time:</strong> {journey.pickupAt ? formatted(journey.pickupAt) : 'Not recorded'}</p>
+            <p class="journey-note">The original rescue pin records the reported location. A separate collection GPS point has not been recorded; the pickup location cannot be independently verified.</p>
+            {#each journey.animals as animal (animal.id)}
+              <div class="journey-animal">
+                <strong>{animal.species} · {animal.status.replaceAll('_',' ')}</strong>
+                <p><strong>Current custodian:</strong> {animal.custodianName ?? animal.physicalCustodianName ?? 'Not recorded'}</p>
+                <p><strong>Last recorded location:</strong> {animal.currentLocation ?? 'Not recorded'}</p>
+                {#if animal.releaseLocation}
+                  <p><strong>Release destination:</strong> {animal.releaseLocation}{animal.releaseReason ? ` · ${animal.releaseReason.replaceAll('_',' ').toLowerCase()}` : ''}</p>
+                {/if}
+                {#if animal.releasePoint}
+                  <p class="detail-coordinate"><strong>Release GPS:</strong> {animal.releasePoint.latitude.toFixed(6)}, {animal.releasePoint.longitude.toFixed(6)}</p>
+                {/if}
+              </div>
+            {/each}
+            {#if journey.history.length}
+              <h4>Recorded milestones</h4>
+              <ol class="journey-timeline">
+                {#each journey.history as event (event.id)}
+                  <li>
+                    <strong>{event.type.replaceAll('_',' ')}</strong>
+                    <small>{formatted(event.at)}{event.actorName ? ` · ${event.actorName}` : ''}</small>
+                    {#if event.destination}<span>Destination: {event.destination}</span>{/if}
+                    {#if event.fromName || event.toName}<span>Handover: {event.fromName ?? 'Unknown'} → {event.toName ?? 'Unknown'}</span>{/if}
+                    {#if event.outcome}<span>Outcome: {event.outcome.replaceAll('_',' ')}</span>{/if}
+                  </li>
+                {/each}
+              </ol>
+            {:else}
+              <p>No custody or care milestones have been recorded yet.</p>
+            {/if}
+          {/if}
+        </div>
+ 
       </section>
       <div class="modal-actions">
         <button type="button" onclick={() => detailsDialog?.close()}>Close details</button>
@@ -594,6 +720,16 @@
     position:absolute; width:1px; height:1px; overflow:hidden;
     clip:rect(0,0,0,0); white-space:nowrap;
   }
+  .journey-details { margin-top:18px; padding-top:16px; border-top:1px solid var(--rh-border); }
+  .journey-details h4 { margin:12px 0 9px; font-size:14px; }
+  .journey-details p { margin:7px 0; font-size:12px; line-height:1.55; }
+  .journey-details .journey-note { color:var(--rh-muted); }
+  .journey-animal { padding:12px; margin:12px 0; border:1px solid var(--rh-border); border-radius:9px; background:var(--rh-surface-soft); }
+  .journey-animal > strong { font-size:12px; }
+  .journey-timeline { display:grid; gap:11px; margin:10px 0; padding-left:20px; }
+  .journey-timeline li { padding-left:4px; font-size:12px; }
+  .journey-timeline li strong, .journey-timeline li small, .journey-timeline li span { display:block; line-height:1.5; }
+  .journey-timeline li small { color:var(--rh-muted); }
   .modal-actions { display:flex; justify-content:flex-end; margin-top:20px; }
   .modal-actions button {
     min-height:40px; padding:8px 16px;
