@@ -176,3 +176,61 @@ run by `sst deploy`.
 
 No actual DynamoDB stage was accessed from GitHub, so the app must still be
 tested against the selected stage after deploying/pulling the updated code.
+
+## Compact case card and opt-in animal GPS journey (18 November 2026)
+
+**Administration → Rescues → Map** now behaves like desktop Operations:
+selecting a pin shows a compact, bottom-right card **inside the map**, not a
+centred modal or a long detail panel. It shows the animal, brief rescue status,
+original rescue location, optional GPS checkpoint count and an
+**Animal Records & Phone Updates** button. There is **no Directions link** in
+the Administration card. All animal care and movement details remain in the
+full animal record.
+
+**Never discard a reported rescue pin on pickup.** The original Pending /
+Assigned incident coordinate is fixed and remains on Operations throughout
+collection, travel, veterinary handover and care, while cases completed today
+remain on Operations for that NSW day. All historical original points persist
+in Administration for all dates. The latest *measured animal location*, when
+available, is a **separate blue marker**; it never mutates the original report
+coordinate. Relocation destinations still have separate purple markers.
+
+The mobile animal-care screen can now **opt in to foreground GPS tracking**
+for a selected animal while the signed-in person is the current custodian.
+It saves an initial position and sampled route checkpoints (at least 12 seconds
+apart; mobile location watcher requests 30-metre displacement / 15-second
+interval) as immutable `GPS_CHECKPOINT` animal events with precise GPS,
+accuracy, timestamp, actor and phase. There is also a manual
+**Save current GPS checkpoint** button. Tracking stops if the user leaves the
+screen, backgrounds the mobile app, transfers custody, or finalises care.
+It is **not background tracking**, and must not be described as continuous
+or complete if the app is closed, offline, or GPS permission is denied.
+A phone carried by a rescuer is not evidence of an animal's location once
+physical veterinary custody has been transferred; vet-held animals do not
+accept custodian-phone GPS checkpoints.
+
+The secure `POST /api/mobile/animals/[id]/gps` endpoint requires active
+organisation membership and ownership of current physical custody. It
+atomically appends the checkpoint to the permanent animal history and
+updates last-known position projections on the original rescue and, when
+different, its active transport job. The realtime feed notifies desktop
+Operations, where blue current-position pins update independently of the
+original rescue pins.
+
+When an authorised administrator selects a rescue, the private journey
+endpoint loads all recorded checkpoint events for the linked animals.
+**Blue lines join consecutive measured GPS points** and blue dots show the
+samples; lines are **approximations between samples**, not proof of the
+exact road or walking route. The map frames the reported original point
+and measured journey on first selection, then refreshes the one selected case
+every 20 seconds while visible. No public reporting route exposes volunteer
+movement or sensitive release-site coordinates.
+
+**Production readiness follow-ups:** explicitly decide whether real
+background tracking is required; it needs platform permission/UI disclosure,
+opt-in controls, battery optimisation and a privacy policy before enabling.
+Set organisation-specific GPS retention and access-audit policies, choose
+frequency thresholds per transport phase, add offline buffering with secure
+retries, and test sampling on real iOS/Android devices. No GPS path should be
+fabricated for historic events that only recorded an address, nor should
+the app infer custody or veterinary approval from a phone location.
