@@ -1,11 +1,12 @@
-# MapLibre mapping proof of concept
+# MapLibre mapping proof of concept — Administration and Operations
 
 ## Branch
 
 `feature/maplibre-admin-map-poc`, branched from `feature/rescue-queue-register-organisation`.
 
-Only **Administration → Rescues → Map** is converted. Do not modify or deploy
-the operational desktop map or the React Native mobile map in this experiment.
+Both desktop maps are converted on the experimental branch:
+**Administration → Rescues → Map** and **Operations → Rescue Queue**.
+The **React Native mobile map and geocoding are deliberately untouched**.
 
 ## Implementation
 
@@ -25,6 +26,17 @@ the operational desktop map or the React Native mobile map in this experiment.
 - Light/dark theme changes reset the basemap style and reinstall the GeoJSON
   overlays. Theme handling has no effect on the existing desktop Operations map.
 - The map and the resize observer are cleaned up on unmount.
+
+### Operations map
+
+- Replaces the former `MapBox.svelte` Mapbox wrapper with a MapLibre instance.
+- Retains the same `mapRef.getMap()` interface for dispatch selection, address-search centring and new rescue intake.
+- Pending/Assigned pins now use geographic GeoJSON **GPU layers**, not one HTML marker per animal. The same species colours, initials, selected-case halo and workflow-status indicator are represented in those layers.
+- The map uses the existing `shouldShowRescuePin` policy: a physically collected animal or case awaiting a carer is no longer plotted, but its underlying rescue record is unchanged.
+- Clicking an individual rescue pin selects that case in the dispatch panel. Clicking an empty location while a new rescue intake is open drops a draft pin; a selected address also moves the draft pin correctly.
+- Uses MapLibre navigation, scale and secure-context geolocation controls. The current location coordinates continue updating the shared `coords` store.
+- Loads the same DCCEEW NSW operating-area polygons, outlines and labels, with a clickable area summary.
+- Keeps the existing fixed and responsive panel layout, with canvas resizing via `ResizeObserver`.
 
 This is deliberately a disposable test integration, not the intended
 production packaging. We should move to an npm-installed, lockfile-pinned
@@ -61,18 +73,16 @@ instance. This does not require a new API key.
 4. Test Today / Previous / Next and switching light/dark theme without
    losing rescue pins or operating-area boundaries.
 5. Resize the window and test narrow desktop layouts.
-6. Confirm the **Operations** map and **mobile** map are unchanged and still
-   use their original Mapbox configuration.
-7. Review browser network requests: the admin map should not request
-   `api.mapbox.com` for its own tiles or scripts. Other Rescue Hub components
-   still use Mapbox until separately migrated.
+6. Visit **Operations**. Confirm Pending and Assigned pins appear at the correct GPS coordinates, with species colours and status dots. Clicking a pin should select its rescue, while clicking a rescue in the queue should fly the map to it.
+7. Open **New rescue**; click an empty area of the map and verify a draft pin appears at the chosen location. Use the address search or **Use current map position** and verify the marker moves. Cancel and confirm it disappears. Do not submit a live rescue just to test this.
+8. Click a NSW operating area and confirm the selection summary; zoom, pan, switch themes and resize to narrow layouts.
+9. Confirm the mobile Expo map is **unchanged** and still uses its original Mapbox configuration. The Operations address autocomplete and reverse lookup still use Mapbox; do not remove the token from the entire dev stage yet.
+10. Review browser network requests: neither **desktop map** should request `api.mapbox.com` for its own tiles or scripts. Geocoding may still request Mapbox endpoints.
 
 ## Decision gates
 
 Compare basemap clarity in NSW regional areas, accessibility, labels,
 geographic marker accuracy, boundary overlay performance, tile-loading
-reliability, mobile browser performance and costs. Do not migrate the other
-maps until this first experiment passes interactive inspection.
+reliability, mobile browser performance and costs. Do not migrate **mobile** or **geocoding** until both desktop maps pass interactive inspection.
 
-The project isn't Mapbox-free until remaining Mapbox map rendering, forward
-and reverse geocoding and native mobile paths are migrated separately.
+The project isn't Mapbox-free until forward and reverse geocoding plus the mobile map are migrated separately.
