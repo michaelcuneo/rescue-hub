@@ -12,10 +12,11 @@ export function shouldShowRescuePin(rescue: MapCase): boolean {
 }
 
 /**
- * Completed rescues appear on the live map only on their NSW completion day.
- * This does not re-expose picked-up Pending/Assigned jobs.
- * The caller computes completedToday using the NSW calendar completion date.
+ * Keep each rescue's original pin visible throughout pickup, transport and
+ * care. Completion remains on Operations for its NSW completion day; older
+ * completions remain permanently visible in Administration's history map.
  */
 export function shouldShowOperationsMapPin(rescue: MapCase, completedToday: boolean): boolean {
-  return (rescue.status === 'COMPLETED' && completedToday) || shouldShowRescuePin(rescue);
+  return rescue.status === 'PENDING' || rescue.status === 'ASSIGNED' ||
+    (rescue.status === 'COMPLETED' && completedToday);
 }
