@@ -183,52 +183,14 @@
     return featureCollection;
   }
   function relocationGeoJSON(): any {
-    const features: Array<{ type: 'Feature'; properties: { id: string; animalId: string; releaseSite: string };
-      geometry: { type: 'Point'; coordinates: number[] } }> = [];
-    const seen = new Set<string>();
-    for (const item of pins) {
-      const add = (animalId: string, lat: number, lon: number, label: string) => {
-        if (!Number.isFinite(lat) || !Number.isFinite(lon) || Math.abs(lat) > 90 ||
-          Math.abs(lon) > 180 || (lat === 0 && lon === 0)) return;
-        // Returning an animal to the original rescue site is represented by
-        // the existing rescue pin. Do not hide or replace that rescue pin.
-        if (lat === item.latitude && lon === item.longitude) return;
-        const key = item.id + ':' + animalId + ':' + lat + ':' + lon;
-        if (seen.has(key)) return;
-        seen.add(key);
-        features.push({ type: 'Feature', properties: { id: item.id, animalId, releaseSite: label },
-          geometry: { type: 'Point', coordinates: [lon, lat] } });
-      };
-      for (const site of item.releaseSites ?? []) {
-        add(site.animalId, site.latitude, site.longitude, site.location ?? 'Wildlife release');
-      }
-      if (item.historicalOutcome === 'RELEASED' &&
-        typeof item.historicalReleaseLatitude === 'number' &&
-        typeof item.historicalReleaseLongitude === 'number') {
-        add('historical', item.historicalReleaseLatitude, item.historicalReleaseLongitude,
-          item.historicalReleaseLocation ?? 'Synthetic release');
-      }
-    }
-    return { type: 'FeatureCollection', features };
+    // Avoid a second visible pin for a completed case: its single archive
+    // marker is already projected to the latest animal/release position.
+    return { type: 'FeatureCollection', features: [] };
   }
   function lastRecordedGpsGeoJSON(): any {
-    return {
-      type: 'FeatureCollection',
-      features: pins.filter(item => item.latestAnimalGps &&
-        Number.isFinite(item.latestAnimalGps.latitude) && Number.isFinite(item.latestAnimalGps.longitude) &&
-        Math.abs(item.latestAnimalGps.latitude) <= 90 &&
-        Math.abs(item.latestAnimalGps.longitude) <= 180).map(item => ({
-          type: 'Feature',
-          properties: {
-            id: item.id, animalId: item.latestAnimalGps!.animalId,
-            phase: item.latestAnimalGps!.phase, recordedAt: item.latestAnimalGps!.recordedAt
-          },
-          geometry: {
-            type: 'Point',
-            coordinates: [item.latestAnimalGps!.longitude, item.latestAnimalGps!.latitude]
-          }
-        }))
-    };
+    // The main archive marker represents this position. Additional
+    // historical checkpoint pins belong to the selected case only.
+    return { type: 'FeatureCollection', features: [] };
   }
   function journeyGeoJSON(): any {
     if (!selected || journey?.rescueId !== selected.id)
