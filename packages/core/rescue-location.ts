@@ -40,8 +40,8 @@ type MappedFeature = {
   geometry?: { coordinates?: number[] };
 };
 
-/** A pure parser; feed only the Mapbox v6 reverse feature collection.
- * Mapbox temporary geocodes must be displayed on demand, never persisted.
+/** Legacy Mapbox v6 parser retained only for historical tests; not called by live geocoding.
+ * Do not use Mapbox temporary geocodes on MapLibre or persist them.
  */
 export function chooseReverseGeocode(
   value: unknown,

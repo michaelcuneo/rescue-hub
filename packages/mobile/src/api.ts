@@ -141,6 +141,7 @@ export async function verifyReporter(email: string, code: string) {
     method: 'POST', body: JSON.stringify({ email, code })
   }, false);
   await SecureStore.setItemAsync(TOKEN_KEY, result.token);
+  resetRescueAddressCache();
   return { user: result.user, membership: null };
 }
 
@@ -196,6 +197,7 @@ export async function loginSocialReporter(provider: SocialProvider) {
     '/api/public/mobile-session', { method: 'POST', body: JSON.stringify({ code, verifier }) }, false
   );
   await SecureStore.setItemAsync(TOKEN_KEY, session.token);
+  resetRescueAddressCache();
   return { user: session.user, membership: null };
 }
 
@@ -206,6 +208,7 @@ export async function login(email: string, password: string) {
     false
   );
   await SecureStore.setItemAsync(TOKEN_KEY, result.token);
+  resetRescueAddressCache();
   return result;
 }
 
@@ -216,12 +219,14 @@ export async function restoreSession() {
     return await request<{ user: User; membership: MembershipConfig | null }>('/api/mobile/me');
   } catch {
     await SecureStore.deleteItemAsync(TOKEN_KEY);
+  resetRescueAddressCache();
     return null;
   }
 }
 
 export async function logout() {
   await SecureStore.deleteItemAsync(TOKEN_KEY);
+  resetRescueAddressCache();
 }
 
 export async function setAvailability(status: User['availabilityStatus']) {
@@ -283,8 +288,23 @@ export type RescueAddressResult = {
   directionsUrl: string | null;
 };
 
-export async function getRescueAddress(id: string): Promise<RescueAddressResult> {
-  return request<RescueAddressResult>(`/api/mobile/rescues/${encodeURIComponent(id)}/address`);
+const rescueAddressCache = new Map<string, { until: number; promise: Promise<RescueAddressResult> }>();
+let rescueAddressGeneration = 0;
+function resetRescueAddressCache() {
+  rescueAddressGeneration++;
+  rescueAddressCache.clear();
+}
+/** Short-lived, in-memory hints; never cache across session or identity changes. */
+export function getRescueAddress(id: string, latitude?: number, longitude?: number): Promise<RescueAddressResult> {
+  const key = `${rescueAddressGeneration}:${id}:${latitude ?? ''}:${longitude ?? ''}`;
+  const existing = rescueAddressCache.get(key);
+  if (existing && existing.until > Date.now()) return existing.promise;
+  if (existing) rescueAddressCache.delete(key);
+  const promise = request<RescueAddressResult>(`/api/mobile/rescues/${encodeURIComponent(id)}/address`)
+    .catch(error => { rescueAddressCache.delete(key); throw error; });
+  if (rescueAddressCache.size >= 200) rescueAddressCache.delete(rescueAddressCache.keys().next().value!);
+  rescueAddressCache.set(key, { until: Date.now() + 2 * 60_000, promise });
+  return promise;
 }
 
 export async function correctReportedRescue(id: string, type: string, injury: string) {

@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { env } from '$env/dynamic/public';
 	import { australianAnimalNames } from '$lib/data/australian-animals';
 import { reportChannelLabel } from '../../../../core/report-channel';
 	import { currentAnimalPin } from '../../../../core/current-animal-pin';
@@ -85,8 +84,8 @@ import { completedOnNSWDay, rescueTodayNSW, sortRescueRecords, isWaitingFourHour
 	let routeBusy = $state('');
 	let routeError = $state('');
 	let searchTimer: ReturnType<typeof setTimeout> | undefined;
+	let addressSearchSequence = 0;
 
-	const token = env.PUBLIC_MAPBOX_ACCESS_TOKEN ?? '';
 
 	const allRescues = $derived([
 		...$data.pending.map((item) => ({ ...item, status: 'PENDING' })),
@@ -198,11 +197,14 @@ import { completedOnNSWDay, rescueTodayNSW, sortRescueRecords, isWaitingFourHour
 		$intakeOpen = false;
 		$draftLocation = null;
 		addressResults = [];
+		addressSearchSequence++;
+		if (searchTimer) clearTimeout(searchTimer);
 		submitError = '';
 	}
 
 	function scheduleAddressSearch(value: string) {
 		addressQuery = value;
+		addressSearchSequence++; // Ignore results from requests for previous input.
 		if (searchTimer) clearTimeout(searchTimer);
 
 		if (value.trim().length < 3) {
@@ -214,56 +216,23 @@ import { completedOnNSWDay, rescueTodayNSW, sortRescueRecords, isWaitingFourHour
 	}
 
 	async function searchAddress() {
-		if (!token || addressQuery.trim().length < 3) return;
-
+		const query = addressQuery.trim();
+		if (query.length < 3) return;
+		const requestId = ++addressSearchSequence;
 		addressSearching = true;
-
 		try {
-			const params = new URLSearchParams({
-				q: addressQuery.trim(),
-				access_token: token,
-				country: 'au',
-				limit: '5',
-				proximity: '151.70,-32.93'
+			const response = await fetch(`/api/geocoding/search?q=${encodeURIComponent(query)}`, {
+				cache: 'no-store'
 			});
-
-			const response = await fetch(
-				`https://api.mapbox.com/search/geocode/v6/forward?${params.toString()}`
-			);
-
 			if (!response.ok) throw new Error(`Address search failed: ${response.status}`);
-
-			const payload = (await response.json()) as {
-				features?: Array<{
-					id: string;
-					geometry: { coordinates: [number, number] };
-					properties?: {
-						full_address?: string;
-						name?: string;
-						place_formatted?: string;
-					};
-				}>;
-			};
-
-			addressResults = (payload.features ?? []).map((feature) => {
-				const properties = feature.properties ?? {};
-				const label =
-					properties.full_address ??
-					[properties.name, properties.place_formatted].filter(Boolean).join(', ') ??
-					'Selected location';
-
-				return {
-					id: feature.id,
-					label,
-					longitude: feature.geometry.coordinates[0],
-					latitude: feature.geometry.coordinates[1]
-				};
-			});
+			const payload = await response.json() as { results?: GeocodeResult[] };
+			if (requestId === addressSearchSequence && addressQuery.trim() === query)
+				addressResults = payload.results ?? [];
 		} catch (error) {
-			console.error(error);
-			addressResults = [];
+			console.warn('Address search unavailable', error);
+			if (requestId === addressSearchSequence) addressResults = [];
 		} finally {
-			addressSearching = false;
+			if (requestId === addressSearchSequence) addressSearching = false;
 		}
 	}
 
@@ -592,7 +561,7 @@ import { completedOnNSWDay, rescueTodayNSW, sortRescueRecords, isWaitingFourHour
 								value={addressQuery}
 								oninput={(event) =>
 									scheduleAddressSearch((event.currentTarget as HTMLInputElement).value)}
-								placeholder="Start typing an NSW address…"
+								placeholder="Start typing an Australian address…"
 								autocomplete="off"
 							/>
 							{#if addressSearching}

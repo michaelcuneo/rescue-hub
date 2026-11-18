@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { getRescueAddress } from '$lib/rescue-address-client';
   import {
     addressPrecisionLabel, formatRescueCoordinates, locationFallback,
     rescueDirectionsUrl, type AddressPrecision
@@ -18,21 +19,18 @@
   const link = $derived(rescueDirectionsUrl({ latitude, longitude }));
   const gps = $derived(formatRescueCoordinates({ latitude, longitude }));
 
-  async function lookup(id: string, key: string): Promise<Lookup | null> {
-    return fetch(`/api/mobile/rescues/${encodeURIComponent(id)}/address`, {
-      cache: 'no-store'
-    }).then(async response => {
-      if (!response.ok) return null;
-      return await response.json() as Lookup;
-    }).catch(() => null);
+  function lookup(id: string, latitude: number, longitude: number): Promise<Lookup | null> {
+    return getRescueAddress(id, latitude, longitude);
   }
 
   $effect(() => {
     let disposed = false;
-    const lookupKey = key, lookupId = id;
+    const lookupId = id;
+    key; // Track both incident coordinates as an effect dependency.
+    const lookupLatitude = latitude, lookupLongitude = longitude;
     address = null;
     loading = true;
-    void lookup(lookupId, lookupKey).then(result => {
+    void lookup(lookupId, lookupLatitude, lookupLongitude).then(result => {
       if (disposed) return;
       address = result;
       loading = false;

@@ -41,7 +41,9 @@ export default $config({
       } : {}),
       link: [graphql, realtimeLink, data, mailFrom],
       environment: {
-        PUBLIC_MAPBOX_ACCESS_TOKEN: process.env.PUBLIC_MAPBOX_ACCESS_TOKEN ?? "",
+        // Private origin and bearer token for our independently licensed G-NAF geocoder.
+        RESCUE_GEOCODER_URL: process.env.RESCUE_GEOCODER_URL ?? "",
+        RESCUE_GEOCODER_TOKEN: process.env.RESCUE_GEOCODER_TOKEN ?? "",
         RESCUE_HUB_SES_CONFIGURATION_SET: invitationEmailConfigurationSetName,
         // Trusted website origin for single-use organisation invitation links.
         RESCUE_HUB_PUBLIC_ORIGIN: publicOrigin,

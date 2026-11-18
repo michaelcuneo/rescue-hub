@@ -11,7 +11,7 @@ type Props = {
   location?: string | null; showDirections?: boolean; compact?: boolean;
 };
 
-// Mapbox temporary results remain only in mounted view state, never cached.
+// Independently licensed G-NAF address hints can be reused for this session.
 
 export default function RescueAddress({
   id, latitude, longitude, location, compact = false, showDirections = false
@@ -25,7 +25,7 @@ export default function RescueAddress({
     let active = true;
     setValue(null);
     setLoading(true);
-    void getRescueAddress(id).catch(() => null).then(result => {
+    void getRescueAddress(id, latitude, longitude).catch(() => null).then(result => {
       if (!active) return;
       setValue(result);
       setLoading(false);
