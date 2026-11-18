@@ -147,9 +147,9 @@ allDemoRescues.forEach((r, index) => {
   const id = `demo-hunter-rescue-${n}`;
   const at = new Date(Date.UTC(2026, 10, 5, 9, 0) - index * 17 * 60_000).toISOString();
 
-  // The detailed care histories belong to the demo stack ONLY. Do not add
-  // synthetic treatment, custody or outcomes to non-demo deployments.
-  const story = $app.stage === "demo" && (status === "ASSIGNED" || status === "COMPLETED")
+  // Populate realistic synthetic wildlife histories only for the two
+  // explicit test stages. Never seed fake care records to other deployments.
+  const story = ($app.stage === "demo" || $app.stage === "michael") && (status === "ASSIGNED" || status === "COMPLETED")
     ? buildHunterDemoStory({ id, type, breed, location, assignedUserId, status })
     : null;
   const createdAt = story?.createdAt ?? at;
