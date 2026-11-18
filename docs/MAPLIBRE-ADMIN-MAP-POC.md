@@ -260,3 +260,16 @@ The Operations **New rescue** intake is a persistent side panel, not a backdrop-
 Draft pins are draggable MapLibre markers. Dropping the marker updates the shared `draftLocation` state and the rescue's submitted latitude/longitude. Focus the marker and use the arrow keys to make fine position adjustments; holding Shift moves in larger steps. A manually moved pin clears any previously selected address input so stale geocoded text is never submitted for a new coordinate. Address-search results still set a pin at the chosen coordinates, and the operator can then drag it to refine the report.
 
 Manual verification: open intake, click the map, verify the panel remains open and pin appears; click on an existing rescue pin while intake is open; drag the draft marker and verify its coordinates change in the panel; choose an address, drag the marker and verify the old address is cleared; use arrow keys on the focused marker; Cancel and verify the marker disappears. Check both dark and light styles. The Expo map and its release picker are unaffected.
+
+
+## Low-saturation light-mode basemap
+
+The Operations, Administration rescue-history map and desktop release
+location picker use OpenFreeMap's **Positron** basemap in light mode
+(`https://tiles.openfreemap.org/styles/positron`). This has a restrained
+neutral-grey aesthetic so species category markers and operational status
+pins remain the colourful focus. The existing dark-mode map continues to
+use `https://tiles.openfreemap.org/styles/dark`. The desktop theme's
+light-mode UI palette and the Expo/Mapbox-based mobile map are unchanged.
+Check label legibility, NSW boundary overlays and the pin palette in both
+themes before release.
