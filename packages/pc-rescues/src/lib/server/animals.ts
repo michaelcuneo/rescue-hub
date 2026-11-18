@@ -316,6 +316,25 @@ export async function changeAnimalState(animal: AnimalRecord, actorUserId: strin
       ExpressionAttributeValues: values }},
     { Put: { TableName: table, Item: event, ConditionExpression: 'attribute_not_exists(pk)' }}
   ];
+  // An authorised Administration map needs release destinations without
+  // issuing N+1 animal queries for every historical rescue pin. Persist the
+  // release as a projection on its original rescue in the same atomic outcome
+  // transaction. A rescue can contain multiple animals/release destinations.
+  // The animal META and append-only FINAL_OUTCOME remain the source of truth.
+  if (input.kind === 'OUTCOME' && input.status === 'RELEASED') {
+    writes.push({ Update: {
+      TableName: table, Key: { pk: `RESCUE#${animal.rescueId}`, sk: 'META' },
+      UpdateExpression: 'SET releaseSites = list_append(if_not_exists(releaseSites, :empty), :site)',
+      ConditionExpression: 'attribute_exists(pk) AND organisationId = :org',
+      ExpressionAttributeValues: {
+        ':org': animal.organisationId, ':empty': [],
+        ':site': [{
+          animalId: animal.id, latitude: input.latitude, longitude: input.longitude,
+          reason: input.releaseReason, location: input.location, releasedAt: now
+        }]
+      }
+    }});
+  }
   if (linkedClinicId) {
     writes.push({ Put: {
       TableName: table,
