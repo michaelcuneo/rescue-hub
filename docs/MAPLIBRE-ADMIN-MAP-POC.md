@@ -90,3 +90,43 @@ The project isn't Mapbox-free until forward and reverse geocoding plus the mobil
 ## Operations completed-case pin restoration (18 November 2026)
 
 The first Operations MapLibre migration accidentally omitted `COMPLETED` from its GeoJSON source and click handler even though the sidebar's Completed tab still showed today's completed cases. This has been corrected: **Pending and Assigned** remain subject to the existing physical-pickup hiding rule, while **Completed today (Australia/Sydney)** appears as a completed-status pin at the **original incident location**, even if the animal was picked up earlier. Clicking a completed pin opens the existing rescue detail card. Completed cases from earlier days are available on **Administration → Rescues → Map** rather than the live Operations map. A time-based refresh removes yesterday's completed pins after NSW midnight; no animal or rescue records are deleted. The repair adds unit coverage in `rescue-operations-date.test.mjs`.
+
+## Persistent historical rescue pins and custody journey
+
+Administration → Rescues → Map uses the full paginated rescue archive, not
+the live-dispatch map visibility helper. **Pending, Assigned and Completed
+rescue locations stay plotted at their original report coordinates**, even
+after collection, treatment, transfer or final outcome. Selecting a specific
+day or range still filters by the **original report date**; `All rescues · any
+dates` includes the whole retained archive.
+
+Selecting a pin or using **View pin** opens an accessible case modal with
+status, assigned responder, reported injury, collection timestamp and a
+separately loaded, organisation-authorised journey timeline. The timeline
+includes recorded collection, transport, handover, veterinary milestones and
+final outcome events, naming the recorded actor/recipient where known.
+Destination names remain text unless verified coordinates were actually
+captured. The current pickup workflow timestamps physical collection but does
+**not** independently capture the GPS point of pickup: this is explicitly
+disclosed rather than pretending the original incident pin proves collection
+occurred there.
+
+For final wildlife releases, each recorded off-site release with valid GPS
+coordinates gets a **purple release pin** when its case is selected. Original
+report pins are never moved or removed; releases at their original site have
+the same GPS location and do not need a second overlapping pin. Existing
+synthetic relocation pins still render in the archive for stress testing.
+All case-history requests go through
+`GET /api/admin/rescues/[id]/journey`, which enforces administrative roles
+and the actor's organisation boundary, and are made only when a case is opened.
+
+Operations retains its separate live-dispatch pin rules. An animal picked up
+is removed from the operational response map while remaining fully accessible
+in the historical Administration map.
+
+Manual browser checks: select a Pending, an Assigned and an old Completed
+rescue; verify all three pins persist after a date-filter change back to
+All. Open cases with and without linked animal records; confirm no invented
+destination pins for free-text addresses, and verify an actual off-site
+release draws a purple pin. Close with Escape or the X and ensure map camera
+and pins are retained.
