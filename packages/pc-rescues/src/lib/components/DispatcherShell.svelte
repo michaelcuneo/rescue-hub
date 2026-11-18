@@ -4,6 +4,7 @@
 import { reportChannelLabel } from '../../../../core/report-channel';
 	import { pinForRescue } from '../../../../core/rescue-pin-groups';
 	import RescueAddress from './RescueAddress.svelte';
+import { matchesRescuePeriod, sortRescueRecords, rescueDayGroup, isWaitingFourHours, RESCUE_LIST_PAGE_SIZE, type RescuePeriod, type RescueOrder } from '$lib/rescue-list';
 		import type { OrganisationMembershipConfig } from '$lib/server/membership';
 	import {
 		Search,
@@ -64,6 +65,10 @@ import { reportChannelLabel } from '../../../../core/report-channel';
 
 	let tab = $state<RescueTab>('pending');
 	let search = $state('');
+ let period = $state<RescuePeriod>('all');
+ let order = $state<RescueOrder>('oldest');
+ let visibleLimit = $state(RESCUE_LIST_PAGE_SIZE);
+ let groupedByDay = $state(true);
 	let species = $state('');
 	let speciesSuggestionsOpen = $state(false);
 	const speciesMatches = $derived(species.trim() ? australianAnimalNames.filter((name) => name.toLowerCase().includes(species.trim().toLowerCase())).slice(0, 12) : australianAnimalNames.slice(0, 12));
@@ -93,17 +98,15 @@ import { reportChannelLabel } from '../../../../core/report-channel';
 		tab === 'pending' ? $data.pending : tab === 'assigned' ? $data.assigned : $data.completed
 	);
 
-	const visibleItems = $derived(
-		currentItems.filter((item) => {
-			const query = search.trim().toLowerCase();
-			if (!query) return true;
-
-			return [item.type, item.breed, item.location, item.injury]
-				.join(' ')
-				.toLowerCase()
-				.includes(query);
-		})
-	);
+ const visibleItems = $derived(sortRescueRecords(currentItems.filter((item) => {
+    const query = search.trim().toLowerCase();
+    return matchesRescuePeriod(item, period)
+      && (!query || [item.id, item.type, item.breed, item.location, item.injury,
+        assigneeName(item.assignedUserId), item.animalStatus]
+        .filter(Boolean).join(' ').toLowerCase().includes(query));
+  }), tab === 'completed' ? 'newest' : order));
+  const shownItems = $derived(visibleItems.slice(0, visibleLimit));
+  $effect(() => { tab; search; period; order; visibleLimit = RESCUE_LIST_PAGE_SIZE; });
 
 	const selected = $derived($selectedRescue);
 	const unmatchedReports = $derived(
@@ -408,6 +411,15 @@ import { reportChannelLabel } from '../../../../core/report-channel';
 			<input bind:value={search} placeholder="Search animal, suburb, condition…" />
 		</label>
 
+        <div class="queue-filter-bar">
+          <label><span>Reported</span><select bind:value={period}>
+            <option value="all">Any date</option><option value="today">Today</option>
+            <option value="seven_days">Last 7 days</option><option value="older">Older</option>
+          </select></label>
+          <label><span>Sort</span><select bind:value={order} disabled={tab === 'completed'}>
+            <option value="oldest">Oldest first</option><option value="newest">Newest first</option>
+          </select></label>
+        </div>
 		<div class="tabs" role="tablist" aria-label="Rescue state">
 			<button class:active={tab === 'pending'} type="button" onclick={() => (tab = 'pending')}>
 				<span>Pending</span>
@@ -423,6 +435,9 @@ import { reportChannelLabel } from '../../../../core/report-channel';
 			</button>
 		</div>
 
+        <div class="queue-results"><span>{visibleItems.length} matching {tab} rescue{visibleItems.length === 1 ? '' : 's'}</span>
+          <button type="button" aria-pressed={groupedByDay} onclick={() => (groupedByDay = !groupedByDay)}>{groupedByDay ? 'Hide dates' : 'Group dates'}</button>
+        </div>
 		<div class="rescue-list">
 			{#if tab === 'pending' && unmatchedReports.length}
 				{#each unmatchedReports as report (report.id)}
@@ -443,7 +458,10 @@ import { reportChannelLabel } from '../../../../core/report-channel';
 				{/each}
 			{/if}
 			{#if routeError}<p role="alert" class="dispatch-notice">{routeError}</p>{/if}
-			{#each visibleItems as item (item.id)}
+			{#each shownItems as item, index (item.id)}
+              {#if groupedByDay && (index === 0 || rescueDayGroup(shownItems[index - 1]) !== rescueDayGroup(item))}
+                <div class="queue-date-heading">{rescueDayGroup(item)}</div>
+              {/if}
 				<button
 					type="button"
 					class:selected={selected?.id === item.id}
@@ -464,6 +482,7 @@ import { reportChannelLabel } from '../../../../core/report-channel';
 								fallback={item.location} compact />
 						</span>
 						<span class="rescue-injury">{item.injury || 'Condition not recorded'}</span>
+                        {#if tab === 'pending' && isWaitingFourHours(item)}<span class="queue-waiting">Awaiting response 4+ hours</span>{/if}
 						<span class="source-label">{reportChannelLabel(item)}</span>
 						{#if item.assignedUserId}
 							<span class="rescue-assignment">
@@ -485,6 +504,9 @@ import { reportChannelLabel } from '../../../../core/report-channel';
 					<span>Nothing matches the current filter.</span>
 				</div>
 			{/each}
+            {#if visibleItems.length > shownItems.length}
+              <button class="queue-load-more" type="button" onclick={() => (visibleLimit += RESCUE_LIST_PAGE_SIZE)}>Show {Math.min(RESCUE_LIST_PAGE_SIZE, visibleItems.length - shownItems.length)} more</button>
+            {/if}
 		</div>
 
 		<div class="queue-footer">
@@ -782,6 +804,14 @@ import { reportChannelLabel } from '../../../../core/report-channel';
 		cursor: pointer;
 	}
 
+  .queue-filter-bar { display:flex; gap:8px; padding:9px 16px 0; }
+  .queue-filter-bar label { display:grid; flex:1; min-width:0; gap:3px; color:var(--rh-muted); font-size:11px; font-weight:700; }
+  .queue-filter-bar select { width:100%; padding:7px 5px; border:1px solid var(--rh-border); border-radius:8px; background:var(--rh-field); color:var(--rh-text); font:inherit; font-size:12px; }
+  .queue-results { display:flex; justify-content:space-between; align-items:center; gap:6px; padding:6px 16px; color:var(--rh-muted); font-size:11px; }
+  .queue-results button { border:0; background:transparent; color:var(--rh-text); font:inherit; text-decoration:underline; cursor:pointer; }
+  .queue-date-heading { margin:10px 0 3px; padding:6px 8px; border-bottom:1px solid var(--rh-border); color:var(--rh-muted); font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.04em; }
+  .queue-waiting { display:block; margin-top:4px; color:var(--rh-danger-text); font-size:11px; font-weight:700; }
+  .queue-load-more { display:block; margin:12px auto; padding:9px 14px; border:1px solid var(--rh-border); border-radius:9px; background:var(--rh-surface-soft); color:var(--rh-text); cursor:pointer; font:inherit; font-size:12px; font-weight:700; }
 	.queue-search {
 		margin: 0 16px;
 		height: 38px;
