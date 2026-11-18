@@ -1,6 +1,6 @@
 import { json } from '@sveltejs/kit';
-import { hasAdministrativeRole, listUsers } from '$lib/server/auth';
-import { ArchiveRequestError, parseArchiveFilters, searchRescueArchive } from '$lib/server/rescue-archive';
+import { hasAdministrativeRole } from '$lib/server/auth';
+import { ArchiveRequestError, listArchiveResponderNames, parseArchiveFilters, searchRescueArchive } from '$lib/server/rescue-archive';
 import type { RequestHandler } from './$types';
 
 /**
@@ -20,16 +20,12 @@ export const GET: RequestHandler = async ({ locals, url }) => {
 
   try {
     const filters = parseArchiveFilters(url.searchParams, isAuthority ? null : actor.organisationId!);
-    const names = new Map<string, string>();
-    // Avoid a separate directory read for normal index/date/status queries.
-    if (filters.query) {
-      const users = await listUsers();
-      for (const user of users) {
-        if (isAuthority || user.organisationId === actor.organisationId) {
-          names.set(user.id, user.name);
-        }
-      }
-    }
+    // Responder-name searching loads every directory page, unlike the
+    // historical first-page-only listUsers helper. Ordinary filtered queries
+    // avoid this additional lookup.
+    const names = filters.query
+      ? await listArchiveResponderNames(isAuthority ? null : actor.organisationId!)
+      : new Map<string, string>();
     const result = await searchRescueArchive(filters, url.searchParams.get('cursor') ?? undefined, names);
     return json(result, { headers: { 'cache-control': 'private, no-store' } });
   } catch (error) {
