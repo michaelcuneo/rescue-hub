@@ -60,6 +60,7 @@
   let journey = $state<Journey | null>(null);
   let journeyLoading = $state(false);
   let journeyError = $state('');
+  let focusedJourneyCase = $state<string | null>(null);
   let mapFocus = $state<'reported' | 'release' | 'both'>('reported');
   let focusedReleaseAnimalId = $state<string | null>(null);
   const statusCounts = $derived({
@@ -528,6 +529,7 @@
     const id = selected?.id;
     mapFocus = 'reported';
     focusedReleaseAnimalId = null;
+    focusedJourneyCase = null;
     if (!id) {
       journey = null;
       journeyError = '';
@@ -570,6 +572,25 @@
   $effect(() => {
     journey;
     if (mapReady) updatePins();
+  });
+  $effect(() => {
+    const rescue = selected;
+    const points = journey?.gpsPoints ?? [];
+    const map = getMap();
+    if (!rescue || !mapReady || !map || !points.length || journey?.rescueId !== rescue.id ||
+      focusedJourneyCase === rescue.id) return;
+    focusedJourneyCase = rescue.id;
+    const valid = points.filter(point => Number.isFinite(point.latitude) && Number.isFinite(point.longitude) &&
+      Math.abs(point.latitude) <= 90 && Math.abs(point.longitude) <= 180);
+    if (!valid.length) return;
+    const longitudes = [rescue.longitude, ...valid.map(point => point.longitude)];
+    const latitudes = [rescue.latitude, ...valid.map(point => point.latitude)];
+    const west = Math.min(...longitudes), east = Math.max(...longitudes);
+    const south = Math.min(...latitudes), north = Math.max(...latitudes);
+    if (west !== east || south !== north)
+      map.fitBounds([[west, south], [east, north]], {
+        padding: { top: 70, bottom: 85, left: 70, right: 100 }, maxZoom: 13, duration: 450
+      });
   });
 
   function closeDetails() {
