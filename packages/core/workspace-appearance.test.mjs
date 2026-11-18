@@ -62,7 +62,7 @@ test('Administration buttons inherit readable theme tokens without overriding sp
   assert.match(admin, /\.people-filters button\.chosen\s*\{[^}]*background:\s*var\(--forest\);\s*color:\s*white;/);
   assert.match(admin, /nav button\s*\{[^}]*background:transparent;[^}]*color:var\(--rh-muted\);/s);
   assert.match(styles, /--rh-text:\s*#17232f/);
-  assert.match(styles, /--rh-text:\s*#f3f6f9/);
+  assert.match(styles, /--rh-text:\s*#f2f4f6/);
 });
 
 
