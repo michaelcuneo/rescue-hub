@@ -444,6 +444,16 @@ export async function registerAnimal(rescueId: string, species: string, descript
     method: 'POST', body: JSON.stringify({ species, description })
   });
 }
+export type AnimalGpsPhase = 'PICKUP' | 'IN_TRANSIT' | 'VET_ARRIVAL' | 'CARER_HANDOVER' | 'IN_CARE' | 'RELEASE_SITE' | 'CHECKPOINT';
+export async function recordAnimalGps(id: string, point: {
+  latitude: number; longitude: number; accuracy?: number; phase: AnimalGpsPhase
+}) {
+  return request<{ ok: true; recordedAt: string }>(
+    `/api/mobile/animals/${encodeURIComponent(id)}/gps`,
+    { method: 'POST', body: JSON.stringify(point) }
+  );
+}
+
 export async function getAnimalHistory(id: string) {
   return request<{ animal: Animal; events: AnimalEvent[] }>(`/api/mobile/animals/${encodeURIComponent(id)}`);
 }
