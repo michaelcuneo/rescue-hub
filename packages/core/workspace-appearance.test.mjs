@@ -14,7 +14,9 @@ test('operations, administration and documentation use one persistent top bar', 
 
   assert.match(layout, /<AppTopbar viewer=\{data\.viewer\}/);
   assert.match(layout, /'\/admin', '\/documentation'/);
-  assert.match(nav, /href="\/"[^>]*>Operations<\/a>/);
+  assert.match(nav, /href=\{operationsHref\}[^>]*>Operations<\/a>/);
+  assert.match(nav, /const operationsHref = \$derived\(viewer\?\.operationsHref \?\? '\/'\)/);
+  assert.match(read('routes/+layout.server.ts'), /operationsHref: desktopOperationsHref\(active, demoMode\)/);
   assert.match(nav, /href="\/admin"[^>]*>Administration<\/a>/);
   assert.match(nav, /href="\/documentation"[^>]*>Documentation<\/a>/);
   assert.doesNotMatch(operations, /<header class="topbar">/);
