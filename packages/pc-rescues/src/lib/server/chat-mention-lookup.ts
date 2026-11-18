@@ -11,7 +11,7 @@ export async function listChatMentions(
 ): Promise<ChatMention[]> {
   const { organisationId: org } = await requireChannel(user, channelId, organisationId);
   const term = query.trim().toLowerCase();
-  if (!/^[a-z0-9_-]{1,60}$/.test(term)) return [];
+  if (!/^[a-z0-9_-]{0,60}$/.test(term)) return [];
   const people = await listChatDirectory(user, org, channelId);
   const matches: ChatMention[] = people
     .filter(person => mentionHandle(person.name).includes(term))
