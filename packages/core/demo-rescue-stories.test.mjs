@@ -42,7 +42,13 @@ test('deterministic linked animal, call and care events follow each incident tim
     assert.ok(story.events.every(event => event.organisationId === 'native-animal-trust-fund'));
     assert.ok(story.events.every(event => event.demo === true));
     assert.equal(new Set(story.events.map(event => event.sk)).size, story.events.length);
-    assert.equal(story.animal.version, 1 + HUNTER_DEMO_STORIES[id].beats.length);
+    assert.equal(story.animal.version, 1 + HUNTER_DEMO_STORIES[id].beats.length + (isCompleted(id) ? 0 : 6));
+    if (!isCompleted(id)) {
+      assert.ok(story.events.length >= 9, `${id}: assigned rescue needs meaningful care history`);
+      assert.ok(story.events.filter(event => event.type === 'PHONE_UPDATE').length >= 3, `${id}: include coordination and clinical updates`);
+      assert.ok(story.events.filter(event => event.type === 'REVIEW').length >= 2, `${id}: include ongoing reviews`);
+      assert.ok(story.events.some(event => String(event.notes).includes('Next action documented')), `${id}: documented next step`);
+    }
   }
 });
 
@@ -78,9 +84,11 @@ test('no stories are generated for real rescue IDs or pending demo jobs', () => 
   assert.equal(buildHunterDemoStory({ ...rescueFor('001'), status:'PENDING', assignedUserId:'' }), null);
 });
 
-test('seed writes only animal histories in demo stage', () => {
+test('seed writes animal histories only in michael and demo stages', () => {
   const seed = readFileSync(new URL('../infra/demo.ts', import.meta.url), 'utf8');
-  assert.match(seed, /\$app\.stage === "demo" && \(status === "ASSIGNED" \|\| status === "COMPLETED"\)/);
+  assert.match(seed, /\$app\.stage === "demo"/);
+  assert.match(seed, /\$app\.stage === "michael"/);
+  assert.match(seed, /status === "ASSIGNED" \|\| status === "COMPLETED"/);
   assert.match(seed, /put\(`DemoStoryAnimal-\$\{n\}`/);
   assert.match(seed, /put\(`DemoStoryEvent-\$\{n\}-/);
 });
