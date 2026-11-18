@@ -42,3 +42,21 @@ recording, pull request or issue. Sign in at
 This script **does not** run automatically and does not create an account on
 GitHub. It writes only to the explicitly linked SST stage when the developer
 runs it with their own AWS credentials.
+
+## Operations with a bootstrap development administrator
+
+A development administrator created by the guarded CLI is a
+`PLATFORM_ADMIN` without an actual organisation membership. This is
+intentional: platform-level oversight is not the same as field membership.
+
+When running the **local Vite/SST development server**, the account now opens
+**Operations** in the existing **Hunter demonstration organisation context**
+(`native-animal-trust-fund`) rather than redirecting straight to Admin.
+The Operations queue and API remain organisation-scoped; this does **not**
+permit cross-organisation operational browsing. The fallback requires the
+server-verified `devBootstrap` account marker, `PLATFORM_ADMIN` and
+`dev === true`. It is not enabled in production or deployed demo builds.
+
+For real organisation staff or a deployed environment, choose/enter an
+explicit operating organisation. The existing `/demo/hunter` context switch
+remains available to an authorised platform administrator.
