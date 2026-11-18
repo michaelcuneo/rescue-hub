@@ -2,7 +2,8 @@
 	import { env } from '$env/dynamic/public';
 	import { australianAnimalNames } from '$lib/data/australian-animals';
 import { reportChannelLabel } from '../../../../core/report-channel';
-	import { pinForRescue } from '../../../../core/rescue-pin-groups';
+	import { currentAnimalPin } from '../../../../core/current-animal-pin';
+  import { pinForRescue } from '../../../../core/rescue-pin-groups';
 	import RescueAddress from './RescueAddress.svelte';
 import { completedOnNSWDay, rescueTodayNSW, sortRescueRecords, isWaitingFourHours, RESCUE_LIST_PAGE_SIZE, type RescueOrder } from '$lib/rescue-list';
 		import type { OrganisationMembershipConfig } from '$lib/server/membership';
@@ -181,7 +182,7 @@ import { completedOnNSWDay, rescueTodayNSW, sortRescueRecords, isWaitingFourHour
 		const rawMap = $mapRef?.getMap?.();
 
 		rawMap?.flyTo?.({
-			center: [Number(item.longitude), Number(item.latitude)],
+			center: [currentAnimalPin(item).longitude, currentAnimalPin(item).latitude],
 			zoom: Math.max(rawMap.getZoom?.() ?? 11, 13),
 			duration: 550
 		});

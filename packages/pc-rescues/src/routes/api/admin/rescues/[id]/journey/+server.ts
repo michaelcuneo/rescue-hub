@@ -72,7 +72,7 @@ export const GET: RequestHandler = async ({ locals, params }) => {
 
     const gpsPoints: Array<{
       id: string; animalId: string; type: string; phase: string;
-      latitude: number; longitude: number; at: string; accuracy: number | null
+      latitude: number; longitude: number; at: string; accuracy: number | null; location: string | null
     }> = [];
     const history: Array<{
       id: string; type: string; at: string; animalId: string | null;
@@ -107,7 +107,8 @@ export const GET: RequestHandler = async ({ locals, params }) => {
             phase: typeof event.phase === 'string' ? event.phase : 'CHECKPOINT',
             ...point,
             at: String(event.createdAt ?? ''),
-            accuracy: typeof event.accuracy === 'number' ? event.accuracy : null
+            accuracy: typeof event.accuracy === 'number' ? event.accuracy : null,
+            location: nonEmpty(event.location)
           });
         }
       }

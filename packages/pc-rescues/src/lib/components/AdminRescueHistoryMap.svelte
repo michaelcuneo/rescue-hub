@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { X } from '@lucide/svelte';
   import { resolvedTheme } from '$lib/theme';
+  import { currentAnimalPin } from '../../../../core/current-animal-pin';
   import { pinForRescue, RESCUE_PIN_GROUPS } from '../../../../core/rescue-pin-groups';
   import type { Rescue } from '$lib/server/graphql';
 
@@ -131,7 +132,7 @@
           status: item.status,
           type: item.type
         },
-        geometry: { type: 'Point', coordinates: [item.longitude, item.latitude] }
+        geometry: { type: 'Point', coordinates: [currentAnimalPin(item).longitude, currentAnimalPin(item).latitude] }
       }))
     };
   }
@@ -241,7 +242,8 @@
     const map = getMap();
     if (!mapReady || !map || !pins.length) return;
     if (pins.length === 1) {
-      map.flyTo({ center: [pins[0].longitude, pins[0].latitude], zoom: 11, duration: 450 });
+      const point = currentAnimalPin(pins[0]);
+       map.flyTo({ center: [point.longitude, point.latitude], zoom: 11, duration: 450 });
       return;
     }
     let west = Number.POSITIVE_INFINITY;
@@ -249,10 +251,10 @@
     let south = Number.POSITIVE_INFINITY;
     let north = Number.NEGATIVE_INFINITY;
     for (const item of pins) {
-      west = Math.min(west, item.longitude);
-      east = Math.max(east, item.longitude);
-      south = Math.min(south, item.latitude);
-      north = Math.max(north, item.latitude);
+      west = Math.min(west, currentAnimalPin(item).longitude);
+      east = Math.max(east, currentAnimalPin(item).longitude);
+      south = Math.min(south, currentAnimalPin(item).latitude);
+      north = Math.max(north, currentAnimalPin(item).latitude);
     }
     map.fitBounds([[west, south], [east, north]], { padding: 66, maxZoom: 12, duration: 450 });
   }
@@ -318,11 +320,6 @@
         id: 'historical-selected-release', source: SELECTED_RELEASE_SOURCE, type: 'circle',
         paint: { 'circle-radius': 11, 'circle-color': '#8547a0',
           'circle-stroke-color': '#ffffff', 'circle-stroke-width': 3 }
-      });
-      map.addLayer({
-        id: 'historical-animal-route', source: JOURNEY_SOURCE, type: 'line',
-        filter: ['==', ['geometry-type'], 'LineString'],
-        paint: { 'line-color': '#1d72ba', 'line-width': 3, 'line-opacity': .82 }
       });
       map.addLayer({
         id: 'historical-animal-waypoints', source: JOURNEY_SOURCE, type: 'circle',
@@ -660,12 +657,12 @@
             <small>{selected.breed ?? 'Species details pending'}</small></div>
           <span class="map-card-status">{selected.status}</span>
         </div>
-        <p class="map-card-location">{selected.location ?? 'Original GPS rescue pin'}</p>
+        <p class="map-card-location">{currentAnimalPin(selected).kind === 'reported' ? 'Original injury location (current position unrecorded)' : 'Latest recorded animal location'} · {currentAnimalPin(selected).label}</p>
         <p class="map-card-progress">{selected.pickedUpAt ? 'Collected · ' : 'Awaiting pickup · '}
           {journey?.assignedResponderName ?? (selected.assignedUserId ? 'Assigned responder' : 'Unassigned')}</p>
         {#if journeyLoading}<p class="map-card-progress">Loading GPS journey…</p>{/if}
         {#if journey?.gpsPoints?.length}
-          <p class="map-card-progress">{journey.gpsPoints.length} recorded GPS checkpoints · Blue movement trail</p>
+          <p class="map-card-progress">{journey.gpsPoints.length} recorded GPS checkpoints · Recorded animal checkpoints</p>
         {/if}
         {#if journeyError}<p class="map-card-progress">Detailed journey unavailable</p>{/if}
         <a class="map-card-record-link" href="/rescues/{selected.id}/care">Animal Records &amp; Phone Updates</a>
@@ -705,7 +702,7 @@
       <span><i style:background-color="#c18a12"></i>Assigned</span>
       <span><i style:background-color="#50a971"></i>Completed</span>
       <span><i style:background-color="#8547a0"></i>Relocation destination</span>
-      <span><i style:background-color="#1d72ba"></i>Last recorded animal GPS / route</span>
+      <span><i style:background-color="#1d72ba"></i>Last recorded animal location</span>
       {#if groups.length}
         <strong class="animal-legend-heading">Animal groups</strong>
         {#each groups as [key, group] (key)}

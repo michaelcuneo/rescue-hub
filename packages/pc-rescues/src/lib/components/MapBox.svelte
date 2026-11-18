@@ -4,7 +4,8 @@
   import { resolvedTheme } from '$lib/theme';
   import { mapRef, data, selectedRescue, intakeOpen, draftLocation, coords, type RescueItem, type DraftLocation } from '$lib/stores';
   import { rescueTodayNSW, completedOnNSWDay } from '$lib/rescue-list';
-  import { shouldShowOperationsMapPin } from '../../../../core/case-map-visibility';
+  import { currentAnimalPin } from '../../../../core/current-animal-pin';
+   import { shouldShowOperationsMapPin } from '../../../../core/case-map-visibility';
   import { RESCUE_PIN_GROUPS, pinForRescue } from '../../../../core/rescue-pin-groups';
 
   // Same pinned, browser-only proof of concept as Administration → Rescues → Map.
@@ -75,31 +76,14 @@
         },
         geometry: {
           type: 'Point' as const,
-          coordinates: [item.longitude, item.latitude]
+          coordinates: [currentAnimalPin(item).longitude, currentAnimalPin(item).latitude]
         }
       }))
     };
   }
 
-  function currentAnimalLocations(items: RescueItem[]) {
-    return {
-      type: 'FeatureCollection',
-      features: items.filter(item => validPin(item) &&
-        item.latestAnimalGps && Number.isFinite(item.latestAnimalGps.latitude) &&
-        Number.isFinite(item.latestAnimalGps.longitude) &&
-        Math.abs(item.latestAnimalGps.latitude) <= 90 &&
-        Math.abs(item.latestAnimalGps.longitude) <= 180 &&
-        (item.latestAnimalGps.latitude !== 0 || item.latestAnimalGps.longitude !== 0)
-      ).map(item => ({
-        type: 'Feature', properties: {
-          id: item.id, animalId: item.latestAnimalGps!.animalId,
-          phase: item.latestAnimalGps!.phase
-        },
-        geometry: {
-          type: 'Point', coordinates: [item.latestAnimalGps!.longitude, item.latestAnimalGps!.latitude]
-        }
-      }))
-    };
+  function currentAnimalLocations(_items: RescueItem[]) {
+    return { type: 'FeatureCollection', features: [] };
   }
   function updateRescueSource(items: RescueItem[]) {
     const map = mapInstance;
@@ -522,7 +506,7 @@
       <span><i class="swatch other"></i>Other rehabilitation groups</span>
     </div>
     <div class="species-legend" aria-label="Rescue marker animal groups">
-      <small>Original rescue pins remain visible after pickup. Blue pins show the last voluntarily recorded animal GPS position.</small>
+      <small>One map pin per case: latest recorded animal position, or the original report when no later position is available.</small>
       <strong>Animal groups</strong>
       <div class="species-legend-items">
         {#each Object.entries(RESCUE_PIN_GROUPS) as [group, pinGroup]}
