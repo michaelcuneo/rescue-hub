@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount, tick } from 'svelte';
+  import { onMount } from 'svelte';
   import { X } from '@lucide/svelte';
   import { resolvedTheme } from '$lib/theme';
   import { pinForRescue, RESCUE_PIN_GROUPS } from '../../../../core/rescue-pin-groups';
@@ -21,6 +21,7 @@
   const SOURCE = 'historical-rescue-pins';
   const RELEASE_SOURCE = 'historical-relocation-pins';
   const SELECTED_RELEASE_SOURCE = 'historical-selected-release-point';
+  const JOURNEY_SOURCE = 'historical-selected-gps-journey';
   const AREA_SOURCE = 'historical-operating-areas';
   // POC only: use a pinned, browser-only MapLibre module so the rest of
   // Rescue Hub and its current npm lockfile stay completely unchanged.
@@ -37,7 +38,6 @@
   let areaCount = $state(0);
   let surface: HTMLDivElement | undefined;
   let resizeObserver: ResizeObserver | undefined;
-  let detailsDialog = $state<HTMLDialogElement | undefined>(undefined);
   type JourneyEvent = {
     id: string; type: string; at: string; animalId: string | null;
     actorName: string | null; fromName: string | null; toName: string | null;
@@ -55,6 +55,7 @@
     assignedResponderName: string | null; pickupAt: string | null;
     pickedUpByName: string | null; pickupGpsRecorded: boolean;
     animals: JourneyAnimal[]; history: JourneyEvent[];
+    gpsPoints: Array<{ id: string; animalId: string; phase: string; latitude: number; longitude: number; at: string }>;
   };
   let journey = $state<Journey | null>(null);
   let journeyLoading = $state(false);
@@ -181,12 +182,37 @@
     }
     return { type: 'FeatureCollection', features };
   }
+  function journeyGeoJSON(): any {
+    if (!selected || journey?.rescueId !== selected.id) return { type: 'FeatureCollection', features: [] };
+    const byAnimal = new Map<string, typeof journey.gpsPoints>();
+    for (const point of journey.gpsPoints ?? []) {
+      if (!Number.isFinite(point.latitude) || !Number.isFinite(point.longitude)) continue;
+      if (!byAnimal.has(point.animalId)) byAnimal.set(point.animalId, []);
+      byAnimal.get(point.animalId)!.push(point);
+    }
+    const features: any[] = [];
+    for (const [animalId, checkpoints] of byAnimal) {
+      checkpoints.sort((a,b) => a.at.localeCompare(b.at));
+      // Connecting actual sampled positions is a GPS trace, NOT an inferred
+      // road route or evidence of exactly which path was travelled.
+      if (checkpoints.length > 1) features.push({
+        type: 'Feature', properties: { animalId },
+        geometry: { type: 'LineString', coordinates: checkpoints.map(point => [point.longitude, point.latitude]) }
+      });
+      for (const point of checkpoints) features.push({
+        type: 'Feature', properties: { animalId, phase: point.phase, at: point.at },
+        geometry: { type: 'Point', coordinates: [point.longitude, point.latitude] }
+      });
+    }
+    return { type: 'FeatureCollection', features };
+  }
   function updatePins() {
     const map = getMap();
     if (!mapReady || !map?.getSource?.(SOURCE)) return;
     map.getSource(SOURCE).setData(rescueGeoJSON());
     map.getSource(RELEASE_SOURCE)?.setData(relocationGeoJSON());
     map.getSource(SELECTED_RELEASE_SOURCE)?.setData(selectedReleaseGeoJSON());
+    map.getSource(JOURNEY_SOURCE)?.setData(journeyGeoJSON());
   }
 
   function fitAll() {
@@ -225,6 +251,7 @@
     if (!map.getSource(SELECTED_RELEASE_SOURCE)) {
       map.addSource(SELECTED_RELEASE_SOURCE, { type: 'geojson', data: selectedReleaseGeoJSON() });
     }
+    if (!map.getSource(JOURNEY_SOURCE)) map.addSource(JOURNEY_SOURCE, { type: 'geojson', data: journeyGeoJSON() });
     if (!map.getLayer('historical-rescue-clusters')) {
       map.addLayer({
         id: 'historical-rescue-clusters',
@@ -268,6 +295,16 @@
         id: 'historical-selected-release', source: SELECTED_RELEASE_SOURCE, type: 'circle',
         paint: { 'circle-radius': 11, 'circle-color': '#8547a0',
           'circle-stroke-color': '#ffffff', 'circle-stroke-width': 3 }
+      });
+      map.addLayer({
+        id: 'historical-animal-route', source: JOURNEY_SOURCE, type: 'line',
+        filter: ['==', ['geometry-type'], 'LineString'],
+        paint: { 'line-color': '#1d72ba', 'line-width': 3, 'line-opacity': .82 }
+      });
+      map.addLayer({
+        id: 'historical-animal-waypoints', source: JOURNEY_SOURCE, type: 'circle',
+        filter: ['==', ['geometry-type'], 'Point'],
+        paint: { 'circle-radius': 5.5, 'circle-color': '#1d72ba', 'circle-stroke-width': 1.5, 'circle-stroke-color': '#fff' }
       });
       map.addLayer({
         id: 'historical-rescue-status',
@@ -522,23 +559,6 @@
   function closeDetails() {
     onSelect?.(null);
   }
-  function handleBackdropPointer(event: PointerEvent) {
-    const dialog = event.currentTarget as HTMLDialogElement;
-    if (event.target !== dialog) return;
-    const bounds = dialog.getBoundingClientRect();
-    if (event.clientX < bounds.left || event.clientX > bounds.right ||
-      event.clientY < bounds.top || event.clientY > bounds.bottom) dialog.close();
-  }
-  // Works when View Pin selects a rescue before the archive request finishes.
-  // Native showModal provides focus management, Escape and a true backdrop.
-  $effect(() => {
-    const record = selected;
-    if (!record) return;
-    void tick().then(() => {
-      if (selectedId === record.id && detailsDialog?.isConnected && !detailsDialog.open) detailsDialog.showModal();
-    });
-  });
-
   function formatted(value?: string | null): string {
     if (!value) return 'Not recorded';
     const time = new Date(value);
@@ -564,6 +584,27 @@
     {/if}
     {#if pins.length > 0}
       <button type="button" class="fit-pins" onclick={fitAll}>Show all pins</button>
+    {/if}
+    {#if selected}
+      <section class="map-selected-card" aria-label="Selected rescue summary">
+        <button type="button" class="map-card-close" aria-label="Close rescue summary"
+          onclick={() => onSelect?.(null)}><X size={17} aria-hidden="true" /></button>
+        <p class="map-card-kicker">Selected rescue · {selected.status.toLowerCase()}</p>
+        <div class="map-card-title" style:--species-color={pinForRescue(selected).color}>
+          <div><h2>{selected.type}</h2>
+            <small>{selected.breed ?? 'Species details pending'}</small></div>
+          <span class="map-card-status">{selected.status}</span>
+        </div>
+        <p class="map-card-location">{selected.location ?? 'Original GPS rescue pin'}</p>
+        <p class="map-card-progress">{selected.pickedUpAt ? 'Collected · ' : 'Awaiting pickup · '}
+          {journey?.assignedResponderName ?? (selected.assignedUserId ? 'Assigned responder' : 'Unassigned')}</p>
+        {#if journeyLoading}<p class="map-card-progress">Loading GPS journey…</p>{/if}
+        {#if journey?.gpsPoints?.length}
+          <p class="map-card-progress">{journey.gpsPoints.length} recorded GPS checkpoints · Blue movement trail</p>
+        {/if}
+        {#if journeyError}<p class="map-card-progress">Detailed journey unavailable</p>{/if}
+        <a class="map-card-record-link" href="/rescues/{selected.id}/care">Animal Records &amp; Phone Updates</a>
+      </section>
     {/if}
   </div>
   <aside class="historical-map-panel" aria-label="Historical rescue map details">
@@ -599,132 +640,18 @@
       <span><i style:background-color="#c18a12"></i>Assigned</span>
       <span><i style:background-color="#50a971"></i>Completed</span>
       <span><i style:background-color="#8547a0"></i>Relocation destination</span>
+      <span><i style:background-color="#1d72ba"></i>Recorded GPS checkpoints</span>
       {#if groups.length}
         <strong class="animal-legend-heading">Animal groups</strong>
         {#each groups as [key, group] (key)}
           <span><i style:background-color={group.color}></i>{group.label}</span>
         {/each}
       {/if}
-      <small>The smaller dot shows rescue status. Purple marks a synthetic relocation destination.</small>
+      <small>Status dot indicates dispatch phase. Purple marks recorded releases; blue shows sampled animal GPS journeys.</small>
     </div>
 
   </aside>
 </div>
-
-{#if selected}
-  <dialog class="rescue-detail-modal" bind:this={detailsDialog}
-    aria-labelledby="historical-rescue-modal-title"
-    onclose={closeDetails}
-    onpointerdown={handleBackdropPointer}>
-    <div class="modal-body">
-      <button type="button" class="modal-close" aria-label="Close rescue details" onclick={() => detailsDialog?.close()}>
-        <X size={19} aria-hidden="true" />
-      </button>
-      <h2 id="historical-rescue-modal-title" class="sr-only">Historical rescue details</h2>
-      <section class="historical-selection" aria-label="Selected historical rescue details">
-        <span class="detail-eyebrow">Selected rescue · Historical record</span>
-        <h3 style:--species-color={pinForRescue(selected).color}>{selected.type}</h3>
-        {#if selected.breed}<p>{selected.breed}</p>{/if}
-        <dl>
-          <div><dt>Status</dt><dd>{selected.status}</dd></div>
-          <div><dt>Reported</dt><dd>{formatted(selected.createdAt)}</dd></div>
-          <div><dt>Last updated</dt><dd>{formatted(selected.updatedAt)}</dd></div>
-          <div><dt>Assigned responder</dt>
-            <dd>{journey?.assignedResponderName ?? (selected.assignedUserId ? 'Looking up responder…' : 'Not assigned')}</dd></div>
-          <div><dt>Collected</dt><dd>{selected.pickedUpAt ? formatted(selected.pickedUpAt) : 'Not collected'}</dd></div>
-          <div><dt>Location</dt><dd>{selected.location || 'Coordinates only'}</dd></div>
-          <div><dt>Condition</dt><dd>{selected.injury || 'Not recorded'}</dd></div>
-          {#if selected.historicalOutcome}
-            <div><dt>Animal outcome · Synthetic fixture</dt><dd>{selected.historicalOutcome === 'RELEASED' ? selected.historicalReleaseReason === 'RELOCATION' ? 'Relocated into the wild' : 'Returned to original site' : selected.historicalOutcome === 'EUTHANISED' ? 'Euthanised following veterinary assessment' : 'Deceased in care'}</dd></div>
-            {#if selected.historicalReleaseLocation}
-              <div><dt>Release site</dt><dd>{selected.historicalReleaseLocation}</dd></div>
-            {/if}
-            {#if typeof selected.historicalReleaseLatitude === 'number' && typeof selected.historicalReleaseLongitude === 'number'}
-              <div><dt>Release GPS</dt><dd>{selected.historicalReleaseLatitude.toFixed(6)}, {selected.historicalReleaseLongitude.toFixed(6)}</dd></div>
-            {/if}
-          {/if}
-          <div><dt>Case ID</dt><dd class="case-id">{selected.id}</dd></div>
-        </dl>
-        <div class="location-switcher" aria-label="Rescue and release map locations">
-          <h4>Map locations</h4>
-          <div class="location-actions">
-            <button type="button" class:active={mapFocus === 'reported'}
-              onclick={() => focusLocation('reported')}>Reported / pickup area</button>
-            {#if releaseChoices.length}
-              <button type="button" class:active={mapFocus === 'release'}
-                onclick={() => focusLocation('release')}>Release site</button>
-              <button type="button" class:active={mapFocus === 'both'}
-                onclick={() => focusLocation('both')}>Show both pins</button>
-            {/if}
-          </div>
-          {#if releaseChoices.length > 1}
-            <label class="release-choice"><span>Animal release destination</span>
-              <select value={focusedReleaseAnimalId ?? releaseChoices[0]?.animalId}
-                onchange={(event) => { focusedReleaseAnimalId = event.currentTarget.value; focusLocation(mapFocus === 'reported' ? 'release' : mapFocus); }}>
-                {#each releaseChoices as option, index (option.animalId + ':' + index)}
-                  <option value={option.animalId}>{option.name}</option>
-                {/each}
-              </select>
-            </label>
-          {/if}
-          <p class="journey-note">
-            {#if releaseChoices.length}
-              Original reported point and recorded release location can be viewed separately.
-            {:else}
-              No release GPS is recorded for this rescue. Only the original report location can be plotted.
-            {/if}
-            A distinct pickup GPS location is not recorded by the current collection workflow.
-          </p>
-        </div>
-        <div class="journey-details" aria-live="polite">
-          <h4>Pickup, transport &amp; care journey</h4>
-          {#if journeyLoading}
-            <p>Loading animal custody history…</p>
-          {:else if journeyError}
-            <p role="alert">Care history unavailable: {journeyError}</p>
-          {:else if journey}
-            <p><strong>Collected by:</strong> {journey.pickedUpByName ?? (journey.pickupAt ? journey.assignedResponderName ?? 'Rescuer name unavailable' : 'Not collected')}</p>
-            <p><strong>Collection time:</strong> {journey.pickupAt ? formatted(journey.pickupAt) : 'Not recorded'}</p>
-            <p class="journey-note">The original rescue pin records the reported location. A separate collection GPS point has not been recorded; the pickup location cannot be independently verified.</p>
-            {#each journey.animals as animal (animal.id)}
-              <div class="journey-animal">
-                <strong>{animal.species} · {animal.status.replaceAll('_',' ')}</strong>
-                <p><strong>Current custodian:</strong> {animal.custodianName ?? animal.physicalCustodianName ?? 'Not recorded'}</p>
-                <p><strong>Last recorded location:</strong> {animal.currentLocation ?? 'Not recorded'}</p>
-                {#if animal.releaseLocation}
-                  <p><strong>Release destination:</strong> {animal.releaseLocation}{animal.releaseReason ? ` · ${animal.releaseReason.replaceAll('_',' ').toLowerCase()}` : ''}</p>
-                {/if}
-                {#if animal.releasePoint}
-                  <p class="detail-coordinate"><strong>Release GPS:</strong> {animal.releasePoint.latitude.toFixed(6)}, {animal.releasePoint.longitude.toFixed(6)}</p>
-                {/if}
-              </div>
-            {/each}
-            {#if journey.history.length}
-              <h4>Recorded milestones</h4>
-              <ol class="journey-timeline">
-                {#each journey.history as event (event.id)}
-                  <li>
-                    <strong>{event.type.replaceAll('_',' ')}</strong>
-                    <small>{formatted(event.at)}{event.actorName ? ` · ${event.actorName}` : ''}</small>
-                    {#if event.destination}<span>Destination: {event.destination}</span>{/if}
-                    {#if event.fromName || event.toName}<span>Handover: {event.fromName ?? 'Unknown'} → {event.toName ?? 'Unknown'}</span>{/if}
-                    {#if event.outcome}<span>Outcome: {event.outcome.replaceAll('_',' ')}</span>{/if}
-                  </li>
-                {/each}
-              </ol>
-            {:else}
-              <p>No custody or care milestones have been recorded yet.</p>
-            {/if}
-          {/if}
-        </div>
- 
-      </section>
-      <div class="modal-actions">
-        <button type="button" onclick={() => detailsDialog?.close()}>Close details</button>
-      </div>
-    </div>
-  </dialog>
-{/if}
 
 <style>
   .historical-map-layout {
@@ -783,71 +710,28 @@
   .area-swatch.hunter { border-color:#8a6200; background:rgb(242 183 5 / 35%); }
   .area-swatch.wires { border-color:#31597f; background:rgb(81 125 168 / 25%); }
   .area-swatch.other { border-color:#2d7148; background:rgb(80 169 113 / 24%); }
-  .rescue-detail-modal {
-    width:min(480px,calc(100vw - 24px));
-    max-width:100%;
-    max-height:min(85dvh,760px);
-    margin:auto;
-    padding:0;
-    overflow-y:auto;
-    border:1px solid var(--rh-border);
-    border-radius:16px;
-    color:var(--rh-text);
-    background:var(--rh-surface);
-    box-shadow:0 22px 70px rgba(0,0,0,.3);
+  .map-selected-card {
+    position:absolute; right:16px; bottom:16px; z-index:4;
+    width:min(320px,calc(100% - 32px));
+    padding:16px; border:1px solid var(--rh-border); border-radius:15px;
+    background:var(--rh-surface); color:var(--rh-text);
+    box-shadow:0 16px 42px rgb(20 45 32 / .20);
+    backdrop-filter:blur(12px);
   }
-  .rescue-detail-modal::backdrop { background:rgba(9,21,17,.6); }
-  .modal-body { position:relative; padding:22px; }
-  .modal-close {
-    position:absolute; top:12px; right:12px;
-    display:grid; place-items:center;
-    width:36px; height:36px;
-    border:1px solid var(--rh-border); border-radius:9px;
-    background:var(--rh-surface-soft); color:var(--rh-text);
-    cursor:pointer;
-  }
-  .modal-close:hover, .modal-actions button:hover { background:var(--rh-raised); }
-  .historical-selection { padding-right:12px; }
-  .detail-eyebrow { font-size:11px; font-weight:800; letter-spacing:.07em; text-transform:uppercase; color:var(--rh-muted); }
-  .historical-selection h3 {
-    margin:10px 0 4px; padding-left:12px; border-left:4px solid var(--species-color);
-    font-size:21px; line-height:1.3;
-  }
-  .historical-selection p { margin:4px 0 0; font-size:13px; line-height:1.5; color:var(--rh-muted); }
-  .sr-only {
-    position:absolute; width:1px; height:1px; overflow:hidden;
-    clip:rect(0,0,0,0); white-space:nowrap;
-  }
-  .location-switcher { margin-top:18px; padding:14px 0; border-top:1px solid var(--rh-border); }
-  .location-switcher h4 { font-size:14px; margin:0 0 10px; }
-  .location-actions { display:flex; flex-wrap:wrap; gap:8px; }
-  .location-actions button { min-height:36px; padding:7px 11px; border-radius:9px; border:1px solid var(--rh-border); background:var(--rh-surface-soft); color:var(--rh-text); font:inherit; font-size:12px; cursor:pointer; }
-  .location-actions button.active { border-color:#8547a0; box-shadow:inset 0 0 0 1px #8547a0; }
-  .release-choice { display:grid; gap:5px; margin-top:12px; font-size:12px; }
-  .release-choice select { min-width:0; width:100%; min-height:37px; padding:6px; border:1px solid var(--rh-border); border-radius:8px; background:var(--rh-surface); color:var(--rh-text); }
-  .location-switcher .journey-note { margin:10px 0 0; color:var(--rh-muted); font-size:12px; }
-  .journey-details { margin-top:18px; padding-top:16px; border-top:1px solid var(--rh-border); }
-  .journey-details h4 { margin:12px 0 9px; font-size:14px; }
-  .journey-details p { margin:7px 0; font-size:12px; line-height:1.55; }
-  .journey-details .journey-note { color:var(--rh-muted); }
-  .journey-animal { padding:12px; margin:12px 0; border:1px solid var(--rh-border); border-radius:9px; background:var(--rh-surface-soft); }
-  .journey-animal > strong { font-size:12px; }
-  .journey-timeline { display:grid; gap:11px; margin:10px 0; padding-left:20px; }
-  .journey-timeline li { padding-left:4px; font-size:12px; }
-  .journey-timeline li strong, .journey-timeline li small, .journey-timeline li span { display:block; line-height:1.5; }
-  .journey-timeline li small { color:var(--rh-muted); }
-  .modal-actions { display:flex; justify-content:flex-end; margin-top:20px; }
-  .modal-actions button {
-    min-height:40px; padding:8px 16px;
-    border:1px solid var(--rh-border); border-radius:9px;
-    background:var(--rh-surface-soft); color:var(--rh-text);
-    font:inherit; font-size:13px; font-weight:700; cursor:pointer;
-  }
-  .historical-selection dl { display:grid; gap:10px; margin:16px 0 0; }
-  .historical-selection dl div { display:grid; gap:3px; }
-  .historical-selection dt { font-size:11px; color:var(--rh-muted); }
-  .historical-selection dd { margin:0; font-size:13px; overflow-wrap:anywhere; }
-  .case-id { font-family:ui-monospace,monospace; font-size:11px !important; }
+  .map-card-close { position:absolute; top:10px; right:10px; display:grid; place-items:center;
+    width:30px; height:30px; border:0; border-radius:8px; background:var(--rh-surface-soft); color:var(--rh-text); cursor:pointer; }
+  .map-card-kicker { font-size:11px; letter-spacing:.055em; font-weight:800;
+    text-transform:uppercase; color:var(--rh-muted); margin:0 32px 8px 0; }
+  .map-card-title { display:flex; justify-content:space-between; align-items:flex-start; gap:9px; }
+  .map-card-title h2 { margin:0; border-left:4px solid var(--species-color); padding-left:9px; font-size:19px; }
+  .map-card-title small { display:block; margin:3px 0 0 13px; font-size:12px; color:var(--rh-muted); }
+  .map-card-status { font-size:10px; font-weight:900; padding:5px 7px; border-radius:20px; background:var(--rh-surface-soft); }
+  .map-card-location { font-size:13px; margin:14px 0 8px; }
+  .map-card-progress { font-size:12px; color:var(--rh-muted); line-height:1.5; margin:5px 0; }
+  .map-card-record-link { display:block; margin-top:15px; padding:10px; text-align:center;
+    border-radius:9px; background:var(--rh-primary); color:var(--rh-on-primary);
+    font-size:13px; font-weight:800; text-decoration:none; }
+  .map-card-record-link:hover { background:var(--rh-primary-hover); }
   .historical-map-legend { display:grid; gap:9px; padding-bottom:16px; border-bottom:1px solid var(--rh-border); }
   .historical-map-legend strong { font-size:12px; }
   .historical-map-legend .animal-legend-heading { margin-top:8px; padding-top:14px; border-top:1px solid var(--rh-border); }
