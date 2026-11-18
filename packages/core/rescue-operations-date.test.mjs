@@ -56,12 +56,12 @@ test('Operations MapLibre displays completed rescues for their completion day, e
   assert.equal(shouldShowOperationsMapPin(completed, completedOnNSWDay(completed, '2026-11-19')), false);
 });
 
-test('Operations keeps picked-up active jobs hidden, but shows uncollected pending and assigned', () => {
+test('Operations retains original pins after collection, including assigned transport', () => {
   assert.equal(shouldShowOperationsMapPin({ status: 'PENDING' }, false), true);
   assert.equal(shouldShowOperationsMapPin({ status: 'ASSIGNED' }, false), true);
   assert.equal(shouldShowOperationsMapPin({
     status: 'ASSIGNED', pickedUpAt: '2026-11-18T00:00:00.000Z'
-  }, false), false);
-  assert.equal(shouldShowOperationsMapPin({ status: 'PENDING', awaitingCarer: true }, false), false);
+  }, false), true);
+  assert.equal(shouldShowOperationsMapPin({ status: 'PENDING', awaitingCarer: true }, false), true);
   assert.equal(shouldShowOperationsMapPin({ status: 'CANCELLED' }, false), false);
 });
