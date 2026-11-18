@@ -2231,7 +2231,7 @@
   .historical-map-workspace { min-height:100dvh; height:100dvh; }
   .historical-map-workspace .sidebar { min-height:0; }
   .historical-map-workspace main { min-height:0; }
-  .historical-map-page { height:100%; min-height:0; padding:0; background:transparent; border:0; border-radius:0; box-shadow:none; container-type:inline-size; }
+  .admin-shell .historical-map-page { height:100%; min-height:0; padding:0; background:transparent; border:0; border-radius:0; box-shadow:none; container-type:inline-size; }
   .historical-map-filters { display:grid; align-content:start; gap:12px; padding:18px 2px 14px; margin-top:18px; border-top:1px solid var(--rh-border); }
   .historical-map-filters .panel-heading { margin:0; }
   .historical-map-filters .panel-heading h2 { font-size:17px; margin:4px 0; }
