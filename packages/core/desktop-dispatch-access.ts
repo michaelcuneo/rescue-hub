@@ -23,7 +23,7 @@ export type DesktopRescueCase = {
 export function canSeeDesktopRescue(
   viewer: DesktopRescueViewer,
   rescue: DesktopRescueCase,
-  suitableSpeciesTeam: boolean
+  _suitableSpeciesTeam: boolean
 ): boolean {
   if (!viewer.enabled || viewer.status !== 'ACTIVE' ||
       !viewer.organisationId || rescue.organisationId !== viewer.organisationId ||
