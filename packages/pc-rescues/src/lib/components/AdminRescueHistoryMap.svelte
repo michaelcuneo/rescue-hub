@@ -166,9 +166,12 @@
       const feature = event.features?.[0];
       const id = feature?.properties?.cluster_id;
       if (id == null) return;
-      map.getSource(SOURCE).getClusterExpansionZoom(id, (error: unknown, expandedZoom: number) => {
-        if (error) return;
-        map.easeTo({ center: feature.geometry.coordinates, zoom: expandedZoom });
+      // Zooming in increments works across Mapbox GL versions and avoids
+      // relying on differing callback/promise cluster-source APIs.
+      map.easeTo({
+        center: feature.geometry.coordinates,
+        zoom: Math.min((map.getZoom?.() ?? 8) + 2, 16),
+        duration: 400
       });
     });
     for (const layer of ['historical-rescue-points', 'historical-rescue-status', 'historical-rescue-clusters']) {
