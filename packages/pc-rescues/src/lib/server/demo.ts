@@ -10,7 +10,9 @@ export function canUseHunterDemo(user: RescueHubUser | null | undefined) {
 
 export function getHunterDemo(cookies: Cookies, user: RescueHubUser | null | undefined) {
 	if (!canUseHunterDemo(user)) return false;
-	return cookies.get(COOKIE) === HUNTER_DEMO_ORGANISATION;
+	return cookies.get(COOKIE) === HUNTER_DEMO_ORGANISATION ||
+    (user?.devBootstrap === true && !user.organisationId &&
+      user.roles.includes('PLATFORM_ADMIN'));
 }
 
 export function enterHunterDemo(cookies: Cookies) {
