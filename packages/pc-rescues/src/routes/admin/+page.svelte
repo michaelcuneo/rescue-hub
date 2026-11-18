@@ -429,7 +429,7 @@
 {#if saving}
   <div class="save-progress" role="status" aria-live="polite">Saving changes…</div>
 {/if}
-<div class="admin-shell">
+<div class="admin-shell" class:historical-map-workspace={section === 'rescues' && rescueView === 'map'}>
   <aside class="sidebar">
     <nav aria-label="Administration">
       {#each navigation as item}
@@ -469,6 +469,58 @@
         {/if}
       {/each}
     </nav>
+    {#if section === 'rescues' && rescueView === 'map'}
+      <div class="historical-map-filters" aria-label="Historical map filters">
+          <div class="panel-heading table-heading">
+              <div>
+                <p class="eyebrow">Historical rescue map</p>
+                <h2>Rescue locations</h2>
+                <p class="intro">Explore every rescue location, or filter by an NSW calendar day or date range. Completed cases stay in the historical map.</p>
+              </div>
+            </div>
+            <div class="rescue-map-toolbar">
+              <label><span>Map history</span>
+                <select bind:value={rescueMapMode} aria-label="Rescue map date filter">
+                  <option value="all">All rescues · any dates</option>
+                  <option value="single">Specific day</option>
+                  <option value="range">Date range</option>
+                </select>
+              </label>
+              {#if rescueMapMode === 'single'}
+                <button type="button" aria-label="Previous day" onclick={() => selectRescueDate(shiftRescueDay(rescueDate, -1))}>Previous</button>
+                <label><span>Report date · NSW</span>
+                  <input type="date" value={rescueDate} max={rescueTodayNSW()}
+                    onchange={(event) => selectRescueDate(event.currentTarget.value)} />
+                </label>
+                <button type="button" aria-label="Next day" disabled={rescueDate >= rescueTodayNSW()}
+                  onclick={() => selectRescueDate(shiftRescueDay(rescueDate, 1))}>Next</button>
+                <button type="button" onclick={() => selectRescueDate(rescueTodayNSW())}>Today</button>
+              {:else if rescueMapMode === 'range'}
+                <label><span>From · NSW</span><input type="date" bind:value={rescueRangeFrom} max={rescueTodayNSW()} /></label>
+                <label><span>To · NSW</span><input type="date" bind:value={rescueRangeTo} max={rescueTodayNSW()} /></label>
+              {/if}
+              {#if canChooseOrganisation}
+                <label><span>Organisation</span>
+                  <select bind:value={rescueOrganisation}>
+                    <option value="all">All organisations</option>
+                    {#each data.organisations as organisation (organisation.id)}
+                      <option value={organisation.id}>{organisation.displayName}</option>
+                    {/each}
+                  </select>
+                </label>
+              {/if}
+            </div>
+            <p class="rescue-map-date" role="status" aria-live="polite">
+              {rescueMapMode === 'all' ? 'All dates' : rescueMapMode === 'single' ? rescueDayLabel(rescueDate) : `${rescueRangeFrom} to ${rescueRangeTo}`}
+              · {rescueDayItems.length} rescues loaded
+              {rescueDayLoading ? ` · loading more locations (${rescueMapExamined} records examined)…` : ''}
+              {rescueDayLoaded ? ' · archive loaded' : ''}
+            </p>
+            {#if rescueDayError}
+              <p class="rescue-day-error" role="alert">Historical map loading issue: {rescueDayError}</p>
+            {/if}
+      </div>
+    {/if}
     <div class="sidebar-footer">
       <div class:online={data.backend.online} class="status-dot"></div>
       <div>
@@ -674,56 +726,8 @@
         </div>
       </section>
     {:else if section === 'rescues'}
-      <section class="panel page-panel">
+      <section class="panel page-panel" class:historical-map-page={rescueView === 'map'}>
         {#if rescueView === 'map'}
-          <div class="panel-heading table-heading">
-            <div>
-              <p class="eyebrow">Historical rescue map</p>
-              <h2>Rescue locations</h2>
-              <p class="intro">Explore every rescue location, or filter by an NSW calendar day or date range. Completed cases stay in the historical map.</p>
-            </div>
-          </div>
-          <div class="rescue-map-toolbar">
-            <label><span>Map history</span>
-              <select bind:value={rescueMapMode} aria-label="Rescue map date filter">
-                <option value="all">All rescues · any dates</option>
-                <option value="single">Specific day</option>
-                <option value="range">Date range</option>
-              </select>
-            </label>
-            {#if rescueMapMode === 'single'}
-              <button type="button" aria-label="Previous day" onclick={() => selectRescueDate(shiftRescueDay(rescueDate, -1))}>Previous</button>
-              <label><span>Report date · NSW</span>
-                <input type="date" value={rescueDate} max={rescueTodayNSW()}
-                  onchange={(event) => selectRescueDate(event.currentTarget.value)} />
-              </label>
-              <button type="button" aria-label="Next day" disabled={rescueDate >= rescueTodayNSW()}
-                onclick={() => selectRescueDate(shiftRescueDay(rescueDate, 1))}>Next</button>
-              <button type="button" onclick={() => selectRescueDate(rescueTodayNSW())}>Today</button>
-            {:else if rescueMapMode === 'range'}
-              <label><span>From · NSW</span><input type="date" bind:value={rescueRangeFrom} max={rescueTodayNSW()} /></label>
-              <label><span>To · NSW</span><input type="date" bind:value={rescueRangeTo} max={rescueTodayNSW()} /></label>
-            {/if}
-            {#if canChooseOrganisation}
-              <label><span>Organisation</span>
-                <select bind:value={rescueOrganisation}>
-                  <option value="all">All organisations</option>
-                  {#each data.organisations as organisation (organisation.id)}
-                    <option value={organisation.id}>{organisation.displayName}</option>
-                  {/each}
-                </select>
-              </label>
-            {/if}
-          </div>
-          <p class="rescue-map-date" role="status" aria-live="polite">
-            {rescueMapMode === 'all' ? 'All dates' : rescueMapMode === 'single' ? rescueDayLabel(rescueDate) : `${rescueRangeFrom} to ${rescueRangeTo}`}
-            · {rescueDayItems.length} rescues loaded
-            {rescueDayLoading ? ` · loading more locations (${rescueMapExamined} records examined)…` : ''}
-            {rescueDayLoaded ? ' · archive loaded' : ''}
-          </p>
-          {#if rescueDayError}
-            <p class="rescue-day-error" role="alert">Historical map loading issue: {rescueDayError}</p>
-          {/if}
           <AdminRescueHistoryMap rescues={rescueDayItems}
             selectedId={rescueMapSelectedId}
             focusedRescue={rescueMapFocusedRescue}
@@ -2220,5 +2224,33 @@
     .admin-shell { display:block; }
     .sidebar { height:auto; max-height:none; overflow:visible; margin-bottom:12px; }
     main { padding:0 0 28px; }
+  }
+  /* On the historical map, the existing Administration navigation and its
+     date filters form the left rail, the map takes the full centre, and
+     operating areas, animal groups and selected case live on the right. */
+  .historical-map-workspace { min-height:100dvh; height:100dvh; }
+  .historical-map-workspace .sidebar { min-height:0; }
+  .historical-map-workspace main { min-height:0; }
+  .historical-map-page { height:100%; min-height:0; padding:0; background:transparent; border:0; border-radius:0; box-shadow:none; }
+  .historical-map-filters { display:grid; align-content:start; gap:12px; padding:18px 2px 14px; margin-top:18px; border-top:1px solid var(--rh-border); }
+  .historical-map-filters .panel-heading { margin:0; }
+  .historical-map-filters .panel-heading h2 { font-size:17px; margin:4px 0; }
+  .historical-map-filters .intro { font-size:12px; line-height:1.5; margin:3px 0 0; }
+  .historical-map-filters .rescue-map-toolbar { display:grid; align-items:stretch; gap:10px; margin:0; }
+  .historical-map-filters .rescue-map-toolbar label { width:100%; min-width:0; display:grid; gap:5px; }
+  .historical-map-filters .rescue-map-toolbar input,
+  .historical-map-filters .rescue-map-toolbar select { width:100%; min-width:0; }
+  .historical-map-filters .rescue-map-toolbar button { width:100%; }
+  .historical-map-filters .rescue-map-date { margin:0; font-size:12px; line-height:1.5; }
+  .historical-map-filters .rescue-day-error { margin:0; }
+  @media(max-width:1100px) and (min-width:781px) {
+    .historical-map-workspace { grid-template-columns:220px minmax(0,1fr); }
+  }
+  @media(max-width:780px) {
+    .historical-map-workspace { height:auto; min-height:100dvh; }
+    .historical-map-workspace .sidebar { overflow:visible; }
+    .historical-map-filters { margin:12px 0 0; }
+    .historical-map-filters .rescue-map-toolbar { grid-template-columns:repeat(2,minmax(0,1fr)); }
+    .historical-map-page { height:auto; }
   }
 </style>
