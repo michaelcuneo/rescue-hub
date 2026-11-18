@@ -421,34 +421,36 @@ h6 {
   --rh-t33: var(--rh-status-assigned);
   color-scheme: light;
 }
+/* Rescue Hub dark: quiet graphite surfaces, off-white type, restrained accent.
+   The light palette above is intentionally unchanged. */
 :root[data-theme='dark'] {
-  --rh-background: #11161c;
-  --rh-surface: #1c222b;
-  --rh-surface-soft: #252c36;
-  --rh-raised: #2d3743;
-  --rh-field: #171d25;
-  --rh-text: #f3f6f9;
-  --rh-muted: #c6d0da;
-  --rh-subtle: #afbfcd;
-  --rh-border: #424d5b;
-  --rh-border-strong: #586775;
-  --rh-primary: #205e45;
-  --rh-primary-hover: #174f3a;
+  --rh-background: #0c0f12;
+  --rh-surface: #171b20;
+  --rh-surface-soft: #20252b;
+  --rh-raised: #2b323a;
+  --rh-field: #12171b;
+  --rh-text: #f2f4f6;
+  --rh-muted: #cbd3dc;
+  --rh-subtle: #b7c3ce;
+  --rh-border: #343e48;
+  --rh-border-strong: #586674;
+  --rh-primary: #235b4b;
+  --rh-primary-hover: #28604f;
   --rh-on-primary: #ffffff;
-  --rh-accent: #95e0b8;
-  --rh-accent-soft: #263a34;
-  --rh-nav-active: #303b46;
+  --rh-accent: #93e4c6;
+  --rh-accent-soft: #21352e;
+  --rh-nav-active: #30383f;
   --rh-focus: #ffd38a;
-  --rh-danger-text: #ffb4a6;
-  --rh-map-background: #171d25;
-  --rh-shadow: 0 14px 40px rgb(0 0 0 / .3);
-  --rh-status-assigned: #f8c65e;
-  --rh-danger-bg: #3e272c;
-  --rh-status-pending: #ff8068;
-  --rh-status-completed: #79d9a5;
+  --rh-danger-text: #ffb6b6;
+  --rh-danger-bg: #38252c;
+  --rh-map-background: #12171b;
+  --rh-shadow: 0 9px 28px rgb(0 0 0 / .18);
+  --rh-status-pending: #ff927b;
+  --rh-status-assigned: #ffd27d;
+  --rh-status-completed: #97deb4;
   color-scheme: dark;
-
 }
+
 body { background: var(--rh-background); color: var(--rh-text); }
 input, textarea, select { color: var(--rh-text); }
 input::placeholder, textarea::placeholder { color: var(--rh-subtle); opacity: 1; }
@@ -581,6 +583,300 @@ input::placeholder, textarea::placeholder { color: var(--rh-subtle); opacity: 1;
 :root[data-theme='dark'] button:disabled {
   opacity: .6;
 }
+
+
+
+/* Dark workspace visual system. No light-mode selectors or shared layout changes.
+   Operational map markers and animal colours retain their existing semantics. */
+:root[data-theme='dark'] ::selection {
+  background: #345f52;
+  color: #ffffff;
+}
+:root[data-theme='dark'] :is(input, select, textarea) {
+  background-color: var(--rh-field);
+  color: var(--rh-text);
+  border-color: var(--rh-border-strong);
+  color-scheme: dark;
+}
+:root[data-theme='dark'] :is(input, select, textarea)::placeholder {
+  color: var(--rh-subtle);
+  opacity: 1;
+}
+:root[data-theme='dark'] :is(input, textarea, select):focus-visible,
+:root[data-theme='dark'] :is(button, a, summary):focus-visible {
+  outline: 3px solid var(--rh-focus);
+  outline-offset: 2px;
+}
+
+/* Header: a single near-black navigation bar, not a stack of tinted boxes. */
+:root[data-theme='dark'] .workspace-bar {
+  border-color: var(--rh-border);
+  box-shadow: 0 8px 24px rgb(0 0 0 / .18);
+}
+:root[data-theme='dark'] .area-navigation {
+  background: var(--rh-field);
+  border-color: var(--rh-border);
+}
+:root[data-theme='dark'] .area-navigation a[aria-current='page'] {
+  background: var(--rh-raised);
+  color: var(--rh-text);
+  box-shadow: inset 0 0 0 1px var(--rh-border-strong);
+}
+:root[data-theme='dark'] .profile-menu .profile-panel {
+  background: var(--rh-surface);
+  border-color: var(--rh-border-strong);
+}
+
+/* Operations: calm panels above the already-good dark MapLibre base map. */
+:root[data-theme='dark'] .dispatcher-shell :is(.queue, .detail-card, .intake) {
+  border: 1px solid var(--rh-border);
+  border-radius: 14px;
+  background: var(--rh-surface);
+  box-shadow: 0 8px 24px rgb(0 0 0 / .22);
+  backdrop-filter: none;
+}
+:root[data-theme='dark'] .dispatcher-shell .queue-footer {
+  background: var(--rh-field);
+  border-top-color: var(--rh-border);
+}
+:root[data-theme='dark'] .dispatcher-shell .rescue-card:hover,
+:root[data-theme='dark'] .dispatcher-shell .rescue-card.selected {
+  background: var(--rh-raised);
+  border-color: var(--rh-border-strong);
+}
+:root[data-theme='dark'] .dispatcher-shell .tabs button.active {
+  background: var(--rh-raised);
+  color: var(--rh-text);
+  box-shadow: inset 0 0 0 1px var(--rh-border);
+}
+:root[data-theme='dark'] .dispatcher-shell .species-dot {
+  box-shadow: 0 0 0 2px var(--rh-surface);
+}
+:root[data-theme='dark'] .dispatcher-shell .intake > header {
+  background: var(--rh-surface);
+  border-color: var(--rh-border);
+}
+:root[data-theme='dark'] .dispatcher-shell .detail-actions :is(button, a):not(.primary) {
+  color: var(--rh-text);
+  border-color: var(--rh-border);
+}
+:root[data-theme='dark'] .dispatcher-shell .new-rescue:hover,
+:root[data-theme='dark'] .dispatcher-shell .intake .primary:hover {
+  background: var(--rh-primary-hover);
+}
+
+/* Administration: form controls, popovers and portalled dialogs must all
+   retain their own readable foreground, including controls outside admin-shell. */
+:root[data-theme='dark'] .admin-shell :is(.sidebar, .panel),
+:root[data-theme='dark'] .admin-shell .metrics article,
+:root[data-theme='dark'] .people-dialog {
+  background: var(--rh-surface);
+  color: var(--rh-text);
+  border-color: var(--rh-border);
+  box-shadow: 0 8px 24px rgb(0 0 0 / .14);
+}
+:root[data-theme='dark'] .admin-shell nav button.active,
+:root[data-theme='dark'] .admin-shell nav button:hover {
+  background: var(--rh-raised);
+  color: var(--rh-text);
+}
+:root[data-theme='dark'] .admin-shell .people-subnav button.active {
+  background: var(--rh-nav-active);
+  color: var(--rh-text);
+}
+:root[data-theme='dark'] .admin-shell .people-filters button:not(.chosen),
+:root[data-theme='dark'] .admin-shell .rescue-register-pagination button,
+:root[data-theme='dark'] .admin-shell .rescue-map-toolbar button {
+  background: var(--rh-surface-soft);
+  border-color: var(--rh-border-strong);
+  color: var(--rh-text);
+}
+:root[data-theme='dark'] .admin-shell .people-filters button.chosen,
+:root[data-theme='dark'] .admin-shell .primary-action,
+:root[data-theme='dark'] .people-dialog .primary-action {
+  background: var(--rh-primary);
+  color: var(--rh-on-primary);
+  border-color: var(--rh-primary);
+}
+:root[data-theme='dark'] .admin-shell .primary-action:hover,
+:root[data-theme='dark'] .people-dialog .primary-action:hover {
+  background: var(--rh-primary-hover);
+}
+:root[data-theme='dark'] .admin-shell :is(.person-row, .clinic-entry, .position-row) {
+  background: var(--rh-surface);
+  color: var(--rh-text);
+  border-color: var(--rh-border);
+}
+:root[data-theme='dark'] .admin-shell .person-row:hover,
+:root[data-theme='dark'] .admin-shell .person-row:focus-visible {
+  background: var(--rh-raised);
+}
+:root[data-theme='dark'] .admin-shell :is(.person-avatar, .text-button, .rescue-summary strong) {
+  color: var(--rh-accent);
+}
+:root[data-theme='dark'] .people-dialog {
+  --ink: var(--rh-text);
+  --muted: var(--rh-muted);
+  --line: var(--rh-border);
+  --surface: var(--rh-surface);
+  --surface-soft: var(--rh-surface-soft);
+  --forest: var(--rh-primary);
+  --forest-2: var(--rh-accent);
+  color: var(--rh-text);
+}
+:root[data-theme='dark'] .people-dialog :is(.dialog-close, .dialog-actions button:not(.primary-action), .account-actions button:not(.primary-action)) {
+  background: var(--rh-surface-soft);
+  border: 1px solid var(--rh-border-strong);
+  color: var(--rh-text);
+}
+:root[data-theme='dark'] .people-dialog :is(.access-group, .capability-option, .invitation-detail) {
+  background: var(--rh-field);
+  border-color: var(--rh-border);
+  color: var(--rh-text);
+}
+:root[data-theme='dark'] .people-dialog .capability-option:has(input:checked) {
+  background: var(--rh-accent-soft);
+  border-color: var(--rh-border-strong);
+}
+:root[data-theme='dark'] .people-dialog :is(input:not([type='checkbox']), select, textarea) {
+  background: var(--rh-field);
+  color: var(--rh-text);
+  border-color: var(--rh-border-strong);
+}
+:root[data-theme='dark'] .people-dialog .account-actions .danger {
+  color: var(--rh-danger-text);
+}
+:root[data-theme='dark'] .people-dialog .person-avatar {
+  color: var(--rh-accent);
+}
+
+/* Chats: keep species-channel colours, but make active state, message surfaces,
+   @mentions and links readable without bright blocks or muddy green-on-black. */
+:root[data-theme='dark'] .chat-layout aside button.active,
+:root[data-theme='dark'] .chat-layout aside button:hover {
+  background: var(--rh-raised);
+  color: var(--rh-text);
+}
+:root[data-theme='dark'] .chat-layout aside button:focus-visible {
+  outline: 3px solid var(--rh-focus);
+  outline-offset: -3px;
+}
+:root[data-theme='dark'] .chat-layout .avatar:not(.animal-avatar) {
+  background: var(--rh-raised);
+  color: var(--rh-text);
+}
+:root[data-theme='dark'] .chat-layout article {
+  background: var(--rh-surface-soft);
+  color: var(--rh-text);
+  border: 1px solid var(--rh-border);
+}
+:root[data-theme='dark'] .chat-layout article.mine {
+  background: var(--rh-raised);
+  border-color: var(--rh-border-strong);
+}
+:root[data-theme='dark'] .chat-layout :is(.sender-name, .older, .animal-ref) {
+  color: var(--rh-accent);
+}
+:root[data-theme='dark'] .chat-layout .chat-mention {
+  color: var(--rh-accent);
+  background: var(--rh-accent-soft);
+}
+:root[data-theme='dark'] .chat-layout .mention-suggestions {
+  background: var(--rh-surface);
+  border-color: var(--rh-border-strong);
+}
+
+/* Settings and veterinary workspace: no dark-on-dark text links or ghost buttons. */
+:root[data-theme='dark'] .settings-page .commit-link {
+  color: var(--rh-accent);
+}
+:root[data-theme='dark'] .settings-page .settings-panel {
+  background: var(--rh-surface);
+  box-shadow: 0 8px 24px rgb(0 0 0 / .14);
+}
+:root[data-theme='dark'] .settings-page .mode-buttons button:not(.chosen) {
+  color: var(--rh-text);
+  background: var(--rh-surface-soft);
+  border-color: var(--rh-border-strong);
+}
+:root[data-theme='dark'] .vet-workspace :is(article, .empty-state, details) {
+  background: var(--rh-surface);
+  color: var(--rh-text);
+  border-color: var(--rh-border);
+}
+:root[data-theme='dark'] .vet-workspace :is(summary, .state) {
+  background: var(--rh-surface-soft);
+  color: var(--rh-text);
+}
+
+/* Documentation: simple editorial dark surfaces, limited colour, clear hierarchy. */
+:root[data-theme='dark'] .docs-root :is(.sidebar, main) {
+  background: var(--rh-surface);
+  border-color: var(--rh-border);
+  box-shadow: 0 8px 24px rgb(0 0 0 / .14);
+}
+:root[data-theme='dark'] .docs-root .hero-overview {
+  background: radial-gradient(ellipse at 100% 0%, rgb(90 137 123 / .11), transparent 50%),
+    linear-gradient(135deg, #1e252a 0%, #111519 100%);
+  border: 1px solid var(--rh-border);
+}
+:root[data-theme='dark'] .docs-root .primary-cta {
+  background: var(--rh-text);
+  color: var(--rh-background);
+}
+:root[data-theme='dark'] .docs-root .secondary-cta {
+  color: var(--rh-text);
+  border-color: var(--rh-border-strong);
+  background: transparent;
+}
+:root[data-theme='dark'] .docs-root .guide-nav a.current {
+  background: var(--rh-raised);
+  color: var(--rh-text);
+}
+:root[data-theme='dark'] .docs-root .guide-nav a:hover {
+  background: var(--rh-raised);
+  color: var(--rh-text);
+}
+:root[data-theme='dark'] .docs-root .toc a:hover,
+:root[data-theme='dark'] .docs-root .staff-notice a {
+  color: var(--rh-accent);
+}
+:root[data-theme='dark'] .docs-root .guide-icon,
+:root[data-theme='dark'] .docs-root .step-number {
+  background: var(--rh-raised);
+  color: var(--rh-text);
+}
+:root[data-theme='dark'] .docs-root :is(.note, .toc-card, .value-grid > div, .article-bottom) {
+  background: var(--rh-surface-soft);
+  color: var(--rh-text);
+  border-color: var(--rh-border);
+}
+:root[data-theme='dark'] .docs-root .note {
+  border-left-color: var(--rh-accent);
+}
+
+/* MapLibre (not Mapbox) controls must use the same dark treatment as the UI. */
+:root[data-theme='dark'] .maplibregl-ctrl-group {
+  background: var(--rh-surface);
+  border: 1px solid var(--rh-border);
+  box-shadow: 0 5px 14px rgb(0 0 0 / .24);
+}
+:root[data-theme='dark'] .maplibregl-ctrl-group button {
+  background: transparent;
+  border-color: var(--rh-border);
+}
+:root[data-theme='dark'] .maplibregl-ctrl-group button:hover {
+  background: var(--rh-raised);
+}
+:root[data-theme='dark'] .maplibregl-ctrl-group .maplibregl-ctrl-icon {
+  filter: invert(1) brightness(1.25);
+}
+:root[data-theme='dark'] :is(.maplibregl-ctrl-attrib, .maplibregl-ctrl-scale) {
+  background: var(--rh-surface);
+  color: var(--rh-text);
+  border-color: var(--rh-border);
+}
+:root[data-theme='dark'] .maplibregl-ctrl-attrib a { color: var(--rh-accent); }
 
 
 @media(max-width:760px) { :root { --rh-content-top: 106px; --rh-gutter:10px; } }
