@@ -50,3 +50,17 @@ test('mobile navigation remains visible on every primary screen', () => {
   assert.match(nav, /grid-column:1 \/ -1; grid-row:2/);
   assert.match(css, /--rh-content-top: 106px/);
 });
+
+
+test('Administration buttons inherit readable theme tokens without overriding specialised button states', () => {
+  const admin = read('routes/admin/+page.svelte');
+  const styles = read('routes/global.css');
+  // A plain HTML button otherwise uses browser-default ButtonText, which can
+  // disappear against the neutral admin surfaces in either colour scheme.
+  assert.match(admin, /:where\(\.admin-shell\) button\s*\{\s*color:\s*var\(--rh-text\);\s*background:\s*var\(--rh-surface-soft\);/);
+  assert.match(admin, /\.primary-action\s*\{[^}]*background:\s*var\(--forest\);[^}]*color:\s*white;/s);
+  assert.match(admin, /\.people-filters button\.chosen\s*\{[^}]*background:\s*var\(--forest\);\s*color:\s*white;/);
+  assert.match(admin, /nav button\s*\{[^}]*background:transparent;[^}]*color:var\(--rh-muted\);/s);
+  assert.match(styles, /--rh-text:\s*#17232f/);
+  assert.match(styles, /--rh-text:\s*#f3f6f9/);
+});
