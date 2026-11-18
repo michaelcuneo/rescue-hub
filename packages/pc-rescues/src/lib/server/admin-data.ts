@@ -104,6 +104,7 @@ export function mapRescueItems(items: Record<string, any>[]): Rescue[] {
 		intakeSource: item.intakeSource ? String(item.intakeSource) as Rescue['intakeSource'] : null,
 		assignedUserId: item.assignedUserId ? String(item.assignedUserId) : null,
     pickedUpAt: item.pickedUpAt ? String(item.pickedUpAt) : null,
+    completedAt: item.completedAt ? String(item.completedAt) : null,
     awaitingCarer: Boolean(item.awaitingCarer),
     transportAnimalId: item.transportAnimalId ? String(item.transportAnimalId) : null,
     transportSourceRescueId: item.transportSourceRescueId ? String(item.transportSourceRescueId) : null,
