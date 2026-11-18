@@ -1,4 +1,12 @@
-import { validRescueCoordinates, type MappedAddress, type RescueCoordinates } from './rescue-location.ts';
+import type { MappedAddress, RescueCoordinates } from './rescue-location';
+
+// Type-only import works in both SvelteKit and Node's strip-types test runner.
+// Keep this small guard local so the module has no runtime imports.
+function validGeocodingCoordinates(input: RescueCoordinates): boolean {
+  return Number.isFinite(input.latitude) && Number.isFinite(input.longitude) &&
+    input.latitude >= -90 && input.latitude <= 90 &&
+    input.longitude >= -180 && input.longitude <= 180;
+}
 
 /** Wire contract for our independent, G-NAF-derived geocoder. No Mapbox data. */
 export type AddressSuggestion = {
@@ -19,7 +27,7 @@ function addressLabel(value: unknown): string | null {
 }
 
 export function metresBetween(a: RescueCoordinates, b: RescueCoordinates): number {
-  if (!validRescueCoordinates(a) || !validRescueCoordinates(b)) return Infinity;
+  if (!validGeocodingCoordinates(a) || !validGeocodingCoordinates(b)) return Infinity;
   const radians = Math.PI / 180;
   const dLat = (b.latitude - a.latitude) * radians;
   const dLon = (b.longitude - a.longitude) * radians;
@@ -32,10 +40,10 @@ export function metresBetween(a: RescueCoordinates, b: RescueCoordinates): numbe
 export function parseGnafReverse(value: unknown, incident: RescueCoordinates): MappedAddress {
   const unavailable: MappedAddress = { address: null, precision: 'UNAVAILABLE' };
   const result = record(value);
-  if (!result || result.source !== 'GNAF' || !validRescueCoordinates(incident)) return unavailable;
+  if (!result || result.source !== 'GNAF' || !validGeocodingCoordinates(incident)) return unavailable;
   const address = addressLabel(result.address);
   const point = { latitude: result.latitude as number, longitude: result.longitude as number };
-  if (!address || !validRescueCoordinates(point)) return unavailable;
+  if (!address || !validGeocodingCoordinates(point)) return unavailable;
   const distance = metresBetween(incident, point);
   // Beyond 300 m, a numbered property is actively misleading for wildlife reports.
   if (distance > 300) return unavailable;
@@ -54,7 +62,7 @@ export function parseGnafSuggestions(value: unknown): AddressSuggestion[] {
     const id = typeof row?.id === 'string' && row.id.length <= 120 ? row.id : null;
     const latitude = row?.latitude as number;
     const longitude = row?.longitude as number;
-    if (!id || !label || seen.has(id) || !validRescueCoordinates({ latitude, longitude })) continue;
+    if (!id || !label || seen.has(id) || !validGeocodingCoordinates({ latitude, longitude })) continue;
     seen.add(id);
     suggestions.push({ id, label, latitude, longitude });
     if (suggestions.length === 5) break;
