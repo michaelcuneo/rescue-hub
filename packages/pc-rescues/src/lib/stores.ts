@@ -11,6 +11,7 @@ export type RescueItem = {
 	color: string;
 	injury?: string | null;
 	assignedUserId?: string | null;
+  latestAnimalGps?: { animalId: string; latitude: number; longitude: number; recordedAt: string; phase: string } | null;
 	animalStatus?: string | null;
 	intakeSource?: 'PHONE' | 'ONLINE' | null;
 	pickedUpAt?: string | null;
