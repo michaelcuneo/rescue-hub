@@ -80,6 +80,28 @@ export function parseAwsReverse(value: unknown, incident: RescueCoordinates): Ma
   return unavailable;
 }
 
+/**
+ * SearchText requires exactly one of BiasPosition, BoundingBox or Circle.
+ * When a map centre is available, bias results to that point; otherwise
+ * search across the full Australian territory (including remote islands).
+ * Country filtering still excludes nearby non-Australian addresses.
+ */
+export function buildAwsSearchTextRequest(
+  term: string, bias?: RescueCoordinates
+): Record<string, unknown> {
+  const useBias = bias && coordinates(bias) &&
+    !(bias.latitude === 0 && bias.longitude === 0);
+  return {
+    QueryText: term.trim(),
+    MaxResults: 5,
+    Filter: {
+      IncludeCountries: ['AUS'],
+      ...(!useBias ? { BoundingBox: [95, -55, 170, 0] } : {})
+    },
+    ...(useBias ? { BiasPosition: [bias.longitude, bias.latitude] } : {})
+  };
+}
+
 /** Validate AWS Places v2 SearchText response before using it for rescue intake pins. */
 export function parseAwsSearchText(value: unknown): AddressSuggestion[] {
   const items: AddressSuggestion[] = [];

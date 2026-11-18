@@ -46,7 +46,7 @@
       loading ? 'Looking up nearest mapped address…' :
       'No reliable mapped address — follow the GPS pin'}</small>
     {#if address?.address}
-      <small>Address data: Amazon Location Service</small>
+      <small>Address data: <a href="https://docs.aws.amazon.com/location/latest/developerguide/data-attribution.html" target="_blank" rel="noopener noreferrer">Amazon Location sources</a></small>
     {/if}
     <small class="coordinates">GPS {gps}</small>
     {#if directions && link}

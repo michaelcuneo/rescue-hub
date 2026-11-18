@@ -587,7 +587,7 @@ import { completedOnNSWDay, rescueTodayNSW, sortRescueRecords, isWaitingFourHour
 									</button>
 								{/each}
 							</div>
-							<small>Address data: Amazon Location Service</small>
+							<small>Address data: <a href="https://docs.aws.amazon.com/location/latest/developerguide/data-attribution.html" target="_blank" rel="noopener noreferrer">Amazon Location sources</a></small>
 						{/if}
 					</label>
 

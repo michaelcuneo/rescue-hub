@@ -42,8 +42,10 @@ export default $config({
       } : {}),
       link: [graphql, realtimeLink, data, geocodingCache, mailFrom],
       environment: {
-        // Server-only feature flag. Activate after validating Stored Places pricing.
-        RESCUE_GEOCODING_ENABLED: process.env.RESCUE_GEOCODING_ENABLED ?? "false",
+        // Enable for developer stages, but keep demo/production explicitly opt-in.
+        // Set RESCUE_GEOCODING_ENABLED=false to disable paid Places calls anywhere.
+        RESCUE_GEOCODING_ENABLED: process.env.RESCUE_GEOCODING_ENABLED ??
+          ($app.stage === "demo" || $app.stage === "production" ? "false" : "true"),
         RESCUE_HUB_SES_CONFIGURATION_SET: invitationEmailConfigurationSetName,
         // Trusted website origin for single-use organisation invitation links.
         RESCUE_HUB_PUBLIC_ORIGIN: publicOrigin,
@@ -61,7 +63,7 @@ export default $config({
       permissions: [
         {
           actions: ["geo-places:SearchText", "geo-places:ReverseGeocode"],
-          resources: ["*"],
+          resources: ["arn:aws:geo-places:ap-southeast-2::provider/default"],
         },
         {
           actions: ["ses:SendEmail"],

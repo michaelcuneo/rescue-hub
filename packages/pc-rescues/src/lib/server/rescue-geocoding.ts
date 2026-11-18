@@ -5,7 +5,7 @@ import {
 } from '@aws-sdk/lib-dynamodb';
 import { Resource } from 'sst';
 import {
-  parseAwsReverse, parseAwsSearchText, type AddressSuggestion
+  buildAwsSearchTextRequest, parseAwsReverse, parseAwsSearchText, type AddressSuggestion
 } from '../../../../core/geocoding';
 import {
   validRescueCoordinates, type MappedAddress, type RescueCoordinates
@@ -137,12 +137,7 @@ export async function searchRescueAddresses(
   term: string, eventFetch: typeof fetch = fetch, bias?: RescueCoordinates
 ): Promise<AddressSuggestion[]> {
   if (!enabled() || term.trim().length < 3 || term.length > 120) return [];
-  const response = await placesRequest('search-text', {
-    QueryText: term.trim(),
-    MaxResults: 5,
-    Filter: { IncludeCountries: ['AUS'] },
-    ...(bias && validRescueCoordinates(bias)
-      ? { BiasPosition: [bias.longitude, bias.latitude] } : {})
-  }, eventFetch);
+  const response = await placesRequest('search-text',
+    buildAwsSearchTextRequest(term, bias), eventFetch);
   return parseAwsSearchText(response);
 }

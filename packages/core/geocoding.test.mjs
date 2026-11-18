@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { metresBetween, parseAwsReverse, parseAwsSearchText } from './geocoding.ts';
+import { buildAwsSearchTextRequest, metresBetween, parseAwsReverse, parseAwsSearchText } from './geocoding.ts';
 
 const pin = { latitude: -32.929, longitude: 151.779 };
 function item(id, label, latitude, longitude, type = 'PointAddress', country = 'AU') {
@@ -51,4 +51,21 @@ test('SearchText returns only valid Australian results with coordinates', () => 
     { id: 'd', label: 'Hunter Street, Newcastle NSW', latitude: -32.929, longitude: 151.78 }
   ]);
   assert.deepEqual(parseAwsSearchText({ ResultItems: [] }), []);
+});
+
+test('SearchText requests always include exactly one valid geo constraint', () => {
+  const local = buildAwsSearchTextRequest('  hunter street ', pin);
+  assert.deepEqual(local, {
+    QueryText: 'hunter street', MaxResults: 5,
+    Filter: { IncludeCountries: ['AUS'] },
+    BiasPosition: [151.779, -32.929]
+  });
+  const national = buildAwsSearchTextRequest('sydney', undefined);
+  assert.deepEqual(national.Filter, {
+    IncludeCountries: ['AUS'], BoundingBox: [95, -55, 170, 0]
+  });
+  assert.equal('BiasPosition' in national, false);
+  assert.equal('BiasPosition' in buildAwsSearchTextRequest('Sydney', {
+    latitude: 0, longitude: 0
+  }), false);
 });

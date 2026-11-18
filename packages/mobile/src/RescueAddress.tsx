@@ -11,7 +11,7 @@ type Props = {
   location?: string | null; showDirections?: boolean; compact?: boolean;
 };
 
-// Independently licensed G-NAF address hints can be reused for this session.
+// AWS Location Places Storage-mode hints are reused only for this signed-in session.
 
 export default function RescueAddress({
   id, latitude, longitude, location, compact = false, showDirections = false
@@ -43,7 +43,11 @@ export default function RescueAddress({
           loading ? 'Looking up nearest mapped address…' :
           'No reliable address. Follow the GPS pin.'}
       </Text>
-      {value?.address && <Text style={styles.note}>Address data: Amazon Location Service</Text>}
+      {value?.address && <Pressable accessibilityRole="link"
+        accessibilityLabel="Amazon Location Service data sources and attribution"
+        onPress={() => void Linking.openURL('https://docs.aws.amazon.com/location/latest/developerguide/data-attribution.html')}>
+        <Text style={styles.note}>Address data: Amazon Location sources</Text>
+      </Pressable>}
       <Text style={styles.coordinates}>GPS {formatRescueCoordinates({ latitude, longitude })}</Text>
     </>}
     {showDirections && directions ? (
