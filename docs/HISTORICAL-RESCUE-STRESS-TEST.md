@@ -25,20 +25,20 @@ cases store a **distinct release GPS point**, and original-site releases
 preserve the rescue coordinates. All are marked `demo: true` and
 `historicalSeed: true`. Names and care notes are fictional.
 
-## Run on Halide, dev stage only
+## Run on Halide, michael stage only
 
 From the repository root with the new branch pulled:
 
 ```bash
 # Inspect the planned write; performs no DynamoDB modification:
-npx sst shell --stage dev -- node packages/pc-rescues/scripts/seed-historical-rescues.mjs --stage dev
+npx sst shell --stage michael -- node packages/pc-rescues/scripts/seed-historical-rescues.mjs --stage michael
 
-# Create records, after entering SEED 200 dev:
-npx sst shell --stage dev -- node packages/pc-rescues/scripts/seed-historical-rescues.mjs --stage dev --write
+# Create records, after entering SEED 200 michael:
+npx sst shell --stage michael -- node packages/pc-rescues/scripts/seed-historical-rescues.mjs --stage michael --write
 ```
 
 The script refuses other SST stages, verifies the linked table belongs to
-`dev`, and prompts before writing. It conditionally creates exactly
+`michael`, and prompts before writing. It conditionally creates exactly
 three records per case in a DynamoDB transaction. It skips its own existing
 seed IDs on rerun; **it never overwrites existing user/live records**. If a
 non-seed record occupies any deterministic rescue ID, it stops with an error.
