@@ -45,7 +45,8 @@ function metresBetween(a: Coordinates, b: Coordinates): number {
 }
 
 export function validateAnimalReleasePoint(raw: RawRelease, original: Coordinates): AnimalReleasePoint {
-  if (!isValidReleasePoint(raw))
+  const coordinates = { latitude: raw.latitude, longitude: raw.longitude };
+  if (!isValidReleasePoint(coordinates))
     throw new Error('Drop a release pin on the map or use the original rescue location.');
   if (raw.releaseReason !== 'ORIGINAL_SITE' && raw.releaseReason !== 'RELOCATION')
     throw new Error('Choose whether the animal was released at its rescue site or relocated.');
@@ -54,14 +55,14 @@ export function validateAnimalReleasePoint(raw: RawRelease, original: Coordinate
   const location = (typeof raw.location === 'string' ? raw.location.trim() : '');
   if (location.length > 250) throw new Error('Release site description must be 250 characters or fewer.');
   if (raw.releaseReason === 'ORIGINAL_SITE' && isValidReleasePoint(original) &&
-      metresBetween(raw as Coordinates, original) > 100) {
+      metresBetween(coordinates, original) > 100) {
     throw new Error('This release pin is away from the rescue site. Choose relocation instead.');
   }
   // A human-friendly place name is optional for forests, reserves and bushland.
   return {
-    latitude: raw.latitude,
-    longitude: raw.longitude,
+    latitude: coordinates.latitude,
+    longitude: coordinates.longitude,
     releaseReason: raw.releaseReason,
-    location: location || `GPS ${formatReleaseCoordinates(raw as Coordinates)}`
+    location: location || `GPS ${formatReleaseCoordinates(coordinates)}`
   };
 }
