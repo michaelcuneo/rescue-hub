@@ -1,5 +1,5 @@
 /**
- * Only an actionable response or transport pickup belongs on the operations map.
+ * Legacy actionable-pin helper; the Operations map now uses the historical-visibility-aware helper below.
  * Claiming a case reserves it, but DOES NOT mean the animal has been collected.
  * Physical pickup is recorded separately, at which point its pin disappears.
  *
