@@ -1,4 +1,4 @@
-import { shouldShowRescuePin } from '../../../../core/case-map-visibility';
+import { shouldShowRescuePin } from '../../../../core/case-map-visibility.ts';
 
 /**
  * Shared display-only rescue list organisation.
