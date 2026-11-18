@@ -2,13 +2,23 @@
 
 ## Scope
 
-**Operations → Rescue Queue** is a day-based dispatch workspace and does not
-provide historical free-text searching. Earlier unresolved cases remain
-visible as carry-over work.
+**Operations → Rescue Queue** is a live operational worklist, not a
+historical search tool. It has no date selector and no rescue text search:
+
+- **Pending** includes every visible unresolved Pending case in the user's organisation, regardless of report date.
+- **Assigned** includes every Assigned case in that organisation, regardless of report date.
+- **Completed** includes only cases completed on the **current NSW calendar day**; this is determined by `completedAt` (or `updatedAt` for older records). Server-rendered and real-time feed responses enforce this, rather than hiding other days only in the browser.
+- The existing authorisation to *claim* or *manage* an animal remains independent of what the operational worklist can display.
 
 **Administration → Rescues → List** uses a separate authenticated server-side
-archive search. **Map** displays the rescues reported on a selected NSW calendar
-day, including completed records, at their originally reported coordinates.
+full archive search and retains its existing search and filters.
+
+**Administration → Rescues → Map** can load **All rescues (any dates)**,
+**one NSW calendar day**, or an **inclusive From/To date range**. Its
+clustered Mapbox markers show all reported rescue locations, including
+Completed and Cancelled records. The map loads official NSW operating-area
+geometry separately and continues displaying its basemap when archive
+requests are still in progress.
 
 ## API
 
@@ -118,3 +128,36 @@ If daily national volumes become large, consider additional
 organisation/status/date-specific GSIs and a dedicated search index for
 instant keyword matching. These would improve performance but are **not
 required for complete cursor-paginated archive coverage**.
+
+
+## Historical map API and rendering
+
+`GET /api/admin/rescues/map?period=all&organisation=all`
+
+Supported `period` values: `all`, `selected_day`, `range`.
+
+- `date=YYYY-MM-DD`: required when `period=selected_day`; calendar day in Australia/Sydney.
+- `from=YYYY-MM-DD&to=YYYY-MM-DD`: inclusive when `period=range`; both dates use Australia/Sydney calendar-day bounds. Ranges where `from > to` or `to` is in the future are rejected.
+- `organisation`: same permission rules as the List.
+- `cursor`: server-issued, filter-bound continuation token.
+
+The map endpoint returns up to **250** matching rescues per request, followed
+by a cursor while further records exist. The UI continuously follows this
+cursor, combines results by case ID, and shows live loading progress; there is
+no arbitrary 200-record map cap. Invalid/missing coordinates (including 0,0)
+are excluded from pins but remain counted in loaded records.
+
+A separate call to `/api/operating-areas` loads official boundary geometry
+and overlays translucent polygons, outlines and labels. The map uses
+Mapbox native GeoJSON clustering rather than thousands of separate HTML marker
+nodes. Clicking a cluster zooms in; clicking a point opens the case summary.
+Clusters display report locations with the case's **current** status, not
+reconstructed status at a point in the past.
+
+**Performance caveat:** an `All rescues` query may read the entire indexed
+archive, potentially incurring many requests and DynamoDB read units.
+Follow-up index refinements and optional load limits/aggregations are advisable
+before full national-scale deployment. The feed's current-day completion
+retrieval also scans the Completed status index until a purpose-built
+completion-date index is added. The current implementation prioritises
+correct results over optimal historical index efficiency.
