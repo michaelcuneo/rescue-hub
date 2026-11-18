@@ -8,7 +8,7 @@ import { effectiveAvailability } from './availability';
 import { canDirectChat, directChannelId, displayMemberLabels, isDirectChatChannelId } from '../../../../core/chat-direct';
 import { listAdminOrganisations } from './admin-data';
 import { type ChatMention } from '../../../../core/chat-mentions';
-import { validateChatMentions } from './chat-mention-lookup';
+
 import {
   buildChatChannels, canAccessChat, canSelectChatOrganisation, isPlatformOversightUser,
   isValidChatChannelId, validateChatText,
@@ -405,6 +405,7 @@ export async function postChatMessage(
       throw new ChatAccessError('Linked animal is not available in your organisation.');
     }
   }
+  const { validateChatMentions } = await import('./chat-mention-lookup');
   const mentions = await validateChatMentions(user, channelId, organisationId, text, input.mentions);
   const createdAt = new Date().toISOString(), id = crypto.randomUUID();
   const message: ChatMessage = {
