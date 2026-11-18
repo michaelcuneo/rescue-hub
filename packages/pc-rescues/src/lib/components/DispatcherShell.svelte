@@ -4,7 +4,7 @@
 import { reportChannelLabel } from '../../../../core/report-channel';
 	import { pinForRescue } from '../../../../core/rescue-pin-groups';
 	import RescueAddress from './RescueAddress.svelte';
-import { rescueNSWDay, rescueTodayNSW, sortRescueRecords, isWaitingFourHours, RESCUE_LIST_PAGE_SIZE, type RescueOrder } from '$lib/rescue-list';
+import { completedOnNSWDay, rescueTodayNSW, sortRescueRecords, isWaitingFourHours, RESCUE_LIST_PAGE_SIZE, type RescueOrder } from '$lib/rescue-list';
 		import type { OrganisationMembershipConfig } from '$lib/server/membership';
 	import {
 		Search,
@@ -98,7 +98,7 @@ import { rescueNSWDay, rescueTodayNSW, sortRescueRecords, isWaitingFourHours, RE
     tab === 'pending' ? $data.pending :
     tab === 'assigned' ? $data.assigned :
     $data.completed.filter(item =>
-      rescueNSWDay(item.completedAt ?? item.updatedAt) === todayNSW)
+      completedOnNSWDay(item, todayNSW))
   );
   const visibleItems = $derived(sortRescueRecords(
     currentItems, tab === 'completed' ? 'newest' : order
@@ -422,7 +422,7 @@ import { rescueNSWDay, rescueTodayNSW, sortRescueRecords, isWaitingFourHours, RE
 			</button>
 			<button class:active={tab === 'completed'} type="button" onclick={() => (tab = 'completed')}>
 				<span>Completed</span>
-				<strong>{currentItems.length === -1 ? 0 : $data.completed.filter(item => rescueNSWDay(item.completedAt ?? item.updatedAt) === todayNSW).length}</strong>
+				<strong>{$data.completed.filter(item => completedOnNSWDay(item, todayNSW)).length}</strong>
 			</button>
 		</div>
 
