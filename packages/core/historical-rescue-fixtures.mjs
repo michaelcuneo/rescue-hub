@@ -1,3 +1,5 @@
+import { buildSyntheticAnimalMilestones } from './demo-animal-milestones.mjs';
+
 /** Deterministic, fictional regional Rescue Hub history — no AWS side effects. */
 const ORG = 'native-animal-trust-fund';
 const VOLUNTEERS = [
@@ -135,7 +137,14 @@ export function buildHistoricalRescueFixtures() {
       } : {}),
       demo: true, historicalSeed: true
     };
-    result.push({ rescue, animal, event });
+    const { checkpoints, projection } = buildSyntheticAnimalMilestones(rescue, animal, event, i);
+    rescue.latestAnimalGps = projection;
+    animal.lastGpsLatitude = projection.latitude;
+    animal.lastGpsLongitude = projection.longitude;
+    animal.lastGpsAt = projection.recordedAt;
+    animal.lastGpsPhase = projection.phase;
+    if (outcome !== 'RELEASED') animal.currentLocation = projection.location;
+    result.push({ rescue, animal, event, checkpoints });
   }
   return result;
 }
@@ -195,6 +204,13 @@ export function buildTodayCompletedFixtures(now = Date.now()) {
       createdAt: finishedAt,
       demoTodaySeed: true
     };
-    return { rescue, animal, event };
+    const { checkpoints, projection } = buildSyntheticAnimalMilestones(rescue, animal, event, index);
+    rescue.latestAnimalGps = projection;
+    animal.lastGpsLatitude = projection.latitude;
+    animal.lastGpsLongitude = projection.longitude;
+    animal.lastGpsAt = projection.recordedAt;
+    animal.lastGpsPhase = projection.phase;
+    if (event.outcome !== 'RELEASED') animal.currentLocation = projection.location;
+    return { rescue, animal, event, checkpoints };
   });
 }
