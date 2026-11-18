@@ -307,7 +307,8 @@
   const formatDate = (value: string) =>
     new Intl.DateTimeFormat('en-AU', {
       dateStyle: 'medium',
-      timeStyle: 'short'
+      timeStyle: 'short',
+      timeZone: 'Australia/Sydney'
     }).format(new Date(value));
 </script>
 
