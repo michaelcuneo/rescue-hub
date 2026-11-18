@@ -163,6 +163,10 @@
   });
   async function openAnimal(animal: Animal) {
     selected = animal;
+    releasePoint = null;
+    releaseLabel = '';
+    releaseReason = 'ORIGINAL_SITE';
+    releaseMapOpen = false;
     phoneEvents = [];
     phoneSaved = '';
     requestTransport = false;
