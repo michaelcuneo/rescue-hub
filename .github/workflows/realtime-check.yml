@@ -85,6 +85,8 @@ jobs:
         run: node --experimental-strip-types --test packages/core/rescue-operations-date.test.mjs
       - name: Animal release and relocation pin validation tests
         run: node --experimental-strip-types --test packages/core/release-location.test.mjs
+      - name: GPS journey coordinate and custody validation tests
+        run: node --experimental-strip-types --test packages/core/animal-gps.test.mjs
       - name: Deterministic 200-case historical rescue seed tests
         run: node --test packages/core/historical-rescue-fixtures.test.mjs
       - name: Role assignment and administrator privilege boundary tests
