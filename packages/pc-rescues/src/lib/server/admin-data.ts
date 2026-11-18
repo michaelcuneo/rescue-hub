@@ -5,6 +5,7 @@ import {
 	UpdateCommand
 } from '@aws-sdk/lib-dynamodb';
 import { Resource } from 'sst';
+import { rescueNSWDay, rescueTodayNSW } from '$lib/rescue-list';
 import type {
 	OrganisationDirectoryEntry,
 	Rescue
@@ -63,8 +64,9 @@ export async function listAdminOrganisations(): Promise<OrganisationDirectoryEnt
  * paginated register endpoint is added; never silently omit active work.
  */
 export async function listAdminRescues(): Promise<Rescue[]> {
-  const activeStatuses = ['PENDING', 'ASSIGNED'];
-  const activePages = await Promise.all(activeStatuses.map(async status => {
+  const currentDay = rescueTodayNSW();
+  const indexedStatuses = ['PENDING', 'ASSIGNED', 'COMPLETED'];
+  const statusPages = await Promise.all(indexedStatuses.map(async status => {
     const items: Record<string, any>[] = [];
     let cursor: Record<string, any> | undefined;
     do {
@@ -76,15 +78,18 @@ export async function listAdminRescues(): Promise<Rescue[]> {
         ScanIndexForward: false,
         ExclusiveStartKey: cursor
       }));
-      items.push(...(result.Items ?? []));
+      for (const item of result.Items ?? []) {
+        if (status !== 'COMPLETED' ||
+            rescueNSWDay(item.completedAt ?? item.updatedAt) === currentDay) items.push(item);
+      }
       cursor = result.LastEvaluatedKey;
     } while (cursor);
     return items;
   }));
-  // Keep a recent history snapshot for the dispatch panel; the full archive
-  // needs a cursor-based API, not a full-table query on every realtime event.
+  // Keep recent history for administrative overview metrics only. The
+  // searchable register has its own complete cursor-based archive endpoint.
   const recentHistory = await queryIndex('RESCUES', 200);
-  const combined = [...activePages.flat(), ...recentHistory];
+  const combined = [...statusPages.flat(), ...recentHistory];
   const items = [...new Map(combined.map(item => [String(item.id), item])).values()];
   return mapRescueItems(items);
 }
