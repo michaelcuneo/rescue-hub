@@ -57,7 +57,7 @@
     assignedResponderName: string | null; pickupAt: string | null;
     pickedUpByName: string | null; pickupGpsRecorded: boolean;
     animals: JourneyAnimal[]; history: JourneyEvent[];
-    gpsPoints: Array<{ id: string; animalId: string; phase: string; latitude: number; longitude: number; at: string }>;
+    gpsPoints: Array<{ id: string; animalId: string; phase: string; latitude: number; longitude: number; at: string; location: string | null }>;
   };
   let journey = $state<Journey | null>(null);
   let journeyLoading = $state(false);
@@ -65,6 +65,32 @@
   let focusedJourneyCase = $state<string | null>(null);
   let mapFocus = $state<'reported' | 'release' | 'both'>('reported');
   let focusedReleaseAnimalId = $state<string | null>(null);
+  const milestoneLocations = $derived.by(() => {
+    const rescue = selected;
+    if (!rescue) return [] as Array<{ id: string; phase: string; label: string; latitude: number; longitude: number; at: string }>;
+    const points = [{
+      id: 'injury', phase: 'INJURY_LOCATION', label: rescue.location || 'Original injury location',
+      latitude: rescue.latitude, longitude: rescue.longitude, at: rescue.createdAt
+    }];
+    if (journey?.rescueId !== rescue.id) return points;
+    for (const point of journey.gpsPoints) {
+      if (!Number.isFinite(point.latitude) || !Number.isFinite(point.longitude) ||
+        Math.abs(point.latitude) > 90 || Math.abs(point.longitude) > 180) continue;
+      points.push({ id: point.id, phase: point.phase,
+        label: point.location || point.phase.replaceAll('_', ' ').toLowerCase(),
+        latitude: point.latitude, longitude: point.longitude, at: point.at });
+    }
+    for (const animal of journey.animals) {
+      const release = animal.releasePoint;
+      if (!release || points.some(point => point.phase === 'RELEASE_SITE' &&
+        point.latitude === release.latitude && point.longitude === release.longitude)) continue;
+      points.push({ id: 'release-' + animal.id, phase: 'RELEASE_SITE',
+        label: animal.releaseLocation || 'Final release site',
+        latitude: release.latitude, longitude: release.longitude,
+        at: animal.releasedAt || rescue.updatedAt });
+    }
+    return points.sort((x, y) => x.at.localeCompare(y.at));
+  });
   const statusCounts = $derived({
     pending: rescues.filter(item => item.status === 'PENDING').length,
     assigned: rescues.filter(item => item.status === 'ASSIGNED').length,
@@ -205,28 +231,20 @@
     };
   }
   function journeyGeoJSON(): any {
-    if (!selected || journey?.rescueId !== selected.id) return { type: 'FeatureCollection', features: [] };
-    const byAnimal = new Map<string, typeof journey.gpsPoints>();
-    for (const point of journey.gpsPoints ?? []) {
-      if (!Number.isFinite(point.latitude) || !Number.isFinite(point.longitude)) continue;
-      if (!byAnimal.has(point.animalId)) byAnimal.set(point.animalId, []);
-      byAnimal.get(point.animalId)!.push(point);
-    }
-    const features: any[] = [];
-    for (const [animalId, checkpoints] of byAnimal) {
-      checkpoints.sort((a,b) => a.at.localeCompare(b.at));
-      // Connecting actual sampled positions is a GPS trace, NOT an inferred
-      // road route or evidence of exactly which path was travelled.
-      if (checkpoints.length > 1) features.push({
-        type: 'Feature', properties: { animalId },
-        geometry: { type: 'LineString', coordinates: checkpoints.map(point => [point.longitude, point.latitude]) }
-      });
-      for (const point of checkpoints) features.push({
-        type: 'Feature', properties: { animalId, phase: point.phase, at: point.at },
+    if (!selected || journey?.rescueId !== selected.id)
+      return { type: 'FeatureCollection', features: [] };
+    return { type: 'FeatureCollection',
+      features: milestoneLocations.filter(point => point.phase !== 'INJURY_LOCATION').map(point => ({
+        type: 'Feature', properties: { id: selected.id, phase: point.phase },
         geometry: { type: 'Point', coordinates: [point.longitude, point.latitude] }
-      });
-    }
-    return { type: 'FeatureCollection', features };
+      }))
+    };
+  }
+  function focusMilestone(point: { latitude: number; longitude: number }) {
+    const map = getMap();
+    if (!mapReady || !map) return;
+    map.flyTo({ center: [point.longitude, point.latitude],
+      zoom: Math.max(map.getZoom?.() ?? 8, 13), duration: 450 });
   }
   function updatePins() {
     const map = getMap();
@@ -364,6 +382,11 @@
     map.on('click', 'historical-relocations', selectFeature);
     map.on('click', 'historical-selected-release', selectFeature);
     map.on('click', 'historical-last-known-gps', selectFeature);
+    map.on('click', 'historical-animal-waypoints', (event: any) => {
+      const coords = event.features?.[0]?.geometry?.coordinates;
+      if (Array.isArray(coords) && Number.isFinite(coords[0]) && Number.isFinite(coords[1]))
+        focusMilestone({ longitude: coords[0], latitude: coords[1] });
+    });
     map.on('click', 'historical-rescue-clusters', (event: any) => {
       const feature = event.features?.[0];
       const id = feature?.properties?.cluster_id;
@@ -661,9 +684,14 @@
         <p class="map-card-progress">{selected.pickedUpAt ? 'Collected · ' : 'Awaiting pickup · '}
           {journey?.assignedResponderName ?? (selected.assignedUserId ? 'Assigned responder' : 'Unassigned')}</p>
         {#if journeyLoading}<p class="map-card-progress">Loading GPS journey…</p>{/if}
-        {#if journey?.gpsPoints?.length}
-          <p class="map-card-progress">{journey.gpsPoints.length} recorded GPS checkpoints · Recorded animal checkpoints</p>
-        {/if}
+        <div class="map-card-milestones" aria-label="Animal location history">
+           {#each milestoneLocations as point (point.id)}
+             <button class="milestone-button" type="button" onclick={() => focusMilestone(point)}>
+               <strong>{point.phase.replaceAll('_', ' ')}</strong>
+               <small>{point.label} · {formatted(point.at)}</small>
+             </button>
+           {/each}
+         </div>
         {#if journeyError}<p class="map-card-progress">Detailed journey unavailable</p>{/if}
         <a class="map-card-record-link" href="/rescues/{selected.id}/care">Animal Records &amp; Phone Updates</a>
       </section>
@@ -709,7 +737,7 @@
           <span><i style:background-color={group.color}></i>{group.label}</span>
         {/each}
       {/if}
-      <small>Status dot indicates dispatch phase. Purple marks recorded releases; blue shows sampled animal GPS journeys.</small>
+      <small>Selected rescues show recorded injury, vet, care and release milestones. Checkpoints are not travel routes.</small>
     </div>
 
   </aside>
@@ -790,7 +818,12 @@
   .map-card-status { font-size:10px; font-weight:900; padding:5px 7px; border-radius:20px; background:var(--rh-surface-soft); }
   .map-card-location { font-size:13px; margin:14px 0 8px; }
   .map-card-progress { font-size:12px; color:var(--rh-muted); line-height:1.5; margin:5px 0; }
-  .map-card-record-link { display:block; margin-top:15px; padding:10px; text-align:center;
+  .map-card-milestones { display:grid; gap:5px; max-height:210px; overflow-y:auto; margin-top:10px; }
+   .milestone-button { display:grid; gap:3px; width:100%; padding:7px 9px; text-align:left; border:1px solid var(--rh-border); border-radius:8px; background:var(--rh-surface-soft); color:var(--rh-text); cursor:pointer; font:inherit; }
+   .milestone-button strong { font-size:11px; }
+   .milestone-button small { font-size:11px; line-height:1.3; color:var(--rh-muted); }
+   .milestone-button:focus-visible { outline:2px solid var(--rh-primary); outline-offset:2px; }
+   .map-card-record-link { display:block; margin-top:15px; padding:10px; text-align:center;
     border-radius:9px; background:var(--rh-primary); color:var(--rh-on-primary);
     font-size:13px; font-weight:800; text-decoration:none; }
   .map-card-record-link:hover { background:var(--rh-primary-hover); }
