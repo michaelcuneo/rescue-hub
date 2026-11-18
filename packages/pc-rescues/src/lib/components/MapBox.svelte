@@ -3,7 +3,8 @@
   import { get } from 'svelte/store';
   import { resolvedTheme } from '$lib/theme';
   import { mapRef, data, selectedRescue, intakeOpen, draftLocation, coords, type RescueItem, type DraftLocation } from '$lib/stores';
-  import { shouldShowOperationsMapPin, rescueTodayNSW } from '$lib/rescue-list';
+  import { rescueTodayNSW, completedOnNSWDay } from '$lib/rescue-list';
+  import { shouldShowOperationsMapPin } from '../../../../core/case-map-visibility';
   import { RESCUE_PIN_GROUPS, pinForRescue } from '../../../../core/rescue-pin-groups';
 
   // Same pinned, browser-only proof of concept as Administration → Rescues → Map.
@@ -53,7 +54,7 @@
   colourExpression.push('#455665');
 
   function validPin(item: RescueItem): boolean {
-    return shouldShowOperationsMapPin(item, currentNSWDay) &&
+    return shouldShowOperationsMapPin(item, completedOnNSWDay(item, currentNSWDay)) &&
       Number.isFinite(item.latitude) && Number.isFinite(item.longitude) &&
       Math.abs(item.latitude) <= 90 && Math.abs(item.longitude) <= 180 &&
       !(item.latitude === 0 && item.longitude === 0);
