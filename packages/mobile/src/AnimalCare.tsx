@@ -114,7 +114,7 @@ export default function AnimalCare({ rescue, userId, roles, onBack, onUnclaim }:
   }, [stopGps]);
   useEffect(() => {
     if (gpsAnimalId.current && (selected?.id !== gpsAnimalId.current ||
-        selected.currentCustodianUserId !== userId ||
+        selected.currentCustodianUserId !== userId || selected.physicalCustodianType === 'VET' ||
         !['IN_RESCUE','IN_TRANSIT','AT_VET','IN_CARE'].includes(selected.status))) stopGps();
   }, [selected?.id, selected?.status, selected?.currentCustodianUserId, userId, stopGps]);
   function gpsPhase(): AnimalGpsPhase {
@@ -145,7 +145,7 @@ export default function AnimalCare({ rescue, userId, roles, onBack, onUnclaim }:
     }
   }
   async function captureGpsCheckpoint() {
-    if (!selected || selected.currentCustodianUserId !== userId) return;
+    if (!selected || selected.currentCustodianUserId !== userId || selected.physicalCustodianType === 'VET') return;
     try {
       const permission = await Location.requestForegroundPermissionsAsync();
       if (!permission.granted) throw new Error('Foreground location permission is required.');
@@ -154,7 +154,7 @@ export default function AnimalCare({ rescue, userId, roles, onBack, onUnclaim }:
     } catch (error) { setGpsMessage(error instanceof Error ? error.message : 'Cannot read GPS.'); }
   }
   async function startGpsTracking() {
-    if (!selected || selected.currentCustodianUserId !== userId || gpsActive.current) return;
+    if (!selected || selected.currentCustodianUserId !== userId || selected.physicalCustodianType === 'VET' || gpsActive.current) return;
     const animalId = selected.id;
     try {
       const permission = await Location.requestForegroundPermissionsAsync();
@@ -301,15 +301,15 @@ export default function AnimalCare({ rescue, userId, roles, onBack, onUnclaim }:
     }
   }
 
-  if (conversationOpen && rescue.id.startsWith('public-report-')) {
-    return <ReporterConversation reportId={rescue.id.slice('public-report-'.length)} onBack={() => setConversationOpen(false)} />;
-  }
-
   useEffect(() => {
     if (nextStep !== 'CARER' || !collected || rescue.transportAnimalId) return;
     getEligibleCarers().then(result => setCarers(result.carers))
       .catch(error => setError(error instanceof Error ? error.message : 'Could not load carers.'));
   }, [nextStep, collected, rescue.transportAnimalId]);
+  if (conversationOpen && rescue.id.startsWith('public-report-')) {
+    return <ReporterConversation reportId={rescue.id.slice('public-report-'.length)} onBack={() => setConversationOpen(false)} />;
+  }
+
   const isCustodian = selected?.currentCustodianUserId === userId;
   const activeAnimal = selected ?? (animals.length === 1 ? animals[0] : null);
   const canQuickProgress = rescue.assignedUserId === userId && collected && !rescue.transportAnimalId &&
@@ -461,7 +461,7 @@ export default function AnimalCare({ rescue, userId, roles, onBack, onUnclaim }:
         {rescue.assignedUserId === userId && rescue.status === 'ASSIGNED' && !collected ? (
           <Pressable style={styles.button} accessibilityRole="button" disabled={busy}
             onPress={() => Alert.alert('Confirm collection at vet?',
-              'Only confirm after physically receiving the registered animal from the clinic.',
+              'Only confirm after physically receiving the registered animal from the clinic. You can record GPS checkpoints once custody is confirmed.',
               [{ text: 'Not yet', style: 'cancel' },
                { text: 'Confirm pickup', onPress: () => void run(async () => {
                  await confirmRescuePickup(rescue.id, collectionNotes);
@@ -495,7 +495,7 @@ export default function AnimalCare({ rescue, userId, roles, onBack, onUnclaim }:
           <Text style={styles.quickTitle}>{collected ? 'What happens next?' : 'Pick up animal'}</Text>
           {!collected ? (
             <>
-              <Text style={styles.muted}>Confirm physical collection. The animal is registered automatically, and the rescue pin disappears.</Text>
+              <Text style={styles.muted}>Confirm physical collection. The animal is registered automatically, and its original rescue pin remains visible alongside any recorded animal GPS journey.</Text>
               {animals.length === 0 ? <>
                 <Text style={styles.fieldLabel}>Animal species / type *</Text>
                 <KeyboardAwareTextInput style={styles.input} value={species} onChangeText={setSpecies}
@@ -673,7 +673,7 @@ export default function AnimalCare({ rescue, userId, roles, onBack, onUnclaim }:
         ) : null}
       </> : (
         <>
-          {isCustodian && !isFinal ? <View style={styles.card}>
+          {isCustodian && selected.physicalCustodianType !== 'VET' && !isFinal ? <View style={styles.card}>
             <Text style={styles.section}>Animal movement GPS</Text>
             <Text style={styles.muted}>With your permission, save this animal's actual route from pickup through transport, veterinary care and handover. Tracking works only while this app is open and this animal is in your custody; it stops automatically when you leave this screen or background the app.</Text>
             <Pressable style={styles.secondaryButton} accessibilityRole="button" disabled={busy}
