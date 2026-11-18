@@ -24,7 +24,7 @@
   let map: any;
   let marker: any;
   let module: any;
-  let pending = $state<Point | null>(selected && isValidReleasePoint(selected) ? selected : null);
+  let pending = $state<Point | null>(null);
   let ready = $state(false);
   let error = $state('');
   let activeTheme = 'light';
@@ -52,6 +52,7 @@
     let unsubscribe: (() => void) | undefined;
     const init = async () => {
       try {
+        if (selected && isValidReleasePoint(selected)) pending = selected;
         module = await import(/* @vite-ignore */ ESM);
         if (!surface || disposed) return;
         activeTheme = $resolvedTheme;
