@@ -1,0 +1,46 @@
+name: G-NAF independent geocoding checks
+
+on:
+  push:
+    branches: [feature/provider-independent-geocoding]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  geocoder:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: G-NAF Core import, spatial lookup, search and auth tests
+        run: python3 -m unittest discover -s services/gnaf-geocoder -p 'test_*.py' -v
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Geocoding contract and rescue-pin safety
+        run: node --experimental-strip-types --test packages/core/geocoding.test.mjs packages/core/rescue-location.test.mjs
+
+  svelte-and-mobile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install workspaces
+        run: npm install --no-audit --no-fund
+      - name: Svelte and React Native type checks
+        run: npm run check
+      - name: Build SvelteKit (dummy SST resources only)
+        env:
+          SST_RESOURCE_RescueHubData: '{"name":"ci-placeholder-table"}'
+          SST_RESOURCE_RescueHubGraphQL: '{"url":"https://example.invalid/graphql","apiKey":"ci-placeholder"}'
+          SST_RESOURCE_RescueHubRealtime: '{"url":"https://example.appsync-api.ap-southeast-2.amazonaws.com/graphql","apiKey":"ci-placeholder"}'
+          SST_RESOURCE_RescueHubMailFrom: '{"value":"ci@example.invalid"}'
+        run: npm run build --workspace=website

@@ -198,6 +198,7 @@ import { completedOnNSWDay, rescueTodayNSW, sortRescueRecords, isWaitingFourHour
 		$draftLocation = null;
 		addressResults = [];
 		addressSearchSequence++;
+		addressSearching = false;
 		if (searchTimer) clearTimeout(searchTimer);
 		submitError = '';
 	}
@@ -205,6 +206,7 @@ import { completedOnNSWDay, rescueTodayNSW, sortRescueRecords, isWaitingFourHour
 	function scheduleAddressSearch(value: string) {
 		addressQuery = value;
 		addressSearchSequence++; // Ignore results from requests for previous input.
+		addressSearching = false;
 		if (searchTimer) clearTimeout(searchTimer);
 
 		if (value.trim().length < 3) {
@@ -578,6 +580,7 @@ import { completedOnNSWDay, rescueTodayNSW, sortRescueRecords, isWaitingFourHour
 									</button>
 								{/each}
 							</div>
+							<small>Address data: G-NAF Core © Geoscape Australia</small>
 						{/if}
 					</label>
 

@@ -15,7 +15,6 @@
   };
   let address = $state<Lookup | null>(null);
   let loading = $state(true);
-  const key = $derived(`${id}:${latitude}:${longitude}`);
   const link = $derived(rescueDirectionsUrl({ latitude, longitude }));
   const gps = $derived(formatRescueCoordinates({ latitude, longitude }));
 
@@ -26,7 +25,6 @@
   $effect(() => {
     let disposed = false;
     const lookupId = id;
-    key; // Track both incident coordinates as an effect dependency.
     const lookupLatitude = latitude, lookupLongitude = longitude;
     address = null;
     loading = true;
@@ -47,6 +45,9 @@
     <small>{address?.address ? addressPrecisionLabel(address.precision) :
       loading ? 'Looking up nearest mapped address…' :
       'No reliable mapped address — follow the GPS pin'}</small>
+    {#if address?.address}
+      <small>Address data: G-NAF Core © Geoscape Australia</small>
+    {/if}
     <small class="coordinates">GPS {gps}</small>
     {#if directions && link}
       <a class="directions" href={link} target="_blank" rel="noopener noreferrer"

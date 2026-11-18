@@ -219,7 +219,7 @@ export async function restoreSession() {
     return await request<{ user: User; membership: MembershipConfig | null }>('/api/mobile/me');
   } catch {
     await SecureStore.deleteItemAsync(TOKEN_KEY);
-  resetRescueAddressCache();
+    resetRescueAddressCache();
     return null;
   }
 }
