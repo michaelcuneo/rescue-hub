@@ -98,6 +98,7 @@
 <svelte:head>
   <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@6.18.0/dist/maplibre-gl.css"/>
 </svelte:head>
+<svelte:window onkeydown={(event) => { if (event.key === 'Escape') onCancel(); }} />
 <div class="release-picker" role="dialog" aria-modal="true" aria-label="Choose wildlife release location">
   <div class="picker-content">
     <header>
