@@ -4,7 +4,7 @@
  * Dry-run by default. NEVER invoked during SST deployment or server start.
  *
  * npx sst shell --stage michael -- node packages/pc-rescues/scripts/seed-historical-rescues.mjs --stage michael
- * Or use --stage demo for the deployed demonstration database.
+ * Also supports --stage michaelcuneo and --stage demo for their separate databases.
  * Append --write to commit records after interactive confirmation.
  */
 import { createInterface } from 'node:readline/promises';
@@ -12,19 +12,15 @@ import { stdin, stdout } from 'node:process';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, GetCommand, TransactWriteCommand } from '@aws-sdk/lib-dynamodb';
 import { Resource } from 'sst';
+import { assertHistoricalSeedTarget } from '../../core/historical-rescue-stage.mjs';
 
 const stageFlag = process.argv.indexOf('--stage');
 const stage = stageFlag >= 0 ? process.argv[stageFlag + 1] : undefined;
 const write = process.argv.includes('--write');
 const enrich = process.argv.includes('--enrich');
 if (enrich && !write) throw new Error('--enrich requires --write and interactive confirmation.');
-if (!['michael', 'demo'].includes(stage) || (process.env.SST_STAGE && process.env.SST_STAGE !== stage)) {
-  throw new Error('Historical seed supports only stages michael and demo; the linked SST_STAGE must match.');
-}
 const table = Resource.RescueHubData?.name;
-if (!table || !table.toLowerCase().includes(stage.toLowerCase())) {
-  throw new Error('Refusing to seed: linked RescueHubData table name does not contain the requested stage.');
-}
+assertHistoricalSeedTarget(stage, process.env.SST_STAGE, table);
 if (process.argv.some(a => /^--(delete|force|overwrite)$/.test(a))) {
   throw new Error('Destructive/overwriting seed operations are not available.');
 }
