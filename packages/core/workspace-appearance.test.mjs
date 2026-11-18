@@ -71,7 +71,7 @@ test('dark workspace uses accessible neutral layers without altering the light p
   const dark = styles.slice(styles.indexOf(":root[data-theme='dark'] {"));
   const light = styles.slice(0, styles.indexOf("/* Rescue Hub dark:"));
   const pick = (name) => {
-    const match = new RegExp('^\s*--rh-' + name + ':\s*(#[0-9a-f]{6});', 'm').exec(dark);
+    const match = new RegExp('^\\s*--rh-' + name + ':\\s*(#[0-9a-f]{6});', 'm').exec(dark);
     assert.ok(match, 'missing dark token: ' + name);
     return match[1];
   };
@@ -99,4 +99,34 @@ test('dark workspace uses accessible neutral layers without altering the light p
   assert.match(styles, /data-theme='dark'] \.settings-page \.commit-link/);
   assert.match(styles, /data-theme='dark'] \.people-dialog \.primary-action/);
   assert.match(styles, /data-theme='dark'] \.maplibregl-ctrl-group/);
+});
+
+test('Administration portal dialogs keep button colours after moving to body', () => {
+  const admin = read('routes/admin/+page.svelte');
+  const portal = read('lib/actions/portal.ts');
+  assert.match(portal, /document\.body\.appendChild\(node\)/);
+  // Root cause: .admin-shell CSS variables cannot be inherited by body portals.
+  const dialog = admin.slice(admin.indexOf('  .people-dialog {'), admin.indexOf('  .invite-dialog {'));
+  for (const [alias, token] of [
+    ['forest', 'primary'], ['forest-2', 'accent'],
+    ['ink', 'text'], ['muted', 'muted'], ['line', 'border'],
+    ['surface', 'surface'], ['surface-soft', 'surface-soft']
+  ]) {
+    assert.ok(dialog.includes('--' + alias + ': var(--rh-' + token + ');'),
+      'portalled dialog missing ' + alias + ' colour alias');
+  }
+  assert.match(admin, /\.people-dialog button:not\(\.primary-action\)\s*\{[^}]*background:\s*var\(--rh-surface-soft\);[^}]*color:\s*var\(--rh-text\);/s);
+  assert.match(admin, /\.people-dialog \.primary-action\s*\{[^}]*background:\s*var\(--rh-primary\);[^}]*color:\s*var\(--rh-on-primary\);/s);
+  assert.match(admin, /\.people-dialog \.primary-action:hover\s*\{[^}]*background:\s*var\(--rh-primary-hover\);/s);
+  const styles = read('routes/global.css');
+  const lightPrimary = styles.match(/--rh-primary:\s*(#[0-9a-f]{6});/)[1];
+  const lightText = styles.match(/--rh-on-primary:\s*(#[0-9a-f]{6});/)[1];
+  function luminance(hex) {
+    return [1,3,5].map(i=>parseInt(hex.slice(i,i+2),16)/255)
+      .map(x=>x<=0.04045?x/12.92:((x+0.055)/1.055)**2.4)
+      .reduce((sum,c,i)=>sum+c*[.2126,.7152,.0722][i],0);
+  }
+  const a=luminance(lightPrimary), b=luminance(lightText);
+  assert.ok((Math.max(a,b)+.05)/(Math.min(a,b)+.05)>=7,
+    'light primary buttons must retain AAA text contrast');
 });

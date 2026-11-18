@@ -1242,7 +1242,33 @@
   .person-chevron { font-size: 25px; color:var(--muted); }
   .people-overlay { position:fixed; inset:0; z-index:100; background:rgba(10,27,18,.56); display:flex; align-items:center; justify-content:center; min-height:0; overflow:hidden; padding:16px; }
   .people-backdrop { position:absolute; inset:0; width:100%; height:100%; z-index:0; padding:0; margin:0; border:0; background:transparent; cursor:default; }
-  .people-dialog { position:relative; z-index:1; width:min(100%,740px); height:auto; max-height:calc(100dvh - 32px); min-height:0; overflow-y:auto; padding:28px; background:var(--rh-t6, white); box-shadow:0 22px 70px rgba(0,0,0,.28); border-radius:16px; }
+  /* Portalled overlays are moved to document.body. They MUST carry the
+     aliases normally inherited from .admin-shell or --forest resolves to
+     nothing and a white-on-white primary action disappears in light mode. */
+  .people-dialog {
+    --ink: var(--rh-text);
+    --muted: var(--rh-muted);
+    --line: var(--rh-border);
+    --surface: var(--rh-surface);
+    --surface-soft: var(--rh-surface-soft);
+    --forest: var(--rh-primary);
+    --forest-2: var(--rh-accent);
+    --lime: var(--rh-accent-soft);
+    --danger: var(--rh-danger-text);
+    position: relative;
+    z-index: 1;
+    width: min(100%, 740px);
+    height: auto;
+    max-height: calc(100dvh - 32px);
+    min-height: 0;
+    overflow-y: auto;
+    padding: 28px;
+    background: var(--rh-surface);
+    border: 1px solid var(--rh-border);
+    color: var(--rh-text);
+    box-shadow: 0 22px 70px rgba(0,0,0,.28);
+    border-radius: 16px;
+  }
   .invite-dialog { display:flex; flex-direction:column; height:min(88dvh,760px); max-height:calc(100dvh - 32px); min-height:0; overflow:hidden; padding-bottom:max(18px,env(safe-area-inset-bottom)); }
   .invite-dialog .dialog-heading { flex: 0 0 auto; }
   .invite-form { display:flex; flex:1 1 auto; min-height:0; overflow:hidden; gap:0; }
@@ -1269,6 +1295,27 @@
   .capability-option small { font-size: 11px; font-weight: 400; color:var(--muted); line-height: 1.4; }
   .dialog-actions { display: flex; justify-content: flex-end; gap: 10px; padding-top: 16px; border-top:1px solid var(--line); }
   .dialog-actions button, .account-actions button { padding: 10px 15px; border-radius: 8px; border:1px solid var(--line); cursor: pointer; font: inherit; }
+
+  /* Explicit colours are required even though the dialog is not a child
+     of .admin-shell after portal() appends it directly to document.body. */
+  .people-dialog button:not(.primary-action) {
+    background: var(--rh-surface-soft);
+    color: var(--rh-text);
+    border-color: var(--rh-border-strong);
+  }
+  .people-dialog .primary-action {
+    background: var(--rh-primary);
+    color: var(--rh-on-primary);
+    border: 1px solid var(--rh-primary);
+  }
+  .people-dialog .primary-action:hover {
+    background: var(--rh-primary-hover);
+    border-color: var(--rh-primary-hover);
+  }
+  .people-dialog .account-actions .danger {
+    color: var(--rh-danger-text);
+    border-color: var(--rh-border-strong);
+  }
   .person-detail-summary { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 22px; color:var(--muted); font-size: 12px; }
   .account-management { margin-top: 28px; padding-top: 20px; border-top:1px solid var(--line); }
   .account-management h3 { margin: 0 0 7px; }
