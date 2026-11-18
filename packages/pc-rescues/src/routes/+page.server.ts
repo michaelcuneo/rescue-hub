@@ -4,6 +4,7 @@ import { getHunterDemo, HUNTER_DEMO_ORGANISATION } from '$lib/server/demo';
 import { listAdminRescues } from '$lib/server/admin-data';
 import { classifyDispatchCapability, getOrganisationMembershipConfig, memberCanReceiveCapability } from '$lib/server/membership';
 import { canSeeDesktopRescue } from '../../../core/desktop-dispatch-access';
+import { completedOnNSWDay, rescueTodayNSW } from '$lib/rescue-list';
 import { listPendingRoutingExceptions } from '$lib/server/pending-routing-exceptions';
 import type { PageServerLoad } from './$types';
 
@@ -43,8 +44,10 @@ export const load: PageServerLoad = async ({ locals, cookies }) => {
 	const rescues = rescueResult.status === 'fulfilled' ? rescueResult.value : [];
 	const users = usersResult.status === 'fulfilled' ? usersResult.value : [];
 	const membershipConfig = await getOrganisationMembershipConfig(organisationId ?? HUNTER_DEMO_ORGANISATION);
-	const visibleRescues = rescues.filter((rescue) => canSeeDesktopRescue(
-		viewer, rescue,
+	const currentNSWDay = rescueTodayNSW();
+	const visibleRescues = rescues.filter((rescue) =>
+    (rescue.status !== 'COMPLETED' || completedOnNSWDay(rescue, currentNSWDay)) &&
+    canSeeDesktopRescue(viewer, rescue,
 		memberCanReceiveCapability(
 			viewer.teamIds, membershipConfig,
 			classifyDispatchCapability(rescue.type, rescue.breed ?? '')
