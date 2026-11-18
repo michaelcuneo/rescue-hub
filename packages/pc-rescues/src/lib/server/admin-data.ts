@@ -89,7 +89,7 @@ export async function listAdminRescues(): Promise<Rescue[]> {
   return mapRescueItems(items);
 }
 
-function mapRescueItems(items: Record<string, any>[]): Rescue[] {
+export function mapRescueItems(items: Record<string, any>[]): Rescue[] {
   return items.map((item) => ({
 		id: String(item.id),
 		organisationId: item.organisationId ? String(item.organisationId) : null,
@@ -117,7 +117,7 @@ function mapRescueItems(items: Record<string, any>[]): Rescue[] {
  * switches. Calculate both boundaries independently so the historical query
  * includes every event on that local day.
  */
-function sydneyMidnightUtc(day: string): string {
+export function sydneyMidnightUtc(day: string): string {
   const [year, month, date] = day.split('-').map(Number);
   // Previous-day UTC noon is 22:00/23:00 Sydney, before any 02:00 DST change.
   const noon = new Date(Date.UTC(year, month - 1, date - 1, 12));
