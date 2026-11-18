@@ -63,35 +63,59 @@ export async function listAdminOrganisations(): Promise<OrganisationDirectoryEnt
  * closed cases. Historical cases remain bounded here until the dedicated
  * paginated register endpoint is added; never silently omit active work.
  */
+/** Query every status partition with DynamoDB continuation; no arbitrary 200-row cap. */
+async function queryRescueStatusRows(status: 'PENDING' | 'ASSIGNED' | 'COMPLETED'): Promise<Record<string, any>[]> {
+  const items: Record<string, any>[] = [];
+  let cursor: Record<string, any> | undefined;
+  do {
+    const result = await db.send(new QueryCommand({
+      TableName: tableName,
+      IndexName: 'gsi1',
+      KeyConditionExpression: 'gsi1pk = :status',
+      ExpressionAttributeValues: { ':status': 'STATUS#' + status },
+      ScanIndexForward: false,
+      ExclusiveStartKey: cursor
+    }));
+    items.push(...(result.Items ?? []));
+    cursor = result.LastEvaluatedKey;
+  } while (cursor);
+  return items;
+}
+
+/** The Dispatch queue and its realtime feed MUST share the same snapshot.
+ * Do not mix the last 200 archive records into these status partitions:
+ * they are a separate history query and must not override the current
+ * indexed status/projection of a just-completed rescue.
+ */
+export async function listDispatchRescues(): Promise<Rescue[]> {
+  const today = rescueTodayNSW();
+  const [pending, assigned, completed] = await Promise.all([
+    queryRescueStatusRows('PENDING'),
+    queryRescueStatusRows('ASSIGNED'),
+    queryRescueStatusRows('COMPLETED')
+  ]);
+  return mapRescueItems([
+    ...pending.filter(row => row.status === 'PENDING'),
+    ...assigned.filter(row => row.status === 'ASSIGNED'),
+    ...completed.filter(row => row.status === 'COMPLETED' &&
+      rescueNSWDay(row.completedAt ?? row.updatedAt) === today)
+  ]);
+}
+
+/** Admin dashboard remains a bounded overview; full history is in the
+ * separately paginated /api/admin/rescues/search and /map endpoints.
+ */
 export async function listAdminRescues(): Promise<Rescue[]> {
-  const currentDay = rescueTodayNSW();
-  const indexedStatuses = ['PENDING', 'ASSIGNED', 'COMPLETED'];
-  const statusPages = await Promise.all(indexedStatuses.map(async status => {
-    const items: Record<string, any>[] = [];
-    let cursor: Record<string, any> | undefined;
-    do {
-      const result = await db.send(new QueryCommand({
-        TableName: tableName,
-        IndexName: 'gsi1',
-        KeyConditionExpression: 'gsi1pk = :status',
-        ExpressionAttributeValues: { ':status': `STATUS#${status}` },
-        ScanIndexForward: false,
-        ExclusiveStartKey: cursor
-      }));
-      for (const item of result.Items ?? []) {
-        if (status !== 'COMPLETED' ||
-            rescueNSWDay(item.completedAt ?? item.updatedAt) === currentDay) items.push(item);
-      }
-      cursor = result.LastEvaluatedKey;
-    } while (cursor);
-    return items;
-  }));
-  // Keep recent history for administrative overview metrics only. The
-  // searchable register has its own complete cursor-based archive endpoint.
-  const recentHistory = await queryIndex('RESCUES', 200);
-  const combined = [...statusPages.flat(), ...recentHistory];
-  const items = [...new Map(combined.map(item => [String(item.id), item])).values()];
-  return mapRescueItems(items);
+  const [operational, recentHistory] = await Promise.all([
+    listDispatchRescues(),
+    queryIndex('RESCUES', 200)
+  ]);
+  const current = new Map(operational.map(rescue => [rescue.id, rescue]));
+  // Do not allow the archive snapshot to override a fresher status result.
+  for (const historic of mapRescueItems(recentHistory)) {
+    if (!current.has(historic.id)) current.set(historic.id, historic);
+  }
+  return [...current.values()];
 }
 
 export function mapRescueItems(items: Record<string, any>[]): Rescue[] {
