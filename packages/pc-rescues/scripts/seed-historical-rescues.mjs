@@ -3,7 +3,7 @@
  * Local development stress fixtures: 200 deterministic fictional historic rescues.
  * Dry-run by default. NEVER invoked during SST deployment or server start.
  *
- * npx sst shell --stage dev -- node packages/pc-rescues/scripts/seed-historical-rescues.mjs --stage dev
+ * npx sst shell --stage michael -- node packages/pc-rescues/scripts/seed-historical-rescues.mjs --stage michael
  * Append --write to commit records after interactive confirmation.
  */
 import { createInterface } from 'node:readline/promises';
@@ -15,12 +15,12 @@ import { Resource } from 'sst';
 const stageFlag = process.argv.indexOf('--stage');
 const stage = stageFlag >= 0 ? process.argv[stageFlag + 1] : undefined;
 const write = process.argv.includes('--write');
-if (stage !== 'dev' || process.env.SST_STAGE !== 'dev') {
-  throw new Error('Historical seed supports only SST stage dev, with matching --stage dev.');
+if (stage !== 'michael' || (process.env.SST_STAGE && process.env.SST_STAGE !== stage)) {
+  throw new Error('Historical seed supports only SST stage michael; the linked SST_STAGE must match when present.');
 }
 const table = Resource.RescueHubData?.name;
-if (!table || !/(^|[-_])dev([-_]|$)/i.test(table)) {
-  throw new Error('Refusing to seed: linked RescueHubData table is not explicitly a dev-stage table.');
+if (!table || !table.toLowerCase().includes('michael')) {
+  throw new Error('Refusing to seed: linked RescueHubData table does not contain stage michael.');
 }
 if (process.argv.some(a => /^--(delete|force|overwrite)$/.test(a))) {
   throw new Error('Destructive/overwriting seed operations are not available.');
@@ -49,9 +49,9 @@ if (!write) {
 if (!stdin.isTTY) throw new Error('Interactive confirmation requires a real terminal.');
 const rl = createInterface({ input: stdin, output: stdout });
 let answer;
-try { answer = await rl.question('Type SEED 200 dev to create the historical dataset: '); }
+try { answer = await rl.question('Type SEED 200 michael to create the historical dataset: '); }
 finally { rl.close(); }
-if (answer !== 'SEED 200 dev') throw new Error('Cancelled: nothing written.');
+if (answer !== 'SEED 200 michael') throw new Error('Cancelled: nothing written.');
 
 let inserted = 0, skipped = 0;
 for (const { rescue, animal, event } of fixtures) {
