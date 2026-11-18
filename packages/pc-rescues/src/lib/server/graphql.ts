@@ -22,6 +22,7 @@ export type Rescue = {
   historicalReleaseLongitude?: number | null;
   historicalReleaseLocation?: string | null;
   releaseSites?: Array<{ animalId: string; latitude: number; longitude: number; reason?: string; location?: string; releasedAt?: string }> | null;
+  latestAnimalGps?: { animalId: string; latitude: number; longitude: number; recordedAt: string; phase: string } | null;
   intakeSource?: 'PHONE' | 'ONLINE' | null;
   assignedUserId?: string | null;
   pickedUpAt?: string | null;
