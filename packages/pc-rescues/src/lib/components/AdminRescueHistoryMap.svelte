@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, tick } from 'svelte';
+  import { X } from '@lucide/svelte';
   import { resolvedTheme } from '$lib/theme';
   import { pinForRescue, RESCUE_PIN_GROUPS } from '../../../../core/rescue-pin-groups';
   import type { Rescue } from '$lib/server/graphql';
@@ -8,7 +9,7 @@
     rescues: Rescue[];
     selectedId?: string | null;
     focusedRescue?: Rescue | null;
-    onSelect?: (id: string) => void;
+    onSelect?: (id: string | null) => void;
   } = $props();
 
   type AreaCollection = {
@@ -35,6 +36,7 @@
   let areaCount = $state(0);
   let surface: HTMLDivElement | undefined;
   let resizeObserver: ResizeObserver | undefined;
+  let detailsDialog: HTMLDialogElement | undefined;
   const mappedRescues = $derived(focusedRescue && focusedRescue.id === selectedId && !rescues.some(item => item.id === focusedRescue.id)
     ? [focusedRescue, ...rescues] : rescues);
   const pins = $derived(mappedRescues.filter(item =>
@@ -370,6 +372,27 @@
     if (!mapReady || !selected) return;
     focusSelected();
   });
+
+  function closeDetails() {
+    onSelect?.(null);
+  }
+  function handleBackdropPointer(event: PointerEvent) {
+    const dialog = event.currentTarget as HTMLDialogElement;
+    if (event.target !== dialog) return;
+    const bounds = dialog.getBoundingClientRect();
+    if (event.clientX < bounds.left || event.clientX > bounds.right ||
+      event.clientY < bounds.top || event.clientY > bounds.bottom) dialog.close();
+  }
+  // Works when View Pin selects a rescue before the archive request finishes.
+  // Native showModal provides focus management, Escape and a true backdrop.
+  $effect(() => {
+    const record = selected;
+    if (!record) return;
+    void tick().then(() => {
+      if (selectedId === record.id && detailsDialog?.isConnected && !detailsDialog.open) detailsDialog.showModal();
+    });
+  });
+
   function formatted(value?: string | null): string {
     if (!value) return 'Not recorded';
     const time = new Date(value);
@@ -436,10 +459,23 @@
       {/if}
       <small>The smaller dot shows rescue status. Purple marks a synthetic relocation destination.</small>
     </div>
-    {#if selected}
-      <div class="historical-selection" aria-live="polite">
-        <span class="detail-eyebrow">Selected rescue</span>
-        <h3>{selected.type}</h3>
+
+  </aside>
+</div>
+
+{#if selected}
+  <dialog class="rescue-detail-modal" bind:this={detailsDialog}
+    aria-labelledby="historical-rescue-modal-title"
+    onclose={closeDetails}
+    onpointerdown={handleBackdropPointer}>
+    <div class="modal-body">
+      <button type="button" class="modal-close" aria-label="Close rescue details" onclick={() => detailsDialog?.close()}>
+        <X size={19} aria-hidden="true" />
+      </button>
+      <h2 id="historical-rescue-modal-title" class="sr-only">Historical rescue details</h2>
+      <section class="historical-selection" aria-label="Selected historical rescue details">
+        <span class="detail-eyebrow">Selected rescue · Historical record</span>
+        <h3 style:--species-color={pinForRescue(selected).color}>{selected.type}</h3>
         {#if selected.breed}<p>{selected.breed}</p>{/if}
         <dl>
           <div><dt>Status</dt><dd>{selected.status}</dd></div>
@@ -458,13 +494,13 @@
           {/if}
           <div><dt>Case ID</dt><dd class="case-id">{selected.id}</dd></div>
         </dl>
+      </section>
+      <div class="modal-actions">
+        <button type="button" onclick={() => detailsDialog?.close()}>Close details</button>
       </div>
-    {:else}
-      <p class="selection-prompt">Select a rescue pin to inspect its report and current recorded status. Clusters can be clicked to zoom in.</p>
-    {/if}
-
-  </aside>
-</div>
+    </div>
+  </dialog>
+{/if}
 
 <style>
   .historical-map-layout {
@@ -523,10 +559,48 @@
   .area-swatch.hunter { border-color:#8a6200; background:rgb(242 183 5 / 35%); }
   .area-swatch.wires { border-color:#31597f; background:rgb(81 125 168 / 25%); }
   .area-swatch.other { border-color:#2d7148; background:rgb(80 169 113 / 24%); }
-  .historical-selection { border-top:1px solid var(--rh-border); padding-top:15px; }
-  .detail-eyebrow { font-size:11px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; color:var(--rh-muted); }
-  .historical-selection h3 { margin:6px 0 2px; font-size:18px; }
-  .historical-selection p, .selection-prompt { margin:4px 0 0; font-size:13px; line-height:1.5; color:var(--rh-muted); }
+  .rescue-detail-modal {
+    width:min(480px,calc(100vw - 24px));
+    max-width:100%;
+    max-height:min(85dvh,760px);
+    margin:auto;
+    padding:0;
+    overflow-y:auto;
+    border:1px solid var(--rh-border);
+    border-radius:16px;
+    color:var(--rh-text);
+    background:var(--rh-surface);
+    box-shadow:0 22px 70px rgba(0,0,0,.3);
+  }
+  .rescue-detail-modal::backdrop { background:rgba(9,21,17,.6); }
+  .modal-body { position:relative; padding:22px; }
+  .modal-close {
+    position:absolute; top:12px; right:12px;
+    display:grid; place-items:center;
+    width:36px; height:36px;
+    border:1px solid var(--rh-border); border-radius:9px;
+    background:var(--rh-surface-soft); color:var(--rh-text);
+    cursor:pointer;
+  }
+  .modal-close:hover, .modal-actions button:hover { background:var(--rh-raised); }
+  .historical-selection { padding-right:12px; }
+  .detail-eyebrow { font-size:11px; font-weight:800; letter-spacing:.07em; text-transform:uppercase; color:var(--rh-muted); }
+  .historical-selection h3 {
+    margin:10px 0 4px; padding-left:12px; border-left:4px solid var(--species-color);
+    font-size:21px; line-height:1.3;
+  }
+  .historical-selection p { margin:4px 0 0; font-size:13px; line-height:1.5; color:var(--rh-muted); }
+  .sr-only {
+    position:absolute; width:1px; height:1px; overflow:hidden;
+    clip:rect(0,0,0,0); white-space:nowrap;
+  }
+  .modal-actions { display:flex; justify-content:flex-end; margin-top:20px; }
+  .modal-actions button {
+    min-height:40px; padding:8px 16px;
+    border:1px solid var(--rh-border); border-radius:9px;
+    background:var(--rh-surface-soft); color:var(--rh-text);
+    font:inherit; font-size:13px; font-weight:700; cursor:pointer;
+  }
   .historical-selection dl { display:grid; gap:10px; margin:16px 0 0; }
   .historical-selection dl div { display:grid; gap:3px; }
   .historical-selection dt { font-size:11px; color:var(--rh-muted); }
