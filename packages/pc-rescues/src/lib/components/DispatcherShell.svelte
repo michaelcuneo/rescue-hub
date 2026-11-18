@@ -66,7 +66,6 @@ import { rescueReportedNSWDay, rescueNSWDay, rescueTodayNSW, shiftRescueDay, res
 	};
 
 	let tab = $state<RescueTab>('pending');
-  let search = $state('');
   // Operational dates are NSW calendar days, not rolling 24-hour windows.
   let todayNSW = $state(rescueTodayNSW());
   let selectedDay = $state(todayNSW);
@@ -122,42 +121,31 @@ import { rescueReportedNSWDay, rescueNSWDay, rescueTodayNSW, shiftRescueDay, res
   const currentItems = $derived(
     tab === 'pending' ? dailyPending : tab === 'assigned' ? dailyAssigned : dailyCompleted
   );
-  function matchesQueueSearch(item: RescueItem): boolean {
-    const query = search.trim().toLowerCase();
-    return !query || [item.id, item.type, item.breed, item.location, item.injury,
-      assigneeName(item.assignedUserId), item.animalStatus]
-      .filter(Boolean).join(' ').toLowerCase().includes(query);
-  }
   const visibleItems = $derived(sortRescueRecords(
-    currentItems.filter(matchesQueueSearch),
+    currentItems,
     tab === 'completed' ? 'newest' : order
   ));
   const shownItems = $derived(visibleItems.slice(0, visibleLimit));
   const carryoverItems = $derived(isCurrentDay ? sortRescueRecords(
     [...$data.pending, ...$data.assigned].filter(item =>
-      rescueReportedNSWDay(item) !== selectedDay && matchesQueueSearch(item)
+      rescueReportedNSWDay(item) !== selectedDay
     ), 'oldest'
   ) : []);
   const visibleCarryovers = $derived(carryoverItems.slice(0, carryoverLimit));
   const selected = $derived($selectedRescue);
-  function matchesRoutingSearch(report: { animal: string; condition: string; areaLabel: string | null; routingReason: string | null }): boolean {
-    const query = search.trim().toLowerCase();
-    return !query || [report.animal, report.condition, report.areaLabel, report.routingReason]
-      .filter(Boolean).join(' ').toLowerCase().includes(query);
-  }
   const unmatchedReports = $derived(
     tab === 'pending' && userCanDispatch ? $routingExceptions.filter(report =>
-      rescueNSWDay(report.createdAt) === selectedDay && matchesRoutingSearch(report)
+      rescueNSWDay(report.createdAt) === selectedDay
     ) : []
   );
   const carriedRoutingReports = $derived(
     isCurrentDay && userCanDispatch ? $routingExceptions.filter(report =>
-      rescueNSWDay(report.createdAt) !== selectedDay && matchesRoutingSearch(report)
+      rescueNSWDay(report.createdAt) !== selectedDay
     ) : []
   );
   const carriedRoutingVisible = $derived(carriedRoutingReports.slice(0, carryoverLimit));
-  $effect(() => { tab; search; selectedDay; order; visibleLimit = RESCUE_LIST_PAGE_SIZE; });
-  $effect(() => { search; selectedDay; carryoverLimit = 10; });
+  $effect(() => { tab; selectedDay; order; visibleLimit = RESCUE_LIST_PAGE_SIZE; });
+  $effect(() => { selectedDay; carryoverLimit = 10; });
   $effect(() => {
     const date = selectedDay;
     const controller = new AbortController();
@@ -195,7 +183,7 @@ import { rescueReportedNSWDay, rescueNSWDay, rescueTodayNSW, shiftRescueDay, res
     };
   });
   function goToDay(day: string) {
-    if (day <= todayNSW) selectedDay = day;
+    if (userCanDispatch && day && day <= todayNSW) selectedDay = day;
   }
 
 	async function retryPublicRouting(id: string) {
@@ -488,11 +476,7 @@ import { rescueReportedNSWDay, rescueNSWDay, rescueTodayNSW, shiftRescueDay, res
 		{#if dispatchNotice}
 			<p role="status" class="dispatch-notice">{dispatchNotice}</p>
 		{/if}
-		<label class="queue-search">
-			<Search size={15} />
-			<input bind:value={search} placeholder="Search animal, suburb, condition…" />
-		</label>
-
+        {#if userCanDispatch}
         <div class="queue-day-nav" aria-label="Dispatch calendar day">
           <button type="button" aria-label="Previous day" onclick={() => goToDay(shiftRescueDay(selectedDay, -1))}><ChevronLeft size={16} /></button>
           <label><span>Dispatch day · NSW</span>
@@ -503,6 +487,7 @@ import { rescueReportedNSWDay, rescueNSWDay, rescueTodayNSW, shiftRescueDay, res
             onclick={() => goToDay(shiftRescueDay(selectedDay, 1))}><ChevronRight size={16} /></button>
           {#if !isCurrentDay}<button class="today-button" type="button" onclick={() => goToDay(todayNSW)}>Today</button>{/if}
         </div>
+        {/if}
         <div class="queue-day-context" role="status">
           <strong>{isCurrentDay ? 'Today' : rescueDayLabel(selectedDay)}</strong>
           <span>{isCurrentDay ? 'Daily intake and unresolved carry-overs' : 'Cases reported this day · current case status'}</span>
@@ -523,7 +508,7 @@ import { rescueReportedNSWDay, rescueNSWDay, rescueTodayNSW, shiftRescueDay, res
 		</div>
 
         <div class="queue-results">
-          <span>{visibleItems.length} matching {tab} rescue{visibleItems.length === 1 ? '' : 's'}</span>
+          <span>{visibleItems.length} {tab} rescue{visibleItems.length === 1 ? '' : 's'} for this day</span>
           <label>Sort <select bind:value={order} disabled={tab === 'completed'}>
             <option value="oldest">Oldest first</option><option value="newest">Newest first</option>
           </select></label>
@@ -960,29 +945,6 @@ import { rescueReportedNSWDay, rescueNSWDay, rescueTodayNSW, shiftRescueDay, res
   .carryover-card { padding:10px 8px; }
   .queue-waiting { display:block; margin-top:4px; color:var(--rh-danger-text); font-size:11px; font-weight:700; }
   .queue-load-more { display:block; margin:12px auto; padding:9px 14px; border:1px solid var(--rh-border); border-radius:9px; background:var(--rh-surface-soft); color:var(--rh-text); cursor:pointer; font:inherit; font-size:12px; font-weight:700; }
-	.queue-search {
-		margin: 0 16px;
-		height: 38px;
-		display: flex;
-		align-items: center;
-		gap: 8px;
-		padding: 0 10px;
-		border:1px solid var(--rh-t23, #dce3df);
-		border-radius: 10px;
-		background:var(--rh-t24, #f8faf9);
-		color:var(--rh-t25, #728078);
-	}
-
-	.queue-search input {
-		min-width: 0;
-		flex: 1;
-		border:0;
-		outline: 0;
-		background:transparent;
-		color:var(--rh-t7, #17211d);
-		font-size: 13px;
-	}
-
 	.tabs {
 		display: grid;
 		grid-template-columns: repeat(3, 1fr);
@@ -1643,7 +1605,7 @@ import { rescueReportedNSWDay, rescueNSWDay, rescueTodayNSW, shiftRescueDay, res
 		box-shadow: var(--rh-shadow);
 	}
 	.intake > header { background: var(--rh-surface); color: var(--rh-text); }
-	.queue-footer, .queue-search, .tabs, .detail-location, .detail-status {
+	.queue-footer, .tabs, .detail-location, .detail-status {
 		background: var(--rh-surface-soft);
 	}
 	.rescue-card { color: var(--rh-text); }
