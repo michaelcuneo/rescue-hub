@@ -4,6 +4,8 @@ import { ActivityIndicator, Alert, Linking, Modal, Pressable, ScrollView, StyleS
 import * as Location from 'expo-location';
 import { KeyboardAwareScrollView, KeyboardAwareTextInput } from './KeyboardAware';
 import RescueAddress from './RescueAddress';
+import ReleasePinMap from './ReleasePinMap';
+import { formatReleaseCoordinates, isValidReleasePoint, type AnimalReleaseReason } from '../../core/release-location';
 import {
   acceptAnimalTransfer, addAnimalNote, getAnimalHistory, getRescueAnimals, confirmRescuePickup, getCareDelivery, type CareDeliveryDestination,
   recordAnimalOutcome, registerAnimal, requestAnimalTransfer, startVetTransport, recordVetDropoff, recordVetAssessment, unclaimRescue,
@@ -27,6 +29,21 @@ export default function AnimalCare({ rescue, userId, roles, onBack, onUnclaim }:
   const [transferRequested, setTransferRequested] = useState(false);
   const [releaseLocation, setReleaseLocation] = useState('');
   const [releaseCoords, setReleaseCoords] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [releaseReason, setReleaseReason] = useState<AnimalReleaseReason>('ORIGINAL_SITE');
+  const [releaseMapOpen, setReleaseMapOpen] = useState(false);
+  const originalReleasePoint = { latitude: rescue.latitude, longitude: rescue.longitude };
+  function setOriginalRelease() {
+    setReleaseReason('ORIGINAL_SITE');
+    setReleaseCoords(originalReleasePoint);
+    setReleaseLocation('Original rescue site');
+  }
+  function setWildReleasePoint(point: { latitude: number; longitude: number }) {
+    const original = point.latitude === rescue.latitude && point.longitude === rescue.longitude;
+    setReleaseReason(original ? 'ORIGINAL_SITE' : 'RELOCATION');
+    setReleaseCoords(point);
+    setReleaseLocation(original ? 'Original rescue site' : 'GPS ' + formatReleaseCoordinates(point));
+    setReleaseMapOpen(false);
+  }
   const [releaseNotes, setReleaseNotes] = useState('');
 
   const [deliveryInfo, setDeliveryInfo] = useState<(CareDeliveryDestination & { carerUserId: string }) | null>(null);
@@ -248,10 +265,11 @@ export default function AnimalCare({ rescue, userId, roles, onBack, onUnclaim }:
         setGuideStatus('IN_CARE');
         setQuickMessage('Animal added to your care records.');
       } else {
-        if (!releaseLocation.trim()) throw new Error('Record where the animal was actually released.');
+        if (!releaseCoords || !isValidReleasePoint(releaseCoords)) throw new Error('Choose an actual release pin or the original site.');
         if (!releaseNotes.trim()) throw new Error('Add a brief reason for the release or relocation.');
         await recordAnimalOutcome(animalId, 'RELEASED', releaseNotes.trim(), {
-          location: releaseLocation.trim(), releaseReason: 'RELOCATION', ...(releaseCoords ?? {})
+          location: releaseLocation.trim() || 'GPS ' + formatReleaseCoordinates(releaseCoords),
+          releaseReason, ...releaseCoords
         });
         setGuideStatus('RELEASED');
         setQuickMessage('Wildlife release recorded. The original rescue and release locations are preserved.');
@@ -274,8 +292,7 @@ export default function AnimalCare({ rescue, userId, roles, onBack, onUnclaim }:
       const coordinates = {
         latitude: position.coords.latitude, longitude: position.coords.longitude
       };
-      setReleaseCoords(coordinates);
-      setReleaseLocation(`${coordinates.latitude.toFixed(6)}, ${coordinates.longitude.toFixed(6)}`);
+      setWildReleasePoint(coordinates);
     } catch (issue) {
       setError(issue instanceof Error ? issue.message : 'Unable to get current GPS position.');
     } finally {
@@ -286,6 +303,8 @@ export default function AnimalCare({ rescue, userId, roles, onBack, onUnclaim }:
 
   return (
     <KeyboardAwareScrollView style={styles.root} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      <ReleasePinMap visible={releaseMapOpen} original={originalReleasePoint} selected={releaseCoords}
+        onChoose={setWildReleasePoint} onCancel={() => setReleaseMapOpen(false)} />
       <Modal visible={pickerMode !== null} transparent animationType="fade"
         onRequestClose={() => setPickerMode(null)}>
         <View style={styles.modalScrim}>
@@ -432,15 +451,23 @@ export default function AnimalCare({ rescue, userId, roles, onBack, onUnclaim }:
                   maxLength={250} placeholder="Where the carer will receive the animal" />
               </>}
               {nextStep === 'RELEASE' && <>
-                <Text style={styles.fieldLabel}>Actual release / relocation location *</Text>
-                <KeyboardAwareTextInput style={styles.input} value={releaseLocation}
-                  onChangeText={value => { setReleaseLocation(value); setReleaseCoords(null); }}
-                  maxLength={250} placeholder="GPS coordinates or specific place" accessibilityLabel="Actual wildlife release location" />
-                <Pressable style={styles.secondaryButton} accessibilityRole="button" disabled={busy}
-                  onPress={() => void useReleaseGps()}>
-                  <Text style={styles.secondaryButtonText}>Use current GPS location</Text>
+                <Text style={styles.fieldLabel}>Actual wildlife release site · GPS pin *</Text>
+                <Text style={styles.muted}>Release in the forest, bushland or a reserve does not require an address. The rescue location remains unchanged.</Text>
+                <Pressable style={styles.secondaryButton} accessibilityRole="button" onPress={setOriginalRelease}>
+                  <Text style={styles.secondaryButtonText}>Original rescue location</Text>
                 </Pressable>
-                <Text style={styles.muted}>This is recorded separately from the original incident location.</Text>
+                <Pressable style={styles.secondaryButton} accessibilityRole="button" onPress={() => setReleaseMapOpen(true)}>
+                  <Text style={styles.secondaryButtonText}>Relocation · Drop map pin</Text>
+                </Pressable>
+                <Pressable style={styles.secondaryButton} accessibilityRole="button" disabled={busy} onPress={() => void useReleaseGps()}>
+                  <Text style={styles.secondaryButtonText}>Use current GPS position</Text>
+                </Pressable>
+                {releaseCoords ? <Text style={styles.success}>
+                  {releaseReason === 'RELOCATION' ? 'Relocation' : 'Original site'} · {formatReleaseCoordinates(releaseCoords)}
+                </Text> : <Text style={styles.warning}>Choose a release pin before recording the outcome.</Text>}
+                <Text style={styles.fieldLabel}>Release site description (optional)</Text>
+                <KeyboardAwareTextInput style={styles.input} value={releaseLocation} onChangeText={setReleaseLocation}
+                  maxLength={250} placeholder="e.g. Forest clearing near walking trail" />
                 <Text style={styles.fieldLabel}>Reason / release notes *</Text>
                 <KeyboardAwareTextInput style={[styles.input,styles.multilineInput]} value={releaseNotes}
                   onChangeText={setReleaseNotes} maxLength={4000} multiline
@@ -459,7 +486,7 @@ export default function AnimalCare({ rescue, userId, roles, onBack, onUnclaim }:
                 <Pressable style={styles.button} disabled={busy || !guideAnimalId && animals.length !== 1 ||
                   nextStep === 'VET' && !vetLocation.trim() ||
                   nextStep === 'CARER' && !carerId ||
-                  nextStep === 'RELEASE' && (!releaseLocation.trim() || !releaseNotes.trim())}
+                  nextStep === 'RELEASE' && (!releaseCoords || !releaseNotes.trim())}
                   accessibilityRole="button" onPress={() => {
                     if (nextStep === 'RELEASE') Alert.alert('Confirm wildlife release?',
                       'Confirm the animal was physically released at the recorded location. This is a final outcome.',
@@ -675,19 +702,27 @@ export default function AnimalCare({ rescue, userId, roles, onBack, onUnclaim }:
                 </View>
                 <Text style={styles.warning}>Final outcomes close this animal's active care record.</Text>
                 {outcome === 'RELEASED' ? <>
-                  <Text style={styles.fieldLabel}>Actual release location *</Text>
-                  <KeyboardAwareTextInput style={styles.input} value={releaseLocation}
-                    onChangeText={value => { setReleaseLocation(value); setReleaseCoords(null); }}
-                    placeholder="Release address or GPS coordinates" maxLength={250} />
-                  <Pressable style={styles.secondaryButton} accessibilityRole="button"
-                    onPress={() => void useReleaseGps()}>
+                  <Text style={styles.fieldLabel}>Actual wildlife release site *</Text>
+                  <Pressable style={styles.secondaryButton} accessibilityRole="button" onPress={setOriginalRelease}>
+                    <Text style={styles.secondaryButtonText}>Original rescue location</Text>
+                  </Pressable>
+                  <Pressable style={styles.secondaryButton} accessibilityRole="button" onPress={() => setReleaseMapOpen(true)}>
+                    <Text style={styles.secondaryButtonText}>Relocation · Drop map pin</Text>
+                  </Pressable>
+                  <Pressable style={styles.secondaryButton} accessibilityRole="button" onPress={() => void useReleaseGps()}>
                     <Text style={styles.secondaryButtonText}>Use current GPS position</Text>
                   </Pressable>
+                  {releaseCoords ? <Text style={styles.success}>
+                    {releaseReason === 'RELOCATION' ? 'Relocation' : 'Original site'} · {formatReleaseCoordinates(releaseCoords)}
+                  </Text> : <Text style={styles.warning}>Select the actual release pin.</Text>}
+                  <Text style={styles.fieldLabel}>Release site description (optional)</Text>
+                  <KeyboardAwareTextInput style={styles.input} value={releaseLocation} onChangeText={setReleaseLocation}
+                    placeholder="Forest, reserve or bushland" maxLength={250} />
                 </> : null}
                 <KeyboardAwareTextInput style={styles.input} placeholder="Outcome notes *" multiline value={notes} onChangeText={setNotes} />
-                <Pressable style={styles.button} disabled={busy || !notes.trim() || (outcome === 'RELEASED' && !releaseLocation.trim())}
+                <Pressable style={styles.button} disabled={busy || !notes.trim() || (outcome === 'RELEASED' && !releaseCoords)}
                   onPress={() => void run(() => recordAnimalOutcome(selected.id, outcome, notes.trim(),
-                    outcome === 'RELEASED' ? { location: releaseLocation.trim(), ...(releaseCoords ?? {}) } : undefined), selected.id)}>
+                    outcome === 'RELEASED' && releaseCoords ? { location: releaseLocation.trim() || 'GPS ' + formatReleaseCoordinates(releaseCoords), releaseReason, ...releaseCoords } : undefined), selected.id)}>
                   <Text style={styles.buttonText}>Confirm final outcome</Text>
                 </Pressable>
               </View>
