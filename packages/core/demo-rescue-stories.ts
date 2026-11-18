@@ -341,6 +341,61 @@ export const HUNTER_DEMO_STORIES: Record<string, Story> = {
   }
 };
 
+/**
+ * Every assigned demonstration animal needs a convincing, inspectable case
+ * history, not just one pickup note. These additional entries are generated
+ * only for fixed fictional Hunter demo IDs; real animal data is never touched.
+ * We preserve the original status and append observations/calls within the
+ * same open case rather than inventing a final clinical outcome.
+ */
+function assignedFollowUpBeats(rescue: DemoStoryCase, story: Story): Beat[] {
+  if (rescue.status !== 'ASSIGNED') return [];
+  const last = Math.max(story.pickupAtHours ?? 0, ...story.beats.map(beat => beat.afterHours));
+  const species = rescue.breed || rescue.type;
+  const location = rescue.location;
+  const status = story.status;
+
+  const context = status === 'AT_VET'
+    ? {
+      source: 'Veterinary examination remains in progress',
+      check: 'Treating clinic confirmed the animal remains under supervised assessment; clinical notes and the next review time were recorded.',
+      care: 'The veterinary team reviewed comfort, hydration and behaviour. No discharge or release has been authorised.',
+      transport: 'Dispatch checked whether follow-up transport may be required once the treating clinic grants clearance.',
+      plan: 'Await veterinary clearance and confirm an appropriate qualified carer or return-to-habitat plan.'
+    } : status === 'IN_CARE'
+    ? {
+      source: 'Licensed carer has custody',
+      check: 'Carer confirmed safe housing, fresh water and a quiet recovery environment appropriate to the species.',
+      care: 'Feeding, movement and alertness were observed; the next monitoring check has been scheduled.',
+      transport: 'Dispatch checked carer availability for a veterinary recheck if the condition changes.',
+      plan: 'Continue rehabilitation, with a documented welfare assessment before considering release.'
+    } : status === 'IN_TRANSIT'
+    ? {
+      source: 'Animal secured for specialist transport',
+      check: 'Transporter confirmed the animal is secured in a ventilated carrier with handling kept to a minimum.',
+      care: 'Welfare check completed during transport; animal condition and any changes were relayed to dispatch.',
+      transport: 'Receiving facility has been updated; a handover and arrival confirmation are still required.',
+      plan: 'Keep the transport record open until the receiving professional confirms physical custody.'
+    } : {
+      source: 'Assigned rescuer remains responsible for the collected animal',
+      check: 'Rescuer confirmed the animal remains safely secured while the appropriate assessment and handover are arranged.',
+      care: 'Observation recorded for alertness, visible injury and response to handling; unnecessary disturbance avoided.',
+      transport: 'Dispatch checked available species-qualified veterinary and wildlife care pathways.',
+      plan: 'Keep the incident assigned until the next authorised care or transport step is confirmed.'
+    };
+  return [
+    e(last + 0.5, 'OBSERVATION', `Field reassessment for ${species} at ${location}: ${context.check}`),
+    p(last + 1.5, 'RESCUER', demoName(rescue.assignedUserId),
+      `Follow-up from the ${species} case. ${context.source}. Confirmed the case remains open and the next action has been recorded.`),
+    e(last + 2.5, 'REVIEW', `Dispatch coordination review: ${context.transport}`, 'DISPATCHER'),
+    e(last + 4, 'TREATMENT', `Ongoing welfare and care update for ${species}: ${context.care}`, 'CARER'),
+    p(last + 5.5, status === 'AT_VET' ? 'VET' : 'CARER',
+      status === 'AT_VET' ? 'Treating wildlife clinic' : 'Wildlife care team',
+      `Care progress call regarding ${species}. ${context.plan} No final outcome has been recorded.`),
+    e(last + 7, 'REVIEW', `Next action documented for ${species}: ${context.plan}`, 'DISPATCHER')
+  ];
+}
+
 export type DemoStoryCase = {
   id: string; status: DemoCaseStatus; type: string; breed: string;
   location: string; assignedUserId: string;
@@ -383,7 +438,8 @@ export function buildHunterDemoStory(rescue: DemoStoryCase): DemoBuiltStory | nu
     throw new Error(`Demo story ${number} has a non-matching lifecycle status.`);
   if (isFinal && (story.finishedAtHours === undefined || !story.outcomeNotes))
     throw new Error(`Demo story ${number} needs a documented final outcome.`);
-  if (story.beats.some(beat =>
+  const beats = [...story.beats, ...assignedFollowUpBeats(rescue, story)];
+  if (beats.some(beat =>
     beat.afterHours < 0 || (isFinal && beat.afterHours > story.finishedAtHours!)))
     throw new Error(`Demo story ${number} contains an out-of-order event.`);
 
@@ -393,7 +449,7 @@ export function buildHunterDemoStory(rescue: DemoStoryCase): DemoBuiltStory | nu
   const pickedUpAt = story.pickupAtHours === undefined ? undefined :
     isoAt(story.startedAt, story.pickupAtHours);
   const finalHour = story.finishedAtHours;
-  const lastHour = Math.max(0, ...story.beats.map(beat => beat.afterHours), finalHour ?? 0);
+  const lastHour = Math.max(0, ...beats.map(beat => beat.afterHours), finalHour ?? 0);
   const updatedAt = isoAt(story.startedAt, lastHour);
   const custodianId = story.carerId ?? rescue.assignedUserId;
 
@@ -410,7 +466,7 @@ export function buildHunterDemoStory(rescue: DemoStoryCase): DemoBuiltStory | nu
     species: rescue.breed || rescue.type,
     description: `Fictional ${rescue.type.toLowerCase()} record — ${rescue.location}. Source report: ${rescue.breed}.`,
     status: story.status, currentCustodianUserId: custodianId, currentCustodianName: demoName(custodianId),
-    currentLocation: location, version: 1 + story.beats.length,
+    currentLocation: location, version: 1 + beats.length,
     createdAt: animalCreatedAt, updatedAt,
     gsi2pk: `RESCUE_ANIMALS#${rescue.id}`, gsi2sk: `${animalCreatedAt}#${animalId}`,
     gsi1pk: `CUSTODIAN#${HUNTER_ORG}#${custodianId}`,
@@ -435,7 +491,7 @@ export function buildHunterDemoStory(rescue: DemoStoryCase): DemoBuiltStory | nu
       source: 'DIRECT' }
   ];
 
-  for (const beat of story.beats) {
+  for (const beat of beats) {
     const at = isoAt(story.startedAt, beat.afterHours);
     if (beat.kind === 'PHONE') {
       events.push({
