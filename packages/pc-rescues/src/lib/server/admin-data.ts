@@ -140,6 +140,11 @@ export function mapRescueItems(items: Record<string, any>[]): Rescue[] {
     historicalReleaseLatitude: item.historicalSeed === true && Number.isFinite(item.historicalReleaseLatitude) ? Number(item.historicalReleaseLatitude) : null,
     historicalReleaseLongitude: item.historicalSeed === true && Number.isFinite(item.historicalReleaseLongitude) ? Number(item.historicalReleaseLongitude) : null,
     historicalReleaseLocation: item.historicalSeed === true ? item.historicalReleaseLocation ?? null : null,
+    releaseSites: Array.isArray(item.releaseSites) ? item.releaseSites.filter((site: any) =>
+      typeof site?.latitude === 'number' && typeof site?.longitude === 'number' &&
+      Number.isFinite(site.latitude) && Number.isFinite(site.longitude) &&
+      Math.abs(site.latitude) <= 90 && Math.abs(site.longitude) <= 180 &&
+      (site.latitude !== 0 || site.longitude !== 0)) : [],
     transportAnimalId: item.transportAnimalId ? String(item.transportAnimalId) : null,
     transportSourceRescueId: item.transportSourceRescueId ? String(item.transportSourceRescueId) : null,
 		createdAt: String(item.createdAt),
