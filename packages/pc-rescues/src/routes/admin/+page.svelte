@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { matchesRescuePeriod, sortRescueRecords, RESCUE_LIST_PAGE_SIZE, type RescuePeriod, type RescueOrder } from '$lib/rescue-list';
   import AdminOperatingAreas from '$lib/components/AdminOperatingAreas.svelte';
   import type { PageData } from './$types';
   import { page } from '$app/state';
@@ -26,6 +27,11 @@
   let peopleNavOpen = $state(true);
   let organisationSearch = $state('');
   let rescueSearch = $state('');
+  let rescueStatus = $state<'active' | 'all' | 'PENDING' | 'ASSIGNED' | 'COMPLETED' | 'CANCELLED'>('active');
+  let rescuePeriod = $state<RescuePeriod>('all');
+  let rescueOrder = $state<RescueOrder>('newest');
+  let rescueOrganisation = $state('all');
+  let rescuePage = $state(1);
 
   let peopleSearch = $state('');
   let positionOrganisationId = $state('');
@@ -170,24 +176,18 @@
     })
   );
 
-  const visibleRescues = $derived(
-    data.rescues.filter((rescue) => {
-      const query = rescueSearch.trim().toLowerCase();
-      if (!query) return true;
-
-      return [
-        rescue.type,
-        rescue.breed ?? '',
-        rescue.location ?? '',
-        rescue.status,
-        rescue.assignedUserId ?? '',
-        assignedRescuerName(rescue.assignedUserId)
-      ]
-        .join(' ')
-        .toLowerCase()
-        .includes(query);
-    })
-  );
+  const visibleRescues = $derived(sortRescueRecords(data.rescues.filter((rescue) => {
+    const query = rescueSearch.trim().toLowerCase();
+    return (rescueStatus === 'all' || (rescueStatus === 'active' && ['PENDING', 'ASSIGNED'].includes(rescue.status)) || rescue.status === rescueStatus)
+      && (rescueOrganisation === 'all' || rescue.organisationId === rescueOrganisation)
+      && matchesRescuePeriod(rescue, rescuePeriod)
+      && (!query || [rescue.id, rescue.type, rescue.breed ?? '', rescue.location ?? '', rescue.injury ?? '', rescue.status,
+          rescue.animalStatus ?? '', assignedRescuerName(rescue.assignedUserId), organisationName(rescue.organisationId ?? undefined)]
+          .join(' ').toLowerCase().includes(query));
+  }), rescueOrder));
+  const rescuePageCount = $derived(Math.max(1, Math.ceil(visibleRescues.length / RESCUE_LIST_PAGE_SIZE)));
+  const visibleRescuePage = $derived(visibleRescues.slice((rescuePage - 1) * RESCUE_LIST_PAGE_SIZE, rescuePage * RESCUE_LIST_PAGE_SIZE));
+  $effect(() => { rescueSearch; rescueStatus; rescuePeriod; rescueOrder; rescueOrganisation; rescuePage = 1; });
 
   const navigation: Array<{ id: Section; label: string; short: string }> = [
     { id: 'overview', label: 'Overview', short: 'OV' },
@@ -489,50 +489,61 @@
     {:else if section === 'rescues'}
       <section class="panel page-panel">
         <div class="panel-heading table-heading">
-          <div>
-            <p class="eyebrow">Operational register</p>
-            <h2>Wildlife rescues</h2>
-            <p class="intro">All rescue activity visible to the governing NSW administration role.</p>
+          <div><p class="eyebrow">Operational register</p><h2>Wildlife rescues</h2>
+            <p class="intro">Search active and historical rescue records by status, organisation and report date.</p>
           </div>
-          <label class="search">
-            <span>Search rescues</span>
-            <input bind:value={rescueSearch} placeholder="Animal, location or status…" />
-          </label>
         </div>
-
+        <div class="rescue-register-toolbar">
+          <label class="search"><span>Search rescues</span><input bind:value={rescueSearch} placeholder="Case ID, animal, suburb, responder…" /></label>
+          <label><span>Status</span><select bind:value={rescueStatus}>
+            <option value="active">Active rescues</option><option value="all">All statuses</option>
+            <option value="PENDING">Pending</option><option value="ASSIGNED">Assigned</option>
+            <option value="COMPLETED">Completed</option><option value="CANCELLED">Cancelled</option>
+          </select></label>
+          <label><span>Reported</span><select bind:value={rescuePeriod}>
+            <option value="all">Any date</option><option value="today">Today</option>
+            <option value="seven_days">Last 7 days</option><option value="older">Older than 7 days</option>
+          </select></label>
+          {#if canChooseOrganisation}
+            <label><span>Organisation</span><select bind:value={rescueOrganisation}>
+              <option value="all">All organisations</option>
+              {#each data.organisations as organisation (organisation.id)}
+                <option value={organisation.id}>{organisation.displayName}</option>
+              {/each}
+            </select></label>
+          {/if}
+          <label><span>Sort</span><select bind:value={rescueOrder}>
+            <option value="newest">Newest first</option><option value="oldest">Oldest first</option>
+          </select></label>
+        </div>
+        <p class="rescue-register-count" role="status">{visibleRescues.length} matching rescues in loaded records</p>
         {#if visibleRescues.length}
-          <div class="table-wrap">
-            <table>
-              <thead>
+          <div class="table-wrap"><table>
+            <thead><tr><th>Animal / Case</th><th>Location</th><th>Status</th><th>Assigned</th><th>Reported</th><th>Updated</th></tr></thead>
+            <tbody>
+              {#each visibleRescuePage as rescue (rescue.id)}
                 <tr>
-                  <th>Animal</th>
-                  <th>Location</th>
-                  <th>Status</th>
-                  <th>Assigned</th>
-                  <th>Updated</th>
+                  <td><strong>{rescue.type}</strong>
+                    {#if rescue.breed}<span>{rescue.breed}</span>{/if}
+                    <span title={rescue.id}>#{rescue.id.length > 18 ? rescue.id.slice(-12) : rescue.id}</span>
+                  </td>
+                  <td>{rescue.location || 'Location not recorded'}</td>
+                  <td><span class="rescue-status status-{rescue.status.toLowerCase()}">{statusLabel(rescue.status)}</span></td>
+                  <td>{assignedRescuerName(rescue.assignedUserId)}</td>
+                  <td>{formatDate(rescue.createdAt)}</td><td>{formatDate(rescue.updatedAt)}</td>
                 </tr>
-              </thead>
-              <tbody>
-                {#each visibleRescues as rescue}
-                  <tr>
-                    <td>
-                      <strong>{rescue.type}</strong>
-                      {#if rescue.breed}<span>{rescue.breed}</span>{/if}
-                    </td>
-                    <td>{rescue.location || 'Location not recorded'}</td>
-                    <td><span class="rescue-status status-{rescue.status.toLowerCase()}">{statusLabel(rescue.status)}</span></td>
-                    <td>{assignedRescuerName(rescue.assignedUserId)}</td>
-                    <td>{formatDate(rescue.updatedAt)}</td>
-                  </tr>
-                {/each}
-              </tbody>
-            </table>
-          </div>
+              {/each}
+            </tbody>
+          </table></div>
+          {#if rescuePageCount > 1}
+            <div class="rescue-register-pagination">
+              <button type="button" disabled={rescuePage <= 1} onclick={() => (rescuePage -= 1)}>Previous</button>
+              <span>Page {rescuePage} of {rescuePageCount}</span>
+              <button type="button" disabled={rescuePage >= rescuePageCount} onclick={() => (rescuePage += 1)}>Next</button>
+            </div>
+          {/if}
         {:else}
-          <div class="empty-state large">
-            <strong>No rescue records yet</strong>
-            <span>New rescue reports will appear here as they are created.</span>
-          </div>
+          <div class="empty-state large"><strong>No matching rescues</strong><span>Try changing the search or filters.</span></div>
         {/if}
       </section>
     {:else if section === 'regions'}
@@ -1453,6 +1464,14 @@
     box-shadow: 0 0 0 3px rgba(110, 148, 126, 0.12);
   }
 
+  .rescue-register-toolbar { display:flex; align-items:end; flex-wrap:wrap; gap:10px; margin:18px 0 12px; }
+  .rescue-register-toolbar > label { display:grid; gap:5px; min-width:135px; color:var(--rh-muted); font-size:12px; font-weight:700; }
+  .rescue-register-toolbar > label.search { flex:2 1 240px; min-width:190px; }
+  .rescue-register-toolbar select { min-height:38px; padding:8px; border:1px solid var(--rh-border); border-radius:9px; background:var(--rh-field); color:var(--rh-text); font:inherit; font-size:13px; }
+  .rescue-register-count { color:var(--rh-muted); font-size:13px; }
+  .rescue-register-pagination { display:flex; gap:14px; justify-content:center; align-items:center; padding:16px; font-size:13px; color:var(--rh-muted); }
+  .rescue-register-pagination button { padding:8px 12px; border:1px solid var(--rh-border); border-radius:8px; background:var(--rh-surface-soft); color:var(--rh-text); cursor:pointer; }
+  .rescue-register-pagination button:disabled { opacity:.45; cursor:not-allowed; }
   .table-wrap {
     overflow-x: auto;
   }
