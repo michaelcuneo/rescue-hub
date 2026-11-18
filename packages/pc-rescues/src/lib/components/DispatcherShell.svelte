@@ -1,13 +1,15 @@
 <script lang="ts">
 	import { env } from '$env/dynamic/public';
+import { onMount } from 'svelte';
 	import { australianAnimalNames } from '$lib/data/australian-animals';
 import { reportChannelLabel } from '../../../../core/report-channel';
 	import { pinForRescue } from '../../../../core/rescue-pin-groups';
 	import RescueAddress from './RescueAddress.svelte';
-import { matchesRescuePeriod, sortRescueRecords, rescueDayGroup, isWaitingFourHours, RESCUE_LIST_PAGE_SIZE, type RescuePeriod, type RescueOrder } from '$lib/rescue-list';
+import { rescueReportedNSWDay, rescueNSWDay, rescueTodayNSW, shiftRescueDay, rescueDayLabel, sortRescueRecords, isWaitingFourHours, RESCUE_LIST_PAGE_SIZE, type RescueOrder } from '$lib/rescue-list';
 		import type { OrganisationMembershipConfig } from '$lib/server/membership';
 	import {
 		Search,
+		ChevronLeft,
 		Plus,
 		MapPin,
 		Clock3,
@@ -64,11 +66,17 @@ import { matchesRescuePeriod, sortRescueRecords, rescueDayGroup, isWaitingFourHo
 	};
 
 	let tab = $state<RescueTab>('pending');
-	let search = $state('');
- let period = $state<RescuePeriod>('all');
- let order = $state<RescueOrder>('oldest');
- let visibleLimit = $state(RESCUE_LIST_PAGE_SIZE);
- let groupedByDay = $state(true);
+  let search = $state('');
+  // Operational dates are NSW calendar days, not rolling 24-hour windows.
+  let todayNSW = $state(rescueTodayNSW());
+  let selectedDay = $state(todayNSW);
+  let order = $state<RescueOrder>('oldest');
+  let visibleLimit = $state(RESCUE_LIST_PAGE_SIZE);
+  let carryoverLimit = $state(10);
+  let carryoverExpanded = $state(true);
+  let daySnapshot = $state<{ day: string; items: RescueItem[] } | null>(null);
+  let dayLoading = $state(false);
+  let dayError = $state('');
 	let species = $state('');
 	let speciesSuggestionsOpen = $state(false);
 	const speciesMatches = $derived(species.trim() ? australianAnimalNames.filter((name) => name.toLowerCase().includes(species.trim().toLowerCase())).slice(0, 12) : australianAnimalNames.slice(0, 12));
@@ -94,28 +102,102 @@ import { matchesRescuePeriod, sortRescueRecords, rescueDayGroup, isWaitingFourHo
 		...$data.completed.map((item) => ({ ...item, status: 'COMPLETED' }))
 	]);
 
-	const currentItems = $derived(
-		tab === 'pending' ? $data.pending : tab === 'assigned' ? $data.assigned : $data.completed
-	);
 
- const visibleItems = $derived(sortRescueRecords(currentItems.filter((item) => {
+  const isCurrentDay = $derived(selectedDay === todayNSW);
+  // A day's complete archive is fetched on demand; live records override
+  // earlier snapshots if dispatch status has since changed.
+  const selectedDayCases = $derived.by(() => {
+    const result = new Map<string, RescueItem>();
+    if (daySnapshot?.day === selectedDay) {
+      for (const item of daySnapshot.items) result.set(item.id, item);
+    }
+    for (const item of allRescues) {
+      if (rescueReportedNSWDay(item) === selectedDay) result.set(item.id, item);
+    }
+    return [...result.values()];
+  });
+  const dailyPending = $derived(selectedDayCases.filter(item => item.status === 'PENDING'));
+  const dailyAssigned = $derived(selectedDayCases.filter(item => item.status === 'ASSIGNED'));
+  const dailyCompleted = $derived(selectedDayCases.filter(item => item.status === 'COMPLETED'));
+  const currentItems = $derived(
+    tab === 'pending' ? dailyPending : tab === 'assigned' ? dailyAssigned : dailyCompleted
+  );
+  function matchesQueueSearch(item: RescueItem): boolean {
     const query = search.trim().toLowerCase();
-    return matchesRescuePeriod(item, period)
-      && (!query || [item.id, item.type, item.breed, item.location, item.injury,
-        assigneeName(item.assignedUserId), item.animalStatus]
-        .filter(Boolean).join(' ').toLowerCase().includes(query));
-  }), tab === 'completed' ? 'newest' : order));
+    return !query || [item.id, item.type, item.breed, item.location, item.injury,
+      assigneeName(item.assignedUserId), item.animalStatus]
+      .filter(Boolean).join(' ').toLowerCase().includes(query);
+  }
+  const visibleItems = $derived(sortRescueRecords(
+    currentItems.filter(matchesQueueSearch),
+    tab === 'completed' ? 'newest' : order
+  ));
   const shownItems = $derived(visibleItems.slice(0, visibleLimit));
-  $effect(() => { tab; search; period; order; visibleLimit = RESCUE_LIST_PAGE_SIZE; });
+  const carryoverItems = $derived(isCurrentDay ? sortRescueRecords(
+    [...$data.pending, ...$data.assigned].filter(item =>
+      rescueReportedNSWDay(item) !== selectedDay && matchesQueueSearch(item)
+    ), 'oldest'
+  ) : []);
+  const visibleCarryovers = $derived(carryoverItems.slice(0, carryoverLimit));
+  const selected = $derived($selectedRescue);
+  function matchesRoutingSearch(report: { animal: string; condition: string; areaLabel: string | null; routingReason: string | null }): boolean {
+    const query = search.trim().toLowerCase();
+    return !query || [report.animal, report.condition, report.areaLabel, report.routingReason]
+      .filter(Boolean).join(' ').toLowerCase().includes(query);
+  }
+  const unmatchedReports = $derived(
+    tab === 'pending' && userCanDispatch ? $routingExceptions.filter(report =>
+      rescueNSWDay(report.createdAt) === selectedDay && matchesRoutingSearch(report)
+    ) : []
+  );
+  const carriedRoutingReports = $derived(
+    isCurrentDay && userCanDispatch ? $routingExceptions.filter(report =>
+      rescueNSWDay(report.createdAt) !== selectedDay && matchesRoutingSearch(report)
+    ) : []
+  );
+  const carriedRoutingVisible = $derived(carriedRoutingReports.slice(0, carryoverLimit));
+  $effect(() => { tab; search; selectedDay; order; visibleLimit = RESCUE_LIST_PAGE_SIZE; });
+  $effect(() => { search; selectedDay; carryoverLimit = 10; });
+  $effect(() => {
+    const date = selectedDay;
+    const controller = new AbortController();
+    dayLoading = true; dayError = ''; daySnapshot = null;
+    void fetch(`/api/rescues/day?date=${encodeURIComponent(date)}`, {
+      signal: controller.signal, cache: 'no-store'
+    }).then(async response => {
+      if (!response.ok) throw new Error(`Day records unavailable (HTTP ${response.status})`);
+      const payload = await response.json() as { items: RescueItem[] };
+      if (controller.signal.aborted) return;
+      daySnapshot = { day: date, items: payload.items.map(item => ({
+        ...item, color: pinForRescue(item).color.slice(1), disabled: false
+      })) };
+    }).catch(error => {
+      if (!controller.signal.aborted) dayError = error instanceof Error ? error.message : 'Unable to load this day';
+    }).finally(() => { if (!controller.signal.aborted) dayLoading = false; });
+    return () => controller.abort();
+  });
+  onMount(() => {
+    const syncDay = () => {
+      const current = rescueTodayNSW();
+      if (current === todayNSW) return;
+      if (selectedDay === todayNSW) selectedDay = current;
+      todayNSW = current;
+    };
+    const visibilityChanged = () => { if (document.visibilityState === 'visible') syncDay(); };
+    syncDay();
+    const timer = window.setInterval(syncDay, 30_000);
+    document.addEventListener('visibilitychange', visibilityChanged);
+    window.addEventListener('focus', syncDay);
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener('visibilitychange', visibilityChanged);
+      window.removeEventListener('focus', syncDay);
+    };
+  });
+  function goToDay(day: string) {
+    if (day <= todayNSW) selectedDay = day;
+  }
 
-	const selected = $derived($selectedRescue);
-	const unmatchedReports = $derived(
-		tab === 'pending' && userCanDispatch ? $routingExceptions.filter(report => {
-			const query = search.trim().toLowerCase();
-			return !query || [report.animal, report.condition, report.areaLabel, report.routingReason]
-				.filter(Boolean).join(' ').toLowerCase().includes(query);
-		}) : []
-	);
 	async function retryPublicRouting(id: string) {
 		if (routeBusy) return;
 		routeBusy = id; routeError = '';
