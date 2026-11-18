@@ -493,34 +493,90 @@ import { rescueReportedNSWDay, rescueNSWDay, rescueTodayNSW, shiftRescueDay, res
 			<input bind:value={search} placeholder="Search animal, suburb, condition…" />
 		</label>
 
-        <div class="queue-filter-bar">
-          <label><span>Reported</span><select bind:value={period}>
-            <option value="all">Any date</option><option value="today">Today</option>
-            <option value="seven_days">Last 7 days</option><option value="older">Older</option>
-          </select></label>
-          <label><span>Sort</span><select bind:value={order} disabled={tab === 'completed'}>
-            <option value="oldest">Oldest first</option><option value="newest">Newest first</option>
-          </select></label>
+        <div class="queue-day-nav" aria-label="Dispatch calendar day">
+          <button type="button" aria-label="Previous day" onclick={() => goToDay(shiftRescueDay(selectedDay, -1))}><ChevronLeft size={16} /></button>
+          <label><span>Dispatch day · NSW</span>
+            <input type="date" value={selectedDay} max={todayNSW}
+              onchange={(event) => goToDay(event.currentTarget.value)} />
+          </label>
+          <button type="button" aria-label="Next day" disabled={selectedDay >= todayNSW}
+            onclick={() => goToDay(shiftRescueDay(selectedDay, 1))}><ChevronRight size={16} /></button>
+          {#if !isCurrentDay}<button class="today-button" type="button" onclick={() => goToDay(todayNSW)}>Today</button>{/if}
+        </div>
+        <div class="queue-day-context" role="status">
+          <strong>{isCurrentDay ? 'Today' : rescueDayLabel(selectedDay)}</strong>
+          <span>{isCurrentDay ? 'Daily intake and unresolved carry-overs' : 'Cases reported this day · current case status'}</span>
         </div>
 		<div class="tabs" role="tablist" aria-label="Rescue state">
 			<button class:active={tab === 'pending'} type="button" onclick={() => (tab = 'pending')}>
 				<span>Pending</span>
-				<strong>{$data.pending.length + (userCanDispatch ? $routingExceptions.length : 0)}</strong>
+				<strong>{dailyPending.length + (userCanDispatch ? $routingExceptions.filter(report => rescueNSWDay(report.createdAt) === selectedDay).length : 0)}</strong>
 			</button>
 			<button class:active={tab === 'assigned'} type="button" onclick={() => (tab = 'assigned')}>
 				<span>Assigned</span>
-				<strong>{$data.assigned.length}</strong>
+				<strong>{dailyAssigned.length}</strong>
 			</button>
 			<button class:active={tab === 'completed'} type="button" onclick={() => (tab = 'completed')}>
 				<span>Completed</span>
-				<strong>{$data.completed.length}</strong>
+				<strong>{dailyCompleted.length}</strong>
 			</button>
 		</div>
 
-        <div class="queue-results"><span>{visibleItems.length} matching {tab} rescue{visibleItems.length === 1 ? '' : 's'}</span>
-          <button type="button" aria-pressed={groupedByDay} onclick={() => (groupedByDay = !groupedByDay)}>{groupedByDay ? 'Hide dates' : 'Group dates'}</button>
+        <div class="queue-results">
+          <span>{visibleItems.length} matching {tab} rescue{visibleItems.length === 1 ? '' : 's'}</span>
+          <label>Sort <select bind:value={order} disabled={tab === 'completed'}>
+            <option value="oldest">Oldest first</option><option value="newest">Newest first</option>
+          </select></label>
         </div>
+        {#if dayLoading}<p class="queue-day-loading" role="status">Loading daily cases…</p>{/if}
+        {#if dayError}<p class="queue-day-error" role="alert">{dayError}. Showing available recent records.</p>{/if}
 		<div class="rescue-list">
+            {#if isCurrentDay && (carryoverItems.length || carriedRoutingReports.length)}
+              <section class="queue-carryovers" aria-label="Unresolved rescues carried forward">
+                <button class="queue-carryover-header" type="button" aria-expanded={carryoverExpanded}
+                  onclick={() => (carryoverExpanded = !carryoverExpanded)}>
+                  <span>Carry-over rescues <strong>{carryoverItems.length + carriedRoutingReports.length}</strong></span>
+                  <small>{carryoverExpanded ? 'Hide' : 'Show'} unresolved cases</small>
+                </button>
+                {#if carryoverExpanded}
+                  <p class="queue-carryover-explainer">Older pending and assigned rescues remain visible until resolved.</p>
+                  {#each carriedRoutingVisible as report (report.id)}
+                    <article class="rescue-card routing-exception" aria-label="Older report awaiting GPS routing">
+                      <span class="rescue-dot state-pending"></span>
+                      <div class="rescue-content">
+                        <span class="source-label">Carry-over · Online report · GPS routing needed</span>
+                        <strong>{report.animal}</strong>
+                        <span class="rescue-injury">{report.condition}</span>
+                        <small class="rescue-injury">Reported {rescueDayLabel(rescueNSWDay(report.createdAt) ?? todayNSW)}</small>
+                        <button class="retry-route" type="button" disabled={Boolean(routeBusy)}
+                          onclick={() => void retryPublicRouting(report.id)}>
+                          {routeBusy === report.id ? 'Checking GPS…' : 'Retry GPS routing'}
+                        </button>
+                      </div>
+                    </article>
+                  {/each}
+                  {#each visibleCarryovers as item (item.id)}
+                    <button type="button" class="rescue-card carryover-card"
+                      class:selected={selected?.id === item.id}
+                      style:--species-color={pinForRescue(item).color}
+                      onclick={() => selectRescue(item)}>
+                      <span class="rescue-dot state-{item.status?.toLowerCase() ?? 'pending'}"></span>
+                      <span class="rescue-content">
+                        <span class="rescue-title"><i class="species-dot" aria-hidden="true"></i><strong>{item.type}</strong></span>
+                        <span class="rescue-location"><MapPin size={12} /><RescueAddress id={item.id} latitude={item.latitude}
+                          longitude={item.longitude} fallback={item.location} compact /></span>
+                        <span class="rescue-injury">{item.status === 'ASSIGNED' ? 'Assigned' : 'Pending'} · Reported {rescueDayLabel(rescueReportedNSWDay(item) ?? todayNSW)}</span>
+                        {#if item.assignedUserId}<span class="rescue-assignment">{assigneeName(item.assignedUserId)} · {rescueProgress(item)}</span>{/if}
+                      </span>
+                      <ChevronRight size={15} class="chevron" />
+                    </button>
+                  {/each}
+                  {#if carryoverItems.length > visibleCarryovers.length || carriedRoutingReports.length > carriedRoutingVisible.length}
+                    <button class="queue-load-more" type="button" onclick={() => (carryoverLimit += 10)}>Show more carry-overs</button>
+                  {/if}
+                {/if}
+              </section>
+            {/if}
 			{#if tab === 'pending' && unmatchedReports.length}
 				{#each unmatchedReports as report (report.id)}
 					<article class="rescue-card routing-exception" aria-label="Online public report awaiting GPS routing">
@@ -540,10 +596,7 @@ import { rescueReportedNSWDay, rescueNSWDay, rescueTodayNSW, shiftRescueDay, res
 				{/each}
 			{/if}
 			{#if routeError}<p role="alert" class="dispatch-notice">{routeError}</p>{/if}
-			{#each shownItems as item, index (item.id)}
-              {#if groupedByDay && (index === 0 || rescueDayGroup(shownItems[index - 1]) !== rescueDayGroup(item))}
-                <div class="queue-date-heading">{rescueDayGroup(item)}</div>
-              {/if}
+			{#each shownItems as item (item.id)}
 				<button
 					type="button"
 					class:selected={selected?.id === item.id}
@@ -591,10 +644,10 @@ import { rescueReportedNSWDay, rescueNSWDay, rescueTodayNSW, shiftRescueDay, res
             {/if}
 		</div>
 
-		<div class="queue-footer">
-			<span><i class="pending"></i>{$data.pending.length + (userCanDispatch ? $routingExceptions.length : 0)} awaiting dispatch</span>
-			<span><i class="assigned"></i>{$data.assigned.length} assigned</span>
-		</div>
+        <div class="queue-footer">
+          <span><i class="pending"></i>{dailyPending.length} pending this day</span>
+          <span><i class="assigned"></i>{dailyAssigned.length} assigned this day</span>
+        </div>
 	</aside>
 
 	{#if selected}
@@ -886,12 +939,25 @@ import { rescueReportedNSWDay, rescueNSWDay, rescueTodayNSW, shiftRescueDay, res
 		cursor: pointer;
 	}
 
-  .queue-filter-bar { display:flex; gap:8px; padding:9px 16px 0; }
-  .queue-filter-bar label { display:grid; flex:1; min-width:0; gap:3px; color:var(--rh-muted); font-size:11px; font-weight:700; }
-  .queue-filter-bar select { width:100%; padding:7px 5px; border:1px solid var(--rh-border); border-radius:8px; background:var(--rh-field); color:var(--rh-text); font:inherit; font-size:12px; }
+  .queue-day-nav { display:flex; align-items:end; gap:6px; padding:9px 16px 0; }
+  .queue-day-nav label { display:grid; flex:1; min-width:0; gap:3px; color:var(--rh-muted); font-size:11px; font-weight:750; }
+  .queue-day-nav input { width:100%; height:34px; min-width:0; padding:5px; border:1px solid var(--rh-border); border-radius:8px; background:var(--rh-field); color:var(--rh-text); font:inherit; font-size:12px; }
+  .queue-day-nav button { flex:0 0 auto; display:grid; place-items:center; min-width:34px; height:34px; padding:5px; border:1px solid var(--rh-border); border-radius:8px; background:var(--rh-surface-soft); color:var(--rh-text); cursor:pointer; }
+  .queue-day-nav button:disabled { opacity:.4; cursor:not-allowed; }
+  .queue-day-nav .today-button { font-size:11px; font-weight:800; }
+  .queue-day-context { display:grid; gap:2px; padding:7px 16px 0; font-size:11px; color:var(--rh-muted); }
+  .queue-day-context strong { color:var(--rh-text); font-size:12px; }
   .queue-results { display:flex; justify-content:space-between; align-items:center; gap:6px; padding:6px 16px; color:var(--rh-muted); font-size:11px; }
-  .queue-results button { border:0; background:transparent; color:var(--rh-text); font:inherit; text-decoration:underline; cursor:pointer; }
-  .queue-date-heading { margin:10px 0 3px; padding:6px 8px; border-bottom:1px solid var(--rh-border); color:var(--rh-muted); font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.04em; }
+  .queue-results label { display:flex; align-items:center; gap:5px; white-space:nowrap; }
+  .queue-results select { min-width:0; max-width:110px; padding:5px 3px; border:1px solid var(--rh-border); border-radius:7px; background:var(--rh-field); color:var(--rh-text); font:inherit; font-size:11px; }
+  .queue-day-loading, .queue-day-error { margin:6px 16px; font-size:11px; color:var(--rh-muted); }
+  .queue-day-error { color:var(--rh-danger-text); }
+  .queue-carryovers { margin-bottom:12px; border:1px solid var(--rh-border); border-radius:9px; overflow:hidden; }
+  .queue-carryover-header { display:flex; justify-content:space-between; align-items:center; gap:5px; width:100%; padding:10px; border:0; background:var(--rh-surface-soft); color:var(--rh-text); font:inherit; font-size:12px; font-weight:750; text-align:left; cursor:pointer; }
+  .queue-carryover-header strong { display:inline-block; min-width:20px; padding:2px 5px; border-radius:999px; background:var(--rh-raised); text-align:center; }
+  .queue-carryover-header small { color:var(--rh-muted); font-size:10px; font-weight:500; }
+  .queue-carryover-explainer { margin:8px 10px; color:var(--rh-muted); font-size:11px; line-height:1.4; }
+  .carryover-card { padding:10px 8px; }
   .queue-waiting { display:block; margin-top:4px; color:var(--rh-danger-text); font-size:11px; font-weight:700; }
   .queue-load-more { display:block; margin:12px auto; padding:9px 14px; border:1px solid var(--rh-border); border-radius:9px; background:var(--rh-surface-soft); color:var(--rh-text); cursor:pointer; font:inherit; font-size:12px; font-weight:700; }
 	.queue-search {
