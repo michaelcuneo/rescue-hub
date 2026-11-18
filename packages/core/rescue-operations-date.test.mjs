@@ -57,11 +57,11 @@ test('Operations MapLibre displays completed rescues for their completion day, e
 });
 
 test('Operations keeps picked-up active jobs hidden, but shows uncollected pending and assigned', () => {
-  assert.equal(shouldShowOperationsMapPin({ status: 'PENDING' }, '2026-11-18'), true);
-  assert.equal(shouldShowOperationsMapPin({ status: 'ASSIGNED' }, '2026-11-18'), true);
+  assert.equal(shouldShowOperationsMapPin({ status: 'PENDING' }, false), true);
+  assert.equal(shouldShowOperationsMapPin({ status: 'ASSIGNED' }, false), true);
   assert.equal(shouldShowOperationsMapPin({
     status: 'ASSIGNED', pickedUpAt: '2026-11-18T00:00:00.000Z'
-  }, '2026-11-18'), false);
-  assert.equal(shouldShowOperationsMapPin({ status: 'PENDING', awaitingCarer: true }, '2026-11-18'), false);
-  assert.equal(shouldShowOperationsMapPin({ status: 'CANCELLED' }, '2026-11-18'), false);
+  }, false), false);
+  assert.equal(shouldShowOperationsMapPin({ status: 'PENDING', awaitingCarer: true }, false), false);
+  assert.equal(shouldShowOperationsMapPin({ status: 'CANCELLED' }, false), false);
 });
