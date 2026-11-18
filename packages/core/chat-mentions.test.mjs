@@ -24,7 +24,7 @@ test('two linked references and surrounding punctuation render intact', () => {
 });
 test('stale or forged plain text does not become a mention', () => {
   assert.deepEqual(usableChatMentions('@other', [person]),[]);
-  assert.deepEqual(usableChatMentions('Hi @michelle-smith', [{...person, id:'bad'}]),[]);
+  assert.deepEqual(usableChatMentions('Hi @michelle-smith', [{...person, id:'../invalid'}]),[]);
   assert.deepEqual(splitChatMentions('@anyone',[]),[{text:'@anyone'}]);
 });
 
