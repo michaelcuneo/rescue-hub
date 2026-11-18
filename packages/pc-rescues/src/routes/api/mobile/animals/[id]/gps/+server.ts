@@ -23,7 +23,8 @@ export const POST: RequestHandler = async ({ locals, params, request }) => {
     return json({ error: 'An active animal custodian is required.' }, { status: 403 });
   const animal = await getAnimal(params.id);
   if (!animal || animal.organisationId !== user.organisationId ||
-    animal.currentCustodianUserId !== user.id || !isActiveAnimalForGps(animal.status))
+    animal.currentCustodianUserId !== user.id || !isActiveAnimalForGps(animal.status) ||
+    animal.physicalCustodianType === 'VET')
     return json({ error: 'Only the active physical custodian can record this animal’s GPS.' }, { status: 403 });
   const input = await request.json().catch(() => null) as Record<string, unknown> | null;
   if (!input) return json({ error: 'A GPS checkpoint is required.' }, { status: 400 });
@@ -38,11 +39,11 @@ export const POST: RequestHandler = async ({ locals, params, request }) => {
         { Update: {
           TableName: table, Key: { pk: `ANIMAL#${animal.id}`, sk: 'META' },
           UpdateExpression: 'SET lastGpsLatitude = :lat, lastGpsLongitude = :lon, lastGpsAt = :at, lastGpsPhase = :phase',
-          ConditionExpression: 'organisationId = :org AND currentCustodianUserId = :user AND #status IN (:rescue,:transit,:vet,:care)',
+          ConditionExpression: 'organisationId = :org AND currentCustodianUserId = :user AND #status IN (:rescue,:transit,:vet,:care) AND (attribute_not_exists(physicalCustodianType) OR physicalCustodianType <> :physicalVet)',
           ExpressionAttributeNames: { '#status': 'status' },
           ExpressionAttributeValues: {
             ':org': animal.organisationId, ':user': user.id,
-            ':rescue': 'IN_RESCUE', ':transit': 'IN_TRANSIT', ':vet': 'AT_VET', ':care': 'IN_CARE',
+            ':rescue': 'IN_RESCUE', ':transit': 'IN_TRANSIT', ':vet': 'AT_VET', ':care': 'IN_CARE', ':physicalVet': 'VET',
             ':lat': point.latitude, ':lon': point.longitude, ':at': now, ':phase': point.phase
           }
         }},
