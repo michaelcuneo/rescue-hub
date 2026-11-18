@@ -28,7 +28,7 @@
   // POC only: use a pinned, browser-only MapLibre module so the rest of
   // Rescue Hub and its current npm lockfile stay completely unchanged.
   const MAPLIBRE_ESM = 'https://unpkg.com/maplibre-gl@6.18.0/dist/maplibre-gl.mjs';
-  const LIGHT_STYLE = 'https://tiles.openfreemap.org/styles/liberty';
+  const LIGHT_STYLE = 'https://tiles.openfreemap.org/styles/positron';
   const DARK_STYLE = 'https://tiles.openfreemap.org/styles/dark';
   let container: HTMLDivElement | undefined;
   let mapInstance: any;

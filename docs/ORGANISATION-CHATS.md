@@ -31,3 +31,45 @@ Messages are permanent in DynamoDB under an organisation/channel partition, with
 Desktop and Expo chat lists derive their animal-group colours from the **same `RESCUE_PIN_GROUPS` constants as the Operations map legend** using `packages/core/chat-channel-colours.ts`. Animal channels get a coloured avatar and an edge accent, while Administration, Q&A, Trading Post, transport and direct conversations retain neutral styling.
 
 The combined **Reptiles** chat covers both non-venomous and venomous reptile teams. Its desktop avatar has a split two-colour fill; the mobile avatar uses a two-colour edge. These colours are identification aids, not authorisation indicators. Chat membership and message access are unchanged and remain server-enforced.
+
+
+## People and animal @mentions (major testing)
+
+In desktop and Expo organisation chats, typing `@` opens channel-scoped
+suggestions. Continue typing a name or animal species (e.g. `@michelle`
+or `@bearded-dragon`), then select a matching result. The composer inserts a
+human-readable handle; the sent message also stores the stable, validated
+person/animal/rescue ID. A plain unselected `@word` stays plain text, not
+a forged link or notification.
+
+- **People:** Search only active, permitted members of the current chat.
+  Clicking a mention opens a private conversation where permitted.
+  Available or off-duty members with registered devices receive a
+  notification that they were mentioned, without the message content or
+  animal location. Busy members are not pushed.
+- **Animals:** Search species names from a bounded, organisation-scoped
+  rescue archive. Records with a registered animal get an animal-ID
+  mention; incidents not yet registered can be linked by rescue ID.
+  Both remain readable and clickable in desktop and mobile messages.
+- **Record access:** A mention is not permission to browse animal medical
+  history or private coordinates. The existing rescue and animal
+  authorisation rules still govern opening the case. On mobile, links
+  only jump to cases already visible in the member's rescue feed.
+- **No dispatch side effects:** A mention never assigns a rescue, changes
+  animal custody, claims transport, or creates a new animal record.
+- **Compatibility:** Old chat messages without mention metadata continue
+  rendering as plain text. Existing clients can still send ordinary chats.
+  The API enforces exact organisation/record identity before saving.
+- **Limitations:** Suggestions search the current authorised channel and
+  bounded existing rescue archive, not a global animal catalogue. A case
+  may not show up if its type/species is absent from the searchable rescue
+  record. Chat mention navigation, push delivery, typing around existing
+  mentions, and keyboard/touch accessibility need real-device testing.
+
+Key files: `core/chat-mentions.ts`, `core/chat-mentions.test.mjs`,
+`pc-rescues/src/lib/server/chat-mention-lookup.ts`,
+`pc-rescues/src/routes/api/mobile/chats/mentions/+server.ts`,
+desktop `routes/chats/+page.svelte` and Expo `src/OrganisationChats.tsx`.
+The GET endpoint returns only IDs and labels, not locations, GPS events,
+private phone numbers or medical details. Rerendering chat does not use
+HTML injection or dynamic outbound links.

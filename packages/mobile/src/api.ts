@@ -355,8 +355,10 @@ export type ChatChannel = {
 export type ChatMessage = {
   id: string; channelId: string; senderUserId: string;
   senderName: string; text: string; createdAt: string; animalId?: string;
+  mentions?: ChatMention[];
   kind?: 'MESSAGE' | 'SYSTEM';
 };
+export type ChatMention = import('../../core/chat-mentions').ChatMention;
 export type ChatOrganisation = { id: string; name: string };
 export type ChatMember = {
   id: string; name: string; availability: 'AVAILABLE' | 'BUSY' | 'OFFLINE';
@@ -379,6 +381,13 @@ export async function getChatMembers(organisationId?: string, channelId?: string
   if (channelId) params.set('channelId', channelId);
   return request<{ members: ChatMember[] }>('/api/mobile/chats/members' + (params.size ? `?${params.toString()}` : ''));
 }
+export async function searchChatMentions(channelId: string, query: string, organisationId?: string) {
+  const params = new URLSearchParams();
+  params.set('channelId', channelId);
+  params.set('q', query);
+  if (organisationId) params.set('organisationId', organisationId);
+  return request<{items: ChatMention[]}>(`/api/mobile/chats/mentions?${params.toString()}`);
+}
 export async function openDirectChat(recipientUserId: string, organisationId?: string) {
   return request<{ channelId: string }>('/api/mobile/chats/direct' + chatQuery(organisationId), {
     method: 'POST', body: JSON.stringify({ recipientUserId })
@@ -389,9 +398,10 @@ export async function getChannelMessages(channelId: string, before?: string, org
     `/api/mobile/chats/${encodeURIComponent(channelId)}` + chatQuery(organisationId, before)
   );
 }
-export async function sendChannelMessage(channelId: string, text: string, animalId?: string, organisationId?: string) {
+export async function sendChannelMessage(channelId: string, text: string, animalId?: string, organisationId?: string, mentions: ChatMention[] = []) {
   return request<{ message: ChatMessage }>(`/api/mobile/chats/${encodeURIComponent(channelId)}` + chatQuery(organisationId), {
-    method: 'POST', body: JSON.stringify({ text, ...(animalId ? { animalId } : {}) })
+    method: 'POST', body: JSON.stringify({ text, ...(animalId ? { animalId } : {}),
+      ...(mentions.length ? { mentions } : {}) })
   });
 }
 export async function markChannelRead(channelId: string, messageId: string, organisationId?: string) {

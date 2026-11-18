@@ -3,6 +3,8 @@
   import { subscribeRescueChanges, type RealtimeConfig } from '../../../../core/realtime-client';
   import type { PageData } from './$types';
   import { shouldSendChatOnKey } from '../../../../core/chat-composer-keyboard';
+  import { currentMentionQuery, insertChatMention, usableChatMentions, splitChatMentions,
+    type ChatMention } from '../../../../core/chat-mentions';
   import { chatChannelColours } from '../../../../core/chat-channel-colours';
   let { data }: { data: PageData } = $props();
   type Channel = {
@@ -12,7 +14,7 @@
   };
   type Message = {
     id: string; channelId: string; senderUserId: string; senderName: string;
-    text: string; createdAt: string; animalId?: string;
+    text: string; createdAt: string; animalId?: string; mentions?: ChatMention[];
   };
   type Organisation = { id: string; name: string };
   type Member = {
@@ -37,6 +39,11 @@
   let messages = $state<Message[]>([]);
   let cursor = $state<string | null>(null);
   let draft = $state('');
+  let mentionOptions = $state<ChatMention[]>([]);
+  let mentionRefs = $state<ChatMention[]>([]);
+  let mentionLoading = $state(false);
+  let mentionTimer: ReturnType<typeof setTimeout> | undefined;
+  let chatComposer = $state<HTMLTextAreaElement | undefined>(undefined);
   let busy = $state(false);
   let error = $state('');
   let loading = $state(true);
@@ -113,15 +120,50 @@
       messagePanel?.scrollTo({ top: messagePanel.scrollHeight, behavior: 'smooth' });
     }
   }
+  function resetMentions() {
+    mentionOptions = []; mentionRefs = []; mentionLoading = false;
+    if (mentionTimer) clearTimeout(mentionTimer);
+  }
+  function onComposerInput(value: string) {
+    draft = value;
+    mentionRefs = usableChatMentions(value, mentionRefs);
+    const query = currentMentionQuery(value);
+    if (mentionTimer) clearTimeout(mentionTimer);
+    if (query === null || !selectedId) { mentionOptions = []; mentionLoading = false; return; }
+    const channel = selectedId, organisation = organisationId;
+    mentionLoading = true;
+    mentionTimer = setTimeout(async () => {
+      try {
+        const params = new URLSearchParams({ channelId: channel, q: query });
+        if (organisation) params.set('organisationId', organisation);
+        const result = await api<{items: ChatMention[]}>(`/api/mobile/chats/mentions?${params}`);
+        if (selectedId === channel && organisationId === organisation &&
+            currentMentionQuery(draft) === query) mentionOptions = result.items;
+      } catch {
+        if (currentMentionQuery(draft) === query) mentionOptions = [];
+      } finally { mentionLoading = false; }
+    }, 250);
+  }
+  async function chooseMention(mention: ChatMention) {
+    draft = insertChatMention(draft, mention);
+    mentionRefs = usableChatMentions(draft, [...mentionRefs, mention]);
+    mentionOptions = [];
+    if (mentionTimer) clearTimeout(mentionTimer);
+    await tick();
+    chatComposer?.focus();
+    chatComposer?.setSelectionRange(draft.length, draft.length);
+  }
   async function selectOrganisation(id: string) {
     if (id === organisationId) return;
     organisationId = id;
+    resetMentions();
     selectedId = ''; messages = []; channelMembers = []; showChannelMembers = false; cursor = null; draft = ''; error = ''; loading = true;
     try { await Promise.all([refreshChannels(), refreshMembers()]); }
     catch (e) { error = e instanceof Error ? e.message : 'Could not load organisation chats.'; }
     finally { loading = false; }
   }
   async function selectChannel(id: string) {
+    resetMentions();
     selectedId = id; messages = []; cursor = null; channelMembers = []; showChannelMembers = false; error = '';
     try { await Promise.all([refreshMessages(id), refreshChannelMembers(id)]); } catch (e) {
       error = e instanceof Error ? e.message : 'Chat unavailable.';
@@ -140,6 +182,12 @@
     finally { busy = false; }
   }
   function onChatKeydown(event: KeyboardEvent) {
+    if (event.key === 'Escape' && mentionOptions.length) {
+      mentionOptions = []; event.preventDefault(); return;
+    }
+    if (event.key === 'Enter' && !event.shiftKey && mentionOptions.length) {
+      event.preventDefault(); void chooseMention(mentionOptions[0]); return;
+    }
     if (!shouldSendChatOnKey(event)) return;
     event.preventDefault();
     if (event.target instanceof HTMLTextAreaElement && event.target.form) {
@@ -151,8 +199,9 @@
     if (!selectedId || busy || busyRecipient || !draft.trim()) return;
     busy = true; error = '';
     try {
-      await api(chatUrl(`/api/mobile/chats/${encodeURIComponent(selectedId)}`), 'POST', { text: draft });
+      await api(chatUrl(`/api/mobile/chats/${encodeURIComponent(selectedId)}`), 'POST', { text: draft, mentions: usableChatMentions(draft, mentionRefs) });
       draft = '';
+      resetMentions();
       await refreshMessages();
       await Promise.all([refreshChannels(), refreshMembers()]);
     } catch (e) { error = e instanceof Error ? e.message : 'Could not send message.'; }
@@ -177,7 +226,7 @@
       void Promise.all([refreshChannels(), refreshMembers()]).catch(() => {});
       if (selectedId) { void refreshMessages(selectedId).catch(() => {}); void refreshChannelMembers(selectedId).catch(() => {}); }
     }, 15000);
-    return () => { disposed = true; stop?.(); clearInterval(interval); };
+    return () => { disposed = true; stop?.(); clearInterval(interval); if (mentionTimer) clearTimeout(mentionTimer); };
   });
 </script>
 
@@ -273,7 +322,15 @@
                 <button class="sender-name" onclick={() => void openDirect(item.senderUserId)}
                   title="Start a private conversation with {item.senderName}">{item.senderName}</button>
               {/if}
-              <p>{item.text}</p>
+              <p>{#each splitChatMentions(item.text, item.mentions) as part, i (i)}
+                {#if part.mention?.kind === 'person'}
+                  <button type="button" class="chat-mention" title={part.mention.label}
+                    onclick={() => void openDirect(part.mention!.id)}>{part.text}</button>
+                {:else if part.mention && (part.mention.kind === 'animal' || part.mention.kind === 'rescue')}
+                  <a class="chat-mention" href={`/rescues/${part.mention.rescueId ?? part.mention.id}/care`}
+                    title={`Open ${part.mention.label} rescue record`}>{part.text}</a>
+                {:else}{part.text}{/if}
+              {/each}</p>
               <time datetime={item.createdAt}>{new Date(item.createdAt).toLocaleString('en-AU', { hour: 'numeric', minute: '2-digit', day:'numeric', month:'short' })}</time>
               {#if item.animalId}<p class="animal-ref">Animal reference: {item.animalId}</p>{/if}
             </article>
@@ -284,9 +341,26 @@
         {/if}
         <form onsubmit={send}>
           <label class="sr-only" for="chat-message">Message to {selected?.name ?? 'channel'}</label>
-          <textarea id="chat-message" maxlength="2000" rows="2" bind:value={draft}
-            onkeydown={onChatKeydown} placeholder={selected?.recipientUserId ? "Write a private message…" : "Message your group…"}
-            aria-describedby="chat-compose-shortcut"></textarea>
+          <div class="composer-field">
+            {#if mentionOptions.length || mentionLoading}
+              <div class="mention-suggestions" aria-label="Mention suggestions" role="listbox">
+                {#each mentionOptions as option (option.kind + option.id)}
+                  <button type="button" role="option" aria-selected="false"
+                    onclick={() => void chooseMention(option)}>
+                    <strong>@{option.handle}</strong>
+                    <small>{option.kind === 'person' ? 'Person' : option.kind === 'animal' ? 'Animal' : 'Rescue'} · {option.label}</small>
+                  </button>
+                {:else}
+                  <span class="mention-loading">Searching people and rescues…</span>
+                {/each}
+              </div>
+            {/if}
+            <textarea id="chat-message" maxlength="2000" rows="2" bind:this={chatComposer}
+              bind:value={draft} oninput={(event) => onComposerInput(event.currentTarget.value)}
+              onkeydown={onChatKeydown}
+              placeholder={selected?.recipientUserId ? "Write a private message… Use @ to mention" : "Message your group… Use @ to mention"}
+              aria-describedby="chat-compose-shortcut"></textarea>
+          </div>
           <span id="chat-compose-shortcut" class="sr-only">Press Enter to send. Press Shift and Enter to start a new line.</span>
           <button class="send" disabled={busy || busyRecipient || !draft.trim()}>Send</button>
         </form>
@@ -339,7 +413,14 @@
   article time{font-size:11px;color:var(--rh-t172, #7d8b81);display:block;text-align:right}
   .animal-ref{color:var(--rh-t173, #3c6950);font-size:11px}
   form{border-top:1px solid var(--rh-t163, #e2e9e4);padding:12px;display:flex;align-items:end;gap:9px}
-  textarea{resize:vertical;flex:1;min-width:0;padding:12px 15px;border:1px solid var(--rh-t174, #d9e3dc);border-radius:15px;font:inherit}
+  textarea{resize:vertical;width:100%;min-width:0;padding:12px 15px;border:1px solid var(--rh-t174, #d9e3dc);border-radius:15px;font:inherit}
+  .composer-field{position:relative;flex:1;min-width:0}
+  .mention-suggestions{position:absolute;bottom:calc(100% + 7px);left:0;right:0;z-index:5;max-height:235px;overflow:auto;border:1px solid var(--rh-border);border-radius:12px;background:var(--rh-surface);box-shadow:var(--rh-shadow);padding:5px}
+  .mention-suggestions button{width:100%;display:flex;gap:10px;align-items:center;justify-content:space-between;text-align:left;padding:10px 12px;color:var(--rh-text);background:transparent;border:0;border-radius:8px;cursor:pointer}
+  .mention-suggestions button:hover,.mention-suggestions button:focus-visible{background:var(--rh-raised)}
+  .mention-suggestions small,.mention-loading{color:var(--rh-muted);font-size:11px}
+  .mention-loading{display:block;padding:12px}
+  .chat-mention{display:inline;border:0;padding:1px 3px;border-radius:4px;background:var(--rh-accent-soft);color:var(--rh-text);font:inherit;font-weight:750;text-decoration:underline;text-underline-offset:2px;cursor:pointer}
   .send{padding:13px 22px;border:0;border-radius:12px;background:var(--rh-primary);color:var(--rh-on-primary);font-weight:800;cursor:pointer}
   button:disabled{opacity:.5}.error{padding:8px 18px;color:var(--rh-t69, #a23f35)}
   .muted{color:var(--rh-t175, #77887a)}.older{align-self:center;background:transparent;border:0;padding:12px;color:var(--rh-t176, #276e4c);font-weight:750;cursor:pointer}

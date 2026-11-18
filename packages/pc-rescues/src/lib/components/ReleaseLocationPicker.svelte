@@ -17,7 +17,7 @@
   } = $props();
 
   const ESM = 'https://unpkg.com/maplibre-gl@6.18.0/dist/maplibre-gl.mjs';
-  const LIGHT = 'https://tiles.openfreemap.org/styles/liberty';
+  const LIGHT = 'https://tiles.openfreemap.org/styles/positron';
   const DARK = 'https://tiles.openfreemap.org/styles/dark';
 
   let surface: HTMLDivElement | undefined;
