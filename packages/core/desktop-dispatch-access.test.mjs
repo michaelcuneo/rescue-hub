@@ -37,8 +37,8 @@ test('inactive or unsupported membership cannot see rescue offers', () => {
   assert.equal(canSeeDesktopRescue({ ...member, enabled: false }, base, true), false);
   assert.equal(canSeeDesktopRescue({ ...member, status: 'INVITED' }, base, true), false);
   assert.equal(canSeeDesktopRescue({ ...member, membershipTypeId: 'carer' }, base, true), true);
-  assert.equal(canSeeDesktopRescue({ ...member, membershipTypeId: 'support-member' }, base, true), true);
-  assert.equal(canSeeDesktopRescue({ ...member, membershipTypeId: 'probationary-rescuer' }, base, true), true);
+  assert.equal(canSeeDesktopRescue({ ...member, membershipTypeId: 'support-member' }, base, true), false);
+  assert.equal(canSeeDesktopRescue({ ...member, membershipTypeId: 'probationary-rescuer' }, base, true), false);
   assert.equal(canSeeDesktopRescue({ ...member, membershipTypeId: 'transport-volunteer' }, base, true), false);
   assert.equal(canSeeDesktopRescue({ ...member, membershipTypeId: 'transport-volunteer' }, { ...base, transportAnimalId: 'animal1' }, false), true);
 });
