@@ -1,6 +1,6 @@
 # Rescue Hub historical rescue stress-test data
 
-This is **synthetic test/demo data**, not real wildlife rescue records. It may only be written to explicitly selected SST `michael` or `demo` stages.
+This is **synthetic test/demo data**, not real wildlife rescue records. It may only be written to explicitly selected SST `michael`, `michaelcuneo` or `demo` stages.
 
 ## Scope
 
@@ -25,57 +25,74 @@ cases store a **distinct release GPS point**, and original-site releases
 preserve the rescue coordinates. All are marked `demo: true` and
 `historicalSeed: true`. Names and care notes are fictional.
 
-## Seed a local development or deployed demo stage
+## Seed all three environments
 
-From the repository root with the latest branch pulled, first preview the
-target stage without writing:
+`michael`, `michaelcuneo` and `demo` are **separate AWS SST stages
+with separate DynamoDB tables**. Checking out the same Git branch does not
+copy data between environments.
 
-```bash
-npx sst shell --stage michael -- node packages/pc-rescues/scripts/seed-historical-rescues.mjs --stage michael
-```
-
-To seed your **michael** stage:
-
-```bash
-npx sst shell --stage michael -- node packages/pc-rescues/scripts/seed-historical-rescues.mjs --stage michael --write
-```
-
-Type `SEED 208 michael` at the terminal confirmation prompt.
-
-To seed the **deployed demonstration database** separately, using the same
-code and AWS credentials with access to that stage:
+From the repository root on `feature/maplibre-admin-map-poc`, use an
+interactive terminal authenticated to the AWS account that owns all three
+stages:
 
 ```bash
-npx sst shell --stage demo -- node packages/pc-rescues/scripts/seed-historical-rescues.mjs --stage demo --write
+git pull --ff-only origin feature/maplibre-admin-map-poc
+npm ci
+npm run seed:all-demo-stages
 ```
 
-Type `SEED 208 demo` to confirm. **Seeding demo is a separate AWS database
-write**, not a local preview; use only for a clearly synthetic demonstration
-environment. No website deployment is required to insert records, but the
-website must be deployed from this branch to use the updated Dispatch query.
+The helper prompts for `SEED ALL 3`, then handles each stage in sequence:
 
-The script inserts **200 historical records plus eight extra cases completed
-on the NSW calendar day the script is run**. Of the eight current-day cases,
-two are relocations, two return to the original rescue site, three are
-euthanasias and one died in care. Each example's *report date* precedes its
-*completion date*, explicitly exercising the historical-workflow filtering
-regression. At midnight in NSW, yesterday's completed examples become history;
-to populate the new day, run the script again. Date-specific IDs prevent
-duplication.
+1. `npx sst deploy --stage STAGE` applies the SST-managed directory and
+   base Hunter fixtures: 45 fictional incidents, 10 demo volunteers,
+   membership records, animal histories for 30 assigned/completed cases,
+   and six additional pending mobile reptile incidents.
+2. The historical seeder runs a dry-run summary.
+3. The seeder runs with `--write --enrich`, asking separately for
+   `ENRICH 208 michael`, `ENRICH 208 michaelcuneo` and
+   `ENRICH 208 demo`.
 
-Both stages are guarded: the SST link must match the explicitly requested
-`michael` or `demo` stage and the table name must contain the stage.
-`production` and other stages are rejected. The script is **dry-run by
-default**, requires `--write` and an interactive typed confirmation, and
-conditionally writes three linked DynamoDB records per case. Reruns skip
-already-seeded records and never overwrite live ones. It does not run at
-deploy/startup, and it does not delete any records.
+The historical fixture set adds **200 deterministic completed cases** dated
+2024–2026 and **eight cases completed today (NSW date)** to each stage.
+Each case has its original injury location, a linked animal and outcome,
+and synthetic GPS checkpoints representing physical pickup, arrival at a
+fictional vet, optional care handover and wildlife release. Every checkpoint
+is permanently marked `syntheticJourney: true`. These are illustrative
+locations, not captured routes or verified private addresses.
 
-**Important:** On `demo`, ensure the organisation-scoped dispatcher account
-is viewing the fictional Hunter organisation (`native-animal-trust-fund`).
-Historical records are visible through Administration → Rescues → Map; today's
-eight cases show in Operations → Completed and on its map at the incident
-coordinates. The other 200 completed records never pollute the live queue.
+If a case has already been seeded, `--enrich` conditionally adds missing
+location events and latest-animal-position fields without replacing its
+permanent rescue record, final outcome, or other users' data. Existing
+fully enriched cases are skipped. Reruns never delete data.
+
+For the historical records and movement checkpoints **only**, after the
+SST-managed base data is already present, use:
+
+```bash
+npm run seed:all-demo-stages -- --seed-only
+```
+
+The current-day case IDs include the NSW date. Repeat the command on
+another day to create the fresh set of eight; prior days remain archived.
+Run all three on the same date to keep their present-day fixture sets aligned.
+
+To preview one stage **without writing**:
+
+```bash
+npx sst shell --stage michaelcuneo -- node packages/pc-rescues/scripts/seed-historical-rescues.mjs --stage michaelcuneo
+```
+
+Replace `michaelcuneo` in both positions with `michael` or `demo` as
+appropriate. The manual seeder is dry-run by default and validates the
+selected SST stage and linked DynamoDB table, rejects production and all
+other stages, and requires interactive confirmation before writes.
+
+**Important:** The `demo` stage is deployed at
+`rescue.michaelcuneo.com.au`; deploying the helper's default mode will
+also redeploy its site and infrastructure. Use `--seed-only` if you do
+not intend to deploy application changes. All three stages require
+valid AWS credentials and permissions; committing to GitHub alone does
+not seed the databases.
 
 ## Explore
 
