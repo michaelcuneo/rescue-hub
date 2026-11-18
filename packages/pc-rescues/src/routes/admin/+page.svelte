@@ -44,6 +44,10 @@
   let archiveExamined = $state(0);
   let archiveController: AbortController | null = null;
   let rescueDate = $state(rescueTodayNSW());
+  let rescueMapMode = $state<'all' | 'single' | 'range'>('all');
+  let rescueRangeFrom = $state(shiftRescueDay(rescueTodayNSW(), -6));
+  let rescueRangeTo = $state(rescueTodayNSW());
+  let rescueMapExamined = $state(0);
   let rescueDayItems = $state<PageData['rescues']>([]);
   let rescueDayLoaded = $state(false);
   let rescueDayLoading = $state(false);
@@ -141,6 +145,7 @@
     const day = rescueNSWDay(rescue.createdAt);
     if (!day) return;
     selectRescueDate(day);
+    rescueMapMode = 'single';
     rescueMapSelectedId = rescue.id;
     if (canChooseOrganisation && rescue.organisationId) rescueOrganisation = rescue.organisationId;
     chooseRescueView('map');
@@ -293,28 +298,63 @@
     if (!archiveController || archiveLoading || !archiveHasMore) return;
     void fetchArchivePage(archiveController, false);
   }
-  // The map always shows every case reported on the selected day, regardless of
-  // the list's search, status or period filters.
+  // The map has its own complete paginated archive query; List search remains
+  // unchanged. Each filter change cancels any previous in-flight map request.
   $effect(() => {
     if (section !== 'rescues' || rescueView !== 'map') return;
+    const mode = rescueMapMode;
     const day = rescueDate;
+    const from = rescueRangeFrom;
+    const to = rescueRangeTo;
     const organisation = rescueOrganisation;
     const controller = new AbortController();
     rescueDayLoading = true;
     rescueDayLoaded = false;
     rescueDayError = '';
     rescueDayItems = [];
-    void fetch(`/api/admin/rescues/day?date=${encodeURIComponent(day)}&organisation=${encodeURIComponent(organisation)}`, {
-      signal: controller.signal,
-      cache: 'no-store'
-    }).then(async response => {
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const payload = await response.json() as { items: PageData['rescues'] };
-      if (controller.signal.aborted) return;
-      rescueDayItems = payload.items;
-      rescueDayLoaded = true;
-    }).catch(error => {
-      if (!controller.signal.aborted) rescueDayError = error instanceof Error ? error.message : 'Could not load history';
+    rescueMapExamined = 0;
+
+    if (mode === 'range' && (from > to || to > rescueTodayNSW())) {
+      rescueDayLoading = false;
+      rescueDayError = 'The date range must start on or before its end, and cannot extend into the future.';
+      return () => controller.abort();
+    }
+    void (async () => {
+      let cursor: string | null = null;
+      const seenCursors = new Set<string>();
+      const collected = new Map<string, PageData['rescues'][number]>();
+      do {
+        const params = new URLSearchParams({
+          period: mode === 'all' ? 'all' : mode === 'single' ? 'selected_day' : 'range',
+          organisation,
+          date: day,
+          from,
+          to
+        });
+        if (cursor) params.set('cursor', cursor);
+        const response = await fetch(`/api/admin/rescues/map?${params.toString()}`, {
+          cache: 'no-store', signal: controller.signal
+        });
+        const payload = await response.json() as {
+          items?: PageData['rescues'];
+          examined?: number;
+          nextToken?: string | null;
+          hasMore?: boolean;
+          error?: string;
+        };
+        if (!response.ok) throw new Error(payload.error || `Map archive HTTP ${response.status}`);
+        if (controller.signal.aborted) return;
+        for (const record of payload.items ?? []) collected.set(record.id, record);
+        rescueDayItems = [...collected.values()];
+        rescueMapExamined += payload.examined ?? 0;
+        const next = payload.hasMore ? payload.nextToken ?? null : null;
+        if (next && seenCursors.has(next)) throw new Error('Archive continuation repeated unexpectedly');
+        if (next) seenCursors.add(next);
+        cursor = next;
+      } while (cursor && !controller.signal.aborted);
+      if (!controller.signal.aborted) rescueDayLoaded = true;
+    })().catch(error => {
+      if (!controller.signal.aborted) rescueDayError = error instanceof Error ? error.message : 'Unable to load rescue map';
     }).finally(() => {
       if (!controller.signal.aborted) rescueDayLoading = false;
     });
@@ -634,18 +674,31 @@
           <div class="panel-heading table-heading">
             <div>
               <p class="eyebrow">Historical rescue map</p>
-              <h2>Rescue locations by date</h2>
-              <p class="intro">Select a NSW calendar day to show every reported rescue and its pin, including completed cases.</p>
+              <h2>Rescue locations</h2>
+              <p class="intro">Explore every rescue location, or filter by an NSW calendar day or date range. Completed cases stay in the historical map.</p>
             </div>
           </div>
           <div class="rescue-map-toolbar">
-            <button type="button" aria-label="Previous day" onclick={() => selectRescueDate(shiftRescueDay(rescueDate, -1))}>Previous day</button>
-            <label><span>Report date · NSW</span>
-              <input type="date" value={rescueDate} max={rescueTodayNSW()} onchange={(event) => selectRescueDate(event.currentTarget.value)} />
+            <label><span>Map history</span>
+              <select bind:value={rescueMapMode} aria-label="Rescue map date filter">
+                <option value="all">All rescues · any dates</option>
+                <option value="single">Specific day</option>
+                <option value="range">Date range</option>
+              </select>
             </label>
-            <button type="button" aria-label="Next day" disabled={rescueDate >= rescueTodayNSW()}
-              onclick={() => selectRescueDate(shiftRescueDay(rescueDate, 1))}>Next day</button>
-            <button type="button" onclick={() => selectRescueDate(rescueTodayNSW())}>Today</button>
+            {#if rescueMapMode === 'single'}
+              <button type="button" aria-label="Previous day" onclick={() => selectRescueDate(shiftRescueDay(rescueDate, -1))}>Previous</button>
+              <label><span>Report date · NSW</span>
+                <input type="date" value={rescueDate} max={rescueTodayNSW()}
+                  onchange={(event) => selectRescueDate(event.currentTarget.value)} />
+              </label>
+              <button type="button" aria-label="Next day" disabled={rescueDate >= rescueTodayNSW()}
+                onclick={() => selectRescueDate(shiftRescueDay(rescueDate, 1))}>Next</button>
+              <button type="button" onclick={() => selectRescueDate(rescueTodayNSW())}>Today</button>
+            {:else if rescueMapMode === 'range'}
+              <label><span>From · NSW</span><input type="date" bind:value={rescueRangeFrom} max={rescueTodayNSW()} /></label>
+              <label><span>To · NSW</span><input type="date" bind:value={rescueRangeTo} max={rescueTodayNSW()} /></label>
+            {/if}
             {#if canChooseOrganisation}
               <label><span>Organisation</span>
                 <select bind:value={rescueOrganisation}>
@@ -657,15 +710,18 @@
               </label>
             {/if}
           </div>
-          <p class="rescue-map-date" role="status">{rescueDayLabel(rescueDate)} · {rescueDayLoading ? 'Loading rescue locations…' : rescueDayLoaded ? `${rescueDayItems.length} reported rescues` : 'No data loaded'}</p>
-          {#if rescueDayError}<p class="rescue-day-error" role="alert">Could not load the selected date: {rescueDayError}</p>{/if}
-          {#if rescueDayLoaded}
-            <AdminRescueHistoryMap rescues={rescueDayItems}
-              selectedId={rescueMapSelectedId}
-              onSelect={(id) => (rescueMapSelectedId = id)} />
-          {:else if rescueDayLoading}
-            <div class="rescue-map-placeholder" role="status">Loading historical rescues and map pins…</div>
+          <p class="rescue-map-date" role="status" aria-live="polite">
+            {rescueMapMode === 'all' ? 'All dates' : rescueMapMode === 'single' ? rescueDayLabel(rescueDate) : `${rescueRangeFrom} to ${rescueRangeTo}`}
+            · {rescueDayItems.length} rescues loaded
+            {rescueDayLoading ? ` · loading more locations (${rescueMapExamined} records examined)…` : ''}
+            {rescueDayLoaded ? ' · archive loaded' : ''}
+          </p>
+          {#if rescueDayError}
+            <p class="rescue-day-error" role="alert">Historical map loading issue: {rescueDayError}</p>
           {/if}
+          <AdminRescueHistoryMap rescues={rescueDayItems}
+            selectedId={rescueMapSelectedId}
+            onSelect={(id) => (rescueMapSelectedId = id)} />
         {:else}
         <div class="panel-heading table-heading">
           <div><p class="eyebrow">Operational register</p><h2>Wildlife rescues</h2>
