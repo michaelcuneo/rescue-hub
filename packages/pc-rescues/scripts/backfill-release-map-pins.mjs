@@ -2,23 +2,20 @@
 /**
  * Optional one-time archive projection repair for older real release records.
  * Reads existing permanent animal GPS; never manufactures an address or point.
- * Dry-run by default. Only explicitly named michael/demo SST stages.
+ * Dry-run by default. Only explicitly named michael/michaelcuneo/demo SST stages.
  */
 import { createInterface } from 'node:readline/promises';
 import { stdin, stdout } from 'node:process';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, QueryCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
 import { Resource } from 'sst';
+import { assertHistoricalSeedTarget } from '../../core/historical-rescue-stage.mjs';
 
 const at = process.argv.indexOf('--stage');
 const stage = at >= 0 ? process.argv[at + 1] : '';
 const write = process.argv.includes('--write');
-if (!['michael', 'demo'].includes(stage) ||
-  (process.env.SST_STAGE && process.env.SST_STAGE !== stage))
-  throw new Error('Only michael or demo with matching SST stage is allowed.');
 const table = Resource.RescueHubData?.name;
-if (!table || !table.toLowerCase().includes(stage))
-  throw new Error('Refusing archive projection backfill: linked table does not identify the requested stage.');
+assertHistoricalSeedTarget(stage, process.env.SST_STAGE, table);
 if (process.argv.some(arg => ['--force', '--delete', '--overwrite'].includes(arg)))
   throw new Error('Destructive options are unsupported.');
 
