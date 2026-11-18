@@ -86,3 +86,7 @@ geographic marker accuracy, boundary overlay performance, tile-loading
 reliability, mobile browser performance and costs. Do not migrate **mobile** or **geocoding** until both desktop maps pass interactive inspection.
 
 The project isn't Mapbox-free until forward and reverse geocoding plus the mobile map are migrated separately.
+
+## Operations completed-case pin restoration (18 November 2026)
+
+The first Operations MapLibre migration accidentally omitted `COMPLETED` from its GeoJSON source and click handler even though the sidebar's Completed tab still showed today's completed cases. This has been corrected: **Pending and Assigned** remain subject to the existing physical-pickup hiding rule, while **Completed today (Australia/Sydney)** appears as a completed-status pin at the **original incident location**, even if the animal was picked up earlier. Clicking a completed pin opens the existing rescue detail card. Completed cases from earlier days are available on **Administration → Rescues → Map** rather than the live Operations map. A time-based refresh removes yesterday's completed pins after NSW midnight; no animal or rescue records are deleted. The repair adds unit coverage in `rescue-operations-date.test.mjs`.
