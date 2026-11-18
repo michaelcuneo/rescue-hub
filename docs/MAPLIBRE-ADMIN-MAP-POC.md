@@ -252,3 +252,11 @@ npx sst shell --stage michael -- node packages/pc-rescues/scripts/seed-historica
 To insert the missing historical and completed-today fixtures, rerun with `--write` and type the interactive confirmation. To add checkpoint events to **already seeded synthetic** records, rerun with `--write --enrich`; this refuses non-seed records and never overwrites unrelated records.
 
 Change both stage names to `demo` for the public demonstration only once the development data has been reviewed. No seeding runs on deployment or from ordinary application requests. These are historical milestone changes, not a background vehicle animation; adding simulated progressive time-lapse playback is separate work.
+
+## Dispatch location entry: draggable intake pin
+
+The Operations **New rescue** intake is a persistent side panel, not a backdrop-dismissed modal. Clicking outside the panel must not close it. The underlying MapLibre map remains available for panning, zooming and placing a draft pin. While intake is open, clicking **anywhere** on the map (even an existing rescue or operating-area polygon) moves the **draft** pin rather than changing the selected rescue. Only the panel's Close/Cancel buttons or a successful submit dismiss intake.
+
+Draft pins are draggable MapLibre markers. Dropping the marker updates the shared `draftLocation` state and the rescue's submitted latitude/longitude. Focus the marker and use the arrow keys to make fine position adjustments; holding Shift moves in larger steps. A manually moved pin clears any previously selected address input so stale geocoded text is never submitted for a new coordinate. Address-search results still set a pin at the chosen coordinates, and the operator can then drag it to refine the report.
+
+Manual verification: open intake, click the map, verify the panel remains open and pin appears; click on an existing rescue pin while intake is open; drag the draft marker and verify its coordinates change in the panel; choose an address, drag the marker and verify the old address is cleared; use arrow keys on the focused marker; Cancel and verify the marker disappears. Check both dark and light styles. The Expo map and its release picker are unaffected.
