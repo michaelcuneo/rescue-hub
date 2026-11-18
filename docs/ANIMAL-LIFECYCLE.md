@@ -75,6 +75,45 @@ Tests cover delivery mode and GPS validation, role-independent transport eligibi
 - **Transport** is a separate handover purpose from permanent care. An accepted transport handover sets the animal to IN_TRANSIT, not IN_CARE. Transport eligibility requires `canTransport: true`, independent of rescue qualifications and carer status; the sender is not released until acceptance.
 - The desktop and mobile **maps show only uncollected, actionable jobs**, not all animals in care. Pending jobs and claimed-but-not-yet-collected jobs have pins; once the assigned rescuer explicitly confirms physical pickup the job disappears from both maps. The mobile worklist and permanent animal records remain accessible to authorised custodians and coordinators. Completed and cancelled jobs never have operational pins.
 
+## Wildlife release and relocation sites (18 November 2026)
+
+The **original rescue point** and **final animal release point** represent two
+different geographic events. An animal may be treated and released back where
+it was found, or deliberately relocated into suitable forest, bushland or
+nature reserve, which usually has no street address.
+
+- **Pending rescue creation**: existing Operations map accepts a GPS pin for
+  the *reported incident*. This remains the incident's original coordinate
+  and is not changed by any later care or release.
+- **Animal release**: the custodian explicitly chooses **Original rescue
+  site**, **Relocation · Drop a pin**, or (on mobile) **Use current GPS
+  position**. Desktop and mobile each provide an interactive map for choosing
+  a release point. The release GPS coordinate is required; a descriptive name
+  for the release site is optional.
+- **Outcome validation**: release records must include both valid
+  longitude/latitude numbers and `releaseReason` equal to `ORIGINAL_SITE`
+  or `RELOCATION`. A pin more than 100 metres from the original site
+  cannot be labelled as an original-site release. Notes remain required.
+  Non-release final outcomes do not require GPS.
+- **Permanent record**: `ANIMAL#.../META` stores `releaseLatitude`,
+  `releaseLongitude`, `releaseLocation`, `releaseReason` and
+  `releasedAt`. The append-only `FINAL_OUTCOME` event also carries
+  the release point and original rescue reference/coordinates. Both desktop
+  and mobile care timelines display the release classification and GPS.
+- **Safety/privacy**: release sites are visible only in the authenticated
+  animal care record, not broadcast as a fresh Pending rescue, public report
+  or operational responder pin. Sensitive release sites should be treated as
+  operational wildlife data; public exports should generalise or remove
+  coordinates according to species/NPWS publication policies.
+- A release cannot be submitted twice because the animal moves into its
+  terminal `RELEASED` state under an atomic version/ownership check.
+
+The current MapLibre release picker uses externally hosted OpenFreeMap tiles
+for this prototype. Before national production, decide on tile hosting and
+offline use. Confirm ecological relocation authorisation and suitability
+with the relevant licensed wildlife organisation; a software pin is a
+record of what happened, not an approval to relocate wildlife.
+
 ## Separate domain objects
 
 - **RescueIncident / RescueCase:** the initial report, response, geographic/organisation authority, claimant and response milestones. One incident may involve multiple animals.
