@@ -6,6 +6,7 @@ on:
       - deploy/rescue-demo-domain
   push:
     branches:
+      - feature/maplibre-admin-map-poc
       - hotfix/demo-claim-modal-self-permissions
       - fix/admin-people-subnavigation
       - hotfix/demo-modal-report-admin-permissions
