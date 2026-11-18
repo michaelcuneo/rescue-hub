@@ -417,7 +417,10 @@
           id: 'historical-operating-labels', source: AREA_SOURCE, type: 'symbol',
           minzoom: 7.2,
           layout: { 'text-field': ['get', 'areaLabel'], 'text-size': 10, 'text-max-width': 14 },
-          paint: OPERATING_AREA_LABEL_PAINT
+          // Preserve the existing light-map styling; soften labels only on dark.
+          paint: $resolvedTheme === 'dark' ? OPERATING_AREA_LABEL_PAINT : {
+            'text-color': '#173d2c', 'text-halo-color': '#ffffff', 'text-halo-width': 1.5
+          }
         }, 'historical-rescue-clusters');
       } else map.getSource(AREA_SOURCE).setData(collection);
       boundaryStatus = collection.metadata?.failedLayers?.length ? 'partial' : 'ready';

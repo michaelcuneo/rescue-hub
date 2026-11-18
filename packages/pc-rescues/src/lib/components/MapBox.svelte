@@ -318,7 +318,13 @@
         'text-max-width': 16,
         'text-allow-overlap': false
       },
-      paint: OPERATING_AREA_LABEL_PAINT
+      // Light-mode labels are intentionally the original, unmodified style.
+      // Only the dark basemap gets subtle pale labels and a blurred shadow.
+      paint: get(resolvedTheme) === 'dark' ? OPERATING_AREA_LABEL_PAINT : {
+        'text-color': '#173d2c',
+        'text-halo-color': '#ffffff',
+        'text-halo-width': 1.5
+      }
     }, before);
   }
 

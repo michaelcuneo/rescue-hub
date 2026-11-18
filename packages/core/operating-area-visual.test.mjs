@@ -45,20 +45,23 @@ test('boundary hit testing and rescue pins are retained', () => {
   assert.match(source, /installRescueLayers/);
 });
 
-test('subtle operating-area names use faint off-white with a blurred dark shadow', async () => {
-  const { OPERATING_AREA_LABEL_PAINT: paint } = await import('./operating-area-visual.ts');
-  assert.equal(paint['text-color'], '#edf4f6');
-  assert.ok(paint['text-opacity'] > 0.45 && paint['text-opacity'] <= 0.7);
-  assert.match(paint['text-halo-color'], /^rgba\(\d+,\d+,\d+,0\.[1-9]+\)$/);
-  assert.ok(paint['text-halo-width'] <= 1.3);
-  assert.ok(paint['text-halo-blur'] >= 1);
-  for (const file of ['MapBox.svelte', 'AdminOperatingAreas.svelte', 'AdminRescueHistoryMap.svelte']) {
-    const source = readFileSync(resolve(root, file), 'utf8');
-    const id = file === 'MapBox.svelte' ? 'nsw-operating-areas-labels'
-      : file === 'AdminOperatingAreas.svelte' ? 'admin-operating-areas-labels'
-      : 'historical-operating-labels';
-    const labelSection = source.slice(source.indexOf(`id: '${id}'`), source.indexOf(`id: '${id}'`) + 600);
-    assert.match(labelSection, /paint: OPERATING_AREA_LABEL_PAINT/, `${file} must use subtle label style`);
-    assert.doesNotMatch(labelSection, /'text-halo-color': '#ffffff'/);
+test('dark basemap labels use pale type and blurred halo; light labels remain unchanged', async () => {
+  const { OPERATING_AREA_LABEL_PAINT: darkPaint } = await import('./operating-area-visual.ts');
+  assert.equal(darkPaint['text-color'], '#edf4f6');
+  assert.ok(darkPaint['text-opacity'] > 0.45 && darkPaint['text-opacity'] <= 0.7);
+  assert.equal(darkPaint['text-halo-blur'], 1.3);
+  const operations = readFileSync(resolve(root, 'MapBox.svelte'), 'utf8');
+  const history = readFileSync(resolve(root, 'AdminRescueHistoryMap.svelte'), 'utf8');
+  const adminAreas = readFileSync(resolve(root, 'AdminOperatingAreas.svelte'), 'utf8');
+  assert.match(operations, /paint: get\(resolvedTheme\) === 'dark' \? OPERATING_AREA_LABEL_PAINT : \{/);
+  assert.match(history, /paint: \$resolvedTheme === 'dark' \? OPERATING_AREA_LABEL_PAINT : \{/);
+  for (const source of [operations, history]) {
+    assert.match(source, /'text-color': '#173d2c'/);
+    assert.match(source, /'text-halo-color': '#ffffff'/);
+    assert.match(source, /'text-halo-width': 1\.5/);
   }
+  // Older Mapbox-based operating-areas panel has no dark basemap switch.
+  assert.doesNotMatch(adminAreas, /OPERATING_AREA_LABEL_PAINT/);
+  assert.match(adminAreas, /'text-color': '#173d2c'/);
+  assert.match(adminAreas, /'text-halo-color': 'rgba\(255,255,255,0\.94\)'/);
 });

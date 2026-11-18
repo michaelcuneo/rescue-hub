@@ -292,11 +292,12 @@ different organisations overlap and where maps have dense animal pins.
 
 ## Quiet operating-area names
 
-The organisation/region labels on all three desktop maps now share
-`OPERATING_AREA_LABEL_PAINT` from `core/operating-area-visual.ts`.
-They use translucent off-white lettering (64% opacity) and a soft,
-blurred charcoal halo rather than black text with a hard white outline.
-The shadow helps the same labels remain identifiable on the light
-Positron basemap as well as the dark MapLibre basemap. These are
-background labels only: animal and rescue-pin labels are unaffected.
-The MapLibre and Mapbox renderers both support these style properties.
+Only **dark-mode MapLibre** labels use `OPERATING_AREA_LABEL_PAINT`
+from `core/operating-area-visual.ts`: translucent off-white lettering
+(64% opacity) and a blurred charcoal halo. Operations and the
+Administration rescue-history map choose this style when the resolved
+theme is dark and revert to their original black-on-white-halo label
+paint in light mode. Theme switching rebuilds the MapLibre style and
+reapplies the appropriate label paint. The separate Mapbox-based
+Administration Operating Areas map retains its original labels.
+Animal and rescue-pin labels remain unchanged.

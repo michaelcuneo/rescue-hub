@@ -2,8 +2,7 @@
   import {
     OPERATING_AREA_FILL_OPACITY,
     OPERATING_AREA_LINE_OPACITY,
-    OPERATING_AREA_LINE_WIDTH,
-    OPERATING_AREA_LABEL_PAINT
+    OPERATING_AREA_LINE_WIDTH
   } from '../../../../core/operating-area-visual';
 	import { env } from '$env/dynamic/public';
 	import { Map, controls } from '@beyonk/svelte-mapbox';
@@ -102,7 +101,11 @@
 					'text-size': 10,
 					'text-max-width': 14
 				},
-				paint: OPERATING_AREA_LABEL_PAINT
+				paint: {
+					'text-color': '#173d2c',
+					'text-halo-color': 'rgba(255,255,255,0.94)',
+					'text-halo-width': 1.5
+				}
 			});
 
       loadStatus = collection.metadata?.failedLayers?.length ? 'partial' : 'ready';
