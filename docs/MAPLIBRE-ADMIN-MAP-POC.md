@@ -234,3 +234,21 @@ frequency thresholds per transport phase, add offline buffering with secure
 retries, and test sampling on real iOS/Android devices. No GPS path should be
 fabricated for historic events that only recorded an address, nor should
 the app infer custody or veterinary approval from a phone location.
+
+## Single current animal marker and clickable historical milestones (18 November 2026)
+
+**Operations:** Pending, Assigned and today's Completed cases display one case-level marker at the last recorded animal GPS checkpoint. A final release overrides older GPS; without any valid post-report location, the original incident coordinate remains the explicit fallback (not proof of current whereabouts). A separate blue overlay that duplicated markers has been removed.
+
+**Administration:** Archived rescue cases plot the same projected latest position. Selecting a case opens a compact card with chronological, clickable **injury, pickup, vet, care and release** milestones when their actual GPS coordinates are available. Selecting a milestone flies the MapLibre view to it. Earlier mobile GPS checkpoint events and release-point storage are retained. The old blue line connecting sparse checkpoint samples is removed because a straight line is not evidence of the route travelled.
+
+**Synthetic fixtures only:** `packages/core/demo-animal-milestones.mjs` provides deterministic fictional Hunter-area carers, clinics and pickup locations. It includes an explicit presenter demo address placeholder of 28 Mitchell St, Stockton NSW 2295; its illustrative coordinates are not a verified house position. All such records have demo/historical-seed markers, and must never be confused with actual wildlife incidents or real carers' private home addresses. The existing historical fixture generator now emits a linked series of GPS_CHECKPOINT milestones and a current-location projection.
+
+Run a dry-run in development:
+
+```bash
+npx sst shell --stage michael -- node packages/pc-rescues/scripts/seed-historical-rescues.mjs --stage michael
+```
+
+To insert the missing historical and completed-today fixtures, rerun with `--write` and type the interactive confirmation. To add checkpoint events to **already seeded synthetic** records, rerun with `--write --enrich`; this refuses non-seed records and never overwrites unrelated records.
+
+Change both stage names to `demo` for the public demonstration only once the development data has been reviewed. No seeding runs on deployment or from ordinary application requests. These are historical milestone changes, not a background vehicle animation; adding simulated progressive time-lapse playback is separate work.
