@@ -35,7 +35,7 @@ export function usableChatMentions(text: string, input: ChatMention[]): ChatMent
   for (const mention of input.slice(0, 10)) {
     if (!mention || !['person', 'animal', 'rescue'].includes(mention.kind) ||
       typeof mention.id !== 'string' ||
-      !/^[a-f\d-]{36}$/i.test(mention.id) ||
+      !/^[a-z0-9][a-z0-9_-]{0,127}$/i.test(mention.id) ||
       typeof mention.handle !== 'string' ||
       !/^[a-z0-9][a-z0-9-]{0,59}$/.test(mention.handle) ||
       typeof mention.label !== 'string' || mention.label.length > 90) continue;

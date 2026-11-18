@@ -27,3 +27,12 @@ test('stale or forged plain text does not become a mention', () => {
   assert.deepEqual(usableChatMentions('Hi @michelle-smith', [{...person, id:'bad'}]),[]);
   assert.deepEqual(splitChatMentions('@anyone',[]),[{text:'@anyone'}]);
 });
+
+test('legacy synthetic development IDs can be mentioned, not only UUIDs', () => {
+  const demoPerson = {...person, id:'demo-hunter-priya-shah'};
+  const historicAnimal = {...animal, id:'dev-historical-animal-2026-1'};
+  const historicRescue = {...animal,kind:'rescue',id:'dev-historical-2026-1'};
+  assert.equal(usableChatMentions('@michelle-smith', [demoPerson]).length, 1);
+  assert.equal(usableChatMentions('@bearded-dragon', [historicAnimal,historicRescue]).length, 2);
+  assert.equal(usableChatMentions('@bearded-dragon', [{...animal,id:'../../table'}]).length, 0);
+});
