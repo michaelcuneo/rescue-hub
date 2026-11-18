@@ -399,15 +399,42 @@
   </div>
   <aside class="historical-map-panel" aria-label="Historical rescue map details">
     <div class="historical-map-count">
+      <div class="area-panel-heading">
+        <span class="area-dot" aria-hidden="true"></span>
+        <div>
+          <strong>NSW operating areas</strong>
+          <small>DCCEEW boundary data</small>
+        </div>
+      </div>
+      <span class="boundary-status" role="status">
+        {#if boundaryStatus === 'loading'}Loading official boundaries…
+        {:else if boundaryStatus === 'error'}Operating-area boundaries unavailable
+        {:else}{areaCount} mapped boundary features loaded{boundaryStatus === 'partial' ? ' (partial)' : ''}{/if}
+      </span>
+      <div class="boundary-legend" aria-label="Operating area colours">
+        <span><i class="area-swatch hunter"></i>Hunter Wildlife Rescue</span>
+        <span><i class="area-swatch wires"></i>WIRES branches</span>
+        <span><i class="area-swatch other"></i>Other rehabilitation groups</span>
+      </div>
+    </div>
+    <div class="map-pin-summary">
       <strong>{rescues.length} rescue{rescues.length === 1 ? '' : 's'} loaded</strong>
-      <span>MapLibre proof of concept · OpenFreeMap basemap</span>
       <span>{pins.length} plotted on the map</span>
       {#if missingCoordinates}<small>{missingCoordinates} without usable coordinates</small>{/if}
-      <span class="boundary-status">
-        {#if boundaryStatus === 'loading'}Loading NSW operating areas…
-        {:else if boundaryStatus === 'error'}Operating-area boundaries unavailable
-        {:else}{areaCount} NSW operating-area features{boundaryStatus === 'partial' ? ' (partial)' : ''}{/if}
-      </span>
+    </div>
+    <div class="historical-map-legend" aria-label="Rescue pin legend">
+      <strong>Rescue status</strong>
+      <span><i style:background-color="#d92b04"></i>Pending</span>
+      <span><i style:background-color="#c18a12"></i>Assigned</span>
+      <span><i style:background-color="#50a971"></i>Completed</span>
+      <span><i style:background-color="#8547a0"></i>Relocation destination</span>
+      {#if groups.length}
+        <strong class="animal-legend-heading">Animal groups</strong>
+        {#each groups as [key, group] (key)}
+          <span><i style:background-color={group.color}></i>{group.label}</span>
+        {/each}
+      {/if}
+      <small>The smaller dot shows rescue status. Purple marks a synthetic relocation destination.</small>
     </div>
     {#if selected}
       <div class="historical-selection" aria-live="polite">
@@ -435,31 +462,68 @@
     {:else}
       <p class="selection-prompt">Select a rescue pin to inspect its report and current recorded status. Clusters can be clicked to zoom in.</p>
     {/if}
-    {#if groups.length}
-      <div class="historical-map-legend">
-        <strong>Animal groups</strong>
-        {#each groups as [key, group] (key)}
-          <span><i style:background-color={group.color}></i>{group.label}</span>
-        {/each}
-        <small>Marker colour identifies the animal group. The smaller dot shows rescue status. Purple pins mark synthetic relocation destinations; click either pin to inspect the case.</small>
-      </div>
-    {/if}
+
   </aside>
 </div>
 
 <style>
-  .historical-map-layout { display:grid; grid-template-columns:minmax(0,1fr) minmax(230px,290px); gap:14px; min-height:580px; margin-top:18px; }
-  .historical-map-surface { position:relative; min-width:0; height:620px; min-height:480px; overflow:hidden; border:1px solid var(--rh-border); border-radius:13px; background:var(--rh-map-background); }
+  .historical-map-layout {
+    display:grid;
+    grid-template-columns:minmax(0,1fr) clamp(240px,23%,290px);
+    gap:var(--rh-gutter,16px);
+    width:100%;
+    height:100%;
+    min-width:0;
+    min-height:0;
+    container-type:inline-size;
+  }
+  .historical-map-surface {
+    position:relative;
+    min-width:0;
+    min-height:460px;
+    height:100%;
+    overflow:hidden;
+    border:1px solid var(--rh-border);
+    border-radius:16px;
+    background:var(--rh-map-background);
+    box-shadow:var(--rh-shadow);
+  }
   .maplibre-container { position:absolute; inset:0; width:100%; height:100%; }
   .maplibre-container :global(.maplibregl-map) { height:100%; width:100%; }
   .map-loading, .map-unavailable { position:absolute; z-index:3; left:14px; top:14px; max-width:calc(100% - 28px); margin:0; padding:10px 12px; border:1px solid var(--rh-border); border-radius:9px; background:var(--rh-surface); color:var(--rh-text); font-size:12px; box-shadow:var(--rh-shadow); }
   .fit-pins { position:absolute; z-index:2; left:12px; top:12px; padding:8px 12px; border:1px solid var(--rh-border); border-radius:8px; background:var(--rh-surface); color:var(--rh-text); font:inherit; font-size:12px; cursor:pointer; }
   .map-unavailable { color:var(--rh-danger-text); }
-  .historical-map-panel { display:grid; align-content:start; gap:16px; min-width:0; padding:17px; border:1px solid var(--rh-border); border-radius:13px; background:var(--rh-surface-soft); color:var(--rh-text); }
-  .historical-map-count { display:grid; gap:5px; padding-bottom:15px; border-bottom:1px solid var(--rh-border); }
-  .historical-map-count strong { font-size:20px; }
-  .historical-map-count span, .historical-map-count small { font-size:12px; color:var(--rh-muted); }
-  .boundary-status { margin-top:7px; }
+  .historical-map-panel {
+    display:flex;
+    flex-direction:column;
+    gap:16px;
+    min-width:0;
+    min-height:0;
+    height:100%;
+    overflow-y:auto;
+    padding:16px;
+    border:1px solid var(--rh-border);
+    border-radius:16px;
+    background:var(--rh-surface);
+    box-shadow:var(--rh-shadow);
+    color:var(--rh-text);
+  }
+  .historical-map-count, .map-pin-summary { display:grid; gap:8px; padding-bottom:15px; border-bottom:1px solid var(--rh-border); }
+  .area-panel-heading { display:flex; align-items:center; gap:9px; }
+  .area-panel-heading > div { display:grid; gap:3px; }
+  .area-panel-heading strong { font-size:13px; }
+  .area-panel-heading small { font-size:11px; color:var(--rh-muted); }
+  .area-dot { width:9px; height:9px; flex:0 0 9px; border-radius:50%; background:#50a971; box-shadow:0 0 0 4px rgb(80 169 113 / 13%); }
+  .historical-map-count span, .historical-map-count small, .map-pin-summary span, .map-pin-summary small { font-size:12px; color:var(--rh-muted); }
+  .map-pin-summary strong { font-size:18px; }
+  .boundary-status { margin-top:2px; line-height:1.5; }
+  .boundary-legend { display:grid; gap:8px; padding-top:10px; border-top:1px solid var(--rh-border); }
+  .boundary-legend span { display:flex; align-items:center; gap:8px; font-size:11px; color:var(--rh-muted); }
+  .area-swatch { width:18px; height:9px; flex:0 0 18px; border-radius:2px; border:1px solid; }
+  .area-swatch.hunter { border-color:#8a6200; background:rgb(242 183 5 / 35%); }
+  .area-swatch.wires { border-color:#31597f; background:rgb(81 125 168 / 25%); }
+  .area-swatch.other { border-color:#2d7148; background:rgb(80 169 113 / 24%); }
+  .historical-selection { border-top:1px solid var(--rh-border); padding-top:15px; }
   .detail-eyebrow { font-size:11px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; color:var(--rh-muted); }
   .historical-selection h3 { margin:6px 0 2px; font-size:18px; }
   .historical-selection p, .selection-prompt { margin:4px 0 0; font-size:13px; line-height:1.5; color:var(--rh-muted); }
@@ -468,13 +532,20 @@
   .historical-selection dt { font-size:11px; color:var(--rh-muted); }
   .historical-selection dd { margin:0; font-size:13px; overflow-wrap:anywhere; }
   .case-id { font-family:ui-monospace,monospace; font-size:11px !important; }
-  .historical-map-legend { display:grid; gap:9px; border-top:1px solid var(--rh-border); padding-top:16px; }
+  .historical-map-legend { display:grid; gap:9px; padding-bottom:16px; border-bottom:1px solid var(--rh-border); }
   .historical-map-legend strong { font-size:12px; }
-  .historical-map-legend span { display:flex; align-items:center; gap:7px; font-size:12px; }
-  .historical-map-legend i { width:10px; height:10px; border-radius:50%; }
+  .historical-map-legend .animal-legend-heading { margin-top:8px; padding-top:14px; border-top:1px solid var(--rh-border); }
+  .historical-map-legend span { display:flex; align-items:center; gap:7px; font-size:12px; color:var(--rh-muted); }
+  .historical-map-legend i { width:10px; height:10px; flex:0 0 10px; border-radius:50%; border:1px solid rgb(255 255 255 / 75%); }
   .historical-map-legend small { color:var(--rh-muted); line-height:1.5; }
-  @media(max-width:920px) {
-    .historical-map-layout { grid-template-columns:1fr; }
-    .historical-map-surface { height:480px; }
+  @container (max-width:720px) {
+    .historical-map-layout { grid-template-columns:1fr; height:auto; }
+    .historical-map-surface { height:clamp(360px,58vh,560px); min-height:360px; }
+    .historical-map-panel { height:auto; max-height:none; overflow:visible; }
+  }
+  @media(max-width:780px) {
+    .historical-map-layout { grid-template-columns:1fr; height:auto; }
+    .historical-map-surface { height:clamp(360px,58vh,560px); }
+    .historical-map-panel { height:auto; overflow:visible; }
   }
 </style>
