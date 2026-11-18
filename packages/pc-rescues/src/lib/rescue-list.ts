@@ -110,3 +110,15 @@ export function rescueDayLabel(day: string): string {
 export function rescueReportedNSWDay(item: Pick<DatedRescue, 'createdAt' | 'updatedAt'>): string | null {
   return rescueNSWDay(item.createdAt ?? item.updatedAt);
 }
+
+/** Operations shows COMPLETED cases only when they were completed on the
+ * current NSW calendar day, regardless of the original report date.
+ * Older rows may not have completedAt; use updatedAt for legacy records.
+ */
+export function completedOnNSWDay(
+  item: { status?: string | null; completedAt?: string | null; updatedAt?: string | null },
+  day: string
+): boolean {
+  return item.status === 'COMPLETED'
+    && rescueNSWDay(item.completedAt ?? item.updatedAt) === day;
+}
