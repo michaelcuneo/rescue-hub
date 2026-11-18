@@ -3,7 +3,7 @@
   import { env } from '$env/dynamic/public';
   import type { PageData } from './$types';
   import ReleaseLocationPicker from '$lib/components/ReleaseLocationPicker.svelte';
-  import { formatReleaseCoordinates, isValidReleasePoint, type AnimalReleaseReason } from '../../../../../core/release-location';
+  import { formatReleaseCoordinates, isValidReleasePoint, type AnimalReleaseReason } from '../../../../../../core/release-location';
   let { data }: { data: PageData } = $props();
   type Animal = { id: string; species: string; status: string; currentCustodianUserId?: string; currentCustodianName?: string; currentLocation?: string; physicalCustodianType?: 'RESCUER' | 'VET'; physicalCustodianName?: string; pendingTransferId?: string; activeTransportRescueId?: string };
   type Event = { id: string; type: string; notes?: string; actorUserId?: string; actorName?: string; createdAt: string; occurredAt?: string; reportedByName?: string; source?: string; outcome?: string; location?: string; latitude?: number; longitude?: number; releaseReason?: AnimalReleaseReason };
