@@ -79,10 +79,16 @@
       map.flyTo({ center: [pins[0].longitude, pins[0].latitude], zoom: 11, duration: 450 });
       return;
     }
-    const west = Math.min(...pins.map(item => item.longitude));
-    const east = Math.max(...pins.map(item => item.longitude));
-    const south = Math.min(...pins.map(item => item.latitude));
-    const north = Math.max(...pins.map(item => item.latitude));
+    let west = Number.POSITIVE_INFINITY;
+    let east = Number.NEGATIVE_INFINITY;
+    let south = Number.POSITIVE_INFINITY;
+    let north = Number.NEGATIVE_INFINITY;
+    for (const item of pins) {
+      west = Math.min(west, item.longitude);
+      east = Math.max(east, item.longitude);
+      south = Math.min(south, item.latitude);
+      north = Math.max(north, item.latitude);
+    }
     map.fitBounds([[west, south], [east, north]], { padding: 66, maxZoom: 12, duration: 450 });
   }
 
