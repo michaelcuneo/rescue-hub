@@ -25,7 +25,7 @@ export function currentMentionQuery(text: string): string | null {
 export function insertChatMention(text: string, mention: ChatMention): string {
   const match = MENTION_PATTERN.exec(text);
   if (!match) return text;
-  const start = text.length - match[1].length - 1;
+  const start = text.length - (match[1] ?? '').length - 1;
   const next = text.slice(0, start) + '@' + mention.handle + ' ';
   return next.length <= 2000 ? next : text;
 }
@@ -56,7 +56,7 @@ export function splitChatMentions(text: string, mentions: ChatMention[] = []): M
     while (from < text.length) {
       const pos = text.toLowerCase().indexOf(token.toLowerCase(), from);
       if (pos < 0) break;
-      const before = pos === 0 ? ' ' : text[pos - 1];
+      const before = pos === 0 ? ' ' : (text[pos - 1] ?? ' ');
       const after = text[pos + token.length] ?? ' ';
       if (/\s/.test(before) && /[\s,.;:!?]/.test(after)) {
         occurrences.push({ start: pos, end: pos + token.length, mention });

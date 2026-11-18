@@ -43,7 +43,7 @@
   let mentionRefs = $state<ChatMention[]>([]);
   let mentionLoading = $state(false);
   let mentionTimer: ReturnType<typeof setTimeout> | undefined;
-  let chatComposer: HTMLTextAreaElement | undefined;
+  let chatComposer = $state<HTMLTextAreaElement | undefined>(undefined);
   let busy = $state(false);
   let error = $state('');
   let loading = $state(true);
