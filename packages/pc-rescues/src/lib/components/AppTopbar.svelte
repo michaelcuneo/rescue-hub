@@ -5,6 +5,7 @@
   type Viewer = {
     name: string;
     roles: string[];
+    operationsHref: '/' | '/demo/hunter';
     availabilityMode: 'ON' | 'OFF' | 'BUSY' | 'SCHEDULE';
     isAvailableNow: boolean;
     canReceiveRescueOffers: boolean;
@@ -17,6 +18,7 @@
   const initials = $derived(viewer?.name.split(/\s+/).filter(Boolean).slice(0, 2)
     .map(part => part[0]?.toUpperCase()).join('') || '?');
   const path = $derived(page.url.pathname);
+  const operationsHref = $derived(viewer?.operationsHref ?? '/');
   const availabilityLabel = $derived(
     viewer?.availabilityMode === 'BUSY' ? 'Busy · do not disturb'
     : viewer?.availabilityMode === 'ON'
@@ -51,14 +53,14 @@
 />
 
 <header class="workspace-bar">
-  <a class="identity" href={isVet ? '/vet' : viewer ? '/' : '/documentation'} aria-label="Rescue Hub home">
+  <a class="identity" href={isVet ? '/vet' : viewer ? operationsHref : '/documentation'} data-sveltekit-reload aria-label="Rescue Hub home">
     <span class="mark" aria-hidden="true">RH</span>
     <span class="identity-text"><strong>Rescue Hub</strong><small>Wildlife coordination</small></span>
   </a>
 
   <nav class="area-navigation" aria-label="Main navigation">
     {#if viewer}
-      {#if isVet}<a href="/vet" aria-current={path.startsWith('/vet') ? 'page' : undefined}>Veterinary workspace</a>{:else}<a href="/" aria-current={path === '/' ? 'page' : undefined}>Operations</a>{/if}
+      {#if isVet}<a href="/vet" aria-current={path.startsWith('/vet') ? 'page' : undefined}>Veterinary workspace</a>{:else}<a href={operationsHref} data-sveltekit-reload aria-current={path === '/' ? 'page' : undefined}>Operations</a>{/if}
     {:else}
       <a href="/login?next=%2F">Operations</a>
     {/if}
