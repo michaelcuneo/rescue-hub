@@ -174,6 +174,7 @@ export async function changeAnimalState(animal: AnimalRecord, actorUserId: strin
   };
   let type = '', extra: Record<string, unknown> = {};
   let linkedClinicId: string | undefined;
+  let sourceRescuePoint: { latitude: number; longitude: number } | undefined;
   if (input.kind === 'TRANSFER') {
     if (animal.pendingTransferId) throw new AnimalConflict('A transfer is already pending.');
     if (!input.recipientUserId || input.recipientUserId === actorUserId || actorUserId !== animal.currentCustodianUserId) throw new AnimalConflict('Current custodian must nominate a different recipient.');
@@ -269,6 +270,7 @@ export async function changeAnimalState(animal: AnimalRecord, actorUserId: strin
       const originalRescue = await getRescue(animal.rescueId);
       if (!originalRescue?.pickedUpAt)
         throw new AnimalConflict('Confirm physical collection before releasing the animal.');
+      sourceRescuePoint = { latitude: originalRescue.latitude, longitude: originalRescue.longitude };
       const { validateAnimalReleasePoint } = await import('../../../../core/release-location');
       try {
         const release = validateAnimalReleasePoint({
@@ -299,8 +301,8 @@ export async function changeAnimalState(animal: AnimalRecord, actorUserId: strin
     extra = { outcome: input.status, location: input.location ?? '', notes: input.notes,
       ...(input.status === 'RELEASED' ? { ...(input.releaseReason ? { releaseReason: input.releaseReason } : {}),
         originalRescueId: animal.rescueId,
-        originalLatitude: (await getRescue(animal.rescueId))?.latitude,
-        originalLongitude: (await getRescue(animal.rescueId))?.longitude,
+        originalLatitude: sourceRescuePoint?.latitude,
+        originalLongitude: sourceRescuePoint?.longitude,
         ...(input.latitude !== undefined ? { latitude: input.latitude, longitude: input.longitude } : {}) } : {}) };
   }
   const event = {
