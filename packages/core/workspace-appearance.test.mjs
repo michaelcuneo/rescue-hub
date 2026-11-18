@@ -30,10 +30,10 @@ test('appearance uses neutral surfaces and dark MapLibre tiles in Operations', (
   const admin = read('routes/admin/+page.svelte');
   const docs = read('routes/documentation/+page.svelte');
 
-  assert.match(styles, /--rh-background:\s*#11161c/);
-  assert.match(styles, /--rh-surface:\s*#1c222b/);
-  assert.match(styles, /--rh-border:\s*#424d5b/);
-  assert.match(styles, /--rh-text:\s*#f3f6f9/);
+  assert.match(styles, /--rh-background:\s*#0c0f12/);
+  assert.match(styles, /--rh-surface:\s*#171b20/);
+  assert.match(styles, /--rh-border:\s*#343e48/);
+  assert.match(styles, /--rh-text:\s*#f2f4f6/);
   assert.match(map, /https:\/\/tiles\.openfreemap\.org\/styles\/dark/);
   assert.match(map, /resolvedTheme\.subscribe/);
   assert.match(map, /map\.setStyle\(theme === 'dark' \? DARK_STYLE : LIGHT_STYLE\)/);
@@ -71,7 +71,7 @@ test('dark workspace uses accessible neutral layers without altering the light p
   const dark = styles.slice(styles.indexOf(":root[data-theme='dark'] {"));
   const light = styles.slice(0, styles.indexOf("/* Rescue Hub dark:"));
   const pick = (name) => {
-    const match = new RegExp('^\\s*--rh-' + name + ':\\s*(#[0-9a-f]{6});', 'm').exec(dark);
+    const match = new RegExp('^\s*--rh-' + name + ':\s*(#[0-9a-f]{6});', 'm').exec(dark);
     assert.ok(match, 'missing dark token: ' + name);
     return match[1];
   };
@@ -93,10 +93,10 @@ test('dark workspace uses accessible neutral layers without altering the light p
   assert.ok(contrast(pick('on-primary'), pick('primary')) >= 7, 'primary action contrast');
   assert.ok(contrast(pick('on-primary'), pick('primary-hover')) >= 7, 'hover action contrast');
   assert.ok(contrast(pick('accent'), pick('surface')) >= 7, 'linked text contrast');
-  assert.match(light, /--rh-background:\\s*#edf1f4/);
-  assert.match(light, /--rh-primary:\\s*#195b43/);
-  assert.match(styles, /data-theme='dark'] \\.chat-layout :is\\(\\.sender-name, \\.older, \\.animal-ref\\)/);
-  assert.match(styles, /data-theme='dark'] \\.settings-page \\.commit-link/);
-  assert.match(styles, /data-theme='dark'] \\.people-dialog \\.primary-action/);
-  assert.match(styles, /data-theme='dark'] \\.maplibregl-ctrl-group/);
+  assert.match(light, /--rh-background:\s*#edf1f4/);
+  assert.match(light, /--rh-primary:\s*#195b43/);
+  assert.match(styles, /data-theme='dark'] \.chat-layout :is\(\.sender-name, \.older, \.animal-ref\)/);
+  assert.match(styles, /data-theme='dark'] \.settings-page \.commit-link/);
+  assert.match(styles, /data-theme='dark'] \.people-dialog \.primary-action/);
+  assert.match(styles, /data-theme='dark'] \.maplibregl-ctrl-group/);
 });
