@@ -1,5 +1,6 @@
 import { json } from '@sveltejs/kit';
 import { geocodingEnabled, searchRescueAddresses } from '$lib/server/rescue-geocoding';
+import { GeocodingLimitError, GeocodingLimitUnavailableError } from '$lib/server/geocoding-quota';
 import { validRescueCoordinates } from '../../../../../../core/rescue-location';
 import type { RequestHandler } from './$types';
 
@@ -25,9 +26,18 @@ export const GET: RequestHandler = async ({ locals, url, fetch: eventFetch }) =>
   const bias = { latitude, longitude };
   try {
     const results = await searchRescueAddresses(query, eventFetch,
-      hasBias && validRescueCoordinates(bias) ? bias : undefined);
+      hasBias && validRescueCoordinates(bias) ? bias : undefined, user.id);
     return json({ results }, { headers: { 'cache-control': 'private, no-store' } });
-  } catch {
+  } catch (error) {
+    if (error instanceof GeocodingLimitError)
+      return json({ error: error.message }, {
+        status: 429,
+        headers: { 'cache-control': 'private, no-store', 'retry-after': String(error.retryAfterSeconds) }
+      });
+    if (error instanceof GeocodingLimitUnavailableError)
+      return json({ error: error.message }, {
+        status: 503, headers: { 'cache-control': 'private, no-store' }
+      });
     // Real AWS service failures must not masquerade as an empty result set.
     return json({ error: 'Address lookup service is temporarily unavailable.' },
       { status: 502, headers: { 'cache-control': 'private, no-store' } });

@@ -4,6 +4,7 @@ import {
   DynamoDBDocumentClient, GetCommand, PutCommand
 } from '@aws-sdk/lib-dynamodb';
 import { Resource } from 'sst';
+import { reserveGeocodingRequest } from '$lib/server/geocoding-quota';
 import {
   buildAwsSearchTextRequest, parseAwsReverse, parseAwsSearchText, type AddressSuggestion
 } from '../../../../core/geocoding';
@@ -116,11 +117,20 @@ async function saveReverse(coords: RescueCoordinates, result: MappedAddress): Pr
 }
 
 export async function reverseRescueAddress(
-  coords: RescueCoordinates, eventFetch: typeof fetch = fetch
+  coords: RescueCoordinates, eventFetch: typeof fetch = fetch, userId?: string
 ): Promise<MappedAddress> {
   if (!validRescueCoordinates(coords) || !geocodingEnabled()) return unavailable;
   const stored = await cachedReverse(coords);
   if (stored) return stored;
+  // A geocoding cache miss must never bypass the shared, atomic AWS quota.
+  // Fail gracefully to the original rescue GPS on quota exhaustion.
+  try {
+    await reserveGeocodingRequest(userId ?? '', 'reverse');
+  } catch (error) {
+    if (error instanceof Error)
+      console.warn('Reverse geocoding quota prevented a paid lookup:', error.name);
+    return unavailable;
+  }
 
   const response = await placesRequest('reverse-geocode', {
     QueryPosition: [coords.longitude, coords.latitude],
@@ -134,9 +144,11 @@ export async function reverseRescueAddress(
 }
 
 export async function searchRescueAddresses(
-  term: string, eventFetch: typeof fetch = fetch, bias?: RescueCoordinates
+  term: string, eventFetch: typeof fetch = fetch,
+  bias?: RescueCoordinates, userId?: string
 ): Promise<AddressSuggestion[]> {
   if (!geocodingEnabled() || term.trim().length < 3 || term.length > 120) return [];
+  await reserveGeocodingRequest(userId ?? '', 'search');
   const response = await placesRequest('search-text',
     buildAwsSearchTextRequest(term, bias), eventFetch);
   // Distinguish provider failure from a valid, empty search result.

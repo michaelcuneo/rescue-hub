@@ -43,7 +43,7 @@ export const GET: RequestHandler = async ({ locals, cookies, params, fetch: even
     return json({ error: 'Rescue not found.' }, { status: 404 });
 
   const coordinates = { latitude: rescue.latitude, longitude: rescue.longitude };
-  const address: MappedAddress = await reverseRescueAddress(coordinates, eventFetch);
+  const address: MappedAddress = await reverseRescueAddress(coordinates, eventFetch, user.id);
   return json({
     address: address.address,
     precision: address.precision,
