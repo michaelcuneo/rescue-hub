@@ -419,6 +419,7 @@
     let unsubscribeTheme: (() => void) | undefined;
     let tileTimeout: ReturnType<typeof setTimeout> | undefined;
     let degraded = false;
+    let tileFailures = 0;
     function fallback(map: any, theme: string) {
       if (degraded || disposed) return;
       degraded = true;
@@ -483,7 +484,9 @@
           }
         });
         map.on('error', (event: any) => {
-          if (!mapReady && !degraded) {
+          // Some styles load successfully before all external tiles fail.
+          // Keep exact case GPS pins usable on repeated tile failures.
+          if (!degraded && ++tileFailures >= (mapReady ? 3 : 1)) {
             console.warn('MapLibre basemap failed:', event.error?.name ?? 'TileError');
             fallback(map, activeTheme);
           }
@@ -500,6 +503,7 @@
           activeTheme = theme;
           mapReady = false;
           degraded = false;
+          tileFailures = 0;
           watchTiles(map, theme);
           map.setStyle(theme === 'dark' ? DARK_STYLE : LIGHT_STYLE);
         });

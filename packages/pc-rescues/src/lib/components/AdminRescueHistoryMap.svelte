@@ -444,6 +444,7 @@
     let unsubscribeTheme: (() => void) | undefined;
     let tileTimeout: ReturnType<typeof setTimeout> | undefined;
     let degraded = false;
+    let tileFailures = 0;
     function fallback(map: any, theme: string) {
       if (degraded || disposed) return;
       degraded = true;
@@ -495,9 +496,8 @@
           }
         });
         map.on('error', (event: any) => {
-          // A failed basemap must not remove rescue GPS and journey markers.
-          if (!mapReady && !degraded) fallback(map, activeTheme);
-          else if (mapReady) console.warn('Historical map tile failed:', event.error?.name ?? 'TileError');
+          if (!degraded && ++tileFailures >= (mapReady ? 3 : 1))
+            fallback(map, activeTheme);
         });
 
         if (surface && typeof ResizeObserver !== 'undefined') {
@@ -512,6 +512,7 @@
           activeTheme = theme;
           mapReady = false;
           degraded = false;
+          tileFailures = 0;
           watchTiles(map, theme);
           listenersInstalled = true; // MapLibre preserves delegated event handlers.
           map.setStyle(theme === 'dark' ? DARK_STYLE : LIGHT_STYLE);
