@@ -47,6 +47,8 @@
   let mentionOptions = $state<ChatMention[]>([]);
   let mentionRefs = $state<ChatMention[]>([]);
   let mentionLoading = $state(false);
+  let mentionStatus = $state('');
+  let mentionQueryActive = $state(false);
   let activeMentionIndex = $state(0);
   let mentionTimer: ReturnType<typeof setTimeout> | undefined;
   let mentionGeneration = 0;
@@ -149,6 +151,8 @@
     mentionTimer = undefined;
     mentionOptions = [];
     mentionLoading = false;
+    mentionStatus = '';
+    mentionQueryActive = false;
     activeMentionIndex = 0;
   }
   function resetMentions() {
@@ -161,6 +165,8 @@
     const query = currentMentionQuery(value);
     dismissMentionSuggestions();
     if (query === null || !selectedId) return;
+    mentionQueryActive = true;
+    mentionStatus = 'Searching for people and animal records.';
     const channel = selectedId, organisation = organisationId;
     const generation = mentionGeneration;
     mentionLoading = true;
@@ -174,9 +180,15 @@
             organisationId === organisation && currentMentionQuery(draft) === query) {
           mentionOptions = result.items;
           activeMentionIndex = 0;
+          mentionStatus = result.items.length
+            ? `${result.items.length} mentions available. Use Up and Down arrows, then Enter to choose.`
+            : 'No people or animal records match this mention.';
         }
       } catch {
-        if (generation === mentionGeneration) mentionOptions = [];
+        if (generation === mentionGeneration) {
+          mentionOptions = [];
+          mentionStatus = 'Unable to search mentions. Continue typing or try again.';
+        }
       } finally {
         if (generation === mentionGeneration) mentionLoading = false;
       }
@@ -252,6 +264,10 @@
       event.preventDefault();
       activeMentionIndex = (activeMentionIndex +
         (event.key === 'ArrowDown' ? 1 : -1) + mentionOptions.length) % mentionOptions.length;
+      return;
+    }
+    if (event.key === 'Enter' && !event.shiftKey && mentionQueryActive && mentionLoading) {
+      event.preventDefault();
       return;
     }
     if (event.key === 'Enter' && !event.shiftKey && mentionOptions.length) {
@@ -473,7 +489,7 @@
         <form onsubmit={send}>
           <label class="sr-only" for="chat-message">Message to {selected?.name ?? 'channel'}</label>
           <div class="composer-field" bind:this={composerField}>
-            {#if mentionOptions.length || mentionLoading}
+            {#if mentionQueryActive}
               <div class="mention-suggestions" id="chat-mention-options"
                 aria-label="Mention suggestions" role="listbox">
                 {#each mentionOptions as option, index (option.kind + option.id)}
@@ -485,7 +501,9 @@
                     <small>{option.kind === 'person' ? 'Person' : option.kind === 'animal' ? 'Animal' : 'Rescue'} · {option.label}</small>
                   </button>
                 {:else}
-                  <span class="mention-loading">Searching people and rescues…</span>
+                  <span class="mention-loading" role="presentation">{mentionLoading
+                    ? 'Searching people and animal records…'
+                    : mentionStatus}</span>
                 {/each}
               </div>
             {/if}
@@ -493,10 +511,13 @@
               bind:value={draft} oninput={(event) => onComposerInput(event.currentTarget.value)}
               onkeydown={onChatKeydown}
               aria-autocomplete="list"
-              aria-controls="chat-mention-options"
+              aria-controls={mentionQueryActive ? 'chat-mention-options' : undefined}
               aria-activedescendant={mentionOptions.length ? `chat-mention-option-${activeMentionIndex}` : undefined}
+              aria-describedby="chat-compose-shortcut chat-mention-guidance"
               placeholder={selected?.recipientUserId ? "Write a private message… Use @ to mention" : "Message your group… Use @ to mention"}
-              aria-describedby="chat-compose-shortcut"></textarea>
+              ></textarea>
+            <span id="chat-mention-guidance" class="sr-only" role="status"
+              aria-live="polite" aria-atomic="true">{mentionStatus}</span>
           </div>
           <span id="chat-compose-shortcut" class="sr-only">Press Enter to send. Press Shift and Enter to start a new line.</span>
           <button class="send" disabled={busy || busyRecipient || !draft.trim()}>Send</button>
@@ -556,7 +577,7 @@
   .mention-suggestions button{width:100%;display:flex;gap:10px;align-items:center;justify-content:space-between;text-align:left;padding:10px 12px;color:var(--rh-text);background:transparent;border:0;border-radius:8px;cursor:pointer}
   .mention-suggestions button:hover,.mention-suggestions button:focus-visible,
   .mention-suggestions button.active-mention{background:var(--rh-raised)}
-  .mention-suggestions small,.mention-loading{color:var(--rh-muted);font-size:11px}
+  .mention-suggestions small,.mention-loading{color:var(--rh-muted);font-size:13px}
   .mention-loading{display:block;padding:12px}
   .chat-mention{display:inline;border:0;padding:1px 3px;border-radius:4px;background:var(--rh-accent-soft);color:var(--rh-text);font:inherit;font-weight:750;text-decoration:underline;text-underline-offset:2px;cursor:pointer}
   .send{padding:13px 22px;border:0;border-radius:12px;background:var(--rh-primary);color:var(--rh-on-primary);font-weight:800;cursor:pointer}
