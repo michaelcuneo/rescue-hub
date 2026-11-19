@@ -57,7 +57,7 @@ jobs:
         with:
           node-version: '22'
       - name: Install workspaces
-        run: npm install --no-audit --no-fund
+        run: npm ci --no-audit --no-fund
       - name: Single-use organisation invitation link tests
         run: node --experimental-strip-types --test packages/core/invitation-links.test.mjs
       - name: Invitation password confirmation checks
