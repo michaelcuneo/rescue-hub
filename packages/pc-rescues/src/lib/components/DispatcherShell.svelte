@@ -78,6 +78,7 @@ import { completedOnNSWDay, rescueTodayNSW, sortRescueRecords, isWaitingFourHour
 	let addressQuery = $state('');
 	let addressResults = $state<GeocodeResult[]>([]);
 	let addressSearching = $state(false);
+	let addressSearchError = $state('');
 	let submitError = $state('');
 	let dispatchNotice = $state('');
 	let saving = $state(false);
@@ -197,6 +198,7 @@ import { completedOnNSWDay, rescueTodayNSW, sortRescueRecords, isWaitingFourHour
 		$intakeOpen = false;
 		$draftLocation = null;
 		addressResults = [];
+		addressSearchError = '';
 		addressSearchSequence++;
 		addressSearching = false;
 		if (searchTimer) clearTimeout(searchTimer);
@@ -206,6 +208,7 @@ import { completedOnNSWDay, rescueTodayNSW, sortRescueRecords, isWaitingFourHour
 	function scheduleAddressSearch(value: string) {
 		addressQuery = value;
 		addressSearchSequence++; // Ignore results from requests for previous input.
+		addressSearchError = '';
 		addressSearching = false;
 		if (searchTimer) clearTimeout(searchTimer);
 
@@ -222,6 +225,7 @@ import { completedOnNSWDay, rescueTodayNSW, sortRescueRecords, isWaitingFourHour
 		if (query.length < 3) return;
 		const requestId = ++addressSearchSequence;
 		addressSearching = true;
+		addressSearchError = '';
 		try {
 			const params = new URLSearchParams({ q: query });
 			const lon = Number($coords[0]), lat = Number($coords[1]);
@@ -233,13 +237,20 @@ import { completedOnNSWDay, rescueTodayNSW, sortRescueRecords, isWaitingFourHour
 			const response = await fetch(`/api/geocoding/search?${params}`, {
 				cache: 'no-store'
 			});
-			if (!response.ok) throw new Error(`Address search failed: ${response.status}`);
+			if (!response.ok) {
+				const data = await response.json().catch(() => null) as { error?: string } | null;
+				throw new Error(data?.error ?? 'Address search is temporarily unavailable.');
+			}
 			const payload = await response.json() as { results?: GeocodeResult[] };
 			if (requestId === addressSearchSequence && addressQuery.trim() === query)
 				addressResults = payload.results ?? [];
 		} catch (error) {
 			console.warn('Address search unavailable', error);
-			if (requestId === addressSearchSequence) addressResults = [];
+			if (requestId === addressSearchSequence) {
+				addressResults = [];
+				addressSearchError = error instanceof Error
+					? error.message : 'Address search is temporarily unavailable.';
+			}
 		} finally {
 			if (requestId === addressSearchSequence) addressSearching = false;
 		}
@@ -248,6 +259,7 @@ import { completedOnNSWDay, rescueTodayNSW, sortRescueRecords, isWaitingFourHour
 	function chooseAddress(result: GeocodeResult) {
 		addressQuery = result.label;
 		addressResults = [];
+		addressSearchError = '';
 		$draftLocation = {
 			longitude: result.longitude,
 			latitude: result.latitude,
@@ -577,6 +589,9 @@ import { completedOnNSWDay, rescueTodayNSW, sortRescueRecords, isWaitingFourHour
 								<span class="address-spinner"><LoaderCircle size={15} /></span>
 							{/if}
 						</div>
+						{#if addressSearchError}
+							<small role="alert" style="color: var(--rh-danger-text)">{addressSearchError}</small>
+						{/if}
 
 						{#if addressResults.length}
 							<div class="address-results">

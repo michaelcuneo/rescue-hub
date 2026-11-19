@@ -23,7 +23,7 @@ const unavailable: MappedAddress = { address: null, precision: 'UNAVAILABLE' };
 const POSITIVE_TTL_SECONDS = 30 * 24 * 3600;
 const NEGATIVE_TTL_SECONDS = 6 * 3600;
 
-function enabled(): boolean {
+export function geocodingEnabled(): boolean {
   // Opt-in: leave the demo untouched until geocoder permissions are deployed.
   return process.env.RESCUE_GEOCODING_ENABLED === 'true';
 }
@@ -33,7 +33,7 @@ async function placesRequest(
   parameters: Record<string, unknown>,
   eventFetch: typeof fetch
 ): Promise<unknown | null> {
-  if (!enabled()) return null;
+  if (!geocodingEnabled()) return null;
   try {
     // The DynamoDB SDK resolves IAM role / SSO credentials using the standard
     // AWS provider chain, including short-lived Lambda credentials.
@@ -118,7 +118,7 @@ async function saveReverse(coords: RescueCoordinates, result: MappedAddress): Pr
 export async function reverseRescueAddress(
   coords: RescueCoordinates, eventFetch: typeof fetch = fetch
 ): Promise<MappedAddress> {
-  if (!validRescueCoordinates(coords) || !enabled()) return unavailable;
+  if (!validRescueCoordinates(coords) || !geocodingEnabled()) return unavailable;
   const stored = await cachedReverse(coords);
   if (stored) return stored;
 
@@ -136,8 +136,11 @@ export async function reverseRescueAddress(
 export async function searchRescueAddresses(
   term: string, eventFetch: typeof fetch = fetch, bias?: RescueCoordinates
 ): Promise<AddressSuggestion[]> {
-  if (!enabled() || term.trim().length < 3 || term.length > 120) return [];
+  if (!geocodingEnabled() || term.trim().length < 3 || term.length > 120) return [];
   const response = await placesRequest('search-text',
     buildAwsSearchTextRequest(term, bias), eventFetch);
+  // Distinguish provider failure from a valid, empty search result.
+  // The endpoint translates this into a safe, non-sensitive 502 response.
+  if (response === null) throw new Error('AWS Location Places search unavailable');
   return parseAwsSearchText(response);
 }

@@ -45,15 +45,15 @@ property may silently move a rescue location.
 
 ## Activation
 
-AWS Places is enabled by default **only on developer SST stages**.
-The `demo` and `production` stages default to disabled and must be explicitly
-enabled when ready. Override any stage with:
+AWS Places is enabled by default on **developer and demo SST stages**.
+The `production` stage remains disabled by default. Override any stage with:
 
 ```dotenv
 RESCUE_GEOCODING_ENABLED=true
 ```
 
-Deploy the feature branch to a developer stage only to exercise real Places calls.
+Deploy `--stage demo` for `rescue.michaelcuneo.com.au`; deploying a
+personal stage such as `michaelcuneo` updates a **different** website.
 The map and GPS directions still work when geocoding is disabled or unavailable.
 AWS Places calls incur usage fees; the feature can be disabled per stage by setting
 `RESCUE_GEOCODING_ENABLED=false`.
@@ -65,7 +65,8 @@ DynamoDB TTL cache.
 Region defaults to the SST AWS region (`ap-southeast-2`, Sydney). No public
 Places API key is needed.
 
-Do **not** deploy to `demo` or `production` as part of this prototype.
+Deploy to `demo` when ready to enable the public demonstration.
+Do **not** enable `production` without an explicit rollout decision.
 Before rollout: verify a small set of urban/rural Australian coordinates,
 AWS Location source attribution and provider terms for wildlife operations,
 SvelteKit performance, latency, search-result relevance, and Stored API costs.
@@ -102,6 +103,10 @@ npm run build --workspace=website
 
 The contract tests use synthetic AWS Places v2 responses, not live API access.
 A real AWS deployment and E2E geocoding test are still required.
+The authenticated search endpoint returns HTTP 503 with a useful message
+when geocoding is disabled, or HTTP 502 if the upstream AWS Places call fails,
+instead of silently returning no address matches. The dispatcher now shows
+this error below its address search input.
 
 ## Existing stored data
 
