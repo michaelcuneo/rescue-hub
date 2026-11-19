@@ -104,6 +104,8 @@ jobs:
         run: node --experimental-strip-types --test packages/core/realtime-client.test.mjs
       - name: Workspace visual consistency regression checks
         run: node --test packages/core/workspace-appearance.test.mjs
+      - name: Desktop dropdown dismissal and focus regression tests
+        run: node --test packages/core/dropdown-interactions.test.mjs
       - name: Demo rescue story consistency and fixture integrity
         run: node --experimental-strip-types --test packages/core/demo-rescue-stories.test.mjs
       - name: Unified public intake channel tests
