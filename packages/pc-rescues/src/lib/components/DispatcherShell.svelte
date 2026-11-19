@@ -70,6 +70,8 @@ import { completedOnNSWDay, rescueTodayNSW, sortRescueRecords, isWaitingFourHour
   let visibleLimit = $state(RESCUE_LIST_PAGE_SIZE);
 	let species = $state('');
 	let speciesSuggestionsOpen = $state(false);
+	let speciesField: HTMLLabelElement | undefined;
+	let addressField: HTMLLabelElement | undefined;
 	const speciesMatches = $derived(species.trim() ? australianAnimalNames.filter((name) => name.toLowerCase().includes(species.trim().toLowerCase())).slice(0, 12) : australianAnimalNames.slice(0, 12));
 	let breed = $state('');
 	let injury = $state('');
@@ -188,20 +190,49 @@ import { completedOnNSWDay, rescueTodayNSW, sortRescueRecords, isWaitingFourHour
 		});
 	}
 
+	// Invalidating an in-flight lookup stops results from reopening the list after dismissal.
+	function dismissAddressSuggestions() {
+		if (searchTimer !== undefined) clearTimeout(searchTimer);
+		searchTimer = undefined;
+		addressSearchSequence++;
+		addressResults = [];
+		addressSearching = false;
+		addressSearchError = '';
+	}
+
+	function handleIntakeOutsideInteraction(event: PointerEvent | FocusEvent) {
+		if (!$intakeOpen || !(event.target instanceof Node)) return;
+		if (speciesSuggestionsOpen && !speciesField?.contains(event.target)) {
+			speciesSuggestionsOpen = false;
+		}
+		if ((addressResults.length > 0 || addressSearching || searchTimer !== undefined) &&
+			!addressField?.contains(event.target)) {
+			dismissAddressSuggestions();
+		}
+	}
+
+	function handleIntakeEscape(event: KeyboardEvent) {
+		if (!$intakeOpen || event.key !== 'Escape') return;
+		if (!speciesSuggestionsOpen && !addressResults.length && !addressSearching &&
+			searchTimer === undefined && !addressSearchError) return;
+		event.preventDefault();
+		event.stopPropagation();
+		speciesSuggestionsOpen = false;
+		dismissAddressSuggestions();
+	}
+
 	function openIntake() {
 		$intakeOpen = true;
 		$draftLocation = null;
+		speciesSuggestionsOpen = false;
 		submitError = '';
 	}
 
 	function closeIntake() {
 		$intakeOpen = false;
 		$draftLocation = null;
-		addressResults = [];
-		addressSearchError = '';
-		addressSearchSequence++;
-		addressSearching = false;
-		if (searchTimer) clearTimeout(searchTimer);
+		speciesSuggestionsOpen = false;
+		dismissAddressSuggestions();
 		submitError = '';
 	}
 
@@ -210,14 +241,18 @@ import { completedOnNSWDay, rescueTodayNSW, sortRescueRecords, isWaitingFourHour
 		addressSearchSequence++; // Ignore results from requests for previous input.
 		addressSearchError = '';
 		addressSearching = false;
-		if (searchTimer) clearTimeout(searchTimer);
+		if (searchTimer !== undefined) clearTimeout(searchTimer);
+		searchTimer = undefined;
 
 		if (value.trim().length < 3) {
 			addressResults = [];
 			return;
 		}
 
-		searchTimer = setTimeout(() => void searchAddress(), 260);
+		searchTimer = setTimeout(() => {
+			searchTimer = undefined;
+			void searchAddress();
+		}, 260);
 	}
 
 	async function searchAddress() {
@@ -257,9 +292,8 @@ import { completedOnNSWDay, rescueTodayNSW, sortRescueRecords, isWaitingFourHour
 	}
 
 	function chooseAddress(result: GeocodeResult) {
+		dismissAddressSuggestions();
 		addressQuery = result.label;
-		addressResults = [];
-		addressSearchError = '';
 		$draftLocation = {
 			longitude: result.longitude,
 			latitude: result.latitude,
@@ -382,10 +416,13 @@ import { completedOnNSWDay, rescueTodayNSW, sortRescueRecords, isWaitingFourHour
 		const draft = $draftLocation;
 		if (draft?.source === 'MAP' || draft?.source === 'CENTER') {
 			addressQuery = '';
-			addressResults = [];
+			dismissAddressSuggestions();
 		}
 	});
 </script>
+
+<svelte:window onpointerdown={handleIntakeOutsideInteraction}
+	onfocusin={handleIntakeOutsideInteraction} onkeydown={handleIntakeEscape} />
 
 <div class="dispatcher-shell">
 	<aside class="queue">
@@ -574,7 +611,7 @@ import { completedOnNSWDay, rescueTodayNSW, sortRescueRecords, isWaitingFourHour
 
 			<form onsubmit={createNewRescue}>
 				<div class="form-section">
-					<label class="field full">
+					<label class="field full" bind:this={addressField}>
 						<span>Address or location</span>
 						<div class="address-input">
 							<Search size={15} />
@@ -626,9 +663,9 @@ import { completedOnNSWDay, rescueTodayNSW, sortRescueRecords, isWaitingFourHour
 				</div>
 
 				<div class="form-section two-column">
-					<label class="field">
+					<label class="field" bind:this={speciesField}>
 						<span>Animal / species</span>
-						<input bind:value={species} role="combobox" aria-autocomplete="list" aria-expanded={speciesSuggestionsOpen} aria-controls="animal-species-options" autocomplete="off" placeholder="Search Australian animals…" onfocus={() => (speciesSuggestionsOpen = true)} oninput={() => (speciesSuggestionsOpen = true)} onkeydown={(event) => { if (event.key === 'Escape') speciesSuggestionsOpen = false; }} />
+						<input bind:value={species} role="combobox" aria-autocomplete="list" aria-expanded={speciesSuggestionsOpen} aria-controls="animal-species-options" autocomplete="off" placeholder="Search Australian animals…" onfocus={() => (speciesSuggestionsOpen = true)} oninput={() => (speciesSuggestionsOpen = true)} />
 						{#if speciesSuggestionsOpen}
 							<div class="animal-options" id="animal-species-options" role="listbox" aria-label="Australian animal suggestions">
 								{#each speciesMatches as animal}
