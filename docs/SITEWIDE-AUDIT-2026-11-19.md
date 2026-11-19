@@ -106,3 +106,48 @@ The P1 hardening assertions are now part of CI. No live SST deploy, live AWS
 budget notification, cross-browser test, or screen-reader acceptance has
 occurred from this audit. Follow the budget setup in `docs/GEOCODING.md`,
 then deploy only the intended stage and smoke-test all dialogs and maps.
+
+## P2 remediation — 19 November 2026
+
+1. **Chat network load:** The `/chats` page no longer polls all chat endpoints
+   every 15 seconds while a realtime subscription is healthy. It uses
+   coalesced realtime invalidation, a 120-second connected safety fallback,
+   a 20-second disconnected backstop, and no background polling when the tab
+   is hidden. It revalidates when visible again. Member-directory data has
+   a 90-second freshness budget; per-channel people lists refresh when shown.
+   The latest read acknowledgment is de-duplicated.
+2. **Mentions:** The list now announces loading, result counts and no matches
+   in a polite live region. Arrow keys select a result, Enter accepts it,
+   Escape/outside focus dismisses it, and slow network responses cannot
+   resurrect a dismissed list. Keyboard-only and screen-reader acceptance
+   on real devices is **not** yet verified.
+3. **Text, zoom, colour and motion:** Increased sub-13px text across desktop
+   administration, chat, navigation, documentation and dispatch. Preserved
+   real browser scrollbars at zoom, made narrow navigation horizontally
+   scrollable, improved chat reflow at 200% zoom and honoured reduced-motion
+   and Windows forced-colour preferences. Existing light/dark **palette
+   tokens were not modified**. Source/contrast checks supplement—but do not
+   replace—manual WCAG 2.2 evaluation at 200% and 400% zoom.
+4. **Browser evidence:** Added an opt-in, read-only Chromium Playwright suite
+   under `tests/browser` with desktop, mobile and narrow-window profiles
+   (representing 200% desktop zoom). A `workflow_dispatch` GitHub workflow
+   targets the **fake-data demo only**. Without explicit GitHub Actions demo
+   credentials the authenticated scenarios are skipped; never infer success
+   from a public-only smoke pass. No user messages, rescues or invitations
+   are modified.
+5. **Deployment monitoring:** Added a public, nonsensitive `/api/healthz`
+   probe and a **demo-only** CloudWatch operations dashboard with Lambda
+   errors, latency and DynamoDB throttling. Lambda error and geocoding
+   cache throttle alarms publish to an SNS topic. To receive emails, set
+   `RESCUE_MONITOR_ALERT_EMAIL` or `RESCUE_LOCATION_BUDGET_ALERT_EMAIL`
+   in the demo SST deployment environment and confirm the SNS email
+   subscription. CloudWatch dashboard/alarm services can add AWS charges.
+
+**Remaining acceptance:** Execute the browser smoke manually after the demo
+deploy, validate a **real** authenticated fake-data test account, verify
+screen-reader announcements (VoiceOver/NVDA/TalkBack), test 200%/400% zoom
+in both themes, validate alarm delivery and map failure simulation, and
+review the CloudWatch dashboard for production-like workloads.
+
+React Native Mapbox migration and legacy UI cleanup remain deferred
+outside this desktop-focused P2 change.
