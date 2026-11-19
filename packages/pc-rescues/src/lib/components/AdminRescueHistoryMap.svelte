@@ -470,7 +470,7 @@
           style: activeTheme === 'dark' ? DARK_STYLE : LIGHT_STYLE,
           center: [151.66, -32.95],
           zoom: 8,
-          attributionControl: true
+          attributionControl: {}
         });
         mapInstance = map;
         map.addControl(new lib.NavigationControl(), 'top-right');

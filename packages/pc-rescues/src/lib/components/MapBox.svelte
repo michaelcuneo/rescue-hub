@@ -443,7 +443,7 @@
           style: activeTheme === 'dark' ? DARK_STYLE : LIGHT_STYLE,
           center: [151.66, -32.95],
           zoom: 9,
-          attributionControl: true
+          attributionControl: {}
         });
         mapInstance = map;
         // Keep the existing public mapRef.getMap() API used by DispatcherShell.
@@ -454,10 +454,9 @@
         if (window.isSecureContext) {
           const geolocate = new lib.GeolocateControl({
             positionOptions: { enableHighAccuracy: true },
-            trackUserLocation: true,
-            showUserHeading: true
+            trackUserLocation: true
           });
-          geolocate.on('geolocate', (event: GeolocationPosition) => {
+          geolocate.on('geolocate', event => {
             coords.set([event.coords.longitude, event.coords.latitude]);
           });
           map.addControl(geolocate, 'top-right');
