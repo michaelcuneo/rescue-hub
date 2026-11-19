@@ -6,6 +6,8 @@
   import { currentMentionQuery, insertChatMention, usableChatMentions, splitChatMentions,
     type ChatMention } from '../../../../core/chat-mentions';
   import { chatChannelColours } from '../../../../core/chat-channel-colours';
+  import { CHAT_MEMBER_REFRESH_MS, CHAT_EVENT_COALESCE_MS, shouldPollChat }
+    from '../../../../core/chat-refresh-policy';
   let { data }: { data: PageData } = $props();
   type Channel = {
     id: string; name: string; description: string; unread: boolean;
@@ -53,6 +55,14 @@
   let error = $state('');
   let loading = $state(true);
   let messagePanel = $state<HTMLElement | undefined>(undefined);
+  let realtimeConnected = false;
+  let lastSnapshotAt = 0;
+  let lastDirectoryAt = 0;
+  let lastChannelMembersAt = 0;
+  let refreshInFlight: Promise<void> | null = null;
+  let refreshRequested = false;
+  let coalesceTimer: ReturnType<typeof setTimeout> | undefined;
+  const readAcknowledged = new Map<string, string>();
   const selected = $derived(channels.find(channel => channel.id === selectedId));
   const selectedRecipient = $derived(members.find(member => member.id === selected?.recipientUserId));
   const busyRecipient = $derived(selected?.recipientAvailability === 'BUSY' || selectedRecipient?.availability === 'BUSY');
@@ -74,9 +84,11 @@
     return path + (params.size ? '?' + params.toString() : '');
   };
   async function refreshChannels() {
+    const scope = organisationId;
     const response = await api<{ channels: Channel[]; organisations: Organisation[]; organisationId: string }>(
       chatUrl('/api/mobile/chats')
     );
+    if (scope && scope !== organisationId) return;
     if (!organisationId) organisationId = response.organisationId;
     organisations = response.organisations;
     channels = response.channels;
@@ -117,7 +129,12 @@
     messages = response.items; cursor = response.nextCursor;
     const last = response.items.at(-1);
     if (last) {
-      void api(chatUrl(`/api/mobile/chats/${encodeURIComponent(id)}`), 'PATCH', { messageId: last.id }).catch(() => {});
+      // Mark each newly observed last message once, not on every safety poll.
+      if (readAcknowledged.get(id) !== last.id) {
+        readAcknowledged.set(id, last.id);
+        void api(chatUrl(`/api/mobile/chats/${encodeURIComponent(id)}`), 'PATCH', { messageId: last.id })
+          .catch(() => { if (readAcknowledged.get(id) === last.id) readAcknowledged.delete(id); });
+      }
       channels = channels.map(channel => channel.id === id ? { ...channel, unread: false } : channel);
     }
     if (last?.id !== oldLatest) {
@@ -176,6 +193,10 @@
   async function selectOrganisation(id: string) {
     if (id === organisationId) return;
     organisationId = id;
+    lastSnapshotAt = 0;
+    lastDirectoryAt = 0;
+    lastChannelMembersAt = 0;
+    readAcknowledged.clear();
     resetMentions();
     selectedId = ''; messages = []; channelMembers = []; showChannelMembers = false; cursor = null; draft = ''; error = ''; loading = true;
     try { await Promise.all([refreshChannels(), refreshMembers()]); }
@@ -184,6 +205,7 @@
   }
   async function selectChannel(id: string) {
     resetMentions();
+    lastChannelMembersAt = 0;
     selectedId = id; messages = []; cursor = null; channelMembers = []; showChannelMembers = false; error = '';
     try { await Promise.all([refreshMessages(id), refreshChannelMembers(id)]); } catch (e) {
       error = e instanceof Error ? e.message : 'Chat unavailable.';
@@ -259,26 +281,75 @@
   onMount(() => {
     let disposed = false;
     let stop: (() => void) | null = null;
+    function refreshVisible(force = false) {
+      if (disposed || document.visibilityState !== 'visible') return;
+      if (refreshInFlight) {
+        if (force) refreshRequested = true;
+        return;
+      }
+      const now = Date.now();
+      if (!force && !shouldPollChat({
+        visible: true, realtimeConnected, now, lastSnapshotAt
+      })) return;
+      lastSnapshotAt = now;
+      const tasks: Promise<unknown>[] = [refreshChannels()];
+      if (selectedId) tasks.push(refreshMessages(selectedId));
+      if (now - lastDirectoryAt >= CHAT_MEMBER_REFRESH_MS) {
+        lastDirectoryAt = now;
+        tasks.push(refreshMembers());
+      }
+      if (showChannelMembers && selectedId &&
+          now - lastChannelMembersAt >= CHAT_MEMBER_REFRESH_MS) {
+        lastChannelMembersAt = now;
+        tasks.push(refreshChannelMembers(selectedId));
+      }
+      refreshInFlight = Promise.allSettled(tasks).then(results => {
+        if (!disposed && results.every(result => result.status === 'rejected')) {
+          error = 'Unable to refresh chats. Reconnecting…';
+        }
+      }).finally(() => {
+        refreshInFlight = null;
+        if (refreshRequested) {
+          refreshRequested = false;
+          if (!disposed) refreshVisible(true);
+        }
+      });
+    }
+    function queueRealtimeRefresh() {
+      if (disposed || document.visibilityState !== 'visible') return;
+      if (coalesceTimer !== undefined) clearTimeout(coalesceTimer);
+      coalesceTimer = setTimeout(() => {
+        coalesceTimer = undefined;
+        refreshVisible(true);
+      }, CHAT_EVENT_COALESCE_MS);
+    }
+    function onVisible() {
+      if (document.visibilityState !== 'visible') return;
+      // Revalidate after suspension; stale realtime connections reconnect separately.
+      refreshVisible(true);
+    }
     void refreshChannels().then(refreshMembers).catch(e => { if (!disposed) error = String(e); })
-      .finally(() => loading = false);
+      .finally(() => { loading = false; lastSnapshotAt = Date.now(); lastDirectoryAt = Date.now(); });
     void fetch('/api/realtime', { cache: 'no-store' }).then(async response => {
       if (!response.ok) return;
       const config = await response.json() as RealtimeConfig;
       if (disposed) return;
-      stop = subscribeRescueChanges(config, { onChange: () => {
-        void Promise.all([refreshChannels(), refreshMembers()]).catch(() => {});
-        if (selectedId) { void refreshMessages(selectedId).catch(() => {}); void refreshChannelMembers(selectedId).catch(() => {}); }
-      } });
-    }).catch(() => {});
-    const interval = setInterval(() => {
-      if (disposed) return;
-      void Promise.all([refreshChannels(), refreshMembers()]).catch(() => {});
-      if (selectedId) { void refreshMessages(selectedId).catch(() => {}); void refreshChannelMembers(selectedId).catch(() => {}); }
-    }, 15000);
+      stop = subscribeRescueChanges(config, {
+        onChange: queueRealtimeRefresh,
+        onConnected: () => { realtimeConnected = true; queueRealtimeRefresh(); },
+        onStatus: connected => { realtimeConnected = connected; }
+      });
+    }).catch(() => { realtimeConnected = false; });
+    document.addEventListener('visibilitychange', onVisible);
+    // Tick every 5 seconds, but do not issue network requests unless the
+    // connection-aware safety interval has elapsed and the tab is visible.
+    const interval = setInterval(() => refreshVisible(), 5000);
     return () => {
       disposed = true;
       stop?.();
       clearInterval(interval);
+      document.removeEventListener('visibilitychange', onVisible);
+      if (coalesceTimer !== undefined) clearTimeout(coalesceTimer);
       dismissMentionSuggestions();
     };
   });
