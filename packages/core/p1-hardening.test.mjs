@@ -10,7 +10,7 @@ test('Administration/feedback dialogs share nested focus containment and restora
   const action = read('pc-rescues/src/lib/actions/modal-focus.ts');
   const admin = read('pc-rescues/src/routes/admin/+page.svelte');
   const feedback = read('pc-rescues/src/lib/components/FeedbackModal.svelte');
-  assert.match(action, /event\.key === 'Tab'/);
+  assert.match(action, /event\.key !== 'Tab'/);
   assert.match(action, /event\.key === 'Escape'/);
   assert.match(action, /\.inert =/);
   assert.match(action, /active\.at\(-1\)/);
