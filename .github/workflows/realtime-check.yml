@@ -110,6 +110,8 @@ jobs:
         run: node --test packages/core/p1-hardening.test.mjs
       - name: P2 chat, accessibility and deployment readiness regressions
         run: node --experimental-strip-types --test packages/core/chat-refresh-policy.test.mjs packages/core/p2-hardening.test.mjs
+      - name: Light and dark UI state contrast checks
+        run: node --test packages/core/accessible-contrast.test.mjs
       - name: Demo rescue story consistency and fixture integrity
         run: node --experimental-strip-types --test packages/core/demo-rescue-stories.test.mjs
       - name: Unified public intake channel tests
