@@ -423,7 +423,6 @@
               onkeydown={onChatKeydown}
               aria-autocomplete="list"
               aria-controls="chat-mention-options"
-              aria-expanded={Boolean(mentionOptions.length || mentionLoading)}
               aria-activedescendant={mentionOptions.length ? `chat-mention-option-${activeMentionIndex}` : undefined}
               placeholder={selected?.recipientUserId ? "Write a private message… Use @ to mention" : "Message your group… Use @ to mention"}
               aria-describedby="chat-compose-shortcut"></textarea>
