@@ -116,3 +116,38 @@ Mapbox geocoding. Replace those values with independently sourced results
 using the original incident GPS coordinates where permitted. User-entered
 locations must be preserved. Existing Expo *Mapbox maps* are a separate
 dependency and have not been changed in this branch.
+
+## P1 paid-lookup guardrails
+
+The existing `RescueHubGeocodingCache` DynamoDB table now stores **atomic,
+per-identity** and **stage-wide** request counters for billable Places calls.
+This is distributed across Lambda instances, so a refresh or concurrent client
+cannot reset usage limits. Reservation errors fail closed (no paid request).
+
+| Operation | Per-user minute | Per-user UTC day | Stage-wide UTC day |
+| --- | ---: | ---: | ---: |
+| SearchText | 20 | 450 | 6,000 |
+| ReverseGeocode (cache misses only) | 80 | 1,500 | 12,000 |
+
+Limits are conservative for the demo. They are not sized for a statewide
+volunteer rollout; scale them only after observing realistic usage and
+monitoring spending. Search responses return HTTP 429 with a `Retry-After`
+header when limited; reverse-geocode cards fall back to the rescue's original
+GPS coordinates. AWS SDK write errors stop paid requests rather than bypass
+the limiter. Existing cached reverse results remain available at no new
+Places API charge.
+
+The **demo SST stage** provisions a single monthly Amazon Location Service
+AWS Budget for the whole AWS account, default **USD $25 per month**.
+Budget alerts require an explicit contact:
+```bash
+export RESCUE_LOCATION_BUDGET_ALERT_EMAIL="your-monitoring-email@example.org"
+export RESCUE_LOCATION_BUDGET_USD=25
+npx sst deploy --stage demo
+```
+Do not put a real email in the committed code. The AWS Budgets service
+filter and account permissions must be validated in AWS Billing/Cost
+Explorer; budget visibility can lag. An AWS Budget is **not** an automatic
+spending shutoff. The request quotas are the immediate operational brake.
+If the alert email variable is absent, the budget is deployed **without
+notifications** and should be treated as incomplete operational setup.

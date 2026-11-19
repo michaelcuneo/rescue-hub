@@ -18,6 +18,9 @@ export default $config({
   async run() {
     const { data } = await import("./packages/infra/data");
     const { geocodingCache } = await import("./packages/infra/geocoding");
+    // AWS Budgets is account-wide. Manage a single cost guard in demo,
+    // not an identical account-level budget for every personal SST stage.
+    if ($app.stage === "demo") await import("./packages/infra/geocoding-budget");
     const { api, graphql } = await import("./packages/infra/api");
     const { realtime, realtimeLink } = await import("./packages/infra/realtime");
     const { mailFrom } = await import("./packages/infra/config");
