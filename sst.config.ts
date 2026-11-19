@@ -84,6 +84,11 @@ export default $config({
       },
     });
 
+    if ($app.stage === "demo") {
+      const { createDemoOperationsMonitoring } = await import("./packages/infra/monitoring");
+      createDemoOperationsMonitoring(web, data, geocodingCache);
+    }
+
     return {
       web: web.url,
       dataTable: data.name,
