@@ -581,7 +581,8 @@
   .mention-loading{display:block;padding:12px}
   .chat-mention{display:inline;border:0;padding:1px 3px;border-radius:4px;background:var(--rh-accent-soft);color:var(--rh-text);font:inherit;font-weight:750;text-decoration:underline;text-underline-offset:2px;cursor:pointer}
   .send{padding:13px 22px;border:0;border-radius:12px;background:var(--rh-primary);color:var(--rh-on-primary);font-weight:800;cursor:pointer}
-  button:disabled{opacity:.5}.error{padding:8px 18px;color:var(--rh-t69, #a23f35)}
+  .chat-layout button:disabled{opacity:1;color:var(--rh-muted);background:var(--rh-surface-soft);cursor:not-allowed}
+  .error{padding:8px 18px;color:var(--rh-t69, #a23f35)}
   .muted{color:var(--rh-t175, #77887a)}.older{align-self:center;background:transparent;border:0;padding:12px;color:var(--rh-t176, #276e4c);font-weight:750;cursor:pointer}
   .placeholder{margin:auto;padding:30px;text-align:center;color:var(--rh-t177, #687b6d)}
   .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
