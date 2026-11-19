@@ -1,0 +1,29 @@
+name: Rescue Hub deployed browser smoke (manual)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  public-pages:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      RESCUE_E2E_BASE_URL: https://rescue.michaelcuneo.com.au
+      RESCUE_E2E_EMAIL: ${{ secrets.RESCUE_E2E_EMAIL }}
+      RESCUE_E2E_PASSWORD: ${{ secrets.RESCUE_E2E_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install application dependencies from lockfile
+        run: npm ci --no-audit --no-fund
+      - name: Install isolated browser test runner
+        run: npm install --no-save --no-package-lock --ignore-scripts @playwright/test@1.58.2
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Run read-only deployed smoke scenarios
+        run: npx playwright test --config tests/browser/playwright.config.mjs
