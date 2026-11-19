@@ -37,19 +37,19 @@ test('AWS Places uses DynamoDB conditional, fail-closed user and stage limits', 
   assert.match(service, /reserveGeocodingRequest\(userId \?\? '', 'search'\)/);
 });
 
-test('Desktop maps restore last verified MapLibre loader for demo stability', () => {
+test('Desktop maps restore the original MapLibre loader for the demo hotfix', () => {
   const layout = read('pc-rescues/src/routes/+layout.svelte');
-  assert.doesNotMatch(layout, /import 'maplibre-gl\\/dist\\/maplibre-gl\\.css'/);
+  assert.equal(layout.includes("import 'maplibre-gl/dist/maplibre-gl.css'"), false);
   for (const path of [
     'pc-rescues/src/lib/components/MapBox.svelte',
     'pc-rescues/src/lib/components/AdminRescueHistoryMap.svelte',
     'pc-rescues/src/lib/components/ReleaseLocationPicker.svelte'
   ]) {
     const code = read(path);
-    assert.match(code, /unpkg\\.com\\/maplibre-gl@6\\.18\\.0/);
-    assert.match(code, /import\\(\\/\\* @vite-ignore \\*\\//);
-    assert.doesNotMatch(code, /function emergencyStyle\\(/);
-    assert.match(code, /map\\.on\\('error'/);
+    assert.ok(code.includes('unpkg.com/maplibre-gl@6.18.0'));
+    assert.ok(code.includes('/* @vite-ignore */'));
+    assert.equal(code.includes('function emergencyStyle('), false);
+    assert.ok(code.includes("map.on('error'"));
   }
 });
 
