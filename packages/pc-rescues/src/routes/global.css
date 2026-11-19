@@ -880,3 +880,18 @@ input::placeholder, textarea::placeholder { color: var(--rh-subtle); opacity: 1;
 
 
 @media(max-width:760px) { :root { --rh-content-top: 106px; --rh-gutter:10px; } }
+
+
+// P2: Respect user zoom and system accessibility settings without changing
+// either colour palette. Avoid removing keyboard focus or scrollbars.
+@media (prefers-reduced-motion: reduce) {
+  :root { scroll-behavior: auto; }
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+@media (forced-colors: active) {
+  :focus-visible { outline: 3px solid Highlight; outline-offset: 2px; }
+}

@@ -724,7 +724,7 @@ import { completedOnNSWDay, rescueTodayNSW, sortRescueRecords, isWaitingFourHour
 	.animal-options { max-height: 230px; overflow-y: auto; border:1px solid var(--rh-t4, #cbd8ce); background:var(--rh-t5, #fff); border-radius: 9px; box-shadow: 0 8px 20px rgba(0,0,0,.09); margin-top: 4px; position: relative; z-index: 5; }
 	.animal-options button { display: block; width: 100%; padding: 9px 12px; text-align: left; background:var(--rh-t6, white); border:0; color:var(--rh-t7, #17211d); cursor: pointer; font: inherit; }
 	.animal-options button:hover, .animal-options button:focus-visible { background:var(--rh-t8, #eaf2ec); }
-	.animal-options p { padding: 10px; margin: 0; font-size: 12px; color:var(--rh-t9, #66736c); }
+	.animal-options p { padding: 10px; margin: 0; font-size: 13px; color:var(--rh-t9, #66736c); }
 
 	.dispatcher-shell {
 		position: fixed;

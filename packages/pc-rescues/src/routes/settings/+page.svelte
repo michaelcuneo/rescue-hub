@@ -241,7 +241,7 @@
   .settings-page { min-height:100dvh; padding:var(--rh-content-top) var(--rh-gutter) 48px;
     color:var(--rh-text); background:var(--rh-background); }
   .heading { margin:0 0 18px; }
-  .eyebrow { font-size:12px; font-weight:800; text-transform:uppercase;
+  .eyebrow { font-size:13px; font-weight:800; text-transform:uppercase;
     letter-spacing:.1em; color:var(--rh-muted); }
   h1 { font-size:clamp(26px,3vw,34px); margin:4px 0 6px; }
   .heading p:last-child, .settings-panel > p { font-size:14px; color:var(--rh-muted); line-height:1.55; }
