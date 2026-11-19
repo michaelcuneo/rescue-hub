@@ -1,15 +1,13 @@
 <script lang="ts">
-  import { tick } from 'svelte';
-  import { onMount } from 'svelte';
   import { AlertCircle, AlertTriangle, CheckCircle2, X } from '@lucide/svelte';
   import { portal } from '$lib/actions/portal';
+  import { modalFocus } from '$lib/actions/modal-focus';
 
   type Kind = 'success' | 'warning' | 'error';
   let { kind, title, message, detail, onDismiss }: {
     kind: Kind; title: string; message: string; detail?: string;
     onDismiss: () => void;
   } = $props();
-  let closeButton: HTMLButtonElement;
   let closed = false;
 
   // Use an ordinary fixed overlay rather than native <dialog>: a nested
@@ -20,21 +18,10 @@
     closed = true;
     onDismiss();
   }
-  onMount(() => {
-    void tick().then(() => closeButton?.focus());
-  });
-  function keydown(event: KeyboardEvent) {
-    if (event.key === 'Escape') {
-      event.preventDefault();
-      event.stopPropagation();
-      dismiss();
-    }
-  }
 </script>
 
-<svelte:window onkeydown={keydown} />
-
-<div class="feedback-overlay" role="presentation" use:portal>
+<div class="feedback-overlay" role="presentation" use:portal
+  use:modalFocus={{ onEscape: dismiss }}>
   <button class="feedback-backdrop" aria-label="Dismiss notification" type="button" onclick={dismiss}></button>
   <div class="feedback-dialog" data-kind={kind}
     role="dialog" aria-modal="true" aria-labelledby="feedback-title"
@@ -51,7 +38,7 @@
       <p id="feedback-description">{message}</p>
       {#if detail}<p class="detail">{detail}</p>{/if}
       <div class="feedback-actions">
-        <button bind:this={closeButton} class="acknowledge" type="button" onclick={dismiss}>
+        <button data-modal-initial-focus class="acknowledge" type="button" onclick={dismiss}>
           <X size={16} aria-hidden="true" /> Close
         </button>
       </div>

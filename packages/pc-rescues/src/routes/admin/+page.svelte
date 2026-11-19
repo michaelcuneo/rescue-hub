@@ -9,6 +9,7 @@
   import type { SubmitFunction } from '@sveltejs/kit';
   import FeedbackModal from '$lib/components/FeedbackModal.svelte';
   import { portal } from '$lib/actions/portal';
+  import { modalFocus } from '$lib/actions/modal-focus';
   import { adminActionFeedback, type FeedbackNotice } from '../../../../core/admin-feedback';
   import { invitationEmailLabel, invitationExpired } from '../../../../core/invitation-delivery';
 
@@ -414,12 +415,6 @@
       timeZone: 'Australia/Sydney'
     }).format(new Date(value));
 </script>
-
-<svelte:window onkeydown={(event) => {
-  if (event.key !== 'Escape' || feedback) return;
-  if (selectedPersonId) selectedPersonId = null;
-  else if (showInvite) showInvite = false;
-}} />
 
 {#if feedback}
   <FeedbackModal kind={feedback.kind} title={feedback.title}
@@ -973,10 +968,11 @@
       </section>
 
       {#if showInvite}
-        <div class="people-overlay" use:portal role="presentation">
+        <div class="people-overlay" use:portal
+          use:modalFocus={{ onEscape: () => (showInvite = false) }} role="presentation">
           <button type="button" class="people-backdrop" aria-label="Close invitation" onclick={() => (showInvite = false)}></button>
-          <div class="people-dialog invite-dialog" role="dialog" aria-modal="true" aria-labelledby="invite-title">
-            <div class="dialog-heading"><div><p class="eyebrow">New team member</p><h2 id="invite-title">Invite a person</h2></div><button class="dialog-close" type="button" aria-label="Close invitation" onclick={() => (showInvite = false)}>×</button></div>
+          <div class="people-dialog invite-dialog" role="dialog" aria-modal="true" aria-labelledby="invite-title" tabindex="-1">
+            <div class="dialog-heading"><div><p class="eyebrow">New team member</p><h2 id="invite-title">Invite a person</h2></div><button data-modal-initial-focus class="dialog-close" type="button" aria-label="Close invitation" onclick={() => (showInvite = false)}>×</button></div>
               <form method="POST" use:enhance={handleAdminSubmit} action="?/inviteUser" class="person-form invite-form">
               <div class="invite-scroll-content">
               {#if canChooseOrganisation}
@@ -1017,10 +1013,11 @@
       {/if}
 
       {#if selectedPerson}
-        <div class="people-overlay" use:portal role="presentation">
+        <div class="people-overlay" use:portal
+          use:modalFocus={{ onEscape: () => (selectedPersonId = null) }} role="presentation">
           <button type="button" class="people-backdrop" aria-label="Close person details" onclick={() => (selectedPersonId = null)}></button>
-          <div class="people-dialog person-detail" role="dialog" aria-modal="true" aria-labelledby="person-detail-title">
-            <div class="dialog-heading"><div><p class="eyebrow">Person details</p><h2 id="person-detail-title">{selectedPerson.name || selectedPerson.email}</h2><p class="intro">{selectedPerson.email} · {organisationName(selectedPerson.organisationId)}</p></div><button class="dialog-close" type="button" aria-label="Close person details" onclick={() => (selectedPersonId = null)}>×</button></div>
+          <div class="people-dialog person-detail" role="dialog" aria-modal="true" aria-labelledby="person-detail-title" tabindex="-1">
+            <div class="dialog-heading"><div><p class="eyebrow">Person details</p><h2 id="person-detail-title">{selectedPerson.name || selectedPerson.email}</h2><p class="intro">{selectedPerson.email} · {organisationName(selectedPerson.organisationId)}</p></div><button data-modal-initial-focus class="dialog-close" type="button" aria-label="Close person details" onclick={() => (selectedPersonId = null)}>×</button></div>
             <div class="person-detail-summary"><span class:available={selectedPerson.enabled && selectedPerson.availabilityStatus === 'AVAILABLE'} class="availability-state">{selectedPerson.enabled ? selectedPerson.availabilityStatus ?? 'Offline' : 'Disabled'}</span><span>{selectedPerson.roles.join(' · ')}</span><span>{selectedPerson.status}</span></div>
             {#if selectedPerson.status === 'INVITED' && selectedPerson.enabled && !selectedPerson.roles.includes('PUBLIC_REPORTER')}
               <section class="invitation-detail" aria-labelledby="pending-invite-heading">
