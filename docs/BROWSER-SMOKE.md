@@ -16,3 +16,9 @@ The workflow covers desktop, a narrow viewport simulating 200% desktop zoom,
 and mobile widths. Actual visual scaling, keyboard-only VoiceOver/NVDA
 testing, real phones and reduced-motion checks still need manual acceptance.
 Never use personal login secrets in commit history or project files.
+
+The suite runs against both light and dark browser preferences, a 720px
+viewport approximating 200% desktop zoom, and mobile width. On failure
+the workflow uploads Playwright traces and screenshots to the run's
+Artifacts tab. The workflow is **manual** and has not been executed by
+the code audit alone.

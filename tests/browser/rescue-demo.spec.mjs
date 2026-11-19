@@ -40,7 +40,7 @@ test('chat mentions support keyboard dismissal without sending a message', async
   await page.getByLabel('Password').fill(process.env.RESCUE_E2E_PASSWORD);
   await page.getByRole('button', { name: 'Sign in' }).click();
   await page.goto('/chats');
-  const firstChat = page.locator('.chat-list-tabs + button, aside button.animal-channel').first();
+  const firstChat = page.locator('aside[aria-label="Chats and member directory"] > button').first();
   test.skip(!(await firstChat.isVisible().catch(() => false)), 'Demo account has no accessible channel');
   await firstChat.click();
   const compose = page.locator('#chat-message');
