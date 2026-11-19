@@ -45,18 +45,18 @@ property may silently move a rescue location.
 
 ## Activation
 
-AWS Places is enabled by default on **developer and demo SST stages**.
-The `production` stage remains disabled by default. Override any stage with:
+AWS Places is **enabled by default for every SST stage**, including
+`michaelcuneo`, `demo` and `production`. A stage deployment must not silently
+disable a core address-lookup feature. No environment variable is required.
 
-```dotenv
-RESCUE_GEOCODING_ENABLED=true
-```
+To turn the geocoder off deliberately during an incident, set
+`RESCUE_GEOCODING_ENABLED=false` in the deployment environment and redeploy.
+Remove that override (or set it to `true`) to restore address lookup.
 
 Deploy `--stage demo` for `rescue.michaelcuneo.com.au`; deploying a
 personal stage such as `michaelcuneo` updates a **different** website.
-The map and GPS directions still work when geocoding is disabled or unavailable.
-AWS Places calls incur usage fees; the feature can be disabled per stage by setting
-`RESCUE_GEOCODING_ENABLED=false`.
+The map and GPS directions still work when geocoding is unavailable.
+AWS Places calls incur usage fees at the Stored-use rate due to our cache.
 
 SST gives the web Lambda scoped `geo-places:SearchText` and
 `geo-places:ReverseGeocode` permissions for the Sydney regional provider
@@ -65,8 +65,8 @@ DynamoDB TTL cache.
 Region defaults to the SST AWS region (`ap-southeast-2`, Sydney). No public
 Places API key is needed.
 
-Deploy to `demo` when ready to enable the public demonstration.
-Do **not** enable `production` without an explicit rollout decision.
+Each stage now uses the same geocoder default. Verify live AWS results and costs
+before promoting the feature branch to additional production workloads.
 Before rollout: verify a small set of urban/rural Australian coordinates,
 AWS Location source attribution and provider terms for wildlife operations,
 SvelteKit performance, latency, search-result relevance, and Stored API costs.

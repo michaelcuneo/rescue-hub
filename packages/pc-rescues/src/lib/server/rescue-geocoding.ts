@@ -24,8 +24,8 @@ const POSITIVE_TTL_SECONDS = 30 * 24 * 3600;
 const NEGATIVE_TTL_SECONDS = 6 * 3600;
 
 export function geocodingEnabled(): boolean {
-  // Opt-in: leave the demo untouched until geocoder permissions are deployed.
-  return process.env.RESCUE_GEOCODING_ENABLED === 'true';
+  // Enabled by default everywhere; only an explicit emergency opt-out disables it.
+  return process.env.RESCUE_GEOCODING_ENABLED !== 'false';
 }
 
 async function placesRequest(

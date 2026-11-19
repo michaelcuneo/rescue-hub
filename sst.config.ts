@@ -42,11 +42,9 @@ export default $config({
       } : {}),
       link: [graphql, realtimeLink, data, geocodingCache, mailFrom],
       environment: {
-        // AWS Location is enabled for developer and demo stages.
-        // Production remains opt-in. Override any stage with
-        // RESCUE_GEOCODING_ENABLED=false to disable billable Places calls.
-        RESCUE_GEOCODING_ENABLED: process.env.RESCUE_GEOCODING_ENABLED ??
-          ($app.stage === "production" ? "false" : "true"),
+        // Geocoding must work consistently in every deployed stage.
+        // Only an explicit RESCUE_GEOCODING_ENABLED=false disables Places.
+        RESCUE_GEOCODING_ENABLED: process.env.RESCUE_GEOCODING_ENABLED ?? "true",
         RESCUE_HUB_SES_CONFIGURATION_SET: invitationEmailConfigurationSetName,
         // Trusted website origin for single-use organisation invitation links.
         RESCUE_HUB_PUBLIC_ORIGIN: publicOrigin,
