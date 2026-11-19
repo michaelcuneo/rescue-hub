@@ -30,6 +30,23 @@ jobs:
           node-version: '22'
       - name: Install workspaces
         run: npm install --no-audit --no-fund
+      # Temporary diagnostic: generate the exact dependency lock patch
+      # from the npm registry used by CI for a reproducible local install.
+      - name: Report pinned MapLibre lockfile changes
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const cp = require('node:child_process');
+          const original = JSON.parse(cp.execFileSync('git', ['show', 'HEAD:package-lock.json'], { encoding: 'utf8' }));
+          const updated = JSON.parse(fs.readFileSync('package-lock.json', 'utf8'));
+          const changes = Object.fromEntries(Object.entries(updated.packages).filter(([key, value]) =>
+            JSON.stringify(value) !== JSON.stringify(original.packages[key])));
+          const encoded = Buffer.from(JSON.stringify(changes)).toString('base64');
+          for (let index = 0, n = 0; index < encoded.length; index += 2000, n++) {
+            console.log('RH_LOCK_PATCH_' + n + '_' + encoded.slice(index, index + 2000));
+          }
+          console.log('RH_LOCK_PATCH_COUNT_' + Math.ceil(encoded.length / 2000));
+          NODE
       - name: Svelte and React Native type checks
         run: npm run check
       - name: Build SvelteKit (dummy SST resources only)
