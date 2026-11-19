@@ -73,3 +73,36 @@ portal. Test on the actual `demo` stage and confirm CloudWatch logs when AWS
 Places is unreachable.
 
 No SST deployment was performed as part of this audit.
+
+## P1 remediation — feature branch, 19 November 2026
+
+All three P1 remediations have been **implemented in source**. The table above
+remains the original audit snapshot; verification below supersedes its status.
+
+1. **Keyboard modal focus:** New `lib/actions/modal-focus.ts` manages a
+   top-of-stack focus trap, background `inert`, Escape, and focus restoration.
+   Applied to Administration invite/person dialogs and the feedback modal.
+   Preserves close-button and backdrop interactions. Browser/VoiceOver tests
+   are still required for nested transitions and save-error flows.
+2. **AWS Location cost and abuse control:** Conditional DynamoDB counters
+   now enforce per-user minute/day and stage-wide day quotas for address
+   search and uncached reverse geocoding. Paid upstream calls fail closed if
+   the counter table cannot be reached. Search returns HTTP 429 with
+   `Retry-After`; reverse lookups fall back to authoritative GPS.
+   The demo SST stage provisions an account-level **USD 25/month** Amazon
+   Location Service budget. Real email notifications require
+   `RESCUE_LOCATION_BUDGET_ALERT_EMAIL` at deployment; without it the
+   budget has no notification subscriber. The budget is a lagging alert,
+   **not an automatic AWS spending cutoff**.
+3. **Map availability:** All three desktop map components load
+   `maplibre-gl@6.18.0` from a pinned npm package instead of unpkg.
+   CSS is bundled with SvelteKit and the dependency lock is now complete
+   and checked using `npm ci`. Initial or repeated map-tile failures
+   switch to a local GPS-only background without discarding pins, boundaries
+   or the release-pin UI. OpenFreeMap remains the primary external basemap
+   provider, and a failover/uptime SLO still merits real browser tests.
+
+The P1 hardening assertions are now part of CI. No live SST deploy, live AWS
+budget notification, cross-browser test, or screen-reader acceptance has
+occurred from this audit. Follow the budget setup in `docs/GEOCODING.md`,
+then deploy only the intended stage and smoke-test all dialogs and maps.
