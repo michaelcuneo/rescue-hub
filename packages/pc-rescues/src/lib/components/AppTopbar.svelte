@@ -39,8 +39,14 @@
 </script>
 
 <svelte:window
-  onclick={(event) => {
-    if (profileMenu && event.target instanceof Node && !profileMenu.contains(event.target)) {
+  onpointerdown={(event) => {
+    if (profileMenu?.open && event.target instanceof Node && !profileMenu.contains(event.target)) {
+      closeProfileMenu();
+    }
+  }}
+  onfocusin={(event) => {
+    // Tabbing away should dismiss the menu just like clicking away.
+    if (profileMenu?.open && event.target instanceof Node && !profileMenu.contains(event.target)) {
       closeProfileMenu();
     }
   }}
