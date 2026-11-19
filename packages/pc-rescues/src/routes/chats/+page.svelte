@@ -25,6 +25,9 @@
   let searchMembers = $state('');
   let channelMembers = $state<Member[]>([]);
   let showChannelMembers = $state(false);
+  let membersTrigger = $state<HTMLButtonElement | undefined>(undefined);
+  let membersPanel = $state<HTMLDivElement | undefined>(undefined);
+  let composerField = $state<HTMLDivElement | undefined>(undefined);
   let listMode = $state<'channels' | 'people'>('channels');
   const membersVisible = $derived(members.filter(member => member.id !== data.userId &&
     [member.name, ...member.labels].join(' ').toLowerCase().includes(searchMembers.toLowerCase()))
@@ -42,7 +45,9 @@
   let mentionOptions = $state<ChatMention[]>([]);
   let mentionRefs = $state<ChatMention[]>([]);
   let mentionLoading = $state(false);
+  let activeMentionIndex = $state(0);
   let mentionTimer: ReturnType<typeof setTimeout> | undefined;
+  let mentionGeneration = 0;
   let chatComposer = $state<HTMLTextAreaElement | undefined>(undefined);
   let busy = $state(false);
   let error = $state('');
@@ -120,35 +125,50 @@
       messagePanel?.scrollTo({ top: messagePanel.scrollHeight, behavior: 'smooth' });
     }
   }
+  function dismissMentionSuggestions() {
+    // Cancel pending work and invalidate responses that are already in flight.
+    mentionGeneration++;
+    if (mentionTimer !== undefined) clearTimeout(mentionTimer);
+    mentionTimer = undefined;
+    mentionOptions = [];
+    mentionLoading = false;
+    activeMentionIndex = 0;
+  }
   function resetMentions() {
-    mentionOptions = []; mentionRefs = []; mentionLoading = false;
-    if (mentionTimer) clearTimeout(mentionTimer);
+    dismissMentionSuggestions();
+    mentionRefs = [];
   }
   function onComposerInput(value: string) {
     draft = value;
     mentionRefs = usableChatMentions(value, mentionRefs);
     const query = currentMentionQuery(value);
-    if (mentionTimer) clearTimeout(mentionTimer);
-    if (query === null || !selectedId) { mentionOptions = []; mentionLoading = false; return; }
+    dismissMentionSuggestions();
+    if (query === null || !selectedId) return;
     const channel = selectedId, organisation = organisationId;
+    const generation = mentionGeneration;
     mentionLoading = true;
     mentionTimer = setTimeout(async () => {
+      mentionTimer = undefined;
       try {
         const params = new URLSearchParams({ channelId: channel, q: query });
         if (organisation) params.set('organisationId', organisation);
         const result = await api<{items: ChatMention[]}>(`/api/mobile/chats/mentions?${params}`);
-        if (selectedId === channel && organisationId === organisation &&
-            currentMentionQuery(draft) === query) mentionOptions = result.items;
+        if (generation === mentionGeneration && selectedId === channel &&
+            organisationId === organisation && currentMentionQuery(draft) === query) {
+          mentionOptions = result.items;
+          activeMentionIndex = 0;
+        }
       } catch {
-        if (currentMentionQuery(draft) === query) mentionOptions = [];
-      } finally { mentionLoading = false; }
+        if (generation === mentionGeneration) mentionOptions = [];
+      } finally {
+        if (generation === mentionGeneration) mentionLoading = false;
+      }
     }, 250);
   }
   async function chooseMention(mention: ChatMention) {
     draft = insertChatMention(draft, mention);
     mentionRefs = usableChatMentions(draft, [...mentionRefs, mention]);
-    mentionOptions = [];
-    if (mentionTimer) clearTimeout(mentionTimer);
+    dismissMentionSuggestions();
     await tick();
     chatComposer?.focus();
     chatComposer?.setSelectionRange(draft.length, draft.length);
@@ -181,12 +201,41 @@
     } catch (e) { error = e instanceof Error ? e.message : 'Could not load earlier messages.'; }
     finally { busy = false; }
   }
+  function handleDropdownOutsideInteraction(event: PointerEvent | FocusEvent) {
+    if (!(event.target instanceof Node)) return;
+    if ((mentionOptions.length || mentionLoading) &&
+        !composerField?.contains(event.target)) {
+      dismissMentionSuggestions();
+    }
+    if (showChannelMembers && !membersPanel?.contains(event.target) &&
+        !membersTrigger?.contains(event.target)) {
+      showChannelMembers = false;
+    }
+  }
+  function handleDropdownEscape(event: KeyboardEvent) {
+    if (event.key !== 'Escape' || event.defaultPrevented) return;
+    if (mentionOptions.length || mentionLoading) {
+      dismissMentionSuggestions();
+      event.preventDefault();
+      event.stopPropagation();
+    } else if (showChannelMembers) {
+      showChannelMembers = false;
+      event.preventDefault();
+      event.stopPropagation();
+      membersTrigger?.focus();
+    }
+  }
   function onChatKeydown(event: KeyboardEvent) {
-    if (event.key === 'Escape' && mentionOptions.length) {
-      mentionOptions = []; event.preventDefault(); return;
+    if (mentionOptions.length && (event.key === 'ArrowDown' || event.key === 'ArrowUp')) {
+      event.preventDefault();
+      activeMentionIndex = (activeMentionIndex +
+        (event.key === 'ArrowDown' ? 1 : -1) + mentionOptions.length) % mentionOptions.length;
+      return;
     }
     if (event.key === 'Enter' && !event.shiftKey && mentionOptions.length) {
-      event.preventDefault(); void chooseMention(mentionOptions[0]); return;
+      event.preventDefault();
+      void chooseMention(mentionOptions[activeMentionIndex] ?? mentionOptions[0]);
+      return;
     }
     if (!shouldSendChatOnKey(event)) return;
     event.preventDefault();
@@ -226,9 +275,17 @@
       void Promise.all([refreshChannels(), refreshMembers()]).catch(() => {});
       if (selectedId) { void refreshMessages(selectedId).catch(() => {}); void refreshChannelMembers(selectedId).catch(() => {}); }
     }, 15000);
-    return () => { disposed = true; stop?.(); clearInterval(interval); if (mentionTimer) clearTimeout(mentionTimer); };
+    return () => {
+      disposed = true;
+      stop?.();
+      clearInterval(interval);
+      dismissMentionSuggestions();
+    };
   });
 </script>
+
+<svelte:window onpointerdown={handleDropdownOutsideInteraction}
+  onfocusin={handleDropdownOutsideInteraction} onkeydown={handleDropdownEscape} />
 
 <svelte:head><title>Organisation Chats · Rescue Hub</title></svelte:head>
 <main class="page">
@@ -296,13 +353,16 @@
           <div><h2>{selected?.name ?? 'Channel'}</h2>
             <small>{selected?.recipientUserId ? `${selectedRecipient?.labels.join(' · ') || 'Organisation member'} · ${(selectedRecipient?.availability ?? selected?.recipientAvailability ?? 'OFFLINE').toLowerCase()}` : selected?.description ?? ''}</small>
           </div>
-          <button class="members-trigger" onclick={() => showChannelMembers = !showChannelMembers}
-            aria-expanded={showChannelMembers} aria-label="Show people in this channel">
+          <button class="members-trigger" bind:this={membersTrigger}
+            onclick={() => showChannelMembers = !showChannelMembers}
+            aria-expanded={showChannelMembers} aria-controls="chat-channel-people"
+            aria-label="Show people in this channel">
             People ({channelMembers.length})
           </button>
         </div>
         {#if showChannelMembers}
-          <div class="channel-people" aria-label="Channel members">
+          <div class="channel-people" id="chat-channel-people" bind:this={membersPanel}
+            role="region" aria-label="Channel members">
             {#each channelMembers as member (member.id)}
               <button disabled={member.id === data.userId || busy}
                 onclick={() => void openDirect(member.id)} title={member.labels.join(' · ')}>
@@ -341,11 +401,14 @@
         {/if}
         <form onsubmit={send}>
           <label class="sr-only" for="chat-message">Message to {selected?.name ?? 'channel'}</label>
-          <div class="composer-field">
+          <div class="composer-field" bind:this={composerField}>
             {#if mentionOptions.length || mentionLoading}
-              <div class="mention-suggestions" aria-label="Mention suggestions" role="listbox">
-                {#each mentionOptions as option (option.kind + option.id)}
-                  <button type="button" role="option" aria-selected="false"
+              <div class="mention-suggestions" id="chat-mention-options"
+                aria-label="Mention suggestions" role="listbox">
+                {#each mentionOptions as option, index (option.kind + option.id)}
+                  <button type="button" role="option" id={`chat-mention-option-${index}`}
+                    aria-selected={activeMentionIndex === index}
+                    class:active-mention={activeMentionIndex === index}
                     onclick={() => void chooseMention(option)}>
                     <strong>@{option.handle}</strong>
                     <small>{option.kind === 'person' ? 'Person' : option.kind === 'animal' ? 'Animal' : 'Rescue'} · {option.label}</small>
@@ -358,6 +421,10 @@
             <textarea id="chat-message" maxlength="2000" rows="2" bind:this={chatComposer}
               bind:value={draft} oninput={(event) => onComposerInput(event.currentTarget.value)}
               onkeydown={onChatKeydown}
+              aria-autocomplete="list"
+              aria-controls="chat-mention-options"
+              aria-expanded={Boolean(mentionOptions.length || mentionLoading)}
+              aria-activedescendant={mentionOptions.length ? `chat-mention-option-${activeMentionIndex}` : undefined}
               placeholder={selected?.recipientUserId ? "Write a private message… Use @ to mention" : "Message your group… Use @ to mention"}
               aria-describedby="chat-compose-shortcut"></textarea>
           </div>
@@ -417,7 +484,8 @@
   .composer-field{position:relative;flex:1;min-width:0}
   .mention-suggestions{position:absolute;bottom:calc(100% + 7px);left:0;right:0;z-index:5;max-height:235px;overflow:auto;border:1px solid var(--rh-border);border-radius:12px;background:var(--rh-surface);box-shadow:var(--rh-shadow);padding:5px}
   .mention-suggestions button{width:100%;display:flex;gap:10px;align-items:center;justify-content:space-between;text-align:left;padding:10px 12px;color:var(--rh-text);background:transparent;border:0;border-radius:8px;cursor:pointer}
-  .mention-suggestions button:hover,.mention-suggestions button:focus-visible{background:var(--rh-raised)}
+  .mention-suggestions button:hover,.mention-suggestions button:focus-visible,
+  .mention-suggestions button.active-mention{background:var(--rh-raised)}
   .mention-suggestions small,.mention-loading{color:var(--rh-muted);font-size:11px}
   .mention-loading{display:block;padding:12px}
   .chat-mention{display:inline;border:0;padding:1px 3px;border-radius:4px;background:var(--rh-accent-soft);color:var(--rh-text);font:inherit;font-weight:750;text-decoration:underline;text-underline-offset:2px;cursor:pointer}
