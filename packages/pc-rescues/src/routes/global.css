@@ -66,17 +66,10 @@ body {
   width: 100%;
   height: 100%;
   max-width: 100vw;
-  max-height: 100vh;
+  min-height: 100%;
 }
 
-/* Hide scrollbar for Chrome, Safari and Opera */
-::-webkit-scrollbar {
-  display: none;
-  -ms-overflow-style: none;
-  /* IE and Edge */
-  scrollbar-width: none;
-  /* Firefox */
-}
+/* Preserve visible browser scrollbars for zoom, keyboard and low-vision users. */
 
 body {
   color: #333;

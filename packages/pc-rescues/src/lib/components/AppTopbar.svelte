@@ -228,11 +228,12 @@
     .mark { width:34px; height:34px; flex-basis:34px; }
     .account-actions { grid-column:3; grid-row:1; }
     .area-navigation { grid-column:1 / -1; grid-row:2; justify-self:stretch;
-      justify-content:space-evenly; padding:2px; }
-    .area-navigation a { font-size:11px; padding:7px 8px; }
+      justify-content:flex-start; padding:2px; overflow-x:auto; overscroll-behavior-x:contain;
+      scrollbar-width:thin; }
+    .area-navigation a { font-size:13px; padding:7px 8px; }
     .sign-in { min-height:34px; }
   }
   @media(max-width:420px) {
-    .area-navigation a { font-size:10px; padding:7px 4px; }
+    .area-navigation a { font-size:13px; padding:7px 8px; flex-shrink:0; }
   }
 </style>

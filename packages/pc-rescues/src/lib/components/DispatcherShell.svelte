@@ -743,7 +743,7 @@ import { completedOnNSWDay, rescueTodayNSW, sortRescueRecords, isWaitingFourHour
 	}
 
 	.queue-connection {
-		font-size: 11px;
+		font-size:13px;
 		color: var(--rh-muted);
 		white-space: nowrap;
 	}
@@ -836,10 +836,10 @@ import { completedOnNSWDay, rescueTodayNSW, sortRescueRecords, isWaitingFourHour
 		cursor: pointer;
 	}
 
-  .queue-results { display:flex; justify-content:space-between; align-items:center; gap:6px; padding:6px 16px; color:var(--rh-muted); font-size:11px; }
+  .queue-results { display:flex; justify-content:space-between; align-items:center; gap:6px; padding:6px 16px; color:var(--rh-muted); font-size:13px; }
   .queue-results label { display:flex; align-items:center; gap:5px; white-space:nowrap; }
-  .queue-results select { min-width:0; max-width:110px; padding:5px 3px; border:1px solid var(--rh-border); border-radius:7px; background:var(--rh-field); color:var(--rh-text); font:inherit; font-size:11px; }
-  .queue-waiting { display:block; margin-top:4px; color:var(--rh-danger-text); font-size:11px; font-weight:700; }
+  .queue-results select { min-width:0; max-width:110px; padding:5px 3px; border:1px solid var(--rh-border); border-radius:7px; background:var(--rh-field); color:var(--rh-text); font:inherit; font-size:13px; }
+  .queue-waiting { display:block; margin-top:4px; color:var(--rh-danger-text); font-size:13px; font-weight:700; }
   .queue-load-more { display:block; margin:12px auto; padding:9px 14px; border:1px solid var(--rh-border); border-radius:9px; background:var(--rh-surface-soft); color:var(--rh-text); cursor:pointer; font:inherit; font-size:12px; font-weight:700; }
 	.tabs {
 		display: grid;
@@ -1514,18 +1514,18 @@ import { completedOnNSWDay, rescueTodayNSW, sortRescueRecords, isWaitingFourHour
 	.rescue-assignment { display: inline-flex; flex-wrap: wrap; gap: 3px; align-items: baseline;
 		margin-top: 7px; font-size: 12px; color: var(--rh-text); }
 	.rescue-assignment strong { font-size: 12px; font-weight: 750; }
-	.rescue-assignment small { font-size: 11px; font-weight: 500; color: var(--rh-muted); }
+	.rescue-assignment small { font-size:13px; font-weight: 500; color: var(--rh-muted); }
 	.rescue-owner-summary { display: grid; gap: 3px; margin-top: 12px; padding: 12px;
 		border: 1px solid var(--rh-border); border-radius: 10px;
 		background: var(--rh-surface-soft); }
-	.rescue-owner-summary small { color: var(--rh-muted); font-size: 11px;
+	.rescue-owner-summary small { color: var(--rh-muted); font-size:13px;
 		font-weight: 750; text-transform: uppercase; letter-spacing: .06em; }
 	.rescue-owner-summary strong { color: var(--rh-text); font-size: 14px; }
 	.rescue-owner-summary span { color: var(--rh-muted); font-size: 12px; }
 	.source-label { display: inline-block; width: fit-content; margin-top: 6px;
 		padding: 3px 7px; border: 1px solid var(--rh-border); border-radius: 7px;
 		color: var(--rh-text); background: var(--rh-surface-soft);
-		font-size: 11px; font-weight: 750; }
+		font-size:13px; font-weight: 750; }
 	.routing-exception { display: flex; align-items: flex-start; padding: 12px;
 		gap: 10px; border: 1px solid var(--rh-border); border-radius: 10px;
 		background: var(--rh-surface); color: var(--rh-text); }

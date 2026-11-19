@@ -258,7 +258,7 @@
     display:grid; grid-template-columns:115px minmax(0,1fr); gap:12px; }
   dt { color:var(--rh-muted); font-size:13px; }
   dd { margin:0; font-weight:700; font-size:13px; overflow-wrap:anywhere; }
-  .help { color:var(--rh-muted); line-height:1.5; font-size:12px; }
+  .help { color:var(--rh-muted); line-height:1.5; font-size:13px; }
   .commit-link { color:var(--rh-primary); text-decoration:underline; text-underline-offset:3px; }
   .availability-panel { min-width:0; }
   .availability-current { display:flex; align-items:center; gap:9px; font-weight:750; }
@@ -286,7 +286,7 @@
   .day-heading strong { font-size:14px; }
   .windows { display:grid; gap:8px; margin:11px 0 0 25px; }
   .window { display:flex; flex-wrap:wrap; gap:8px; align-items:end; }
-  .window label { display:grid; gap:4px; font-size:12px; color:var(--rh-muted); }
+  .window label { display:grid; gap:4px; font-size:13px; color:var(--rh-muted); }
   .window label input { width:126px; }
   .remove { color:var(--rh-danger-text); }
   .add-window { justify-self:start; }
