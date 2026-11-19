@@ -70,8 +70,8 @@ import { completedOnNSWDay, rescueTodayNSW, sortRescueRecords, isWaitingFourHour
   let visibleLimit = $state(RESCUE_LIST_PAGE_SIZE);
 	let species = $state('');
 	let speciesSuggestionsOpen = $state(false);
-	let speciesField = $state<HTMLLabelElement | undefined>(undefined);
-	let addressField = $state<HTMLLabelElement | undefined>(undefined);
+	let speciesField = $state<HTMLDivElement | undefined>(undefined);
+	let addressField = $state<HTMLDivElement | undefined>(undefined);
 	const speciesMatches = $derived(species.trim() ? australianAnimalNames.filter((name) => name.toLowerCase().includes(species.trim().toLowerCase())).slice(0, 12) : australianAnimalNames.slice(0, 12));
 	let breed = $state('');
 	let injury = $state('');
