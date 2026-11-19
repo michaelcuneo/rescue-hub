@@ -611,11 +611,11 @@ import { completedOnNSWDay, rescueTodayNSW, sortRescueRecords, isWaitingFourHour
 
 			<form onsubmit={createNewRescue}>
 				<div class="form-section">
-					<label class="field full" bind:this={addressField}>
-						<span>Address or location</span>
+					<div class="field full" bind:this={addressField}>
+						<label for="dispatch-intake-address">Address or location</label>
 						<div class="address-input">
 							<Search size={15} />
-							<input
+							<input id="dispatch-intake-address"
 								value={addressQuery}
 								oninput={(event) =>
 									scheduleAddressSearch((event.currentTarget as HTMLInputElement).value)}
@@ -641,7 +641,7 @@ import { completedOnNSWDay, rescueTodayNSW, sortRescueRecords, isWaitingFourHour
 							</div>
 							<small>Address data: <a href="https://docs.aws.amazon.com/location/latest/developerguide/data-attribution.html" target="_blank" rel="noopener noreferrer">Amazon Location sources</a></small>
 						{/if}
-					</label>
+					</div>
 
 					<div class="location-tools">
 						<button type="button" onclick={useCurrentLocation}>
@@ -663,9 +663,9 @@ import { completedOnNSWDay, rescueTodayNSW, sortRescueRecords, isWaitingFourHour
 				</div>
 
 				<div class="form-section two-column">
-					<label class="field" bind:this={speciesField}>
-						<span>Animal / species</span>
-						<input bind:value={species} role="combobox" aria-autocomplete="list" aria-expanded={speciesSuggestionsOpen} aria-controls="animal-species-options" autocomplete="off" placeholder="Search Australian animals…" onfocus={() => (speciesSuggestionsOpen = true)} oninput={() => (speciesSuggestionsOpen = true)} />
+					<div class="field" bind:this={speciesField}>
+						<label for="dispatch-intake-species">Animal / species</label>
+						<input id="dispatch-intake-species" bind:value={species} role="combobox" aria-autocomplete="list" aria-expanded={speciesSuggestionsOpen} aria-controls="animal-species-options" autocomplete="off" placeholder="Search Australian animals…" onfocus={() => (speciesSuggestionsOpen = true)} oninput={() => (speciesSuggestionsOpen = true)} />
 						{#if speciesSuggestionsOpen}
 							<div class="animal-options" id="animal-species-options" role="listbox" aria-label="Australian animal suggestions">
 								{#each speciesMatches as animal}
@@ -675,7 +675,7 @@ import { completedOnNSWDay, rescueTodayNSW, sortRescueRecords, isWaitingFourHour
 								{/each}
 							</div>
 						{/if}
-					</label>
+					</div>
 
 					<label class="field">
 						<span>Species detail</span>
@@ -1258,7 +1258,8 @@ import { completedOnNSWDay, rescueTodayNSW, sortRescueRecords, isWaitingFourHour
 		grid-column: 1 / -1;
 	}
 
-	.field > span {
+	.field > span,
+	.field > label {
 		color:var(--rh-t53, #66746c);
 		font-size: 12px;
 		font-weight: 800;
