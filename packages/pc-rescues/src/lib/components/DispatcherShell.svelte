@@ -427,17 +427,19 @@ import { completedOnNSWDay, rescueTodayNSW, sortRescueRecords, isWaitingFourHour
 <div class="dispatcher-shell">
 	<aside class="queue">
 		<div class="queue-heading">
-			<div>
+			<div class="queue-heading-title">
 				<p>Dispatch</p>
 				<h1>Rescue queue</h1>
 			</div>
-			<span class:offline={!backendOnline} class="queue-connection" title={backendOnline ? 'Connected to Rescue Hub' : 'Backend unavailable'}>{backendOnline ? 'Connected' : 'Offline'}</span>
-			{#if userCanDispatch}
-				<button class="new-rescue" type="button" onclick={openIntake}>
-					<Plus size={16} />
-					New rescue
-				</button>
-			{/if}
+			<div class="queue-heading-actions">
+				<span class:offline={!backendOnline} class="queue-connection" title={backendOnline ? 'Connected to Rescue Hub' : 'Backend unavailable'}>{backendOnline ? 'Connected' : 'Offline'}</span>
+				{#if userCanDispatch}
+					<button class="new-rescue" type="button" onclick={openIntake}>
+						<Plus size={16} />
+						New rescue
+					</button>
+				{/if}
+			</div>
 		</div>
 
 		{#if user.roles.some(role => ['RESCUER', 'CARER'].includes(role))}
@@ -743,7 +745,10 @@ import { completedOnNSWDay, rescueTodayNSW, sortRescueRecords, isWaitingFourHour
 	}
 
 	.queue-connection {
-		font-size:13px;
+		display: inline-flex;
+		align-items: center;
+		font-size: 13px;
+		line-height: 1.2;
 		color: var(--rh-muted);
 		white-space: nowrap;
 	}
@@ -793,11 +798,20 @@ import { completedOnNSWDay, rescueTodayNSW, sortRescueRecords, isWaitingFourHour
 	}
 
 	.queue-heading {
-		display: flex;
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) max-content;
 		align-items: center;
-		justify-content: space-between;
-		gap: 12px;
+		column-gap: 10px;
 		padding: 16px 16px 12px;
+	}
+	.queue-heading-title { min-width: 0; }
+	.queue-heading-actions {
+		display: flex;
+		flex-direction: column;
+		align-items: flex-end;
+		justify-content: center;
+		gap: 5px;
+		white-space: nowrap;
 	}
 
 	.queue-heading p,
@@ -819,12 +833,16 @@ import { completedOnNSWDay, rescueTodayNSW, sortRescueRecords, isWaitingFourHour
 
 	.queue-heading h1 {
 		font-size: 19px;
+		line-height: 1.2;
+		white-space: nowrap;
 	}
 
 	.new-rescue {
 		height: 34px;
 		display: inline-flex;
 		align-items: center;
+		white-space: nowrap;
+		flex-shrink: 0;
 		gap: 6px;
 		padding: 0 11px;
 		border:0;
