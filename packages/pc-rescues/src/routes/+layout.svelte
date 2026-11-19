@@ -1,5 +1,6 @@
 <script lang="ts">
   import './global.css';
+  import 'maplibre-gl/dist/maplibre-gl.css';
   import { onMount } from 'svelte';
   import { page } from '$app/state';
   import ThemeSwitcher from '$lib/components/ThemeSwitcher.svelte';

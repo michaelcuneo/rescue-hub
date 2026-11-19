@@ -16,7 +16,7 @@
     onCancel: () => void;
   } = $props();
 
-  const ESM = 'https://unpkg.com/maplibre-gl@6.18.0/dist/maplibre-gl.mjs';
+  // Bundled by Vite from the application's pinned npm dependency.
   const LIGHT = 'https://tiles.openfreemap.org/styles/positron';
   const DARK = 'https://tiles.openfreemap.org/styles/dark';
 
@@ -53,7 +53,7 @@
     const init = async () => {
       try {
         if (selected && isValidReleasePoint(selected)) pending = selected;
-        module = await import(/* @vite-ignore */ ESM);
+        module = await import('maplibre-gl');
         if (!surface || disposed) return;
         activeTheme = $resolvedTheme;
         map = new module.Map({
@@ -95,9 +95,6 @@
   });
 </script>
 
-<svelte:head>
-  <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@6.18.0/dist/maplibre-gl.css"/>
-</svelte:head>
 <svelte:window onkeydown={(event) => { if (event.key === 'Escape') onCancel(); }} />
 <div class="release-picker" role="dialog" aria-modal="true" aria-label="Choose wildlife release location">
   <div class="picker-content">

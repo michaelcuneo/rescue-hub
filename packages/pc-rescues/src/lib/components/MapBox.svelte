@@ -16,7 +16,16 @@
 
   // Same pinned, browser-only proof of concept as Administration → Rescues → Map.
   // Keep the npm lockfile and Mapbox-based Expo application untouched for now.
-  const MAPLIBRE_ESM = 'https://unpkg.com/maplibre-gl@6.18.0/dist/maplibre-gl.mjs';
+// No network resources: keeps accurate wildlife GPS pins interactive if the
+  // OpenFreeMap basemap is unavailable, rather than showing a blank map.
+  function emergencyStyle(theme: string) {
+    return {
+      version: 8 as const,
+      sources: {},
+      layers: [{ id: 'offline-background', type: 'background' as const,
+        paint: { 'background-color': theme === 'dark' ? '#111820' : '#edf1f4' } }]
+    };
+  }
   const LIGHT_STYLE = 'https://tiles.openfreemap.org/styles/positron';
   const DARK_STYLE = 'https://tiles.openfreemap.org/styles/dark';
   const PIN_SOURCE = 'rescue-operations-pins';
@@ -408,9 +417,24 @@
     }, 30_000);
     let disposed = false;
     let unsubscribeTheme: (() => void) | undefined;
+    let tileTimeout: ReturnType<typeof setTimeout> | undefined;
+    let degraded = false;
+    function fallback(map: any, theme: string) {
+      if (degraded || disposed) return;
+      degraded = true;
+      if (tileTimeout) clearTimeout(tileTimeout);
+      console.warn('Rescue basemap unavailable; switching to GPS-only map.');
+      map.setStyle(emergencyStyle(theme));
+    }
+    function watchTiles(map: any, theme: string) {
+      if (tileTimeout) clearTimeout(tileTimeout);
+      tileTimeout = setTimeout(() => {
+        if (!mapReady && !disposed) fallback(map, theme);
+      }, 12_000);
+    }
     const init = async () => {
       try {
-        const lib = await import(/* @vite-ignore */ MAPLIBRE_ESM);
+        const lib = await import('maplibre-gl');
         if (disposed || !container) return;
         mapLibreModule = lib;
         let activeTheme = get(resolvedTheme);
@@ -445,7 +469,10 @@
           try {
             installRescueLayers(map);
             mapReady = true;
-            mapError = '';
+            if (tileTimeout) clearTimeout(tileTimeout);
+            mapError = degraded
+              ? 'Basemap tiles unavailable. Rescue GPS pins remain interactive.'
+              : '';
             const snapshot = get(data);
             updateRescueSource([...snapshot.pending, ...snapshot.assigned, ...snapshot.completed]);
             updateSelectedPin(get(selectedRescue)?.id ?? '');
@@ -457,7 +484,10 @@
           }
         });
         map.on('error', (event: any) => {
-          if (!mapReady) mapError = event.error?.message ?? 'Map tiles could not load';
+          if (!mapReady && !degraded) {
+            console.warn('MapLibre basemap failed:', event.error?.name ?? 'TileError');
+            fallback(map, activeTheme);
+          }
         });
 
         if (mapSurface && typeof ResizeObserver !== 'undefined') {
@@ -465,10 +495,13 @@
           resizeObserver.observe(mapSurface);
         }
         map.resize();
+        watchTiles(map, activeTheme);
         unsubscribeTheme = resolvedTheme.subscribe(theme => {
           if (disposed || theme === activeTheme) return;
           activeTheme = theme;
           mapReady = false;
+          degraded = false;
+          watchTiles(map, theme);
           map.setStyle(theme === 'dark' ? DARK_STYLE : LIGHT_STYLE);
         });
       } catch (error) {
@@ -482,6 +515,7 @@
     return () => {
       disposed = true;
       clearInterval(dayTimer);
+      if (tileTimeout) clearTimeout(tileTimeout);
       unsubscribeTheme?.();
       resizeObserver?.disconnect();
       draftMarker?.remove();
@@ -510,10 +544,6 @@
     if (mapReady) setDraftMarker(isIntakeOpen ? location : null);
   });
 </script>
-
-<svelte:head>
-  <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@6.18.0/dist/maplibre-gl.css" />
-</svelte:head>
 
 <div class="map-shell">
   <div class="map-surface" bind:this={mapSurface}>
