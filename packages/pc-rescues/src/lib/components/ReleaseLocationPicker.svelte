@@ -16,7 +16,7 @@
     onCancel: () => void;
   } = $props();
 
-  // Bundled by Vite from the application's pinned npm dependency.
+  const ESM = 'https://unpkg.com/maplibre-gl@6.18.0/dist/maplibre-gl.mjs';
   const LIGHT = 'https://tiles.openfreemap.org/styles/positron';
   const DARK = 'https://tiles.openfreemap.org/styles/dark';
 
@@ -28,15 +28,6 @@
   let ready = $state(false);
   let error = $state('');
   let activeTheme = 'light';
-  // Keep the release pin and coordinate controls usable during tile outages.
-  function emergencyStyle(theme: string) {
-    return {
-      version: 8 as const,
-      sources: {},
-      layers: [{ id: 'offline-background', type: 'background' as const,
-        paint: { 'background-color': theme === 'dark' ? '#111820' : '#edf1f4' } }]
-    };
-  }
 
   function setPin(point: Point) {
     if (!isValidReleasePoint(point)) return;
@@ -59,24 +50,10 @@
   onMount(() => {
     let disposed = false;
     let unsubscribe: (() => void) | undefined;
-    let tileTimeout: ReturnType<typeof setTimeout> | undefined;
-    let degraded = false;
-    let tileFailures = 0;
-    function fallback() {
-      if (degraded || disposed || !map) return;
-      degraded = true;
-      if (tileTimeout) clearTimeout(tileTimeout);
-      error = 'Basemap tiles unavailable. The GPS pin and coordinates still work; confirm the release location.';
-      map.setStyle(emergencyStyle(activeTheme));
-    }
-    function watchTiles() {
-      if (tileTimeout) clearTimeout(tileTimeout);
-      tileTimeout = setTimeout(() => { if (!ready) fallback(); }, 12_000);
-    }
     const init = async () => {
       try {
         if (selected && isValidReleasePoint(selected)) pending = selected;
-        module = await import('maplibre-gl');
+        module = await import(/* @vite-ignore */ ESM);
         if (!surface || disposed) return;
         activeTheme = $resolvedTheme;
         map = new module.Map({
@@ -86,11 +63,9 @@
           zoom: 11
         });
         map.addControl(new module.NavigationControl(), 'top-right');
-        map.on('style.load', () => {
+        map.on('load', () => {
           if (disposed) return;
           ready = true;
-          if (tileTimeout) clearTimeout(tileTimeout);
-          if (!degraded) error = '';
           if (pending) setPin(pending);
         });
         map.on('click', (event: any) => {
@@ -99,16 +74,11 @@
         unsubscribe = resolvedTheme.subscribe(theme => {
           if (disposed || activeTheme === theme) return;
           activeTheme = theme;
-          degraded = false;
-          tileFailures = 0;
-          ready = false;
-          watchTiles();
           map.setStyle(theme === 'dark' ? DARK : LIGHT);
         });
-        map.on('error', () => {
-          if (!degraded && ++tileFailures >= (ready ? 3 : 1)) fallback();
+        map.on('error', (event: any) => {
+          if (!ready) error = event.error?.message ?? 'Map tiles unavailable';
         });
-        watchTiles();
       } catch (failure) {
         if (!disposed) error = failure instanceof Error ? failure.message : 'Could not load release map';
       }
@@ -116,7 +86,6 @@
     void init();
     return () => {
       disposed = true;
-      if (tileTimeout) clearTimeout(tileTimeout);
       unsubscribe?.();
       marker?.remove();
       map?.remove();
@@ -126,6 +95,9 @@
   });
 </script>
 
+<svelte:head>
+  <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@6.18.0/dist/maplibre-gl.css"/>
+</svelte:head>
 <svelte:window onkeydown={(event) => { if (event.key === 'Escape') onCancel(); }} />
 <div class="release-picker" role="dialog" aria-modal="true" aria-label="Choose wildlife release location">
   <div class="picker-content">

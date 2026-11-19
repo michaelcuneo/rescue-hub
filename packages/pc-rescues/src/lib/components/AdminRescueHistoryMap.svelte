@@ -33,16 +33,7 @@
   const AREA_SOURCE = 'historical-operating-areas';
   // POC only: use a pinned, browser-only MapLibre module so the rest of
   // Rescue Hub and its current npm lockfile stay completely unchanged.
-// No network resources: keeps accurate wildlife GPS pins interactive if the
-  // OpenFreeMap basemap is unavailable, rather than showing a blank map.
-  function emergencyStyle(theme: string) {
-    return {
-      version: 8 as const,
-      sources: {},
-      layers: [{ id: 'offline-background', type: 'background' as const,
-        paint: { 'background-color': theme === 'dark' ? '#111820' : '#edf1f4' } }]
-    };
-  }
+  const MAPLIBRE_ESM = 'https://unpkg.com/maplibre-gl@6.18.0/dist/maplibre-gl.mjs';
   const LIGHT_STYLE = 'https://tiles.openfreemap.org/styles/positron';
   const DARK_STYLE = 'https://tiles.openfreemap.org/styles/dark';
   let container: HTMLDivElement | undefined;
@@ -442,27 +433,11 @@
   onMount(() => {
     let disposed = false;
     let unsubscribeTheme: (() => void) | undefined;
-    let tileTimeout: ReturnType<typeof setTimeout> | undefined;
-    let degraded = false;
-    let tileFailures = 0;
-    function fallback(map: any, theme: string) {
-      if (degraded || disposed) return;
-      degraded = true;
-      if (tileTimeout) clearTimeout(tileTimeout);
-      console.warn('Historical basemap unavailable; switching to GPS-only map.');
-      map.setStyle(emergencyStyle(theme));
-    }
-    function watchTiles(map: any, theme: string) {
-      if (tileTimeout) clearTimeout(tileTimeout);
-      tileTimeout = setTimeout(() => {
-        if (!mapReady && !disposed) fallback(map, theme);
-      }, 12_000);
-    }
     const init = async () => {
       try {
         // MapLibre 6 ships an ESM browser bundle and runs its worker from the
         // same-origin Blob URL; it does not require a Mapbox token or SDK.
-        const lib = await import('maplibre-gl');
+        const lib = await import(/* @vite-ignore */ MAPLIBRE_ESM);
         if (disposed || !container) return;
 
         let activeTheme = $resolvedTheme;
@@ -471,7 +446,7 @@
           style: activeTheme === 'dark' ? DARK_STYLE : LIGHT_STYLE,
           center: [151.66, -32.95],
           zoom: 8,
-          attributionControl: {}
+          attributionControl: true
         });
         mapInstance = map;
         map.addControl(new lib.NavigationControl(), 'top-right');
@@ -482,10 +457,7 @@
           try {
             installPinLayers(map);
             mapReady = true;
-            if (tileTimeout) clearTimeout(tileTimeout);
-            mapError = degraded
-              ? 'Basemap unavailable. Historical GPS locations remain interactive.'
-              : '';
+            mapError = '';
             updatePins();
             if (selected) focusSelected();
             else fitAll();
@@ -496,8 +468,11 @@
           }
         });
         map.on('error', (event: any) => {
-          if (!degraded && ++tileFailures >= (mapReady ? 3 : 1))
-            fallback(map, activeTheme);
+          // Keep displaying the existing map when an individual tile fails.
+          if (!mapReady) {
+            console.error('MapLibre basemap error', event.error);
+            mapError = event.error?.message ?? 'Map tiles could not load';
+          }
         });
 
         if (surface && typeof ResizeObserver !== 'undefined') {
@@ -505,15 +480,11 @@
           resizeObserver.observe(surface);
         }
         map.resize();
-        watchTiles(map, activeTheme);
 
         unsubscribeTheme = resolvedTheme.subscribe(theme => {
           if (disposed || theme === activeTheme) return;
           activeTheme = theme;
           mapReady = false;
-          degraded = false;
-          tileFailures = 0;
-          watchTiles(map, theme);
           listenersInstalled = true; // MapLibre preserves delegated event handlers.
           map.setStyle(theme === 'dark' ? DARK_STYLE : LIGHT_STYLE);
         });
@@ -526,7 +497,6 @@
     void init();
     return () => {
       disposed = true;
-      if (tileTimeout) clearTimeout(tileTimeout);
       unsubscribeTheme?.();
       resizeObserver?.disconnect();
       mapReady = false;
@@ -655,6 +625,10 @@
     }).format(time);
   }
 </script>
+
+<svelte:head>
+  <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@6.18.0/dist/maplibre-gl.css" />
+</svelte:head>
 
 <div class="historical-map-layout">
   <div class="historical-map-surface" bind:this={surface}>

@@ -151,3 +151,27 @@ review the CloudWatch dashboard for production-like workloads.
 
 React Native Mapbox migration and legacy UI cleanup remain deferred
 outside this desktop-focused P2 change.
+
+## Demo map incident / temporary rollback — 19 November 2026
+
+The live demo built from commit `8be63c4` was reported to have lost its
+desktop map. The root cause could not be established from GitHub CI: there
+is no authenticated browser console or map network trace available. A likely
+risk was the P1 map fallback which replaced the real basemap with an empty
+GPS-only style after initial or repeated errors; the same change also altered
+how the MapLibre module and CSS were loaded.
+
+**Immediate corrective action:** Restore the three desktop map components
+and root layout to their pre-P1 map-bundling implementation at `e50999e`.
+This returns the previously used pinned external MapLibre 6.18.0 JS/CSS loader
+and original OpenFreeMap styles, leaving all unrelated P1/P2 code intact.
+The pinned npm dependency remains installed but is not used by these map
+components until a browser-verified bundling migration can be completed.
+
+**Unresolved:** This is a rollback of the P1 map-resilience change, not a
+verified root-cause fix. CDN/tiles remain an availability dependency. Before
+reintroducing any fallback, test the demo in a real browser, especially
+network loss, partially failing tiles, worker/CSP errors and both themes.
+Never switch to an empty basemap on a single tile error. Confirm the
+operational, historical, and release maps visually after deploying the
+corrective commit. Do not claim the map is restored until live verification.

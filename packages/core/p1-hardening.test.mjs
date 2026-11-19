@@ -37,23 +37,19 @@ test('AWS Places uses DynamoDB conditional, fail-closed user and stage limits', 
   assert.match(service, /reserveGeocodingRequest\(userId \?\? '', 'search'\)/);
 });
 
-test('Desktop maps use pinned locally bundled MapLibre and GPS-only fallback', () => {
-  const pkg = JSON.parse(read('pc-rescues/package.json'));
-  const lock = JSON.parse(read('../package-lock.json'));
-  assert.equal(pkg.dependencies['maplibre-gl'], '6.18.0');
-  assert.equal(lock.packages['node_modules/maplibre-gl']?.version, '6.18.0');
+test('Desktop maps restore last verified MapLibre loader for demo stability', () => {
   const layout = read('pc-rescues/src/routes/+layout.svelte');
-  assert.match(layout, /import 'maplibre-gl\/dist\/maplibre-gl\.css'/);
+  assert.doesNotMatch(layout, /import 'maplibre-gl\\/dist\\/maplibre-gl\\.css'/);
   for (const path of [
     'pc-rescues/src/lib/components/MapBox.svelte',
     'pc-rescues/src/lib/components/AdminRescueHistoryMap.svelte',
     'pc-rescues/src/lib/components/ReleaseLocationPicker.svelte'
   ]) {
     const code = read(path);
-    assert.match(code, /import\('maplibre-gl'\)/);
-    assert.doesNotMatch(code, /unpkg\.com\/maplibre-gl/);
-    assert.match(code, /function emergencyStyle\(/);
-    assert.match(code, /map\.setStyle\(emergencyStyle\(/);
+    assert.match(code, /unpkg\\.com\\/maplibre-gl@6\\.18\\.0/);
+    assert.match(code, /import\\(\\/\\* @vite-ignore \\*\\//);
+    assert.doesNotMatch(code, /function emergencyStyle\\(/);
+    assert.match(code, /map\\.on\\('error'/);
   }
 });
 
