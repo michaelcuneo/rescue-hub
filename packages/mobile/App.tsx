@@ -493,8 +493,8 @@ export default function App() {
 
     const available = session.user.availabilityStatus === 'AVAILABLE';
   if (view === 'chats') return <SafeAreaView style={styles.root}>
-    <View style={[styles.screenBody, !keyboardVisible && styles.screenWithTabs]}>
-    <OrganisationChats userId={session.user.id}
+    <View style={styles.screenBody}>
+    <OrganisationChats userId={session.user.id} bottomTabsVisible={!keyboardVisible}
       onOpenRescue={(rescueId) => {
         const rescue = rescues.find(item => item.id === rescueId);
         if (!rescue) {
@@ -510,7 +510,7 @@ export default function App() {
   </SafeAreaView>;
 
   if (view === 'settings') return <SafeAreaView style={styles.root}>
-    <View style={[styles.screenBody, !keyboardVisible && styles.screenWithTabs]}>
+    <View style={styles.screenBody}>
     <AvailabilitySettings
     onBack={() => { setView('map'); void refresh(); }}
     onSignOut={signOut}
@@ -530,7 +530,7 @@ export default function App() {
   </SafeAreaView>;
 
   if (view === 'care' && session.user.roles?.includes('CARER')) return <SafeAreaView style={styles.root}>
-    <View style={[styles.screenBody, !keyboardVisible && styles.screenWithTabs]}>
+    <View style={styles.screenBody}>
     <CarerOffers userId={session.user.id} onBack={() => { setView('map'); void refresh(); }}
       onChanged={() => void refresh()} />
     </View>
@@ -538,7 +538,7 @@ export default function App() {
   </SafeAreaView>;
 
     if (activeRescue) return <SafeAreaView style={styles.root}>
-    <View style={[styles.screenBody, !keyboardVisible && styles.screenWithTabs]}>
+    <View style={styles.screenBody}>
     <AnimalCare
     rescue={activeRescue}
     userId={session.user.id}
@@ -705,8 +705,6 @@ export default function App() {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#edf1ee' },
   screenBody: { flex: 1, minHeight: 0 },
-  // Keep composers, save actions and final form fields clear of the floating bar.
-  screenWithTabs: { paddingBottom: 94 },
   rescueListWithTabs: { paddingBottom: 118 },
   assignmentBanner: {backgroundColor:'#dceae1',borderColor:'#91b39d',borderWidth:1,marginHorizontal:12,marginVertical:6,padding:12,borderRadius:10},
   assignmentBannerText: {color:'#173d2c',fontSize:14,fontWeight:'800'},
