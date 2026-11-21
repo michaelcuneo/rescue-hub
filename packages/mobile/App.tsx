@@ -34,7 +34,6 @@ import {
   type RescueFeedDiagnostics,
   type User
 } from './src/api';
-import { SafeAreaProvider, SafeAreaView as TopSafeAreaView } from 'react-native-safe-area-context';
 import { registerForPushNotifications, type PushRegistration } from './src/notifications';
 import AnimalCare from './src/AnimalCare';
 import AvailabilitySettings from './src/AvailabilitySettings';
@@ -68,13 +67,19 @@ function claimNoticeFor(error: unknown): ClaimNotice {
   return { title: 'Could not claim rescue', message: raw };
 }
 
-export default function App() {
-  return <SafeAreaProvider>
-    <RescueHubApp />
-  </SafeAreaProvider>;
+/**
+ * Keep iPhone status-bar / Dynamic Island clearance without reserving a
+ * bottom safe-area band. The floating tab bar is positioned in the full
+ * screen, behind the home-indicator area.
+ */
+function TopOnlySafeAreaView({ children }: { children: React.ReactNode }) {
+  return <View style={styles.root}>
+    <SafeAreaView style={styles.topSafeArea} />
+    {children}
+  </View>;
 }
 
-function RescueHubApp() {
+export default function App() {
   const [loading, setLoading] = useState(true);
   const keyboardVisible = useKeyboardVisible();
   const [session, setSession] = useState<Session | null>(null);
@@ -499,7 +504,7 @@ function RescueHubApp() {
     keyboardVisible ? null : <BottomTabs active={active} onSelect={activateTab} />;
 
     const available = session.user.availabilityStatus === 'AVAILABLE';
-  if (view === 'chats') return <TopSafeAreaView edges={['top', 'left', 'right']} style={styles.root}>
+  if (view === 'chats') return <TopOnlySafeAreaView>
     <View style={styles.screenBody}>
     <OrganisationChats userId={session.user.id} bottomTabsVisible={!keyboardVisible}
       onOpenRescue={(rescueId) => {
@@ -516,7 +521,7 @@ function RescueHubApp() {
     {bottom('chats')}
   </TopSafeAreaView>;
 
-  if (view === 'settings') return <TopSafeAreaView edges={['top', 'left', 'right']} style={styles.root}>
+  if (view === 'settings') return <TopOnlySafeAreaView>
     <View style={styles.screenBody}>
     <AvailabilitySettings
     onBack={() => { setView('map'); void refresh(); }}
@@ -536,7 +541,7 @@ function RescueHubApp() {
     {bottom('account')}
   </TopSafeAreaView>;
 
-  if (view === 'care' && session.user.roles?.includes('CARER')) return <TopSafeAreaView edges={['top', 'left', 'right']} style={styles.root}>
+  if (view === 'care' && session.user.roles?.includes('CARER')) return <TopOnlySafeAreaView>
     <View style={styles.screenBody}>
     <CarerOffers userId={session.user.id} onBack={() => { setView('map'); void refresh(); }}
       onChanged={() => void refresh()} />
@@ -544,7 +549,7 @@ function RescueHubApp() {
     {bottom('rescues')}
   </TopSafeAreaView>;
 
-    if (activeRescue) return <TopSafeAreaView edges={['top', 'left', 'right']} style={styles.root}>
+    if (activeRescue) return <TopOnlySafeAreaView>
     <View style={styles.screenBody}>
     <AnimalCare
     rescue={activeRescue}
@@ -562,7 +567,7 @@ function RescueHubApp() {
   </TopSafeAreaView>;
 
   return (
-    <TopSafeAreaView edges={['top', 'left', 'right']} style={styles.root}>
+    <TopOnlySafeAreaView>
       <StatusBar barStyle="dark-content" />
       <Modal visible={claimNotice !== null} transparent animationType="fade"
         statusBarTranslucent onRequestClose={() => setClaimNotice(null)}>
@@ -711,6 +716,7 @@ function RescueHubApp() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#edf1ee' },
+  topSafeArea: { flex: 0, backgroundColor: '#edf1ee' },
   screenBody: { flex: 1, minHeight: 0 },
   rescueListWithTabs: { paddingBottom: 118 },
   assignmentBanner: {backgroundColor:'#dceae1',borderColor:'#91b39d',borderWidth:1,marginHorizontal:12,marginVertical:6,padding:12,borderRadius:10},
