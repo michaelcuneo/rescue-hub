@@ -1,10 +1,10 @@
-/** Separates "may see my assigned incident" from the qualifications needed to
- * claim a NEW rescue. An original claimant may need the history after custody
- * moves to a vet or another carer, even though its pin is no longer on the map.
+/** A field volunteer's mobile worklist is NOT a coordinator's oversight feed.
+ * Pending cases are visible only when qualification/transport authorisation
+ * has already been verified by the server; existing assignments and custody
+ * remain accessible for continuity of animal care and audit history.
  *
- * Platform/authority administrators can inspect incidents assigned to their
- * own identity across organisation boundaries. This does NOT allow claiming,
- * pickup or alteration in another organisation.
+ * Administrator and dispatcher roles do not widen the mobile worklist. Those
+ * roles retain their separately authorised desktop oversight functions.
  */
 export type MobileRescueViewer = {
   id: string; organisationId?: string; roles: string[];
@@ -13,7 +13,15 @@ export type MobileRescueCase = {
   organisationId?: string | null; assignedUserId?: string | null; status: string;
   awaitingCarer?: boolean | null;
 };
-export type RescueVisibility = 'MY_ASSIGNMENT' | 'MY_CUSTODY' | 'COORDINATOR' | 'QUALIFIED_PENDING' | null;
+// COORDINATOR is retained only for older deployed API responses; new mobile
+// feeds must never emit it and native clients must ignore it.
+export type RescueVisibility = 'MY_ASSIGNMENT' | 'MY_CUSTODY' | 'QUALIFIED_PENDING' | 'COORDINATOR' | null;
+
+export function isVisibleMobileWorkItem(rescue: { visibility?: RescueVisibility }): boolean {
+  return rescue.visibility === 'MY_ASSIGNMENT' ||
+    rescue.visibility === 'MY_CUSTODY' ||
+    rescue.visibility === 'QUALIFIED_PENDING';
+}
 
 export function mobileRescueVisibility(
   user: MobileRescueViewer, rescue: MobileRescueCase,
@@ -30,11 +38,6 @@ export function mobileRescueVisibility(
     return 'MY_ASSIGNMENT';
   if (!sameOrganisation) return null;
   if (hasCustody) return 'MY_CUSTODY';
-
-  const coordinator = user.roles.some(role =>
-    ['PLATFORM_ADMIN','AUTHORITY_ADMIN','ORG_ADMIN','DISPATCHER'].includes(role));
-  if (coordinator && ['PENDING','ASSIGNED'].includes(rescue.status))
-    return 'COORDINATOR';
 
   if (qualifiesForPending && rescue.status === 'PENDING' &&
       !rescue.assignedUserId && !rescue.awaitingCarer) return 'QUALIFIED_PENDING';
