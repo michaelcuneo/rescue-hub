@@ -519,7 +519,7 @@ export default function App() {
       }} />
     </View>
     {bottom('chats')}
-  </TopSafeAreaView>;
+  </TopOnlySafeAreaView>;
 
   if (view === 'settings') return <TopOnlySafeAreaView>
     <View style={styles.screenBody}>
@@ -539,7 +539,7 @@ export default function App() {
   />
     </View>
     {bottom('account')}
-  </TopSafeAreaView>;
+  </TopOnlySafeAreaView>;
 
   if (view === 'care' && session.user.roles?.includes('CARER')) return <TopOnlySafeAreaView>
     <View style={styles.screenBody}>
@@ -547,7 +547,7 @@ export default function App() {
       onChanged={() => void refresh()} />
     </View>
     {bottom('rescues')}
-  </TopSafeAreaView>;
+  </TopOnlySafeAreaView>;
 
     if (activeRescue) return <TopOnlySafeAreaView>
     <View style={styles.screenBody}>
@@ -564,7 +564,7 @@ export default function App() {
   />
     </View>
     {bottom('rescues')}
-  </TopSafeAreaView>;
+  </TopOnlySafeAreaView>;
 
   return (
     <TopOnlySafeAreaView>
@@ -710,7 +710,7 @@ export default function App() {
         />
       )}
       {bottom('rescues')}
-    </TopSafeAreaView>
+    </TopOnlySafeAreaView>
   );
 }
 
