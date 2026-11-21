@@ -34,6 +34,7 @@ import {
   type RescueFeedDiagnostics,
   type User
 } from './src/api';
+import { SafeAreaProvider, SafeAreaView as TopSafeAreaView } from 'react-native-safe-area-context';
 import { registerForPushNotifications, type PushRegistration } from './src/notifications';
 import AnimalCare from './src/AnimalCare';
 import AvailabilitySettings from './src/AvailabilitySettings';
@@ -68,6 +69,12 @@ function claimNoticeFor(error: unknown): ClaimNotice {
 }
 
 export default function App() {
+  return <SafeAreaProvider>
+    <RescueHubApp />
+  </SafeAreaProvider>;
+}
+
+function RescueHubApp() {
   const [loading, setLoading] = useState(true);
   const keyboardVisible = useKeyboardVisible();
   const [session, setSession] = useState<Session | null>(null);
@@ -492,7 +499,7 @@ export default function App() {
     keyboardVisible ? null : <BottomTabs active={active} onSelect={activateTab} />;
 
     const available = session.user.availabilityStatus === 'AVAILABLE';
-  if (view === 'chats') return <SafeAreaView style={styles.root}>
+  if (view === 'chats') return <TopSafeAreaView edges={['top', 'left', 'right']} style={styles.root}>
     <View style={styles.screenBody}>
     <OrganisationChats userId={session.user.id} bottomTabsVisible={!keyboardVisible}
       onOpenRescue={(rescueId) => {
@@ -507,9 +514,9 @@ export default function App() {
       }} />
     </View>
     {bottom('chats')}
-  </SafeAreaView>;
+  </TopSafeAreaView>;
 
-  if (view === 'settings') return <SafeAreaView style={styles.root}>
+  if (view === 'settings') return <TopSafeAreaView edges={['top', 'left', 'right']} style={styles.root}>
     <View style={styles.screenBody}>
     <AvailabilitySettings
     onBack={() => { setView('map'); void refresh(); }}
@@ -527,17 +534,17 @@ export default function App() {
   />
     </View>
     {bottom('account')}
-  </SafeAreaView>;
+  </TopSafeAreaView>;
 
-  if (view === 'care' && session.user.roles?.includes('CARER')) return <SafeAreaView style={styles.root}>
+  if (view === 'care' && session.user.roles?.includes('CARER')) return <TopSafeAreaView edges={['top', 'left', 'right']} style={styles.root}>
     <View style={styles.screenBody}>
     <CarerOffers userId={session.user.id} onBack={() => { setView('map'); void refresh(); }}
       onChanged={() => void refresh()} />
     </View>
     {bottom('rescues')}
-  </SafeAreaView>;
+  </TopSafeAreaView>;
 
-    if (activeRescue) return <SafeAreaView style={styles.root}>
+    if (activeRescue) return <TopSafeAreaView edges={['top', 'left', 'right']} style={styles.root}>
     <View style={styles.screenBody}>
     <AnimalCare
     rescue={activeRescue}
@@ -552,10 +559,10 @@ export default function App() {
   />
     </View>
     {bottom('rescues')}
-  </SafeAreaView>;
+  </TopSafeAreaView>;
 
   return (
-    <SafeAreaView style={styles.root}>
+    <TopSafeAreaView edges={['top', 'left', 'right']} style={styles.root}>
       <StatusBar barStyle="dark-content" />
       <Modal visible={claimNotice !== null} transparent animationType="fade"
         statusBarTranslucent onRequestClose={() => setClaimNotice(null)}>
@@ -698,7 +705,7 @@ export default function App() {
         />
       )}
       {bottom('rescues')}
-    </SafeAreaView>
+    </TopSafeAreaView>
   );
 }
 
