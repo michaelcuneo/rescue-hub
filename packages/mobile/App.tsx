@@ -488,8 +488,8 @@ export default function App() {
     if (tab === 'rescues') { setView('map'); void refresh(); }
     else setView(tab === 'account' ? 'settings' : 'chats');
   };
-  const bottom = (active: 'rescues' | 'chats' | 'account') =>
-    keyboardVisible ? null : <BottomTabs active={active} onSelect={activateTab} />;
+  const bottom = (active: 'rescues' | 'chats' | 'account', floating = false) =>
+    keyboardVisible ? null : <BottomTabs active={active} onSelect={activateTab} floating={floating} />;
 
     const available = session.user.availabilityStatus === 'AVAILABLE';
   if (view === 'chats') return <SafeAreaView style={styles.root}>
@@ -683,7 +683,7 @@ export default function App() {
           )}
         />
       )}
-      {bottom('rescues')}
+      {bottom('rescues', view === 'map')}
     </SafeAreaView>
   );
 }
@@ -720,7 +720,7 @@ const styles = StyleSheet.create({
   viewText: { color: '#173d2c', fontSize: 13, fontWeight: '800' },
   viewTextSelected: { color: '#fff' },
   mapBody: { flex: 1, position: 'relative' },
-  selectedRescue: { position: 'absolute', bottom: 14, left: 14, right: 14, borderRadius: 16,
+  selectedRescue: { position: 'absolute', bottom: 100, left: 14, right: 14, borderRadius: 16,
     padding: 16, backgroundColor: '#fff', borderWidth: 1, borderColor: '#d9e1dc',
     shadowColor: '#000', shadowOpacity: 0.13, shadowRadius: 14, elevation: 5 },
   selectedHeading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
