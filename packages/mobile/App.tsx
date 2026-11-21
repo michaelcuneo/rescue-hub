@@ -488,11 +488,12 @@ export default function App() {
     if (tab === 'rescues') { setView('map'); void refresh(); }
     else setView(tab === 'account' ? 'settings' : 'chats');
   };
-  const bottom = (active: 'rescues' | 'chats' | 'account', floating = false) =>
-    keyboardVisible ? null : <BottomTabs active={active} onSelect={activateTab} floating={floating} />;
+  const bottom = (active: 'rescues' | 'chats' | 'account') =>
+    keyboardVisible ? null : <BottomTabs active={active} onSelect={activateTab} />;
 
     const available = session.user.availabilityStatus === 'AVAILABLE';
   if (view === 'chats') return <SafeAreaView style={styles.root}>
+    <View style={[styles.screenBody, !keyboardVisible && styles.screenWithTabs]}>
     <OrganisationChats userId={session.user.id}
       onOpenRescue={(rescueId) => {
         const rescue = rescues.find(item => item.id === rescueId);
@@ -504,10 +505,13 @@ export default function App() {
         setSelectedMapRescue(rescue);
         setView('map');
       }} />
+    </View>
     {bottom('chats')}
   </SafeAreaView>;
 
-  if (view === 'settings') return <SafeAreaView style={styles.root}><AvailabilitySettings
+  if (view === 'settings') return <SafeAreaView style={styles.root}>
+    <View style={[styles.screenBody, !keyboardVisible && styles.screenWithTabs]}>
+    <AvailabilitySettings
     onBack={() => { setView('map'); void refresh(); }}
     onSignOut={signOut}
     pushStatus={pushStatus}
@@ -520,15 +524,22 @@ export default function App() {
       setPolicy(savedPolicy);
       setSession({ ...session, user: { ...session.user, availabilityStatus: status, availabilityPolicy: savedPolicy } });
     }}
-  />{bottom('account')}</SafeAreaView>;
+  />
+    </View>
+    {bottom('account')}
+  </SafeAreaView>;
 
   if (view === 'care' && session.user.roles?.includes('CARER')) return <SafeAreaView style={styles.root}>
+    <View style={[styles.screenBody, !keyboardVisible && styles.screenWithTabs]}>
     <CarerOffers userId={session.user.id} onBack={() => { setView('map'); void refresh(); }}
       onChanged={() => void refresh()} />
+    </View>
     {bottom('rescues')}
   </SafeAreaView>;
 
-    if (activeRescue) return <SafeAreaView style={styles.root}><AnimalCare
+    if (activeRescue) return <SafeAreaView style={styles.root}>
+    <View style={[styles.screenBody, !keyboardVisible && styles.screenWithTabs]}>
+    <AnimalCare
     rescue={activeRescue}
     userId={session.user.id}
     roles={session.user.roles ?? []}
@@ -538,7 +549,10 @@ export default function App() {
       setSelectedMapRescue(null);
       void refresh();
     }}
-  />{bottom('rescues')}</SafeAreaView>;
+  />
+    </View>
+    {bottom('rescues')}
+  </SafeAreaView>;
 
   return (
     <SafeAreaView style={styles.root}>
@@ -649,7 +663,7 @@ export default function App() {
           data={sortedRescues}
           style={styles.rescueList}
           keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.list}
+          contentContainerStyle={[styles.list, !keyboardVisible && styles.rescueListWithTabs]}
           ListEmptyComponent={<Text style={styles.empty}>No matching rescues are waiting right now.</Text>}
           renderItem={({ item }) => (
             <View style={styles.card}>
@@ -683,13 +697,17 @@ export default function App() {
           )}
         />
       )}
-      {bottom('rescues', view === 'map')}
+      {bottom('rescues')}
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#edf1ee' },
+  screenBody: { flex: 1, minHeight: 0 },
+  // Keep composers, save actions and final form fields clear of the floating bar.
+  screenWithTabs: { paddingBottom: 94 },
+  rescueListWithTabs: { paddingBottom: 118 },
   assignmentBanner: {backgroundColor:'#dceae1',borderColor:'#91b39d',borderWidth:1,marginHorizontal:12,marginVertical:6,padding:12,borderRadius:10},
   assignmentBannerText: {color:'#173d2c',fontSize:14,fontWeight:'800'},
   loading: { flex: 1, alignItems: 'center', justifyContent: 'center' },
