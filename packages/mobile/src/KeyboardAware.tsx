@@ -17,14 +17,14 @@ const REVEAL_RETRIES_MS = [0, 80, 180, 320, 500, 700] as const;
 const CLEARANCE = 28;
 
 /**
- * Expo SDK 58 Android edge-to-edge rendering can leave the native view
- * unresized when the keyboard opens. Apply keyboard avoidance consistently
- * on both platforms, without the old extra measured Android inset.
+ * On iOS use padding avoidance to keep the focused composer or form above
+ * the keyboard. Android already requests adjustResize in app.json; do not
+ * add a second padding offset on that platform.
  */
 export function KeyboardAwareView({ children, style }: {
   children: ReactNode; style?: StyleProp<ViewStyle>;
 }) {
-  return <KeyboardAvoidingView behavior="padding"
+  return <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     style={[{ flex: 1, minHeight: 0 }, style]}>
     {children}
   </KeyboardAvoidingView>;
@@ -62,8 +62,8 @@ export function KeyboardAwareScrollView({ children, style, contentContainerStyle
         if (token !== generation.current || focused.current !== input) return;
         const viewportBottom = viewportTop + viewportHeight;
         const overlap = keyboardOverlap(viewportBottom, keyboardTop.current);
-        // When Android overlays the viewport rather than resizing it, content
-        // needs additional space so the final input can physically scroll up.
+        // Allow enough trailing content to reveal the final input even when
+        // the viewport has not yet finished adjusting to the iOS keyboard.
         setBottomSpace(Math.max(96, overlap + 68));
         const delta = keyboardScrollDelta({
           viewportTop, viewportBottom, fieldTop: inputTop,
