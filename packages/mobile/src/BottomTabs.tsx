@@ -8,7 +8,6 @@ import {
   Pressable,
   StyleSheet,
   Text,
-  useColorScheme,
   View
 } from 'react-native';
 
@@ -23,11 +22,13 @@ const TABS = [
 const PILL_INSET = 7; // Border + inner padding on each side.
 
 /** Always anchored to the same bottom safe-area position on every screen. */
-export default function BottomTabs({ active, onSelect }: {
+export default function BottomTabs({ active, onSelect, appearance = 'light' }: {
   active: Tab;
   onSelect: (tab: Tab) => void;
+  appearance?: 'light' | 'dark';
 }) {
-  const dark = useColorScheme() === 'dark';
+  // Match the app's actual appearance, not the phone's independent system setting.
+  const dark = appearance === 'dark';
   const [barWidth, setBarWidth] = useState(0);
   const [reduceMotion, setReduceMotion] = useState(false);
   const indicatorX = useRef(new Animated.Value(0)).current;
