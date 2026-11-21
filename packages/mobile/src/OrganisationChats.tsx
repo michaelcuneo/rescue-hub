@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, FlatList, Modal, ScrollView, Pressable,
-  SafeAreaView, StyleSheet, Text, TextInput, View } from 'react-native';
+  StyleSheet, Text, View } from 'react-native';
 import { KeyboardAwareView, KeyboardAwareTextInput } from './KeyboardAware';
 import { getChatChannels, getChannelMessages, markChannelRead,
   sendChannelMessage, getChatMembers, openDirectChat, searchChatMentions,
@@ -193,7 +193,7 @@ export default function OrganisationChats({ userId, initialChannelId, onOpenAnim
       .finally(() => setLoading(false));
   };
 
-  return <SafeAreaView style={styles.root}><KeyboardAwareView>
+  return <KeyboardAwareView style={styles.root}>
     {!selected ? <>
       <View style={styles.heading}><Text style={styles.title}>Chats</Text>
         <Text style={styles.subtitle}>Your organisation and care groups</Text>
@@ -250,7 +250,7 @@ export default function OrganisationChats({ userId, initialChannelId, onOpenAnim
             {item.unread ? <View style={styles.unread} accessibilityLabel="Unread messages" /> : null}
           </Pressable>} /> :
         <>
-          <TextInput style={styles.search} value={search} onChangeText={setSearch}
+          <KeyboardAwareTextInput style={styles.search} value={search} onChangeText={setSearch}
             placeholder="Search name, role or team" accessibilityLabel="Search members" />
           <Text style={styles.directoryHelp}>Availability reflects rescue schedules. Busy members cannot receive new private messages.</Text>
           <FlatList data={listedMembers} keyExtractor={member => member.id}
@@ -362,7 +362,6 @@ export default function OrganisationChats({ userId, initialChannelId, onOpenAnim
         </View>
       </View>
     </>}
-  </KeyboardAwareView>
   <Modal visible={organisationPickerOpen && organisations.length > 1} transparent
     animationType="fade" onRequestClose={() => setOrganisationPickerOpen(false)}>
     <View style={styles.pickerOverlay}>
@@ -391,7 +390,7 @@ export default function OrganisationChats({ userId, initialChannelId, onOpenAnim
       </View>
     </View>
   </Modal>
-  </SafeAreaView>;
+  </KeyboardAwareView>;
 }
 const styles=StyleSheet.create({
   root:{flex:1,backgroundColor:'#f5f7f5'},heading:{paddingHorizontal:20,paddingTop:14,paddingBottom:10},
