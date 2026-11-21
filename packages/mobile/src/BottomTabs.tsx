@@ -22,11 +22,10 @@ const TABS = [
 
 const PILL_INSET = 7; // Border + inner padding on each side.
 
-/** Floating over the map; in normal layout on chats/forms to protect bottom controls. */
-export default function BottomTabs({ active, onSelect, floating = false }: {
+/** Always anchored to the same bottom safe-area position on every screen. */
+export default function BottomTabs({ active, onSelect }: {
   active: Tab;
   onSelect: (tab: Tab) => void;
-  floating?: boolean;
 }) {
   const dark = useColorScheme() === 'dark';
   const [barWidth, setBarWidth] = useState(0);
@@ -66,7 +65,7 @@ export default function BottomTabs({ active, onSelect, floating = false }: {
   const inactiveColor = dark ? '#e0eae4' : '#52665b';
 
   return (
-    <View pointerEvents="box-none" style={[styles.container, floating && styles.floating]}>
+    <View pointerEvents="box-none" style={styles.container}>
       <View style={[styles.shadow, dark && styles.shadowDark]}>
         <View
           style={[styles.capsule, dark && styles.capsuleDark]}
@@ -131,16 +130,14 @@ export default function BottomTabs({ active, onSelect, floating = false }: {
 
 const styles = StyleSheet.create({
   container: {
-    paddingHorizontal: 16,
-    paddingTop: 7,
-    paddingBottom: 10
-  },
-  floating: {
     position: 'absolute',
     left: 0,
     right: 0,
     bottom: 3,
-    zIndex: 20
+    zIndex: 20,
+    paddingHorizontal: 16,
+    paddingTop: 7,
+    paddingBottom: 10
   },
   shadow: {
     borderRadius: 38,
