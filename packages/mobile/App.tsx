@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { KeyboardAwareScrollView, KeyboardAwareTextInput, useKeyboardVisible } from './src/KeyboardAware';
 import {
   ActivityIndicator,
@@ -72,7 +72,7 @@ function claimNoticeFor(error: unknown): ClaimNotice {
  * bottom safe-area band. The floating tab bar is positioned in the full
  * screen, behind the home-indicator area.
  */
-function TopOnlySafeAreaView({ children }: { children: React.ReactNode }) {
+function TopOnlySafeAreaView({ children }: { children: ReactNode }) {
   return <View style={styles.root}>
     <SafeAreaView style={styles.topSafeArea} />
     {children}
