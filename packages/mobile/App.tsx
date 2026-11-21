@@ -247,12 +247,6 @@ export default function App() {
   ), [rescues, session?.user.id]);
   const myAssignedCount = rescues.filter(item => item.assignedUserId === session?.user.id).length;
 
-  const teamNames = useMemo(() => {
-    if (!session) return [];
-    const ids = new Set(session.user.teamIds);
-    return (session.membership?.teams ?? []).filter((team) => ids.has(team.id)).map((team) => team.name);
-  }, [session]);
-
   async function handleLogin() {
     setBusy(true);
     setError('');
@@ -582,15 +576,6 @@ export default function App() {
           </View>
         </View>
       </Modal>
-      <View style={styles.header}>
-        <View style={styles.headerCopy}>
-          <Text style={styles.kicker}>RESCUE HUB</Text>
-          <Text style={styles.context} numberOfLines={1}>{teamNames.join(' · ') || session.user.name}</Text>
-        </View>
-        <Pressable style={styles.headerAction} onPress={() => setView('settings')} accessibilityRole="button"
-          accessibilityLabel="Open settings"><Text style={styles.headerActionText}>Settings</Text></Pressable>
-      </View>
-
       <View style={styles.viewBar}>
         <Pressable style={[styles.viewButton,view==='map' && styles.viewSelected]} onPress={() => setView('map')} accessibilityRole="button"
           accessibilityState={{selected:view==='map'}}>
@@ -604,7 +589,7 @@ export default function App() {
           <Pressable style={[styles.viewButton,view==='care' && styles.viewSelected]}
             onPress={() => setView('care')} accessibilityRole="button"
             accessibilityState={{selected:view==='care'}}>
-            <Text style={[styles.viewText,view==='care' && styles.viewTextSelected]}>Care offers</Text>
+            <Text style={[styles.viewText,view==='care' && styles.viewTextSelected]}>Care Offers</Text>
           </Pressable>
         ) : null}
       </View>
@@ -738,13 +723,10 @@ const styles = StyleSheet.create({
   error: { color: '#a23f35', fontSize: 12 },
   primaryButton: { backgroundColor: '#173d2c', borderRadius: 12, padding: 15, alignItems: 'center' },
   primaryButtonText: { color: '#fff', fontWeight: '800' },
-  header: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, paddingTop: 10, paddingBottom: 8 },
-  headerCopy: { flex: 1, minWidth: 0 },
-  context: { color: '#4b6555', fontSize: 12, marginTop: 3, fontWeight: '600' },
   headerAction: { paddingHorizontal: 10, paddingVertical: 11, backgroundColor: '#fff', borderRadius: 10 },
   headerActionText: { color: '#173d2c', fontSize: 13, fontWeight: '800' },
-  viewBar: { flexDirection: 'row', gap: 6, paddingHorizontal: 14, paddingBottom: 8 },
-  viewButton: { flex: 1, alignItems: 'center', borderRadius: 9, backgroundColor: '#fff', paddingVertical: 9 },
+  viewBar: { flexDirection: 'row', gap: 6, paddingHorizontal: 14, paddingTop: 10, paddingBottom: 8 },
+  viewButton: { flex: 1, minHeight: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 9, backgroundColor: '#fff', paddingVertical: 9 },
   viewSelected: { backgroundColor: '#173d2c' },
   viewText: { color: '#173d2c', fontSize: 13, fontWeight: '800' },
   viewTextSelected: { color: '#fff' },
