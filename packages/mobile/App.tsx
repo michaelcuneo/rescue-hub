@@ -45,6 +45,7 @@ import OrganisationChats from './src/OrganisationChats';
 import BottomTabs from './src/BottomTabs';
 import { subscribeRescueChanges } from '../core/realtime-client';
 import { shouldShowRescuePin } from '../core/case-map-visibility';
+import { isVisibleMobileWorkItem } from '../core/mobile-rescue-visibility';
 
 type Session = { user: User; membership: MembershipConfig | null };
 type ClaimNotice = { title: string; message: string };
@@ -242,10 +243,13 @@ export default function App() {
     };
   }, [session?.user.id]);
 
-  const sortedRescues = useMemo(() => [...rescues].sort((a,b) =>
+  // Older demo deployments may still return coordinator-only rescues.
+  // This native view displays only server-approved offers and existing work.
+  const visibleRescues = useMemo(() => rescues.filter(isVisibleMobileWorkItem), [rescues]);
+  const sortedRescues = useMemo(() => [...visibleRescues].sort((a,b) =>
     Number(b.assignedUserId === session?.user.id) - Number(a.assignedUserId === session?.user.id)
-  ), [rescues, session?.user.id]);
-  const myAssignedCount = rescues.filter(item => item.assignedUserId === session?.user.id).length;
+  ), [visibleRescues, session?.user.id]);
+  const myAssignedCount = visibleRescues.filter(item => item.assignedUserId === session?.user.id).length;
 
   async function handleLogin() {
     setBusy(true);
@@ -502,7 +506,7 @@ export default function App() {
     <View style={styles.screenBody}>
     <OrganisationChats userId={session.user.id} bottomTabsVisible={!keyboardVisible}
       onOpenRescue={(rescueId) => {
-        const rescue = rescues.find(item => item.id === rescueId);
+        const rescue = visibleRescues.find(item => item.id === rescueId);
         if (!rescue) {
           Alert.alert('Rescue not available',
             'This rescue is not in your accessible rescue feed. Ask dispatch if you need access.');
@@ -583,7 +587,7 @@ export default function App() {
         </Pressable>
         <Pressable style={[styles.viewButton,view==='list' && styles.viewSelected]} onPress={() => setView('list')} accessibilityRole="button"
           accessibilityState={{selected:view==='list'}}>
-          <Text style={[styles.viewText,view==='list' && styles.viewTextSelected]}>List ({rescues.length})</Text>
+          <Text style={[styles.viewText,view==='list' && styles.viewTextSelected]}>List ({visibleRescues.length})</Text>
         </Pressable>
         {session.user.roles?.includes('CARER') ? (
           <Pressable style={[styles.viewButton,view==='care' && styles.viewSelected]}
@@ -601,22 +605,23 @@ export default function App() {
         </Pressable>
       ) : null}
       {error ? <Text style={styles.errorBanner}>{error}</Text> : null}
-      {!error && feed && rescues.length === 0 ? (
+      {!error && feed && visibleRescues.length === 0 ? (
         <Text style={styles.feedNotice}>
           {feed.pendingRescues === 0
             ? 'There are no pending rescues in your organisation.'
-            : feed.qualifiedPending === 0
-              ? 'There are pending rescues, but none match your assigned dispatch teams.'
-              : !feed.canBrowse
-                ? 'Your account needs an active rescue or care role to browse these cases.'
-                : 'No visible rescues. Check membership and organisation settings.'}
+            : !feed.canBrowse
+              ? 'Your account needs rescuer or transport permission to receive new jobs.'
+              : feed.qualifiedPending === 0
+                ? 'No new jobs match your rescue qualifications or transport permission.'
+                : 'No eligible jobs are visible. Check that the demo API is up to date.'}
           {'  '}Feed: {feed.source}.
         </Text>
       ) : null}
       {view === 'map' ? (
         <View style={styles.mapBody}>
-          <RescueMap rescues={rescues.filter(shouldShowRescuePin)} onSelect={setSelectedMapRescue} />
-          {selectedMapRescue && shouldShowRescuePin(selectedMapRescue) ? (
+          <RescueMap rescues={visibleRescues.filter(shouldShowRescuePin)} onSelect={setSelectedMapRescue} />
+          {selectedMapRescue && visibleRescues.some(item => item.id === selectedMapRescue.id) &&
+              shouldShowRescuePin(selectedMapRescue) ? (
             <View style={styles.selectedRescue}>
               <View style={styles.selectedHeading}>
                 <Text style={styles.animal} numberOfLines={1}>{selectedMapRescue.type}</Text>
