@@ -69,7 +69,11 @@ export const GET: RequestHandler = async ({ locals }) => {
       classifyDispatchCapability(rescue.type, rescue.breed ?? '')
     ))
   );
+  // Coordinators use the desktop Operations portal for broad oversight.
+  // Mobile is a field worklist: a role such as ORG_ADMIN must not expose jobs
+  // the same person is unqualified to rescue or transport.
   const canBrowse = user.enabled && user.status === 'ACTIVE' && permittedRole;
+  const qualifiedIds = new Set(qualified.map(rescue => rescue.id));
 
   const finalOutcomes = new Set(['RELEASED', 'EUTHANISED', 'DECEASED']);
   const currentCustody = user.organisationId
@@ -110,12 +114,9 @@ export const GET: RequestHandler = async ({ locals }) => {
   }
 
   const items = rescues.flatMap(rescue => {
-    const qualification = rescue.organisationId === user.organisationId &&
-      rescue.status === 'PENDING' && !rescue.assignedUserId && !rescue.awaitingCarer &&
-      (rescue.transportAnimalId ? canTransportForOrganisation(user) :
-        canRescueForOrganisation(user) && membership !== null && memberCanReceiveCapability(
-          user.teamIds, membership, classifyDispatchCapability(rescue.type, rescue.breed ?? '')
-        ));
+    // Reuse the exact same role/team/transport check that supplies feed
+    // diagnostics. Never grant a broader view to dispatcher/admin roles.
+    const qualification = qualifiedIds.has(rescue.id);
     const visibility = mobileRescueVisibility(
       user, rescue, custodianRescueIds.has(rescue.id), qualification
     );
