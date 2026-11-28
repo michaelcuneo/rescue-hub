@@ -878,6 +878,30 @@ export async function createPublicReporterSession(userId: string) {
   return { user, sessionToken: await createSession(userId) };
 }
 
+/**
+ * A public, read-only demonstration session. Only the explicitly enabled demo
+ * deployment may create this session, and only for the seeded fixture identity.
+ * Never accept a client-supplied user ID or assign elevated platform roles.
+ */
+export const PUBLIC_DEMO_USER_ID = 'demo-hunter-public-reviewer';
+
+export function isPublicDemoUser(user: RescueHubUser | null | undefined): boolean {
+  return Boolean(user?.id === PUBLIC_DEMO_USER_ID &&
+    user.organisationId === 'native-animal-trust-fund');
+}
+
+export async function loginPublicDemo(cookies: Cookies) {
+  if (process.env.RESCUE_HUB_PUBLIC_DEMO_ENABLED !== 'true') {
+    throw new Error('The public demo is not enabled in this environment.');
+  }
+  const user = await getUserById(PUBLIC_DEMO_USER_ID);
+  if (!user || !user.enabled || user.status !== 'ACTIVE' ||
+      !isPublicDemoUser(user) || !mayUseDesktopPortal(user)) {
+    throw new Error('The public demo account is unavailable.');
+  }
+  return { user, sessionToken: await createSession(PUBLIC_DEMO_USER_ID, cookies) };
+}
+
 export async function loginUser(email: string, password: string, cookies?: Cookies) {
 	const userId = await lookupUserIdByEmail(email);
 	if (!userId) throw new Error('Invalid email or password.');
