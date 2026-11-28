@@ -9,13 +9,20 @@
 		<div class="mark">RH</div>
 		<p>RESCUE HUB</p>
 		<h1>Sign in</h1>
-		<form method="POST">
+		<form method="POST" action="?/login">
 			<label>Email<input name="email" type="email" value={form?.email ?? ''} required autocomplete="email" /></label>
 			<label>Password<input name="password" type="password" required autocomplete="current-password" /></label>
 			{#if form?.error}<div class="error">{form.error}</div>{/if}
 			<button type="submit">Sign in</button>
 		</form>
 		<div class="links"><a href="/reset">Forgot password?</a></div>
+          <div class="demo-access">
+            <div class="divider"><span>OR</span></div>
+            <form method="POST" action="?/demo">
+              <button type="submit" class="demo-button">Explore the live demo</button>
+            </form>
+            <p>Explore fictional rescue cases, maps and dispatch operations. No invitation or account required. Read-only access.</p>
+          </div>
 	</section>
 </main>
 
@@ -32,4 +39,12 @@
 	.error{padding:9px;border-radius:8px;background:var(--rh-t190, #fff0ed);color:var(--rh-t191, #9d3c34);font-size: 13px}
 	.links{display:flex;justify-content:space-between;margin-top:16px;font-size: 13px}
 	a{color:var(--rh-t192, #24583f)}
+    .demo-access { margin-top:20px; }
+    .divider { display:flex;align-items:center;gap:10px;color:var(--rh-t188,#66736c);font-size:12px;font-weight:750; }
+    .divider::before,.divider::after { content:'';height:1px;flex:1;background:var(--rh-t178,#d9e1dc); }
+    .demo-access form { margin-top:16px; }
+    .demo-button { background:#dff15d;color:#173d2c;border:2px solid #173d2c;min-height:48px; }
+    .demo-button:hover { background:#eaf798; }
+    .demo-button:focus-visible { outline:3px solid #173d2c;outline-offset:3px; }
+    .demo-access p { margin-top:10px;font-size:13px;font-weight:500;line-height:1.5;letter-spacing:0;color:var(--rh-t188,#66736c); }
 </style>

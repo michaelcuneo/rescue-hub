@@ -3,6 +3,9 @@
   import { subscribeRescueChanges, type RealtimeConfig } from '../../../../core/realtime-client';
   import type { PageData } from './$types';
   import { shouldSendChatOnKey } from '../../../../core/chat-composer-keyboard';
+  import { currentMentionQuery, insertChatMention, usableChatMentions, splitChatMentions,
+    type ChatMention } from '../../../../core/chat-mentions';
+  import { chatChannelColours } from '../../../../core/chat-channel-colours';
   let { data }: { data: PageData } = $props();
   type Channel = {
     id: string; name: string; description: string; unread: boolean;
@@ -11,7 +14,7 @@
   };
   type Message = {
     id: string; channelId: string; senderUserId: string; senderName: string;
-    text: string; createdAt: string; animalId?: string;
+    text: string; createdAt: string; animalId?: string; mentions?: ChatMention[];
   };
   type Organisation = { id: string; name: string };
   type Member = {
@@ -36,6 +39,11 @@
   let messages = $state<Message[]>([]);
   let cursor = $state<string | null>(null);
   let draft = $state('');
+  let mentionOptions = $state<ChatMention[]>([]);
+  let mentionRefs = $state<ChatMention[]>([]);
+  let mentionLoading = $state(false);
+  let mentionTimer: ReturnType<typeof setTimeout> | undefined;
+  let chatComposer = $state<HTMLTextAreaElement | undefined>(undefined);
   let busy = $state(false);
   let error = $state('');
   let loading = $state(true);
@@ -112,15 +120,50 @@
       messagePanel?.scrollTo({ top: messagePanel.scrollHeight, behavior: 'smooth' });
     }
   }
+  function resetMentions() {
+    mentionOptions = []; mentionRefs = []; mentionLoading = false;
+    if (mentionTimer) clearTimeout(mentionTimer);
+  }
+  function onComposerInput(value: string) {
+    draft = value;
+    mentionRefs = usableChatMentions(value, mentionRefs);
+    const query = currentMentionQuery(value);
+    if (mentionTimer) clearTimeout(mentionTimer);
+    if (query === null || !selectedId) { mentionOptions = []; mentionLoading = false; return; }
+    const channel = selectedId, organisation = organisationId;
+    mentionLoading = true;
+    mentionTimer = setTimeout(async () => {
+      try {
+        const params = new URLSearchParams({ channelId: channel, q: query });
+        if (organisation) params.set('organisationId', organisation);
+        const result = await api<{items: ChatMention[]}>(`/api/mobile/chats/mentions?${params}`);
+        if (selectedId === channel && organisationId === organisation &&
+            currentMentionQuery(draft) === query) mentionOptions = result.items;
+      } catch {
+        if (currentMentionQuery(draft) === query) mentionOptions = [];
+      } finally { mentionLoading = false; }
+    }, 250);
+  }
+  async function chooseMention(mention: ChatMention) {
+    draft = insertChatMention(draft, mention);
+    mentionRefs = usableChatMentions(draft, [...mentionRefs, mention]);
+    mentionOptions = [];
+    if (mentionTimer) clearTimeout(mentionTimer);
+    await tick();
+    chatComposer?.focus();
+    chatComposer?.setSelectionRange(draft.length, draft.length);
+  }
   async function selectOrganisation(id: string) {
     if (id === organisationId) return;
     organisationId = id;
+    resetMentions();
     selectedId = ''; messages = []; channelMembers = []; showChannelMembers = false; cursor = null; draft = ''; error = ''; loading = true;
     try { await Promise.all([refreshChannels(), refreshMembers()]); }
     catch (e) { error = e instanceof Error ? e.message : 'Could not load organisation chats.'; }
     finally { loading = false; }
   }
   async function selectChannel(id: string) {
+    resetMentions();
     selectedId = id; messages = []; cursor = null; channelMembers = []; showChannelMembers = false; error = '';
     try { await Promise.all([refreshMessages(id), refreshChannelMembers(id)]); } catch (e) {
       error = e instanceof Error ? e.message : 'Chat unavailable.';
@@ -139,6 +182,12 @@
     finally { busy = false; }
   }
   function onChatKeydown(event: KeyboardEvent) {
+    if (event.key === 'Escape' && mentionOptions.length) {
+      mentionOptions = []; event.preventDefault(); return;
+    }
+    if (event.key === 'Enter' && !event.shiftKey && mentionOptions.length) {
+      event.preventDefault(); void chooseMention(mentionOptions[0]); return;
+    }
     if (!shouldSendChatOnKey(event)) return;
     event.preventDefault();
     if (event.target instanceof HTMLTextAreaElement && event.target.form) {
@@ -150,8 +199,9 @@
     if (!selectedId || busy || busyRecipient || !draft.trim()) return;
     busy = true; error = '';
     try {
-      await api(chatUrl(`/api/mobile/chats/${encodeURIComponent(selectedId)}`), 'POST', { text: draft });
+      await api(chatUrl(`/api/mobile/chats/${encodeURIComponent(selectedId)}`), 'POST', { text: draft, mentions: usableChatMentions(draft, mentionRefs) });
       draft = '';
+      resetMentions();
       await refreshMessages();
       await Promise.all([refreshChannels(), refreshMembers()]);
     } catch (e) { error = e instanceof Error ? e.message : 'Could not send message.'; }
@@ -176,13 +226,12 @@
       void Promise.all([refreshChannels(), refreshMembers()]).catch(() => {});
       if (selectedId) { void refreshMessages(selectedId).catch(() => {}); void refreshChannelMembers(selectedId).catch(() => {}); }
     }, 15000);
-    return () => { disposed = true; stop?.(); clearInterval(interval); };
+    return () => { disposed = true; stop?.(); clearInterval(interval); if (mentionTimer) clearTimeout(mentionTimer); };
   });
 </script>
 
 <svelte:head><title>Organisation Chats · Rescue Hub</title></svelte:head>
 <main class="page">
-  <div class="chat-heading"><h1>Chats</h1><p>Organisation conversations and care groups</p></div>
   {#if data.canSelectOrganisation}
     <div class="org-selector">
       <label for="chat-organisation">Viewing organisation chats</label>
@@ -192,7 +241,6 @@
           <option value={organisation.id}>{organisation.name}</option>
         {/each}
       </select>
-      <span>Platform oversight · organisation-scoped messages</span>
     </div>
   {/if}
   <div class="chat-layout">
@@ -204,8 +252,16 @@
       {#if listMode === 'channels'}
         {#if loading}<p class="muted">Loading conversations…</p>{/if}
         {#each channels as channel (channel.id)}
-          <button class:active={selectedId === channel.id} onclick={() => void selectChannel(channel.id)}>
-            <span class="avatar" aria-hidden="true">{channel.name.slice(0,1)}</span>
+          {@const colours = chatChannelColours(channel.id, Boolean(channel.recipientUserId))}
+          <button class:active={selectedId === channel.id}
+            class:animal-channel={Boolean(colours)}
+            style:--animal-channel-colour={colours?.[0] ?? 'transparent'}
+            onclick={() => void selectChannel(channel.id)}>
+            <span class="avatar" class:animal-avatar={Boolean(colours)}
+              style:background={colours
+                ? colours[1] ? `linear-gradient(135deg, ${colours[0]} 50%, ${colours[1]} 50%)` : colours[0]
+                : undefined}
+              aria-hidden="true">{channel.name.slice(0,1)}</span>
             <span class="channel-detail">
               <strong>{channel.name}</strong>
               <small>{channel.latest ? `${channel.latest.senderName}: ${channel.latest.text}` : channel.description}</small>
@@ -266,7 +322,15 @@
                 <button class="sender-name" onclick={() => void openDirect(item.senderUserId)}
                   title="Start a private conversation with {item.senderName}">{item.senderName}</button>
               {/if}
-              <p>{item.text}</p>
+              <p>{#each splitChatMentions(item.text, item.mentions) as part, i (i)}
+                {#if part.mention?.kind === 'person'}
+                  <button type="button" class="chat-mention" title={part.mention.label}
+                    onclick={() => void openDirect(part.mention!.id)}>{part.text}</button>
+                {:else if part.mention && (part.mention.kind === 'animal' || part.mention.kind === 'rescue')}
+                  <a class="chat-mention" href={`/rescues/${part.mention.rescueId ?? part.mention.id}/care`}
+                    title={`Open ${part.mention.label} rescue record`}>{part.text}</a>
+                {:else}{part.text}{/if}
+              {/each}</p>
               <time datetime={item.createdAt}>{new Date(item.createdAt).toLocaleString('en-AU', { hour: 'numeric', minute: '2-digit', day:'numeric', month:'short' })}</time>
               {#if item.animalId}<p class="animal-ref">Animal reference: {item.animalId}</p>{/if}
             </article>
@@ -277,9 +341,26 @@
         {/if}
         <form onsubmit={send}>
           <label class="sr-only" for="chat-message">Message to {selected?.name ?? 'channel'}</label>
-          <textarea id="chat-message" maxlength="2000" rows="2" bind:value={draft}
-            onkeydown={onChatKeydown} placeholder={selected?.recipientUserId ? "Write a private message…" : "Message your group…"}
-            aria-describedby="chat-compose-shortcut"></textarea>
+          <div class="composer-field">
+            {#if mentionOptions.length || mentionLoading}
+              <div class="mention-suggestions" aria-label="Mention suggestions" role="listbox">
+                {#each mentionOptions as option (option.kind + option.id)}
+                  <button type="button" role="option" aria-selected="false"
+                    onclick={() => void chooseMention(option)}>
+                    <strong>@{option.handle}</strong>
+                    <small>{option.kind === 'person' ? 'Person' : option.kind === 'animal' ? 'Animal' : 'Rescue'} · {option.label}</small>
+                  </button>
+                {:else}
+                  <span class="mention-loading">Searching people and rescues…</span>
+                {/each}
+              </div>
+            {/if}
+            <textarea id="chat-message" maxlength="2000" rows="2" bind:this={chatComposer}
+              bind:value={draft} oninput={(event) => onComposerInput(event.currentTarget.value)}
+              onkeydown={onChatKeydown}
+              placeholder={selected?.recipientUserId ? "Write a private message… Use @ to mention" : "Message your group… Use @ to mention"}
+              aria-describedby="chat-compose-shortcut"></textarea>
+          </div>
           <span id="chat-compose-shortcut" class="sr-only">Press Enter to send. Press Shift and Enter to start a new line.</span>
           <button class="send" disabled={busy || busyRecipient || !draft.trim()}>Send</button>
         </form>
@@ -291,15 +372,11 @@
 </main>
 <style>
   :global(body){margin:0;background:var(--rh-background);color:var(--rh-text);font-family:system-ui,sans-serif}
-  .page{min-height:100dvh;width:100%;padding:var(--rh-content-top) var(--rh-gutter) var(--rh-gutter);background:var(--rh-background);color:var(--rh-text)}
+  .page{height:100dvh;min-height:0;width:100%;display:flex;flex-direction:column;gap:0;padding:var(--rh-content-top) var(--rh-gutter) var(--rh-gutter);background:var(--rh-background);color:var(--rh-text)}
   .org-selector{display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin-bottom:16px}
   .org-selector label{font-weight:750;font-size:14px}
   .org-selector select{min-height:44px;min-width:220px;max-width:100%;border:1px solid var(--rh-t159, #b7c8bd);border-radius:10px;background:var(--rh-t6, white);color:var(--rh-t3, #173d2c);padding:8px 12px;font:inherit}
-  .org-selector span{font-size:12px;color:var(--rh-t160, #718077)}
-  .chat-heading{display:flex;flex-direction:column;gap:3px;margin-bottom:16px;}
-  .chat-heading h1{font-size:27px;margin:0;color:var(--rh-text)}
-  .chat-heading p{font-size:13px;margin:0;color:var(--rh-muted)}
-  .chat-layout{display:grid;grid-template-columns:minmax(260px,350px) minmax(0,1fr);height:calc(100dvh - var(--rh-content-top) - 84px);min-height:430px;background:var(--rh-surface);color:var(--rh-text);border:1px solid var(--rh-border);box-shadow:var(--rh-shadow);border-radius:16px;overflow:hidden}
+  .chat-layout{display:grid;grid-template-columns:minmax(260px,350px) minmax(0,1fr);flex:1 1 auto;min-height:0;background:var(--rh-surface);color:var(--rh-text);border:1px solid var(--rh-border);box-shadow:var(--rh-shadow);border-radius:16px;overflow:hidden}
   .chat-list-tabs{display:flex;gap:5px;padding:6px 8px 12px}
   .chat-list-tabs button{justify-content:center;width:50%;min-height:40px;font-weight:750;border:1px solid var(--rh-border)}
   .chat-list-tabs button.active-tab{background:var(--rh-nav-active);color:var(--rh-text)}
@@ -319,6 +396,8 @@
   aside button{display:flex;align-items:center;gap:12px;padding:12px;width:100%;border:0;background:var(--rh-t6, white);border-radius:12px;text-align:left;cursor:pointer;color:inherit}
   aside button:hover,aside button.active{background:var(--rh-t165, #eff6f1)}
   .avatar{height:42px;width:42px;border-radius:50%;display:grid;place-items:center;background:var(--rh-t166, #dcebe0);font-size:18px;font-weight:800}
+  aside button.animal-channel { border-left:4px solid var(--animal-channel-colour); padding-left:8px; }
+  .avatar.animal-avatar { color:#fff; text-shadow:0 1px 2px rgb(0 0 0 / 0.4); }
   .channel-detail{min-width:0;flex:1;display:grid;gap:3px}
   .channel-detail strong{font-size:14px}
   .channel-detail small{font-size:12px;color:var(--rh-t167, #738379);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -334,12 +413,19 @@
   article time{font-size:11px;color:var(--rh-t172, #7d8b81);display:block;text-align:right}
   .animal-ref{color:var(--rh-t173, #3c6950);font-size:11px}
   form{border-top:1px solid var(--rh-t163, #e2e9e4);padding:12px;display:flex;align-items:end;gap:9px}
-  textarea{resize:vertical;flex:1;min-width:0;padding:12px 15px;border:1px solid var(--rh-t174, #d9e3dc);border-radius:15px;font:inherit}
+  textarea{resize:vertical;width:100%;min-width:0;padding:12px 15px;border:1px solid var(--rh-t174, #d9e3dc);border-radius:15px;font:inherit}
+  .composer-field{position:relative;flex:1;min-width:0}
+  .mention-suggestions{position:absolute;bottom:calc(100% + 7px);left:0;right:0;z-index:5;max-height:235px;overflow:auto;border:1px solid var(--rh-border);border-radius:12px;background:var(--rh-surface);box-shadow:var(--rh-shadow);padding:5px}
+  .mention-suggestions button{width:100%;display:flex;gap:10px;align-items:center;justify-content:space-between;text-align:left;padding:10px 12px;color:var(--rh-text);background:transparent;border:0;border-radius:8px;cursor:pointer}
+  .mention-suggestions button:hover,.mention-suggestions button:focus-visible{background:var(--rh-raised)}
+  .mention-suggestions small,.mention-loading{color:var(--rh-muted);font-size:11px}
+  .mention-loading{display:block;padding:12px}
+  .chat-mention{display:inline;border:0;padding:1px 3px;border-radius:4px;background:var(--rh-accent-soft);color:var(--rh-text);font:inherit;font-weight:750;text-decoration:underline;text-underline-offset:2px;cursor:pointer}
   .send{padding:13px 22px;border:0;border-radius:12px;background:var(--rh-primary);color:var(--rh-on-primary);font-weight:800;cursor:pointer}
   button:disabled{opacity:.5}.error{padding:8px 18px;color:var(--rh-t69, #a23f35)}
   .muted{color:var(--rh-t175, #77887a)}.older{align-self:center;background:transparent;border:0;padding:12px;color:var(--rh-t176, #276e4c);font-weight:750;cursor:pointer}
   .placeholder{margin:auto;padding:30px;text-align:center;color:var(--rh-t177, #687b6d)}
   .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
   .mobile-back{display:none}
-  @media(max-width:680px){.page{padding:var(--rh-content-top) var(--rh-gutter) var(--rh-gutter)}.chat-heading{margin-bottom:8px}.chat-layout{display:block;height:calc(100dvh - var(--rh-content-top) - 80px);min-height:350px;border-radius:12px}.chat-layout aside,.chat-layout section{height:100%;border:0}.hide-mobile{display:none!important}.mobile-back{display:block;background:transparent;border:0;font-size:30px;color:var(--rh-t171, #286343);cursor:pointer}.messages{padding:12px}article{max-width:88%}}
+  @media(max-width:680px){.page{padding:var(--rh-content-top) var(--rh-gutter) var(--rh-gutter)}.chat-layout{display:block;min-height:0;border-radius:12px}.chat-layout aside,.chat-layout section{height:100%;border:0}.hide-mobile{display:none!important}.mobile-back{display:block;background:transparent;border:0;font-size:30px;color:var(--rh-t171, #286343);cursor:pointer}.messages{padding:12px}article{max-width:88%}}
 </style>

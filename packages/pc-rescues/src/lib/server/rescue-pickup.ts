@@ -13,7 +13,7 @@ export class RescuePickupConflict extends Error {}
 
 /**
  * Claiming reserves an assignment. This action records physical collection and
- * removes the pin from operational maps, without closing the case or animal.
+ * preserves the original pin on Operations and Administration maps, without closing the case or animal.
  * Physical transport pickup transfers custody to the collector atomically;
  * a later acknowledged handover to a carer remains necessary.
  */

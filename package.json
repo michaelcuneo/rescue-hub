@@ -13,6 +13,7 @@
     "sst:install": "sst install",
     "deploy": "sst deploy",
     "deploy:production": "sst deploy --stage production",
+    "seed:all-demo-stages": "bash scripts/seed-all-demo-stages.sh",
     "remove": "sst remove",
     "check": "npm run check --workspaces --if-present",
     "build": "npm run build --workspaces --if-present",

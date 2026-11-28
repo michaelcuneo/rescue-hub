@@ -1,5 +1,5 @@
 import { fail, redirect } from '@sveltejs/kit';
-import { hasCompletedBootstrap, loginUser, type RescueHubUser } from '$lib/server/auth';
+import { hasCompletedBootstrap, loginUser, loginPublicDemo, publicDemoEnabled, type RescueHubUser } from '$lib/server/auth';
 import type { Actions, PageServerLoad } from './$types';
 
 function loginDestination(user: RescueHubUser, next: string | null) {
@@ -13,11 +13,20 @@ function loginDestination(user: RescueHubUser, next: string | null) {
 export const load: PageServerLoad = async ({ locals, url }) => {
 	if (!await hasCompletedBootstrap()) throw redirect(303, '/setup');
 	if (locals.user) throw redirect(303, loginDestination(locals.user, url.searchParams.get('next')));
-	return { next: url.searchParams.get('next') || '/' };
+	return { next: url.searchParams.get('next') || '/', publicDemoEnabled: publicDemoEnabled() };
 };
 
 export const actions: Actions = {
-	default: async ({ request, cookies, url }) => {
+  demo: async ({ cookies }) => {
+    try {
+      await loginPublicDemo(cookies);
+    } catch (error) {
+      console.error('Public demo sign-in failed:', error);
+      return fail(503, { error: 'The public demo is temporarily unavailable.' });
+    }
+    throw redirect(303, '/');
+  },
+	login: async ({ request, cookies, url }) => {
 		const form = await request.formData();
 		const email = String(form.get('email') ?? '');
 		const password = String(form.get('password') ?? '');
