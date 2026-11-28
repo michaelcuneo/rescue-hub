@@ -9,7 +9,7 @@
 		<div class="mark">RH</div>
 		<p>RESCUE HUB</p>
 		<h1>Sign in</h1>
-		<form method="POST">
+		<form method="POST" action="?/login">
 			<label>Email<input name="email" type="email" value={form?.email ?? ''} required autocomplete="email" /></label>
 			<label>Password<input name="password" type="password" required autocomplete="current-password" /></label>
 			{#if form?.error}<div class="error">{form.error}</div>{/if}
