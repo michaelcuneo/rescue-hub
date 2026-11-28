@@ -25,7 +25,7 @@ export const actions: Actions = {
     }
     throw redirect(303, '/');
   },
-	default: async ({ request, cookies, url }) => {
+	login: async ({ request, cookies, url }) => {
 		const form = await request.formData();
 		const email = String(form.get('email') ?? '');
 		const password = String(form.get('password') ?? '');
