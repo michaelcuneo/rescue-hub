@@ -1,3 +1,4 @@
+import { dev } from '$app/environment';
 import { defaultAvailabilityPolicy, effectiveAvailability, readAvailabilityPolicy, type AvailabilityPolicy } from './availability';
 import { createHash, randomBytes, randomInt, randomUUID, scrypt as scryptCallback, timingSafeEqual } from 'node:crypto';
 import { promisify } from 'node:util';
@@ -91,7 +92,8 @@ function cookieOptions(maxAge?: number) {
 		path: '/',
 		httpOnly: true as const,
 		sameSite: 'lax' as const,
-		secure: true,
+		// Local HTTP Vite development must be able to retain the session cookie.
+		secure: !dev,
 		...(maxAge === undefined ? {} : { maxAge })
 	};
 }
@@ -890,14 +892,82 @@ export function isPublicDemoUser(user: RescueHubUser | null | undefined): boolea
     user.organisationId === 'native-animal-trust-fund');
 }
 
-export async function loginPublicDemo(cookies: Cookies) {
-  if (process.env.RESCUE_HUB_PUBLIC_DEMO_ENABLED !== 'true') {
-    throw new Error('The public demo is not enabled in this environment.');
+/**
+ * Allow the public reviewer in the explicitly enabled deployed demo stage,
+ * and in Vite development for local testing. Never enable it in other
+ * production stages.
+ */
+export function publicDemoEnabled(): boolean {
+  return dev || process.env.RESCUE_HUB_PUBLIC_DEMO_ENABLED === 'true';
+}
+
+/**
+ * Seed the dedicated review identity on first use when an existing SST
+ * stage has not yet deployed the demo fixture. Concurrent first requests
+ * are safe: exactly one conditional transaction may create the records.
+ * No password, email lookup or administrative authority is granted.
+ */
+async function ensurePublicDemoUser() {
+  const existing = await getUserById(PUBLIC_DEMO_USER_ID);
+  if (existing) return existing;
+
+  const now = new Date().toISOString();
+  const organisationId = 'native-animal-trust-fund';
+  const roles: RescueHubRole[] = ['ORG_ADMIN', 'DISPATCHER'];
+  try {
+    await db.send(new TransactWriteCommand({
+      TransactItems: [
+        {
+          Put: {
+            TableName: tableName,
+            Item: {
+              pk: `USER#${PUBLIC_DEMO_USER_ID}`, sk: 'PROFILE',
+              entity: 'user', id: PUBLIC_DEMO_USER_ID,
+              email: 'public-reviewer@demo.rescuehub.example',
+              name: 'Public Demo', enabled: true,
+              status: 'ACTIVE', emailVerified: true, authEpoch: 0,
+              organisationId, roles, teamIds: [], canTransport: false,
+              availabilityStatus: 'OFFLINE', demo: true,
+              createdAt: now, updatedAt: now,
+              gsi1pk: `ORG#${organisationId}#USERS`,
+              gsi1sk: `public demo#${PUBLIC_DEMO_USER_ID}`,
+              gsi2pk: 'USERS', gsi2sk: `public demo#${PUBLIC_DEMO_USER_ID}`
+            },
+            ConditionExpression: 'attribute_not_exists(pk)'
+          }
+        },
+        {
+          Put: {
+            TableName: tableName,
+            Item: {
+              pk: `USER#${PUBLIC_DEMO_USER_ID}`, sk: 'MEMBERSHIP',
+              entity: 'membership', userId: PUBLIC_DEMO_USER_ID,
+              organisationId, roles, teamIds: [], canTransport: false,
+              availabilityStatus: 'OFFLINE', status: 'ACTIVE', demo: true,
+              createdAt: now, updatedAt: now
+            },
+            ConditionExpression: 'attribute_not_exists(pk)'
+          }
+        }
+      ]
+    }));
+  } catch (error) {
+    // Another request may have created the account in the meantime.
+    // Re-read below; never overwrite an existing identity.
+    if (!(error instanceof Error && error.name === 'TransactionCanceledException'))
+      throw error;
   }
-  const user = await getUserById(PUBLIC_DEMO_USER_ID);
+  return getUserById(PUBLIC_DEMO_USER_ID);
+}
+
+export async function loginPublicDemo(cookies: Cookies) {
+  if (!publicDemoEnabled()) {
+    throw new Error('Public demo login is disabled in this deployment.');
+  }
+  const user = await ensurePublicDemoUser();
   if (!user || !user.enabled || user.status !== 'ACTIVE' ||
       !isPublicDemoUser(user) || !mayUseDesktopPortal(user)) {
-    throw new Error('The public demo account is unavailable.');
+    throw new Error('Public demo profile could not be initialised.');
   }
   return { user, sessionToken: await createSession(PUBLIC_DEMO_USER_ID, cookies) };
 }
