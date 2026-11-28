@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { KeyboardAwareScrollView, KeyboardAwareTextInput, useKeyboardVisible } from './src/KeyboardAware';
 import {
   ActivityIndicator,
@@ -45,6 +45,7 @@ import OrganisationChats from './src/OrganisationChats';
 import BottomTabs from './src/BottomTabs';
 import { subscribeRescueChanges } from '../core/realtime-client';
 import { shouldShowRescuePin } from '../core/case-map-visibility';
+import { isVisibleMobileWorkItem } from '../core/mobile-rescue-visibility';
 
 type Session = { user: User; membership: MembershipConfig | null };
 type ClaimNotice = { title: string; message: string };
@@ -65,6 +66,18 @@ function claimNoticeFor(error: unknown): ClaimNotice {
     };
   }
   return { title: 'Could not claim rescue', message: raw };
+}
+
+/**
+ * Keep iPhone status-bar / Dynamic Island clearance without reserving a
+ * bottom safe-area band. The floating tab bar is positioned in the full
+ * screen, behind the home-indicator area.
+ */
+function TopOnlySafeAreaView({ children }: { children: ReactNode }) {
+  return <View style={styles.root}>
+    <SafeAreaView style={styles.topSafeArea} />
+    {children}
+  </View>;
 }
 
 export default function App() {
@@ -230,16 +243,13 @@ export default function App() {
     };
   }, [session?.user.id]);
 
-  const sortedRescues = useMemo(() => [...rescues].sort((a,b) =>
+  // Older demo deployments may still return coordinator-only rescues.
+  // This native view displays only server-approved offers and existing work.
+  const visibleRescues = useMemo(() => rescues.filter(isVisibleMobileWorkItem), [rescues]);
+  const sortedRescues = useMemo(() => [...visibleRescues].sort((a,b) =>
     Number(b.assignedUserId === session?.user.id) - Number(a.assignedUserId === session?.user.id)
-  ), [rescues, session?.user.id]);
-  const myAssignedCount = rescues.filter(item => item.assignedUserId === session?.user.id).length;
-
-  const teamNames = useMemo(() => {
-    if (!session) return [];
-    const ids = new Set(session.user.teamIds);
-    return (session.membership?.teams ?? []).filter((team) => ids.has(team.id)).map((team) => team.name);
-  }, [session]);
+  ), [visibleRescues, session?.user.id]);
+  const myAssignedCount = visibleRescues.filter(item => item.assignedUserId === session?.user.id).length;
 
   async function handleLogin() {
     setBusy(true);
@@ -492,10 +502,11 @@ export default function App() {
     keyboardVisible ? null : <BottomTabs active={active} onSelect={activateTab} />;
 
     const available = session.user.availabilityStatus === 'AVAILABLE';
-  if (view === 'chats') return <SafeAreaView style={styles.root}>
-    <OrganisationChats userId={session.user.id}
+  if (view === 'chats') return <TopOnlySafeAreaView>
+    <View style={styles.screenBody}>
+    <OrganisationChats userId={session.user.id} bottomTabsVisible={!keyboardVisible}
       onOpenRescue={(rescueId) => {
-        const rescue = rescues.find(item => item.id === rescueId);
+        const rescue = visibleRescues.find(item => item.id === rescueId);
         if (!rescue) {
           Alert.alert('Rescue not available',
             'This rescue is not in your accessible rescue feed. Ask dispatch if you need access.');
@@ -504,10 +515,13 @@ export default function App() {
         setSelectedMapRescue(rescue);
         setView('map');
       }} />
+    </View>
     {bottom('chats')}
-  </SafeAreaView>;
+  </TopOnlySafeAreaView>;
 
-  if (view === 'settings') return <SafeAreaView style={styles.root}><AvailabilitySettings
+  if (view === 'settings') return <TopOnlySafeAreaView>
+    <View style={styles.screenBody}>
+    <AvailabilitySettings
     onBack={() => { setView('map'); void refresh(); }}
     onSignOut={signOut}
     pushStatus={pushStatus}
@@ -520,15 +534,22 @@ export default function App() {
       setPolicy(savedPolicy);
       setSession({ ...session, user: { ...session.user, availabilityStatus: status, availabilityPolicy: savedPolicy } });
     }}
-  />{bottom('account')}</SafeAreaView>;
+  />
+    </View>
+    {bottom('account')}
+  </TopOnlySafeAreaView>;
 
-  if (view === 'care' && session.user.roles?.includes('CARER')) return <SafeAreaView style={styles.root}>
+  if (view === 'care' && session.user.roles?.includes('CARER')) return <TopOnlySafeAreaView>
+    <View style={styles.screenBody}>
     <CarerOffers userId={session.user.id} onBack={() => { setView('map'); void refresh(); }}
       onChanged={() => void refresh()} />
+    </View>
     {bottom('rescues')}
-  </SafeAreaView>;
+  </TopOnlySafeAreaView>;
 
-    if (activeRescue) return <SafeAreaView style={styles.root}><AnimalCare
+    if (activeRescue) return <TopOnlySafeAreaView>
+    <View style={styles.screenBody}>
+    <AnimalCare
     rescue={activeRescue}
     userId={session.user.id}
     roles={session.user.roles ?? []}
@@ -538,10 +559,13 @@ export default function App() {
       setSelectedMapRescue(null);
       void refresh();
     }}
-  />{bottom('rescues')}</SafeAreaView>;
+  />
+    </View>
+    {bottom('rescues')}
+  </TopOnlySafeAreaView>;
 
   return (
-    <SafeAreaView style={styles.root}>
+    <TopOnlySafeAreaView>
       <StatusBar barStyle="dark-content" />
       <Modal visible={claimNotice !== null} transparent animationType="fade"
         statusBarTranslucent onRequestClose={() => setClaimNotice(null)}>
@@ -556,15 +580,6 @@ export default function App() {
           </View>
         </View>
       </Modal>
-      <View style={styles.header}>
-        <View style={styles.headerCopy}>
-          <Text style={styles.kicker}>RESCUE HUB</Text>
-          <Text style={styles.context} numberOfLines={1}>{teamNames.join(' · ') || session.user.name}</Text>
-        </View>
-        <Pressable style={styles.headerAction} onPress={() => setView('settings')} accessibilityRole="button"
-          accessibilityLabel="Open settings"><Text style={styles.headerActionText}>Settings</Text></Pressable>
-      </View>
-
       <View style={styles.viewBar}>
         <Pressable style={[styles.viewButton,view==='map' && styles.viewSelected]} onPress={() => setView('map')} accessibilityRole="button"
           accessibilityState={{selected:view==='map'}}>
@@ -572,13 +587,13 @@ export default function App() {
         </Pressable>
         <Pressable style={[styles.viewButton,view==='list' && styles.viewSelected]} onPress={() => setView('list')} accessibilityRole="button"
           accessibilityState={{selected:view==='list'}}>
-          <Text style={[styles.viewText,view==='list' && styles.viewTextSelected]}>List ({rescues.length})</Text>
+          <Text style={[styles.viewText,view==='list' && styles.viewTextSelected]}>List ({visibleRescues.length})</Text>
         </Pressable>
         {session.user.roles?.includes('CARER') ? (
           <Pressable style={[styles.viewButton,view==='care' && styles.viewSelected]}
             onPress={() => setView('care')} accessibilityRole="button"
             accessibilityState={{selected:view==='care'}}>
-            <Text style={[styles.viewText,view==='care' && styles.viewTextSelected]}>Care offers</Text>
+            <Text style={[styles.viewText,view==='care' && styles.viewTextSelected]}>Care Offers</Text>
           </Pressable>
         ) : null}
       </View>
@@ -590,22 +605,23 @@ export default function App() {
         </Pressable>
       ) : null}
       {error ? <Text style={styles.errorBanner}>{error}</Text> : null}
-      {!error && feed && rescues.length === 0 ? (
+      {!error && feed && visibleRescues.length === 0 ? (
         <Text style={styles.feedNotice}>
           {feed.pendingRescues === 0
             ? 'There are no pending rescues in your organisation.'
-            : feed.qualifiedPending === 0
-              ? 'There are pending rescues, but none match your assigned dispatch teams.'
-              : !feed.canBrowse
-                ? 'Your account needs an active rescue or care role to browse these cases.'
-                : 'No visible rescues. Check membership and organisation settings.'}
+            : !feed.canBrowse
+              ? 'Your account needs rescuer or transport permission to receive new jobs.'
+              : feed.qualifiedPending === 0
+                ? 'No new jobs match your rescue qualifications or transport permission.'
+                : 'No eligible jobs are visible. Check that the demo API is up to date.'}
           {'  '}Feed: {feed.source}.
         </Text>
       ) : null}
       {view === 'map' ? (
         <View style={styles.mapBody}>
-          <RescueMap rescues={rescues.filter(shouldShowRescuePin)} onSelect={setSelectedMapRescue} />
-          {selectedMapRescue && shouldShowRescuePin(selectedMapRescue) ? (
+          <RescueMap rescues={visibleRescues.filter(shouldShowRescuePin)} onSelect={setSelectedMapRescue} />
+          {selectedMapRescue && visibleRescues.some(item => item.id === selectedMapRescue.id) &&
+              shouldShowRescuePin(selectedMapRescue) ? (
             <View style={styles.selectedRescue}>
               <View style={styles.selectedHeading}>
                 <Text style={styles.animal} numberOfLines={1}>{selectedMapRescue.type}</Text>
@@ -649,7 +665,7 @@ export default function App() {
           data={sortedRescues}
           style={styles.rescueList}
           keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.list}
+          contentContainerStyle={[styles.list, !keyboardVisible && styles.rescueListWithTabs]}
           ListEmptyComponent={<Text style={styles.empty}>No matching rescues are waiting right now.</Text>}
           renderItem={({ item }) => (
             <View style={styles.card}>
@@ -684,12 +700,15 @@ export default function App() {
         />
       )}
       {bottom('rescues')}
-    </SafeAreaView>
+    </TopOnlySafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#edf1ee' },
+  topSafeArea: { flex: 0, backgroundColor: '#edf1ee' },
+  screenBody: { flex: 1, minHeight: 0 },
+  rescueListWithTabs: { paddingBottom: 118 },
   assignmentBanner: {backgroundColor:'#dceae1',borderColor:'#91b39d',borderWidth:1,marginHorizontal:12,marginVertical:6,padding:12,borderRadius:10},
   assignmentBannerText: {color:'#173d2c',fontSize:14,fontWeight:'800'},
   loading: { flex: 1, alignItems: 'center', justifyContent: 'center' },
@@ -709,18 +728,15 @@ const styles = StyleSheet.create({
   error: { color: '#a23f35', fontSize: 12 },
   primaryButton: { backgroundColor: '#173d2c', borderRadius: 12, padding: 15, alignItems: 'center' },
   primaryButtonText: { color: '#fff', fontWeight: '800' },
-  header: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, paddingTop: 10, paddingBottom: 8 },
-  headerCopy: { flex: 1, minWidth: 0 },
-  context: { color: '#4b6555', fontSize: 12, marginTop: 3, fontWeight: '600' },
   headerAction: { paddingHorizontal: 10, paddingVertical: 11, backgroundColor: '#fff', borderRadius: 10 },
   headerActionText: { color: '#173d2c', fontSize: 13, fontWeight: '800' },
-  viewBar: { flexDirection: 'row', gap: 6, paddingHorizontal: 14, paddingBottom: 8 },
-  viewButton: { flex: 1, alignItems: 'center', borderRadius: 9, backgroundColor: '#fff', paddingVertical: 9 },
+  viewBar: { flexDirection: 'row', gap: 6, paddingHorizontal: 14, paddingTop: 10, paddingBottom: 8 },
+  viewButton: { flex: 1, minHeight: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 9, backgroundColor: '#fff', paddingVertical: 9 },
   viewSelected: { backgroundColor: '#173d2c' },
   viewText: { color: '#173d2c', fontSize: 13, fontWeight: '800' },
   viewTextSelected: { color: '#fff' },
   mapBody: { flex: 1, position: 'relative' },
-  selectedRescue: { position: 'absolute', bottom: 14, left: 14, right: 14, borderRadius: 16,
+  selectedRescue: { position: 'absolute', bottom: 100, left: 14, right: 14, borderRadius: 16,
     padding: 16, backgroundColor: '#fff', borderWidth: 1, borderColor: '#d9e1dc',
     shadowColor: '#000', shadowOpacity: 0.13, shadowRadius: 14, elevation: 5 },
   selectedHeading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },

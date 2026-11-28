@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, FlatList, Modal, ScrollView, Pressable,
-  SafeAreaView, StyleSheet, Text, TextInput, View } from 'react-native';
+  StyleSheet, Text, View } from 'react-native';
 import { KeyboardAwareView, KeyboardAwareTextInput } from './KeyboardAware';
 import { getChatChannels, getChannelMessages, markChannelRead,
   sendChannelMessage, getChatMembers, openDirectChat, searchChatMentions,
@@ -10,9 +10,9 @@ import { getRealtimeConfig } from './api';
 import { chatChannelColours } from '../../core/chat-channel-colours';
 import { currentMentionQuery, insertChatMention, usableChatMentions, splitChatMentions } from '../../core/chat-mentions';
 
-type Props = { userId: string; initialChannelId?: string;
+type Props = { userId: string; initialChannelId?: string; bottomTabsVisible?: boolean;
   onOpenAnimal?: (animalId: string) => void; onOpenRescue?: (rescueId: string) => void };
-export default function OrganisationChats({ userId, initialChannelId, onOpenAnimal, onOpenRescue }: Props) {
+export default function OrganisationChats({ userId, initialChannelId, bottomTabsVisible = false, onOpenAnimal, onOpenRescue }: Props) {
   const [channels, setChannels] = useState<ChatChannel[]>([]);
   const [members, setMembers] = useState<ChatMember[]>([]);
   const [directoryMode, setDirectoryMode] = useState<'chats' | 'people'>('chats');
@@ -193,7 +193,7 @@ export default function OrganisationChats({ userId, initialChannelId, onOpenAnim
       .finally(() => setLoading(false));
   };
 
-  return <SafeAreaView style={styles.root}><KeyboardAwareView>
+  return <KeyboardAwareView style={styles.root}>
     {!selected ? <>
       <View style={styles.heading}><Text style={styles.title}>Chats</Text>
         <Text style={styles.subtitle}>Your organisation and care groups</Text>
@@ -222,7 +222,7 @@ export default function OrganisationChats({ userId, initialChannelId, onOpenAnim
       </View>
       {directoryMode === 'chats' ?
         <FlatList data={channels} keyExtractor={item => item.id}
-          contentContainerStyle={styles.channelList}
+          contentContainerStyle={[styles.channelList, bottomTabsVisible && styles.channelListWithTabs]}
           ListEmptyComponent={!loading ? <Text style={styles.subtitle}>No conversations yet. Open People to message a member.</Text> : undefined}
           renderItem={({ item }) => <Pressable accessibilityRole="button"
             accessibilityLabel={item.name + (item.unread ? ', new messages' : '')}
@@ -250,11 +250,11 @@ export default function OrganisationChats({ userId, initialChannelId, onOpenAnim
             {item.unread ? <View style={styles.unread} accessibilityLabel="Unread messages" /> : null}
           </Pressable>} /> :
         <>
-          <TextInput style={styles.search} value={search} onChangeText={setSearch}
+          <KeyboardAwareTextInput style={styles.search} value={search} onChangeText={setSearch}
             placeholder="Search name, role or team" accessibilityLabel="Search members" />
           <Text style={styles.directoryHelp}>Availability reflects rescue schedules. Busy members cannot receive new private messages.</Text>
           <FlatList data={listedMembers} keyExtractor={member => member.id}
-            contentContainerStyle={styles.channelList}
+            contentContainerStyle={[styles.channelList, bottomTabsVisible && styles.channelListWithTabs]}
             ListEmptyComponent={<Text style={styles.subtitle}>No matching members.</Text>}
             renderItem={({ item }) => <Pressable accessibilityRole="button" disabled={busy}
               accessibilityLabel={`${item.name}, ${item.availability.toLowerCase()}, ${item.labels.join(', ')}`}
@@ -336,7 +336,7 @@ export default function OrganisationChats({ userId, initialChannelId, onOpenAnim
             </Pressable> : null}
           </View>;
         }} />
-      <View>
+      <View style={bottomTabsVisible && styles.dockedComposerSpace}>
         {busyRecipient ? <Text style={styles.busyNotice}>This member is busy. Private messages are paused until they are available.</Text> : null}
         {mentionOptions.length > 0 || mentionLoading ? <ScrollView style={styles.mentionSuggestions}
           keyboardShouldPersistTaps="always" nestedScrollEnabled>
@@ -362,7 +362,6 @@ export default function OrganisationChats({ userId, initialChannelId, onOpenAnim
         </View>
       </View>
     </>}
-  </KeyboardAwareView>
   <Modal visible={organisationPickerOpen && organisations.length > 1} transparent
     animationType="fade" onRequestClose={() => setOrganisationPickerOpen(false)}>
     <View style={styles.pickerOverlay}>
@@ -391,7 +390,7 @@ export default function OrganisationChats({ userId, initialChannelId, onOpenAnim
       </View>
     </View>
   </Modal>
-  </SafeAreaView>;
+  </KeyboardAwareView>;
 }
 const styles=StyleSheet.create({
   root:{flex:1,backgroundColor:'#f5f7f5'},heading:{paddingHorizontal:20,paddingTop:14,paddingBottom:10},
@@ -435,6 +434,10 @@ const styles=StyleSheet.create({
   available:{backgroundColor:'#17854c'},busyPresence:{backgroundColor:'#bd7121'},offline:{backgroundColor:'#819088'},
   busyNotice:{backgroundColor:'#fff0d7',color:'#684719',padding:12,fontSize:12},
   channelList:{paddingHorizontal:13,paddingBottom:30},
+  // The directory scrolls behind the translucent dock; the final row can still clear it.
+  channelListWithTabs:{paddingBottom:124},
+  // Only a conversation composer needs layout clearance. Do not shrink the entire directory.
+  dockedComposerSpace:{paddingBottom:94},
   channel:{backgroundColor:'#fff',borderRadius:12,padding:13,flexDirection:'row',alignItems:'center',gap:12,marginBottom:7},
   avatar:{width:45,height:45,backgroundColor:'#dbe9df',borderRadius:23,alignItems:'center',justifyContent:'center'},
   avatarText:{fontSize:19,fontWeight:'800',color:'#24583f'},

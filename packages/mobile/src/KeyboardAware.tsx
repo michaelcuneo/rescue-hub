@@ -3,7 +3,7 @@ import {
   type ComponentRef, type ReactNode
 } from 'react';
 import {
-  Keyboard, KeyboardAvoidingView, Platform, ScrollView, TextInput, View,
+  Keyboard, KeyboardAvoidingView, Platform, ScrollView, TextInput,
   type ScrollViewProps, type StyleProp, type TextInputProps, type ViewStyle
 } from 'react-native';
 import { keyboardOverlap, keyboardScrollDelta } from '../../core/keyboard-geometry';
@@ -13,49 +13,21 @@ type NativeScrollView = ComponentRef<typeof ScrollView>;
 type FocusHandler = (input: NativeTextInput | null) => void;
 const FocusedField = createContext<FocusHandler>(() => {});
 
-const REVEAL_RETRIES_MS = [0, 75, 180, 350] as const;
+const REVEAL_RETRIES_MS = [0, 80, 180, 320, 500, 700] as const;
 const CLEARANCE = 28;
 
 /**
- * Only iOS gets padding avoidance. Android is configured with
- * softwareKeyboardLayoutMode=resize. Applying "padding" on Android *and*
- * adjustResize double offsets part of the view, hiding bottom controls.
+ * On iOS use padding avoidance to keep the focused composer or form above
+ * the keyboard. Android already requests adjustResize in app.json; do not
+ * add a second padding offset on that platform.
  */
 export function KeyboardAwareView({ children, style }: {
   children: ReactNode; style?: StyleProp<ViewStyle>;
 }) {
-  const container = useRef<ComponentRef<typeof View>>(null);
-  const [androidInset, setAndroidInset] = useState(0);
-  const top = useRef<number | null>(null);
-  const checkInset = useCallback(() => {
-    if (Platform.OS !== 'android') return;
-    requestAnimationFrame(() => {
-      container.current?.measureInWindow((_x, y, _w, height) => {
-        setAndroidInset(keyboardOverlap(y + height, top.current));
-      });
-    });
-  }, []);
-  useEffect(() => {
-    if (Platform.OS !== 'android') return;
-    const shown = Keyboard.addListener('keyboardDidShow', event => {
-      top.current = event.endCoordinates.screenY;
-      checkInset();
-    });
-    const hidden = Keyboard.addListener('keyboardDidHide', () => {
-      top.current = null;
-      setAndroidInset(0);
-    });
-    return () => { shown.remove(); hidden.remove(); };
-  }, [checkInset]);
-  return <View ref={container} onLayout={checkInset}
+  return <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     style={[{ flex: 1, minHeight: 0 }, style]}>
-    <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      style={[{ flex: 1, minHeight: 0 },
-        Platform.OS === 'android' && androidInset > 0 ? { paddingBottom: androidInset } : null]}>
-      {children}
-    </KeyboardAvoidingView>
-  </View>;
+    {children}
+  </KeyboardAvoidingView>;
 }
 
 /**
@@ -90,8 +62,8 @@ export function KeyboardAwareScrollView({ children, style, contentContainerStyle
         if (token !== generation.current || focused.current !== input) return;
         const viewportBottom = viewportTop + viewportHeight;
         const overlap = keyboardOverlap(viewportBottom, keyboardTop.current);
-        // When Android overlays the viewport rather than resizing it, content
-        // needs additional space so the final input can physically scroll up.
+        // Allow enough trailing content to reveal the final input even when
+        // the viewport has not yet finished adjusting to the iOS keyboard.
         setBottomSpace(Math.max(96, overlap + 68));
         const delta = keyboardScrollDelta({
           viewportTop, viewportBottom, fieldTop: inputTop,
@@ -110,6 +82,9 @@ export function KeyboardAwareScrollView({ children, style, contentContainerStyle
   const queueReveal = useCallback((input: NativeTextInput | null) => {
     if (input) focused.current = input;
     if (!focused.current) return;
+    // Switching fields may not fire another keyboard-show event.
+    const metrics = Keyboard.metrics();
+    if (metrics) keyboardTop.current = metrics.screenY;
     stopRetries();
     const token = generation.current;
     for (const delay of REVEAL_RETRIES_MS) {
@@ -131,7 +106,11 @@ export function KeyboardAwareScrollView({ children, style, contentContainerStyle
     const subscriptions = [
       Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow', updateKeyboard),
       Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide', hideKeyboard),
-      ...(Platform.OS === 'ios' ? [Keyboard.addListener('keyboardWillChangeFrame', updateKeyboard)] : [])
+      ...(Platform.OS === 'ios' ? [
+        Keyboard.addListener('keyboardDidShow', updateKeyboard),
+        Keyboard.addListener('keyboardWillChangeFrame', updateKeyboard),
+        Keyboard.addListener('keyboardDidChangeFrame', updateKeyboard)
+      ] : [])
     ];
     // Focus can happen while the keyboard is already visible (e.g. switching
     // between the many schedule fields). No extra show event is required.
@@ -152,8 +131,8 @@ export function KeyboardAwareScrollView({ children, style, contentContainerStyle
           scrollY.current = event.nativeEvent.contentOffset.y;
           onScroll?.(event);
         }}
-        onLayout={() => queueReveal(null)}
-        onContentSizeChange={() => queueReveal(null)}>
+        onLayout={() => { if (keyboardTop.current !== null) queueReveal(null); }}
+        onContentSizeChange={() => { if (keyboardTop.current !== null) queueReveal(null); }}>
         {children}
       </ScrollView>
     </KeyboardAwareView>

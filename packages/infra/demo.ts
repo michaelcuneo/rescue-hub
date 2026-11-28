@@ -305,3 +305,35 @@ if (STORY_SEED_STAGES.has($app.stage)) {
     });
   });
 }
+
+
+// Public demonstration identity is provisioned only in the public demo stage.
+// This account has no password and can be entered only through the stage-gated
+// server-side demo action. Hooks prevent it from submitting mutations.
+if ($app.stage === "demo") {
+  const id = "demo-hunter-public-reviewer";
+  const name = "Public Demo";
+  const email = "public-reviewer@demo.rescuehub.example";
+  const roles = ["ORG_ADMIN", "DISPATCHER"];
+  put("DemoPublicReviewerProfile", {
+    pk: S(`USER#${id}`), sk: S("PROFILE"), entity: S("user"),
+    id: S(id), name: S(name), email: S(email),
+    enabled: B(true), status: S("ACTIVE"), emailVerified: B(true),
+    authEpoch: N(0), organisationId: S(HUNTER_ORG),
+    roles: L(roles), teamIds: L([]), canTransport: B(false),
+    availabilityStatus: S("OFFLINE"), demo: B(true),
+    createdAt: S("2026-11-28T00:00:00.000Z"),
+    updatedAt: S("2026-11-28T00:00:00.000Z"),
+    gsi1pk: S(`ORG#${HUNTER_ORG}#USERS`),
+    gsi1sk: S(`public demo#${id}`),
+    gsi2pk: S("USERS"), gsi2sk: S(`public demo#${id}`)
+  });
+  put("DemoPublicReviewerMembership", {
+    pk: S(`USER#${id}`), sk: S("MEMBERSHIP"), entity: S("membership"),
+    userId: S(id), organisationId: S(HUNTER_ORG),
+    roles: L(roles), teamIds: L([]), canTransport: B(false),
+    availabilityStatus: S("OFFLINE"), status: S("ACTIVE"), demo: B(true),
+    createdAt: S("2026-11-28T00:00:00.000Z"),
+    updatedAt: S("2026-11-28T00:00:00.000Z")
+  });
+}

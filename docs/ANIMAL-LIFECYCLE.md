@@ -21,6 +21,14 @@ A rescue response ending is **not** the same as an animal record ending. Droppin
 7. Outcome: explicitly record release (including release location/date), euthanasia (with appropriate authorisation/performer), natural death, or other approved final disposition. Do not infer final outcome from a transport or handover.
 8. Oversight: organisations and authorised governing bodies can reconstruct the full history and identify animals currently in care, their current custodians, outstanding handovers, overdue reviews and final outcomes.
 
+## Qualified-only mobile field worklist (22 November 2026)
+
+The **Expo Rescues Map and List** are a self-claim worklist, not the organisation's full dispatch register. For a new ordinary rescue to appear, the active volunteer must have the `RESCUER` role and an active, matching species-capability team. An explicit `canTransport: true` permission independently allows the volunteer to see unlocked transport pickup jobs, without requiring species-specific rescue training. A transport job waiting for a carer reservation remains hidden until unlocked.
+
+A volunteer may continue to see an incident already assigned to them, or one for which they currently have animal custody, even when training, role, availability or current physical location changes. This is necessary for continuity of care and recorded history. Being off duty does not erase qualified opportunities from browsing, but **claims and notifications still require effective availability**.
+
+`ORG_ADMIN`, `DISPATCHER`, `AUTHORITY_ADMIN` and `PLATFORM_ADMIN` do not provide a broad visibility override on the mobile field worklist; administrative operational oversight belongs to the separately authorised desktop portal. When such users also have real rescuer or transport permissions, their mobile offers follow those permissions. Client display is filtered as a secondary safeguard; the authenticated server must enforce organisation, qualification, transport, ownership and custody boundaries.
+
 ## Telephone updates, veterinary callback and transport queue (11 November 2026)
 
 **Telephone notes belong to the permanent animal history.** Dispatch/coordinators record the caller's name and role (vet, rescuer, carer or public reporter), their unverified statement, recording user and timestamp, and an optional callback number **only with explicit permission**. The caller does not need a Rescue Hub account. Telephone notes are not automatically treated as clinical findings.
