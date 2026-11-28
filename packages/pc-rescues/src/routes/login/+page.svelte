@@ -1,6 +1,6 @@
 <script lang="ts">
-	import type { ActionData, PageData } from './$types';
-	let { form, data }: { form?: ActionData; data: PageData } = $props();
+	import type { ActionData } from './$types';
+	let { form }: { form?: ActionData } = $props();
 </script>
 
 <svelte:head><title>Sign in — Rescue Hub</title></svelte:head>
@@ -16,7 +16,6 @@
 			<button type="submit">Sign in</button>
 		</form>
 		<div class="links"><a href="/reset">Forgot password?</a></div>
-        {#if data.publicDemoEnabled}
           <div class="demo-access">
             <div class="divider"><span>OR</span></div>
             <form method="POST" action="?/demo">
@@ -24,7 +23,6 @@
             </form>
             <p>Explore fictional rescue cases, maps and dispatch operations. No invitation or account required. Read-only access.</p>
           </div>
-        {/if}
 	</section>
 </main>
 
