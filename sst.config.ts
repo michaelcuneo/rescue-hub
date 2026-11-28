@@ -45,6 +45,7 @@ export default $config({
         RESCUE_HUB_SES_CONFIGURATION_SET: invitationEmailConfigurationSetName,
         // Trusted website origin for single-use organisation invitation links.
         RESCUE_HUB_PUBLIC_ORIGIN: publicOrigin,
+        RESCUE_HUB_PUBLIC_DEMO_ENABLED: $app.stage === "demo" ? "true" : "false",
         ...(publicOrigin ? { ORIGIN: new URL(publicOrigin).origin } : {}),
         // Server-side OAuth credentials; these are never PUBLIC_ variables.
         GOOGLE_OAUTH_CLIENT_ID: process.env.GOOGLE_OAUTH_CLIENT_ID ?? "",
